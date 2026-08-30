@@ -168,6 +168,7 @@ class SummaryView:
     acquisition_count: int
     disposal_count: int
     disposal_proceeds: Decimal
+    allowable_costs: Decimal
     total_gain: Decimal
     total_loss: Decimal
     gift_loss: Decimal
@@ -561,6 +562,7 @@ def build_report_view(report: CapitalGainsReport) -> ReportView:
             acquisition_count=totals.acquisitions,
             disposal_count=totals.disposals,
             disposal_proceeds=report.disposal_proceeds,
+            allowable_costs=report.allowable_costs,
             total_gain=totals.total_gain,
             total_loss=totals.total_loss,
             gift_loss=totals.gift_loss,
