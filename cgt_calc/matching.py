@@ -223,18 +223,25 @@ class Matcher:
         bnb_acquisition = HmrcTransactionData()
         bed_and_breakfast_fees = Decimal(0)
 
-        if acquisition.quantity > 0 and has_key(self.run.bnb_list, date_index, symbol):
+        # What an earlier disposal took under the 30-day rule has to leave the
+        # pool at the price it was given, and it was identified against the
+        # day's genuine acquisitions alone. Priced over everything the day
+        # brought in, a day that also received shares by reorganisation would
+        # hand the disposal one figure and take a smaller one out of the pool,
+        # leaving the difference to be relieved a second time.
+        identifiable = self._identifiable_acquisition(date_index, symbol)
+        if identifiable.quantity > 0 and has_key(self.run.bnb_list, date_index, symbol):
             bnb_acquisition = self.run.bnb_list[date_index][symbol]
-            assert bnb_acquisition.quantity <= acquisition.quantity
+            assert bnb_acquisition.quantity <= identifiable.quantity
             # Multiply by the B&B quantity before dividing to avoid rounding errors from division
             bnb_cost_basis = normalize_amount(
-                (bnb_acquisition.quantity * acquisition_amount) / acquisition.quantity
+                (bnb_acquisition.quantity * identifiable.amount) / identifiable.quantity
             )
             modified_amount -= bnb_cost_basis
             modified_amount += bnb_acquisition.amount
             assert modified_amount > 0
             bed_and_breakfast_fees = (
-                acquisition.fees * bnb_acquisition.quantity / acquisition.quantity
+                identifiable.fees * bnb_acquisition.quantity / identifiable.quantity
             )
             calculation_entries.append(
                 CalculationEntry(
@@ -338,15 +345,16 @@ class Matcher:
 
     def _match_same_day(self, ctx: DisposalContext) -> None:
         """Identify the disposal against the same day's acquisitions."""
-        # Same day rule is first, against the day's real purchases only. Shares
-        # from a split are not an acquisition (TCGA 1992 s127, CG51805) and cost
-        # nothing, so matching them would hand the disposal a nil allowable cost
-        # and, on a day that also has a purchase, spread that purchase's cost
-        # over the free shares as well.
+        # Same day rule is first, against the day's real purchases only. What a
+        # reorganisation brought in is not an acquisition (TCGA 1992 s127,
+        # CG51805), so matching it would spread the day's purchase cost over
+        # shares that were never bought, and price the sale at the average of
+        # the two. What those shares cost reaches a disposal through the
+        # Section 104 pool instead (see _identifiable_acquisition).
         # The day's purchases are one acquisition of this holding (TCGA 1992
         # s105(1)(a)) whichever of its names today's rows spell them under.
         acquired_under = ctx.identity.acquired_under
-        same_day_acquisition = self._matchable_acquisition(
+        same_day_acquisition = self._identifiable_acquisition(
             ctx.date_index, acquired_under
         )
         if same_day_acquisition.quantity > 0:
@@ -477,7 +485,7 @@ class Matcher:
                 eri = self.get_eri(effective_symbol, search_index)
                 if eri:
                     eris.append(eri)
-                acquisition = self._matchable_acquisition(
+                acquisition = self._identifiable_acquisition(
                     search_index, effective_symbol
                 )
                 if acquisition.quantity > 0:
@@ -506,36 +514,6 @@ class Matcher:
                         == 0
                     ):
                         continue
-                    if any(
-                        spin_off.dest == effective_symbol
-                        for spin_off in self.history.spin_offs.get(search_index, [])
-                    ):
-                        # What those shares cost is a share of the source's pool
-                        # on the day of the spin-off, and the walk has not
-                        # reached that day. The only figure to hand is the
-                        # first-pass estimate, and that is wrong after any
-                        # profitable sale, so refuse rather than use it.
-                        raise CalculationError(
-                            f"Cannot compute the disposal of {ctx.symbol} on "
-                            f"{ctx.date_index}: a spin-off added {effective_symbol} "
-                            f"shares on {search_index}, within the following 30 "
-                            "days, and the bed and breakfast rule would identify "
-                            "this disposal against them. What they cost is a "
-                            "share of the source holding's pool on the day of the "
-                            "spin-off, which is not settled until that day, so "
-                            "this tool cannot say what they cost here.\n"
-                            "What to do: run again with this one disposal left "
-                            "out. That run still applies the spin-off to both "
-                            "holdings and shows what the spun-off shares cost, "
-                            f"as the {effective_symbol} acquisition on "
-                            f"{search_index}. Identify this disposal against them "
-                            "at that cost by hand (consider professional advice). "
-                            f"Any later {effective_symbol} figures in that run "
-                            "still include the shares disposed of here, so check "
-                            "those by hand as well. Do not leave the symbol or "
-                            "the spin-off row out: the spin-off also reduces the "
-                            "source holding's cost."
-                        )
                     # Bed and breakfasting is a record of how the disposal was
                     # matched rather than a problem. Surface it for the computed
                     # tax year; the rest of the history walk logs it at DEBUG.
@@ -1434,7 +1412,7 @@ class Matcher:
         date_index: datetime.date,
         symbol: str,
     ) -> HmrcTransactionData:
-        """Return the acquisitions a disposal could be identified with.
+        """Return all of a day's additions to a holding, spin-off cost corrected.
 
         Units a reorganisation restated in place are not here to be taken out:
         they were never acquired (TCGA 1992 s127, CG51805), so they never
@@ -1452,6 +1430,34 @@ class Matcher:
         if corrected is not None:
             return replace(acquisition, amount=corrected)
         return acquisition
+
+    def _identifiable_acquisition(
+        self,
+        date_index: datetime.date,
+        symbol: str,
+    ) -> HmrcTransactionData:
+        """Return the part of a day a disposal may be identified against.
+
+        The same-day rule reads a day's acquisitions as one transaction
+        (TCGA 1992 s105(1)(a)), and the 30-day rule reaches acquisitions made
+        in the days after a disposal. Shares a reorganisation brings in are
+        neither: it is "not to be treated as involving ... any acquisition of
+        the new holding or any part of it" (TCGA 1992 s127), and CG51560 says
+        of a disposal followed by such a reorganisation that "the additional
+        shares are not treated as acquired within the 30 days following the
+        disposal". So they are left out here, and reach a later disposal
+        through the Section 104 pool instead, which is where s127 puts them.
+
+        A management fee is not an acquisition either, and is still counted
+        here. Leaving it out would change what an unrelated purchase costs on
+        a day it was charged, which is its own fix (see issue 1121).
+        """
+        if not has_key(self.history.acquisition_list, date_index, symbol):
+            return HmrcTransactionData()
+        record = self.history.acquisition_list[date_index][symbol]
+        # No spin-off correction is wanted: what a purchase cost is what its
+        # own row said, settled when it was read.
+        return record.purchased + record.cost_only
 
     def _contending_acquisitions(
         self,
@@ -1474,13 +1480,14 @@ class Matcher:
         def has_shares_going_spare(
             day: datetime.date, ticker: str, *, is_disposal_day: bool
         ) -> bool:
-            # Only what is left over is worth arguing about. Shares from a
-            # split are already excluded, and a management fee is recorded as
-            # cost with no shares at all. Shares that cost nothing are still
-            # worth arguing over: whichever disposal is identified against
-            # them takes a nil allowable cost, and the other one takes a
-            # share of the pool instead.
-            acquisition = self._matchable_acquisition(day, ticker)
+            # Only what is left over is worth arguing about, and only what
+            # either of them could be identified against at all: shares a
+            # reorganisation brought in are not there for either to claim, and
+            # a management fee brings in no shares. Shares that cost nothing are
+            # still worth arguing over: whichever disposal is identified
+            # against them takes a nil allowable cost, and the other one takes
+            # a share of the pool instead.
+            acquisition = self._identifiable_acquisition(day, ticker)
             if acquisition.quantity <= 0:
                 return False
             # Claims an earlier disposal already made are settled and leave

@@ -20,9 +20,11 @@ because not every award export or transaction type is supported.
 For supported transactions, the tool converts prices to **GBP** and applies the UK **same-day**,
 **30-day ("bed and breakfast")**, and **Section 104 holding** rules. These match a sale with shares
 bought or received on the same day, shares bought or received within the following 30 days, then
-older shares. It shows **Disposal proceeds** (the sale price or value used when no sale took place),
-**Allowable costs** (costs included in the gain or loss calculation), gains, losses, dividends, and
-interest in the terminal and writes the full calculation to a **PDF report**.
+older shares. Shares that arrive through a company reorganisation, such as a spin-off, are not
+matched this way: they join your Section 104 holding at their share of the original cost. It shows
+**Disposal proceeds** (the sale price or value used when no sale took place), **Allowable costs**
+(costs included in the gain or loss calculation), gains, losses, dividends, and interest in the
+terminal and writes the full calculation to a **PDF report**.
 
 cgt-calc reports the net gain from the transactions you supply and, for supported tax years,
 estimates the amount left after the annual tax-free allowance for capital gains (the **annual exempt

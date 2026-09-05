@@ -25,9 +25,11 @@ from cgt_calc.model import (
     BrokerTransaction,
     CapitalGainsReport,
     CurrencyCode,
+    RuleType,
 )
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.spin_off_handler import SpinOffHandler
+from cgt_calc.util import round_decimal
 
 from .calc_test_data import GBP, USD, transaction, transfer_to_spouse_transaction
 from .test_calc import get_report
@@ -35,12 +37,20 @@ from .test_calc import get_report
 BUY_DAY = datetime.date(2024, 6, 1)
 SALE_DAY = datetime.date(2024, 6, 10)
 SPIN_OFF_DAY = datetime.date(2024, 7, 5)
+# Inside the 30 days before the spin-off, so the 30-day rule reaches its day.
+EARLY_SALE_DAY = datetime.date(2024, 6, 25)
 LATER = datetime.date(2024, 9, 1)
 
 # FOO at £90 and BAR at £10 on the day, with as many BAR as FOO units, puts a
 # tenth of the market value in BAR, so a tenth of the cost goes with it.
 PRICES = {"FOO": {SPIN_OFF_DAY: Decimal(90)}, "BAR": {SPIN_OFF_DAY: Decimal(10)}}
 FLAT = Decimal(1)
+
+
+def _holding(report: CapitalGainsReport, symbol: str) -> tuple[Decimal, Decimal]:
+    """Return the units and pooled cost the report closes with."""
+    (entry,) = (item for item in report.portfolio if item.symbol == symbol)
+    return entry.quantity, round_decimal(entry.amount, 2)
 
 
 def spin_off(
@@ -256,11 +266,17 @@ def test_a_purchase_of_the_new_holding_on_the_day_keeps_its_cost() -> None:
 
 
 def test_selling_the_new_holding_on_the_day_uses_the_corrected_cost() -> None:
-    """A same-day sale of BAR is identified against the corrected acquisition.
+    """A sale on the spin-off day draws on the pool at the corrected cost.
 
     Half of FOO sold at a profit first, so the first pass estimated nothing
     for BAR while the real share is 5. The day's acquisitions are walked
     before its disposals, so the sale must see the 5, not the estimate.
+
+    The spin-off is not an acquisition, so the same-day rule passes it over
+    and the sale takes its Section 104 cost. Here the pool holds nothing but
+    the spun-off shares, so the £5 the sale is given is the whole corrected
+    figure either way; the rule it is matched under is pinned so that a
+    change of route shows up as a change of route.
     """
     _, report = spin_off(
         [
@@ -272,43 +288,187 @@ def test_selling_the_new_holding_on_the_day_uses_the_corrected_cost() -> None:
         after=[transaction(SPIN_OFF_DAY, ActionType.SELL, "BAR", 5, 10, 0, 50, GBP)],
     )
 
-    same_day_sale = report.calculation_log[SPIN_OFF_DAY]["sell$BAR"]
-    assert sum((e.allowable_cost for e in same_day_sale), Decimal(0)) == Decimal(5)
+    (entry,) = report.calculation_log[SPIN_OFF_DAY]["sell$BAR"]
+    assert entry.rule_type is RuleType.SECTION_104
+    assert entry.allowable_cost == Decimal(5)
 
 
-def test_selling_the_new_holding_just_before_the_spin_off_is_refused() -> None:
-    """A sale the B&B rule would match to unpriced spin-off shares is refused.
+def test_selling_the_new_holding_just_before_the_spin_off_uses_its_own_pool() -> None:
+    """A sale shortly before a spin-off is not identified against its shares.
 
     BAR was already held and sold ten days before more arrived by spin-off.
-    Their cost is a share of FOO's pool on the spin-off day, which the walk
-    has not reached, and the first-pass figure is £0 here because FOO was
-    sold at a profit first. There is no right number to use, so say so.
+    Those shares were not acquired: a reorganisation is "not to be treated as
+    involving ... any acquisition of the new holding" (TCGA 1992 s127), and
+    CG51560 says the additional shares are "not treated as acquired within the
+    30 days following the disposal". So the 30-day rule passes them over and
+    the sale takes its own Section 104 cost, which needs nothing from the
+    spin-off day.
     """
-    with pytest.raises(CalculationError, match="run again with this one disposal"):
-        spin_off(
-            [
-                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
-                transaction(BUY_DAY, ActionType.BUY, "BAR", 2, 1, 0, -2, GBP),
-                transaction(SALE_DAY, ActionType.SELL, "FOO", 5, 20, 0, 100, GBP),
-                transaction(
-                    datetime.date(2024, 6, 25),
-                    ActionType.SELL,
-                    "BAR",
-                    2,
-                    3,
-                    0,
-                    6,
-                    GBP,
-                ),
-            ],
-            5,
-            {
-                BUY_DAY: {GBP: FLAT},
-                SALE_DAY: {GBP: FLAT},
-                datetime.date(2024, 6, 25): {GBP: FLAT},
-                SPIN_OFF_DAY: {GBP: FLAT},
-            },
-        )
+    _, report = spin_off(
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(BUY_DAY, ActionType.BUY, "BAR", 2, 1, 0, -2, GBP),
+            transaction(SALE_DAY, ActionType.SELL, "FOO", 5, 20, 0, 100, GBP),
+            transaction(EARLY_SALE_DAY, ActionType.SELL, "BAR", 2, 3, 0, 6, GBP),
+        ],
+        5,
+        {
+            BUY_DAY: {GBP: FLAT},
+            SALE_DAY: {GBP: FLAT},
+            EARLY_SALE_DAY: {GBP: FLAT},
+            SPIN_OFF_DAY: {GBP: FLAT},
+        },
+    )
+
+    (entry,) = report.calculation_log[EARLY_SALE_DAY]["sell$BAR"]
+    assert entry.rule_type is RuleType.SECTION_104
+    assert entry.allowable_cost == Decimal(2)
+
+
+def test_a_spin_off_on_the_disposal_day_is_not_a_same_day_acquisition() -> None:
+    """The day's only arrival is a reorganisation, so nothing is acquired.
+
+    A reorganisation is "not to be treated as involving ... any acquisition of
+    the new holding" (TCGA 1992 s127), and the same-day rule reads a day's
+    acquisitions as one transaction (s105(1)(a)). With none, the sale takes
+    its Section 104 cost from a pool the spin-off has already joined: 2 units
+    costing £10 plus the 10 that carried £10 across, so £20 over 12 units.
+    """
+    _, report = spin_off(
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(BUY_DAY, ActionType.BUY, "BAR", 2, 5, 0, -10, GBP),
+        ],
+        10,
+        {BUY_DAY: {GBP: FLAT}, SPIN_OFF_DAY: {GBP: FLAT}},
+        after=[transaction(SPIN_OFF_DAY, ActionType.SELL, "BAR", 2, 20, 0, 40, GBP)],
+    )
+
+    (entry,) = report.calculation_log[SPIN_OFF_DAY]["sell$BAR"]
+    assert entry.rule_type is RuleType.SECTION_104
+    assert entry.allowable_cost == round_decimal(Decimal(20) * 2 / 12, 10)
+    # What the spin-off carried in is not stranded: the pool keeps the rest.
+    assert _holding(report, "BAR") == (
+        Decimal(10),
+        round_decimal(Decimal(20) * 10 / 12, 2),
+    )
+
+
+def test_a_purchase_beside_a_spin_off_prices_a_same_day_sale_on_its_own() -> None:
+    """The five bought are the day's acquisition; the ten spun in are not.
+
+    Blending them priced the sale at £60 over 15 units. The day's acquisition
+    is the £50 paid for five shares, and the sale of five takes all of it.
+    """
+    _, report = spin_off(
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAR", 5, 10, 0, -50, GBP),
+        ],
+        10,
+        {BUY_DAY: {GBP: FLAT}, SPIN_OFF_DAY: {GBP: FLAT}},
+        after=[transaction(SPIN_OFF_DAY, ActionType.SELL, "BAR", 5, 10, 0, 50, GBP)],
+    )
+
+    (entry,) = report.calculation_log[SPIN_OFF_DAY]["sell$BAR"]
+    assert entry.rule_type is RuleType.SAME_DAY
+    assert entry.allowable_cost == Decimal(50)
+    assert report.total_gain() == Decimal(0)
+    # Only the spin-off's own £10 is left behind for the ten shares still held.
+    assert _holding(report, "BAR") == (Decimal(10), Decimal(10))
+
+
+def test_a_purchase_inside_the_30_days_is_matched_and_a_spin_off_beside_it_is_not() -> (
+    None
+):
+    """Only the purchase is a re-acquisition; the spin-off beside it is not.
+
+    The two sold are identified against two of the five bought, at the £10
+    each they cost, and the pool has to give up exactly that. Priced over
+    everything the day brought in it would give up £8, and the £12 left over
+    would be relieved again on a later sale.
+    """
+    _, report = spin_off(
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(BUY_DAY, ActionType.BUY, "BAR", 2, 5, 0, -10, GBP),
+            transaction(EARLY_SALE_DAY, ActionType.SELL, "BAR", 2, 20, 0, 40, GBP),
+            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAR", 5, 10, 0, -50, GBP),
+        ],
+        10,
+        {
+            BUY_DAY: {GBP: FLAT},
+            EARLY_SALE_DAY: {GBP: FLAT},
+            SPIN_OFF_DAY: {GBP: FLAT},
+        },
+    )
+
+    (entry,) = report.calculation_log[EARLY_SALE_DAY]["sell$BAR"]
+    assert entry.rule_type is RuleType.BED_AND_BREAKFAST
+    assert entry.allowable_cost == Decimal(20)
+    # £10 + £50 + £10 of cost went in and £20 was relieved, so £50 remains.
+    assert _holding(report, "BAR") == (Decimal(15), Decimal(50))
+
+
+def test_a_later_day_s_own_sale_reserves_only_what_that_day_bought() -> None:
+    """A day's sale of more than it bought leaves the earlier one nothing.
+
+    The spin-off day buys two and sells five. The same-day rule takes those
+    two first, so there is nothing left for the earlier sale to be identified
+    against, and counting the ten spun in as available would hand it shares
+    that were never acquired.
+    """
+    _, report = spin_off(
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(BUY_DAY, ActionType.BUY, "BAR", 4, 5, 0, -20, GBP),
+            transaction(EARLY_SALE_DAY, ActionType.SELL, "BAR", 2, 20, 0, 40, GBP),
+            transaction(SPIN_OFF_DAY, ActionType.BUY, "BAR", 2, 15, 0, -30, GBP),
+        ],
+        10,
+        {
+            BUY_DAY: {GBP: FLAT},
+            EARLY_SALE_DAY: {GBP: FLAT},
+            SPIN_OFF_DAY: {GBP: FLAT},
+        },
+        after=[transaction(SPIN_OFF_DAY, ActionType.SELL, "BAR", 5, 12, 0, 60, GBP)],
+    )
+
+    (entry,) = report.calculation_log[EARLY_SALE_DAY]["sell$BAR"]
+    assert entry.rule_type is RuleType.SECTION_104
+    assert entry.allowable_cost == Decimal(10)
+
+
+def test_a_sale_and_a_transfer_on_a_spin_off_day_do_not_contend() -> None:
+    """Neither can be identified against the day's spin-off, so neither wins.
+
+    A sale and a transfer to a spouse on one day are refused when both could
+    be identified against the same acquisition, because HMRC does not say
+    which one gets it. Shares a reorganisation brought in are not an
+    acquisition either of them can reach, so both simply draw on the pool at
+    the same average and the order between them changes nothing.
+    """
+    _, report = spin_off(
+        [
+            transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(BUY_DAY, ActionType.BUY, "BAR", 4, 5, 0, -20, GBP),
+        ],
+        10,
+        {BUY_DAY: {GBP: FLAT}, SPIN_OFF_DAY: {GBP: FLAT}},
+        after=[
+            transaction(SPIN_OFF_DAY, ActionType.SELL, "BAR", 2, 20, 0, 40, GBP),
+            transfer_to_spouse_transaction(SPIN_OFF_DAY, "BAR", 2),
+        ],
+    )
+
+    # 4 units costing £20 plus the 10 the spin-off carried £10 into: £30 over
+    # 14 units, and each of the two takes two units of it.
+    pooled = round_decimal(Decimal(30) * 2 / 14, 10)
+    (sale,) = report.calculation_log[SPIN_OFF_DAY]["sell$BAR"]
+    (transfer,) = report.calculation_log[SPIN_OFF_DAY]["transfer-to-spouse$BAR"]
+    assert sale.rule_type is RuleType.SECTION_104
+    assert sale.allowable_cost == pooled
+    assert transfer.allowable_cost == pooled
 
 
 def test_a_spin_off_before_the_period_is_applied_but_not_reported() -> None:
