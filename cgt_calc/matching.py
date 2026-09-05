@@ -27,6 +27,7 @@ from .model import (
     RuleType,
     SpinOff,
 )
+from .rename_planning import end_name
 from .stock_splits import (
     StockSplitDetail,
     StockSplitEvent,
@@ -173,10 +174,15 @@ class Matcher:
             # across brokers, are one reorganisation: the split of value is by
             # the whole of what was received, and the source gives up its
             # share once. Rows from different sources stay separate events,
-            # taken in the order they happened.
+            # taken in the order they happened. Which source a row names is
+            # the holding it names, not the spelling: a rename between two
+            # rows of one event leaves them under two names, and apportioning
+            # each on its own takes a second share of a pool the first has
+            # already reduced.
+            renames = self.history.rename_list.get(date_index, {})
             events: dict[str, list[SpinOff]] = {}
             for row in spin_offs_here:
-                events.setdefault(row.source, []).append(row)
+                events.setdefault(end_name(renames, row.source), []).append(row)
             for source_symbol, rows in events.items():
                 first = rows[0]
                 source = self.run.portfolio[
@@ -308,6 +314,11 @@ class Matcher:
         # that pool into the one the holding ends the day under, which they
         # have by the time a transfer to a spouse is recorded.
         cost_holder = identity.pool_name if no_gain_no_loss else identity.acquired_under
+        if not no_gain_no_loss:
+            # For the same reason, a transfer to a spouse needs nothing
+            # gathering: the day's renames have already put the whole holding
+            # under one name by the time it is recorded.
+            self._pool_todays_reorganisations(identity, date_index)
         pool = self.run.portfolio[identity.pool_name]
         ctx = DisposalContext(
             symbol=symbol,
@@ -342,6 +353,36 @@ class Matcher:
         )
         ctx.chargeable_gain = round_decimal(ctx.chargeable_gain, 2)
         return ctx.chargeable_gain, ctx.calculation_entries
+
+    def _pool_todays_reorganisations(
+        self, identity: DayIdentity, date_index: datetime.date
+    ) -> None:
+        """Put shares today's reorganisations created into the holding's pool.
+
+        A spin-off's new shares go under the ticker its own row spelled, and a
+        rename that day need not leave the holding under that ticker. They are
+        pool shares rather than an acquisition (TCGA 1992 s127), and the
+        rename says the two tickers are one security, so a disposal today is
+        priced against them. The day's renames would bring them together, but
+        only once the day's disposals have priced themselves, so they are
+        brought in here instead. Without this the pool a disposal reads is
+        short of them, and where the day opened holding none it is empty.
+
+        What the day bought stays under the name its row put it under, so the
+        same-day rule can still identify a disposal against it (see
+        `_match_same_day`).
+        """
+        for name in sorted(identity.names - {identity.pool_name}):
+            matchable = self._matchable_acquisition(date_index, name)
+            identifiable = self._identifiable_acquisition(date_index, name)
+            reorganised = Position(
+                matchable.quantity - identifiable.quantity,
+                matchable.amount - identifiable.amount,
+            )
+            if not reorganised.quantity and not reorganised.amount:
+                continue
+            self.run.portfolio[name] -= reorganised
+            self.run.portfolio[identity.pool_name] += reorganised
 
     def _match_same_day(self, ctx: DisposalContext) -> None:
         """Identify the disposal against the same day's acquisitions."""
@@ -1237,51 +1278,17 @@ class Matcher:
         already put them in its pool.
         """
         renames = self.history.rename_list.get(date_index, {})
-        # Follow the day's renames back from the source, a holding renamed
-        # twice in a morning being two hops from its pool. Only renames on
-        # this chain matter; what happened to other symbols that day does not.
-        names = [source]
-        frontier = [source]
-        while frontier:
-            current = frontier.pop()
-            for old, new in renames.items():
-                if new != current:
-                    continue
-                if old in names:
-                    raise CalculationError(
-                        f"Cannot compute the spin-off of {dest} from {source} on "
-                        f"{date_index}: the day's renames go round in a circle "
-                        f"({' -> '.join([*names, old])}), so there is no telling "
-                        f"where the pool is. Work {source} and {dest} out by "
-                        "hand (consider professional advice)."
-                    )
-                names.append(old)
-                frontier.append(old)
-        # The pool sits under whichever of these names holds anything here,
-        # since the day's renames are applied after its acquisitions. Cost
-        # with no shares counts: a fee charged after a holding was sold out
-        # leaves exactly that, and the rename merges it in all the same. Two
-        # of them means two holdings became one that day, and whether the
-        # spin-off applied to both or to one cannot be told from the input.
-        holding = sorted(
-            name
-            for name in names
-            if name in self.run.portfolio
-            and (
-                self.run.portfolio[name].quantity > 0
-                or self.run.portfolio[name].amount != 0
-            )
-        )
-        if len(holding) > 1:
-            raise CalculationError(
-                f"Cannot compute the spin-off of {dest} from {source} on "
-                f"{date_index}: {' and '.join(holding)} were separate holdings "
-                "until renamed into one that day, and whether the spin-off "
-                "applied to both or just one cannot be told from the input. "
-                f"Work {source} and {dest} out by hand (consider professional "
-                "advice)."
-            )
-        pool = holding[0] if holding else source
+        # Every ticker the day's renames say is this holding. A rename changes
+        # what the shares are called and nothing else, so a row under either
+        # spelling is a row of the same holding, and one recorded under the
+        # name the day ends with counts here as much as one under the name it
+        # started under. Walking only one way lets a sale under the other
+        # spelling pass unseen, and the day is then worked out as though the
+        # sale had come after the reorganisation.
+        names = [
+            source,
+            *(other for other, _ in self._renames_reaching(source, renames)),
+        ]
         activity = []
         for name in names:
             if (
@@ -1306,7 +1313,34 @@ class Matcher:
                 f"Work {source} and {dest} out by hand for this period (consider "
                 "professional advice). Do not change the dates."
             )
-        return pool
+        # The pool sits under whichever of these names holds anything here,
+        # since the day's renames are applied after its acquisitions. Cost
+        # with no shares counts: a fee charged after a holding was sold out
+        # leaves exactly that, and the rename merges it in all the same. Two
+        # of them means two holdings became one that day, and whether the
+        # spin-off applied to both or to one cannot be told from the input.
+        # Asked after the day's own rows, so that a purchase or a fee under
+        # the day's other name is reported as the trade it is rather than as
+        # a second holding.
+        holding = sorted(
+            name
+            for name in names
+            if name in self.run.portfolio
+            and (
+                self.run.portfolio[name].quantity > 0
+                or self.run.portfolio[name].amount != 0
+            )
+        )
+        if len(holding) > 1:
+            raise CalculationError(
+                f"Cannot compute the spin-off of {dest} from {source} on "
+                f"{date_index}: {' and '.join(holding)} were separate holdings "
+                "until renamed into one that day, and whether the spin-off "
+                "applied to both or just one cannot be told from the input. "
+                f"Work {source} and {dest} out by hand (consider professional "
+                "advice)."
+            )
+        return holding[0] if holding else source
 
     def _acquisition_order(self, date_index: datetime.date) -> list[str]:
         """Return the day's acquired symbols, each spun-off holding after its source.
@@ -1320,21 +1354,38 @@ class Matcher:
         spun off from the same source take their shares one after another, so
         among themselves they keep the order the spin-offs happened in, which
         is the order the first pass worked them out in.
+
+        Which holding a spin-off names, rather than which of the day's
+        spellings its row used, is what puts one after another: a rename
+        between them would otherwise leave the two ends looking unrelated,
+        and a holding would be apportioned before it had received what it
+        apportions from.
         """
+        renames = self.history.rename_list.get(date_index, {})
         sources: dict[str, list[str]] = defaultdict(list)
         first_event: dict[str, int] = {}
         for index, spin_off in enumerate(self.history.spin_offs.get(date_index, [])):
-            sources[spin_off.dest].append(spin_off.source)
-            first_event.setdefault(spin_off.dest, index)
+            dest = end_name(renames, spin_off.dest)
+            source = end_name(renames, spin_off.source)
+            # A new holding renamed back into the one it came from shares its
+            # closing name, and nothing waits on itself. The two are still
+            # separate while the day's acquisitions are pooled, which is what
+            # this order is for.
+            if source != dest:
+                sources[dest].append(source)
+            first_event.setdefault(dest, index)
 
-        def depth(symbol: str) -> int:
+        def depth(holding: str) -> int:
             # A cycle cannot get here: the first pass refuses a chain that is
             # not in order, and a cycle is never in order.
-            return 1 + max((depth(source) for source in sources[symbol]), default=-1)
+            return 1 + max((depth(source) for source in sources[holding]), default=-1)
 
         return sorted(
             self.history.acquisition_list[date_index],
-            key=lambda symbol: (depth(symbol), first_event.get(symbol, -1)),
+            key=lambda symbol: (
+                depth(end_name(renames, symbol)),
+                first_event.get(end_name(renames, symbol), -1),
+            ),
         )
 
     def _match_across_splits(
