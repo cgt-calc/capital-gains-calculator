@@ -283,6 +283,15 @@ class MissingExternalToolError(CgtError):
         super().__init__(f"Required tool '{tool}' is not available on PATH")
 
 
+class TransactionDumpError(CgtError):
+    """Raised when the parsed-transaction CSV cannot be written."""
+
+    def __init__(self, message: str):
+        """Initialise."""
+        self.message = message
+        super().__init__(self.message)
+
+
 class IsinTranslationError(CgtError):
     """Raised when invalid ISIN translation data is encountered."""
 

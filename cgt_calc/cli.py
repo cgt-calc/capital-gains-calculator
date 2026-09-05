@@ -18,17 +18,97 @@ from .args_parser import (
 )
 from .currency_converter import CurrencyConverter
 from .current_price_fetcher import CurrentPriceFetcher
-from .exceptions import CgtError
+from .exceptions import CgtError, TransactionDumpError
 from .initial_prices import InitialPrices
 from .isin_converter import IsinConverter
 from .logging import setup_logging, style_text
 from .parsers.broker_registry import BrokerRegistry
 from .spin_off_handler import SpinOffHandler
+from .transaction_dumper import dump_transactions
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Iterator, Sequence
+    from pathlib import Path
+
+    from .model import BrokerTransaction
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _paths_written_after_dump(args: argparse.Namespace) -> Iterator[tuple[Path, str]]:
+    """Yield each file the rest of this run may write, and what it is.
+
+    The dump is saved before anything else, so a destination naming one of
+    these would be silently replaced by the time the run finished. The report
+    names follow render_latex.render_pdf; pdflatex leaves its own log and aux
+    file next to the report and removes them again afterwards.
+    """
+    if not args.no_report:
+        directory = args.output.parent
+        jobname = args.output.stem
+        yield args.output, "the report from --output"
+        yield directory / f"{jobname}.tex", "the LaTeX source from --output"
+        if not args.no_pdflatex:
+            # pdflatex names its output after the report's stem, so an
+            # --output carrying any other suffix, or none, still lands here.
+            yield directory / f"{jobname}.pdf", "the PDF report from --output"
+            for suffix in (".latex.log", ".log", ".aux"):
+                yield (
+                    directory / f"{jobname}{suffix}",
+                    "a pdflatex working file from --output",
+                )
+    for cache, option in (
+        (args.exchange_rates_file, "--exchange-rates-file"),
+        (args.isin_translation_file, "--isin-translation-file"),
+        (args.spin_offs_file, "--spin-offs-file"),
+    ):
+        if cache is not None:
+            yield cache, f"the cache from {option}"
+
+
+def _save_transaction_dump(
+    args: argparse.Namespace, transactions: Sequence[BrokerTransaction]
+) -> None:
+    """Write the parsed transactions to the new CSV file the user asked for."""
+    path: Path = args.dump_transactions
+    destination = path.resolve()
+    for other, description in _paths_written_after_dump(args):
+        if other.resolve() == destination:
+            raise TransactionDumpError(
+                f"--dump-transactions path '{path}' is also {description}, "
+                "which this run writes after saving the dump. Choose a "
+                "different filename."
+            )
+    if not path.parent.is_dir():
+        raise TransactionDumpError(
+            f"--dump-transactions directory '{path.parent}' does not exist. "
+            "Create it, or choose a path in a directory that does."
+        )
+    try:
+        with path.open("x", encoding="utf-8", newline="") as stream:
+            dump_transactions(transactions, stream)
+    except FileExistsError as err:
+        raise TransactionDumpError(
+            f"--dump-transactions file '{path}' already exists. Choose a new "
+            "filename, or move the existing file out of the way."
+        ) from err
+    except OSError as err:
+        raise TransactionDumpError(
+            f"Could not write parsed transactions to '{path}': {err}. A partly "
+            "written file may be left behind; remove it or choose another "
+            "filename before retrying."
+        ) from err
+    count = len(transactions)
+    noun = "transaction" if count == 1 else "transactions"
+    LOGGER.info(
+        style_text(
+            f"Saved {count} parsed {noun} to {path}",
+            colour=Fore.CYAN,
+            emoji="💾",
+            stream=sys.stderr,
+        )
+    )
 
 
 def calculate_cgt(args: argparse.Namespace) -> None:
@@ -43,6 +123,10 @@ def calculate_cgt(args: argparse.Namespace) -> None:
     # Read data from input files
     isin_converter = IsinConverter(isin_translation_file)
     broker_transactions = BrokerRegistry.load_all_transactions(args, isin_converter)
+
+    if args.dump_transactions is not None:
+        _save_transaction_dump(args, broker_transactions)
+
     currency_converter = CurrencyConverter.create(args.exchange_rates_file)
     price_fetcher = CurrentPriceFetcher(currency_converter)
     initial_prices = InitialPrices(args.initial_prices_file)

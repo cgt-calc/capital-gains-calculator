@@ -211,6 +211,16 @@ Environment variables:
         action="store_true",
         help="save LaTeX source instead of generating a PDF",
     )
+    set_completer(
+        output_group.add_argument(
+            "--dump-transactions",
+            type=output_path_type,
+            metavar="PATH",
+            default=None,
+            help="write parsed transactions as CSV to a new file, then continue calculating",
+        ),
+        shtab.FILE,
+    )
 
     # General Options
     general_group = parser.add_argument_group("General")

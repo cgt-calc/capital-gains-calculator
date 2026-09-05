@@ -29,6 +29,7 @@ from cgt_calc.exceptions import (
     QuantityMissingError,
     QuantityNotPositiveError,
     SymbolMissingError,
+    TransactionDumpError,
     UnclassifiedGiftError,
     UnexpectedColumnCountError,
     UnexpectedRowCountError,
@@ -128,6 +129,10 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
     (LatexRenderError(Path("render.log")), ["render.log"]),
     (MissingExternalToolError("pdflatex"), ["pdflatex"]),
     (IsinTranslationError("ISIN XS123 is broken"), ["ISIN XS123 is broken"]),
+    (
+        TransactionDumpError("parsed.csv already exists"),
+        ["parsed.csv already exists"],
+    ),
     (
         ExternalApiError("https://api.example.com/rates", "boom"),
         ["https://api.example.com/rates", "boom"],

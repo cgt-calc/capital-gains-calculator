@@ -84,6 +84,86 @@ To save the LaTeX source without creating a PDF, use `--no-pdflatex`. The source
 `--output` path with a `.tex` extension (by default, `out/calculations.tex`). For example,
 `--output reports/2024-25.pdf` writes `reports/2024-25.tex`.
 
+## Inspect parsed transactions
+
+Use `--dump-transactions` followed by a filename to save the transactions cgt-calc read from your
+exports to a CSV file, then carry on with the normal calculation:
+
+```shell
+cgt-calc --year 2024 --schwab-file transactions.csv --dump-transactions parsed-transactions.csv
+```
+
+This helps when you want to compare two exports of the same account, or see what a broker file
+actually produced before reading the report.
+
+The file is written before any calculation starts, and cgt-calc confirms it on **stderr**:
+
+```text
+Saved 123 parsed transactions to parsed-transactions.csv
+```
+
+That message means the file is complete and closed. It is not the message that ends a successful
+run, which is `Done! Report generated successfully.` or, without a PDF,
+`Done! Calculations complete (PDF generation skipped).`
+
+### What the file contains
+
+One row per transaction, under a header naming every column. The rows are in the order the
+calculation reads them, which is not always the order they happened: some brokers export the newest
+row first, and cgt-calc deliberately places some of a day’s rows before others.
+
+The file shows the transactions after cgt-calc has read and prepared your broker exports, and before
+the capital gains calculation. It reflects whatever duplicate handling the parser for your broker
+supports; the export itself removes nothing, so follow the
+[instructions for your broker](brokers/index.md) and do not assume overlapping exports are safe.
+
+Any excess reported income (ERI) records loaded for funds you hold are included as well. They appear
+with the action `EXCESS_REPORTED_INCOME` and an `isin` in place of a `symbol`, and carry only a
+per-unit `price`: the `quantity` and `amount` are worked out during the calculation, so those
+columns are empty here. See the [offshore funds guide](offshore-funds.md).
+
+The calculation has not run yet. Currency conversion, its own checks, share split and other
+reorganisation planning, and the tax calculation all come later, so ticker names and quantities can
+differ from the ones in the final report.
+
+Numbers are exact rather than rounded for display. `price`, `fees` and `amount` are in the row’s
+`currency`. Fees charged in another currency stay in `foreign_fees` under their own currency, and
+every amount recorded inside a column keeps the currency stored with it.
+
+Some columns hold several named values at once (`foreign_fees`, `option_contract`,
+`written_option_tax`, `capital_adjustments` and `source`). These use JSON, which keeps the names and
+their values together in one cell, such as `{"EUR":"2.50"}` for a fee of 2.50 euros. An empty column
+means the value was either not set or empty text; the two look the same. Inside a JSON column they
+stay apart, as `null` and `""`.
+
+Every transaction cgt-calc loaded is exported, including dates outside the reporting period.
+`--year`, `--from` and `--to` still choose the period the report covers.
+
+The file is a snapshot for inspection, not an input format. Its columns are not the seven columns of
+the [RAW format](brokers/raw.md), and it cannot be passed back with `--raw-file`.
+
+The `source` column identifies the input file each transaction came from, and includes a row number
+when the parser records one. It can therefore contain paths from your own machine next to your
+transaction details. Read it before you send it to anyone. Saving the file writes only to the name
+you gave; the calculation that follows behaves as it always does, including any data it fetches, as
+described in the [privacy notes](privacy.md).
+
+### Where it is written
+
+`--dump-transactions` requires a path and always creates a new file. cgt-calc refuses to overwrite
+an existing file, refuses a path whose directory does not exist, and refuses a path the same run
+would write later, such as the report or one of the cache files. In each case it reports the problem
+and stops without calculating.
+
+If writing fails partway through, cgt-calc stops with an error naming the path. Remove the partly
+written file, or choose another name, before trying again.
+
+Nothing else about the run changes. `--output`, `--no-report` and `--no-pdflatex` still do what they
+normally do, and the usual checks on your input still apply. If the calculation fails after the file
+was saved, the file is kept for you to inspect and the command still exits with an error. A saved
+file does not show that the calculation succeeded, or that the history you supplied was complete or
+valid, so check the exit status and any errors printed.
+
 ## Check the result
 
 Before relying on the figures:
@@ -137,7 +217,9 @@ the calculation. Follow HMRC's
 required records and retention period.
 
 Run `cgt-calc --help` for the complete list of available options. Use `--verbose` when you need more
-detail while investigating a warning or error.
+detail while investigating a warning or error, and
+[`--dump-transactions`](#inspect-parsed-transactions) to see the transactions the calculation
+started from.
 
 ## Report part of a tax year (advanced)
 

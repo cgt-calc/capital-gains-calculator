@@ -118,9 +118,11 @@ iShares
 ISIN
 IsinConverter
 ISINs
+isoformat
 json
 KeyError
 Lansdown
+latex
 len
 LF
 lifecycle

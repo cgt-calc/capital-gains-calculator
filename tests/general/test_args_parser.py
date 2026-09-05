@@ -1015,3 +1015,40 @@ def test_autoconvert_currency_is_opt_in() -> None:
 
     assert parser.parse_args([]).autoconvert_currency is False
     assert parser.parse_args(["--autoconvert-currency"]).autoconvert_currency is True
+
+
+def test_dump_transactions_defaults_to_no_export() -> None:
+    """--dump-transactions is off unless a destination is given."""
+    parser = create_parser()
+
+    assert parser.parse_args([]).dump_transactions is None
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "parsed.csv",
+        "reports/parsed.csv",
+        # The option once took mode words; they are now ordinary filenames.
+        "only",
+        "continue",
+    ],
+)
+def test_dump_transactions_takes_a_path(value: str) -> None:
+    """--dump-transactions accepts any non-empty path."""
+    parser = create_parser()
+
+    args = parser.parse_args(["--dump-transactions", value])
+
+    assert args.dump_transactions == Path(value)
+
+
+@pytest.mark.parametrize("argv", [["--dump-transactions"], ["--dump-transactions", ""]])
+def test_dump_transactions_requires_a_destination(argv: list[str]) -> None:
+    """--dump-transactions is rejected without a usable path."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(argv)
+
+    assert exc_info.value.code == 2
