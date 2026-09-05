@@ -30,7 +30,7 @@ import logging
 from typing import TYPE_CHECKING, Any, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import TICKER_RENAMES
-from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.exceptions import CgtError, ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
@@ -39,9 +39,10 @@ from cgt_calc.model import (
 )
 from cgt_calc.util import round_decimal
 
-from .base_parsers import BaseSingleFileParser
+from .base_parsers import BaseSingleFileParser, read_input
 
 if TYPE_CHECKING:
+    import argparse
     from collections.abc import Iterator, Sequence
     from pathlib import Path
 
@@ -71,6 +72,15 @@ COMPLETE_CSV_COLUMNS: Final = frozenset(
 # Where the parent row of a CSV transaction was read from. Not a Schwab field,
 # so it is stripped back off before the row is converted.
 CSV_ROW_INDEX: Final = "_cgt_calc_row_index"
+
+# The payroll side of a vest. It states the vest price, and nothing else in
+# an export states it for a plan that delivers the shares elsewhere.
+LAPSE_ACTION: Final = "Lapse"
+
+# Actions the converter discards, so an export holding nothing but these
+# imports nothing whatever else it states.
+DISCARDED_ACTIONS: Final = frozenset({"Journal", "Wire Transfer", LAPSE_ACTION})
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -210,6 +220,7 @@ class FieldNames:
     shares_withheld: str = "SharesWithheld"
     shares_sold: str = "SharesSold"
     shares_sold_withheld_for_taxes: str = "SharesSoldWithheldForTaxes"
+    fair_market_value_price: str = "FairMarketValuePrice"
     tax_withholding_method: str = "TaxWithholdingMethod"
 
     def __post_init__(self, schema_version: int) -> None:
@@ -239,6 +250,7 @@ class FieldNames:
             self.shares_withheld = "sharesWithheld"
             self.shares_sold = "sharesSold"
             self.shares_sold_withheld_for_taxes = "sharesSoldWithheldForTaxes"
+            self.fair_market_value_price = "fairMarketValuePrice"
             self.tax_withholding_method = "taxWithholdingMethod"
 
 
@@ -352,10 +364,16 @@ def _decimal_from_str(price_str: str, field: str = "number") -> Decimal:
 
     Remove $ sign, and comma thousand separators so as to handle dollar amounts
     such as "$1,250.00".
+
+    A field Schwab states as a string can arrive as something else: JSON allows
+    a bare number where the export writes a quoted one, and the decoder hands
+    that over as a `Decimal`, which has no `replace`. That is as unusable here
+    as any other nonsense in the field, so it is refused the same way rather
+    than escaping as an `AttributeError` with no field name on it.
     """
     try:
         value = Decimal(price_str.replace("$", "").replace(",", "").strip())
-    except decimal.InvalidOperation as err:
+    except (decimal.InvalidOperation, AttributeError, TypeError, ValueError) as err:
         raise _UnparseableNumber(field, price_str) from err
     if not value.is_finite():
         raise _UnparseableNumber(field, price_str)
@@ -377,8 +395,13 @@ def _decimal_from_number_or_str(
     if float_name in row and row[float_name] is not None:
         # json.load reads the NaN and Infinity literals Python allows in JSON
         # through parse_constant rather than parse_float, so a number field is
-        # no safer than a string one here.
-        value = Decimal(row[float_name])
+        # no safer than a string one here. Nor is it certain to hold a number
+        # at all: the companion is only a convention, and Decimal() raises on
+        # a string it cannot read and on a type it cannot take.
+        try:
+            value = Decimal(row[float_name])
+        except (decimal.InvalidOperation, TypeError, ValueError) as err:
+            raise _UnparseableNumber(float_name, row[float_name]) from err
         if not value.is_finite():
             raise _UnparseableNumber(float_name, row[float_name])
         return value
@@ -573,7 +596,7 @@ def _check_lapse_units(
     it.
     """
     for row in rows:
-        if row.get(names.action) != "Lapse":
+        if row.get(names.action) != LAPSE_ACTION:
             continue
         with _csv_row_errors(row.get(CSV_ROW_INDEX), file_path):
             _check_one_lapse(row, file_path, names)
@@ -1198,6 +1221,264 @@ def _read_json_transactions(
     return data[fields.transactions], fields
 
 
+# What to offer after refusing to price a vest whose units cannot be settled.
+# Conditional on the file the reader turns out to have rather than on their
+# share plan: which export an awards account produces is an inference from the
+# fields the two layouts carry, not something Schwab documents, and the
+# complete export replaces the main history rather than joining it.
+COMPLETE_EXPORT_CAVEAT: Final = (
+    "If you have a complete Equity Awards export, which states each vest's "
+    "price and share count together, it imports on its own with "
+    "--schwab-award-file. Use it only if it holds everything the calculation "
+    "needs: it replaces the main history rather than joining it, so anything "
+    "that happened only in the brokerage account would be left out."
+)
+
+
+def price_only_alone_message(*, canonical_option: bool) -> str:
+    """Say why an export that only prices vests cannot be used on its own."""
+    message = (
+        "This Equity Awards export holds vest prices and no transactions: "
+        "every row in it is a Lapse. It prices the Stock Plan Activity rows of "
+        "a main transaction history rather than importing a history of its "
+        "own, so it has to be passed with one:\n"
+        "  cgt-calc --schwab-file <main history> --schwab-award-file <this file>"
+    )
+    if not canonical_option:
+        message += (
+            "\n--schwab-equity-award-json only adds transactions and does not "
+            "price vests, so it cannot use this file at all."
+        )
+    return message
+
+
+def lapse_only_rows(
+    content: str, file_path: Path
+) -> tuple[list[JsonRowType], FieldNames] | None:
+    """Return the rows of a JSON award export whose every row is a Lapse.
+
+    This export prices the vests of a main history and imports nothing of its
+    own, which is what the award-price CSV does; its CSV form is already read
+    that way by the award-price reader in `schwab.py`. It appears to be what
+    Schwab writes for a plan whose shares are delivered to a linked brokerage
+    account, so that the awards account records the vest and its price but
+    never holds the shares. That reading of the two layouts is an inference
+    from the fields they carry, and nothing here depends on it: the file is
+    classified by what it contains.
+
+    Returns ``None`` where the export is not one of those and belongs to the
+    importer that reads a complete history: it is not JSON, it states no
+    transactions at all, or it states an action beyond a lapse.
+
+    Classification is separate from `lapse_award_prices` so that a caller can
+    settle what the file is, and whether it was passed with the main history
+    it needs, before any of its rows are validated. Harvesting first would
+    answer a file passed on its own with a complaint about its contents
+    instead of with the input it is missing.
+    """
+    content = content.lstrip("\ufeff \t\r\n")
+    if not content.startswith("{"):
+        # The complete CSV is out of scope: no export of that layout carrying
+        # lapse pricing is on record, and the price CSV that does carry it is
+        # read by schwab.py before anything reaches this parser.
+        return None
+    rows, names = _read_json_transactions(content, file_path)
+    # Classification is by action rather than by an empty transaction list: an
+    # export that yields nothing is not necessarily one that holds nothing but
+    # lapses, and pricing a complete history from its lapses would apply this
+    # path's reasoning to acquisitions it has never been asked about.
+    actions = {row.get(names.action) for row in rows}
+    if actions == {LAPSE_ACTION}:
+        return rows, names
+    if LAPSE_ACTION in actions and actions <= DISCARDED_ACTIONS:
+        others = ", ".join(sorted(str(action) for action in actions - {LAPSE_ACTION}))
+        raise ParsingError(
+            file_path,
+            f"This Equity Awards export states {others} alongside its lapses. "
+            "Those rows move cash rather than shares, so cgt-calc discards "
+            "them, and it reads vest prices only from an export whose every "
+            "row is a Lapse: this file would import nothing and price "
+            "nothing. Export the same history as the award-price CSV, which "
+            "reads the vests and ignores the cash rows, and pass that with "
+            "--schwab-award-file.",
+        )
+    return None
+
+
+def lapse_award_prices(
+    rows: list[JsonRowType], file_path: Path, names: FieldNames
+) -> dict[datetime.date, dict[str, Decimal]]:
+    """Read a vest price from every row of a classified price-only export."""
+    prices: dict[datetime.date, dict[str, Decimal]] = {}
+    priced_at: dict[tuple[datetime.date, str], tuple[Decimal, str]] = {}
+    for index, row in enumerate(rows):
+        where = f"{names.transactions}[{index}]"
+        date, symbol, price = _lapse_price(row, where, file_path, names)
+        previous = priced_at.get((date, symbol))
+        if previous is not None and previous[0] != price:
+            raise ParsingError(
+                file_path,
+                f"{where} prices the {symbol} vest of {date} at {price}, and "
+                f"{previous[1]} prices the same vest at {previous[0]}. Grants "
+                "vesting on one day share that day's market value, so cgt-calc "
+                "cannot tell which of the two is the acquisition cost. Correct "
+                "the export against your vest confirmations.",
+            )
+        priced_at[date, symbol] = (price, where)
+        prices.setdefault(date, {})[symbol] = price
+
+    _reject_symbols_a_split_could_restate(prices, file_path)
+    return prices
+
+
+def _lapse_price(
+    row: JsonRowType, where: str, file_path: Path, names: FieldNames
+) -> tuple[datetime.date, str, Decimal]:
+    """Read one Lapse row's date, normalised symbol and vest price.
+
+    Everything is required. In an export of nothing but lapses a row that
+    states no price is a vest that cannot be costed, and skipping it here
+    would surface later as a failure reported against the main history, by
+    which point the file that could not answer is no longer named.
+    """
+    stated_symbol = row.get(names.symbol)
+    symbol = stated_symbol.strip() if isinstance(stated_symbol, str) else ""
+    if not symbol:
+        raise ParsingError(
+            file_path,
+            f"{where}.{names.symbol} names no symbol, so the vest this row "
+            "prices cannot be matched to a holding in the main history.",
+        )
+    # AwardPrices.get renames the symbol it is asked for, so an entry filed
+    # under the old spelling would never be found.
+    symbol = TICKER_RENAMES.get(symbol, symbol)
+
+    stated_date = row.get(names.date)
+    try:
+        date = datetime.datetime.strptime(stated_date, "%m/%d/%Y").date()
+    except (TypeError, ValueError) as err:
+        raise ParsingError(
+            file_path,
+            f"{where}.{names.date} is not a date cgt-calc reads: "
+            f"{stated_date!r}. Equity Awards exports state MM/DD/YYYY.",
+        ) from err
+
+    detail_rows = row.get(names.transac_details) or []
+    if not isinstance(detail_rows, list):
+        raise ParsingError(
+            file_path,
+            f"{where}.{names.transac_details} does not hold a list of grants, "
+            "so this file is not the layout cgt-calc reads. A lapse states "
+            "the vest it prices as one entry in that list.",
+        )
+    if len(detail_rows) != 1:
+        raise ParsingError(
+            file_path,
+            f"{where}.{names.transac_details} holds {len(detail_rows)} "
+            "entries, not one. A lapse states the vest it prices once, and "
+            "cgt-calc will not guess which market value applies.",
+        )
+    details = detail_rows[0]
+    path = f"{where}.{names.transac_details}[0]"
+    if isinstance(details, dict) and OPTIONAL_DETAILS_NAME in details:
+        details = details[OPTIONAL_DETAILS_NAME]
+        path = f"{path}.{OPTIONAL_DETAILS_NAME}"
+    # Checked after the unwrapping, so that an entry stating a `Details` key
+    # holding nothing is reported against the key rather than against the
+    # entry that carries it.
+    if not isinstance(details, dict):
+        raise ParsingError(
+            file_path,
+            f"{path} states no fields for the grant this lapse prices, so "
+            "there is no market value in it to read.",
+        )
+    return date, symbol, _lapse_vest_price(details, names, path, file_path)
+
+
+def _lapse_vest_price(
+    details: JsonRowType, names: FieldNames, path: str, file_path: Path
+) -> Decimal:
+    """Read one lapse's market value, refusing anything that is not one.
+
+    The read prefers a `SortValue` companion over the displayed string without
+    comparing the two, as every other number in this parser does. Some exports
+    round the displayed figure on purpose, so requiring them to agree would
+    reject valid files.
+    """
+    field = names.fair_market_value_price
+    stated = [details.get(name) for name in (field, f"{field}SortValue")]
+    if all(value is None or value == "" for value in stated):
+        raise ParsingError(
+            file_path,
+            f"{path}.{field} states no price. Every row in this export is a "
+            "lapse, so a lapse with no market value is a vest cgt-calc cannot "
+            "cost. Re-export the history, or pass the award-price CSV instead.",
+        )
+    try:
+        price = _decimal_from_number_or_str(details, field)
+    except _UnparseableNumber as err:
+        raise ParsingError(
+            file_path, f"{path}.{err.field} is not a number: {err.value!r}"
+        ) from err
+    if price <= 0:
+        raise ParsingError(
+            file_path,
+            f"{path}.{field} states a price of {price}. That figure is what "
+            "the vested shares cost for tax, so at zero or less they would "
+            "enter the pool for nothing and the whole of the proceeds would be "
+            "taxed when they are sold. Correct it from your vest confirmation.",
+        )
+    return price
+
+
+def _reject_symbols_a_split_could_restate(
+    prices: dict[datetime.date, dict[str, Decimal]], file_path: Path
+) -> None:
+    """Refuse a symbol whose price and quantity could be in different units.
+
+    On this path the price comes from the award export and the share count
+    from the main history. A split restates the records before it, and neither
+    file says whether it restated both. Nothing is added to or removed from
+    either history here, which makes the transactions safe and says nothing
+    about the price: one wrong by the split factor moves the tax silently, so
+    where the two cannot be shown to be in the same units, refuse.
+
+    A split falling after every priced row disqualifies the symbol just as one
+    inside the range does. An export is generated after the split, so a vest
+    before it can already have been restated even when nothing in either file
+    mentions the split at all. The boundary is inclusive: a vest on the day
+    itself is the one least likely to be restated consistently, and cgt-calc
+    cannot tell which side of the close it was priced from.
+    """
+    earliest: dict[str, datetime.date] = {}
+    for date, by_symbol in prices.items():
+        for symbol in by_symbol:
+            if date < earliest.get(symbol, datetime.date.max):
+                earliest[symbol] = date
+
+    for symbol, first in sorted(earliest.items()):
+        history = SPLITS.get(symbol)
+        if history is None:
+            continue
+        for effective, ratio in history.splits:
+            if first > effective:
+                continue
+            raise ParsingError(
+                file_path,
+                f"Schwab states {symbol} share counts in post-split units from "
+                f"{effective}, and this export prices a {symbol} vest on "
+                f"{first}, on or before that. The price comes from this file "
+                "and the share count from the main history, and neither says "
+                "whether the split restated both, so the acquisition cost "
+                f"could be out by a factor of {ratio} with nothing to show "
+                "for it. If no vest in your main history needs a price on or "
+                f"before {effective}, re-export the award history from a date "
+                "after it. Every vest in the main history is priced whatever "
+                "tax year you are calculating, so a shorter export still has "
+                "to cover them all. " + COMPLETE_EXPORT_CAVEAT,
+            )
+
+
 @contextmanager
 def _csv_row_errors(row_index: int | None, file_path: Path) -> Iterator[None]:
     """Point whatever a row raises at the CSV line it was stated on.
@@ -1340,6 +1621,30 @@ class SchwabEquityAwardsParser(BaseSingleFileParser[SchwabAwardTransaction]):
 
     @classmethod
     @override
+    def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
+        """Load the export, refusing one that can only price vests.
+
+        This option adds transactions and never prices a vest, so an export
+        that holds nothing but prices imports nothing through it and produces
+        a report of zero gains rather than an error. Only checked when there
+        is no main history: with one, `SchwabParser` runs first and an
+        unpriced vest raises `Cannot price a vest`, which already names the
+        route that reads this file.
+        """
+        file_path = args.schwab_equity_award_json
+        if file_path is None or args.schwab_file or args.schwab_dir:
+            return super().load_from_args(args)
+        content = read_input(file_path, cls.encoding)
+        if lapse_only_rows(content, file_path) is not None:
+            raise CgtError(price_only_alone_message(canonical_option=False))
+        # list is invariant, so widen explicitly rather than return list[T].
+        transactions: list[BrokerTransaction] = list(
+            cls.load_from_stream(io.StringIO(content), file_path)
+        )
+        return transactions
+
+    @classmethod
+    @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[SchwabAwardTransaction]:
@@ -1370,7 +1675,7 @@ class SchwabEquityAwardsParser(BaseSingleFileParser[SchwabAwardTransaction]):
             # Tax Withholding is deliberately not skipped: it is US tax at
             # source on dividends, and it is needed for SA106 and foreign tax
             # credit relief.
-            if transac[fields.action] not in {"Journal", "Wire Transfer", "Lapse"}
+            if transac[fields.action] not in DISCARDED_ACTIONS
         ]
 
         # A purchase whose every share went to tax acquired nothing, so it is

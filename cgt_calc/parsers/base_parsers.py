@@ -29,6 +29,19 @@ LOGGER = logging.getLogger(__name__)
 _ACCOUNT_COUNTER = itertools.count(1)
 
 
+def read_input(file_path: Path, encoding: str) -> str:
+    """Read one input whole, so its contents can choose the reader.
+
+    stdin cannot be reopened, so a caller that has to look at the text before
+    deciding which parser owns it reads it here and hands the text on rather
+    than the path.
+    """
+    if file_path == STDIN_PATH:
+        return sys.stdin.read()
+    with file_path.open(encoding=encoding) as file:
+        return file.read()
+
+
 def next_account_token(name: str) -> str:
     """Return a fresh opaque token for one declared account boundary.
 

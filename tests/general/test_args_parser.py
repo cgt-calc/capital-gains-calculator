@@ -866,8 +866,9 @@ def test_schwab_award_file_help_names_every_layout_it_takes() -> None:
 
     assert (
         "--schwab-award-file PATH Charles Schwab Equity Awards export: the "
-        "award-price CSV that prices vests in the main history, or the "
-        "complete transaction history as JSON or CSV" in help_text
+        "price-only export that prices vests in the main history, as the "
+        "award-price CSV or as JSON holding only Lapse rows, or the complete "
+        "transaction history as JSON or CSV" in help_text
     )
 
 

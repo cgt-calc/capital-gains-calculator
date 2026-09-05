@@ -5,14 +5,13 @@ from __future__ import annotations
 import argparse
 from collections import OrderedDict, defaultdict
 import csv
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 import datetime
 from decimal import Decimal
 from enum import StrEnum
 import io
 import itertools
 import logging
-import sys
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 import shtab
@@ -42,7 +41,11 @@ from cgt_calc.model import (
 from cgt_calc.parsers.schwab_cusip_bonds import adjust_cusip_bond_price
 from cgt_calc.parsers.schwab_equity_award_json import (
     COMPLETE_CSV_COLUMNS,
+    COMPLETE_EXPORT_CAVEAT,
     SchwabEquityAwardsParser,
+    lapse_award_prices,
+    lapse_only_rows,
+    price_only_alone_message,
 )
 from cgt_calc.parsers.schwab_options import (
     parse_option_contract,
@@ -50,7 +53,7 @@ from cgt_calc.parsers.schwab_options import (
 )
 from cgt_calc.util import parse_decimal
 
-from .base_parsers import BaseSingleFileParser, next_account_token
+from .base_parsers import BaseSingleFileParser, next_account_token, read_input
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -91,6 +94,15 @@ class AwardPrices:
     """Class to store initial stock prices."""
 
     award_prices: dict[datetime.date, dict[str, Decimal]]
+
+    lapse_priced_from: dict[str, datetime.date] = field(default_factory=dict)
+    """Earliest date each symbol is priced at, for prices read from Lapse rows.
+
+    Those prices are stated in one file and the share counts they cost in
+    another, so a split on or after one of these dates has to be refused
+    rather than guessed at. Empty for the award-price CSV, which is not read
+    that way.
+    """
 
     def __bool__(self) -> bool:
         """Return True if not empty."""
@@ -889,6 +901,48 @@ def _award_prices_from_lines(
     return AwardPrices(award_prices=dict(initial_prices))
 
 
+def _reject_split_of_a_lapse_priced_symbol(
+    transactions: list[BrokerTransaction], awards_prices: AwardPrices
+) -> None:
+    """Refuse a main history that splits a symbol priced from Lapse rows.
+
+    The award export states the price and the main history states the number
+    of shares. A split restates the records before it, and neither file says
+    whether it restated both, so a cost out by the split factor would pass
+    every check the calculator makes. Checked over the whole history rather
+    than per row because the split can be exported after the vest it affects.
+
+    A split strictly before every price the award file states for the symbol
+    is not a problem, and is the same boundary the split table gets: there is
+    no earlier award record for it to have restated. Someone who held the
+    share before joining the plan is the ordinary case.
+
+    Only the JSON path fills in `lapse_priced_from`. The award-price CSV is
+    untouched: it has always been read this way, and narrowing it now would
+    reject histories that work today.
+    """
+    for transaction in transactions:
+        if transaction.action is not ActionType.STOCK_SPLIT or not transaction.symbol:
+            continue
+        symbol = TICKER_RENAMES.get(transaction.symbol, transaction.symbol)
+        first_priced = awards_prices.lapse_priced_from.get(symbol)
+        if first_priced is None or transaction.date < first_priced:
+            continue
+        message = (
+            f"This history records a {symbol} stock split on "
+            f"{transaction.date}, and the Equity Awards export prices a "
+            f"{symbol} vest on {first_priced}, on or before it. A split "
+            "restates the share counts before it, and neither file says "
+            "whether the price and the count were restated together, so the "
+            "acquisition cost could be out by the split factor with nothing "
+            "to show for it. " + COMPLETE_EXPORT_CAVEAT
+        )
+        source = transaction.source
+        if source is None or source.file is None:
+            raise CgtError(message)
+        raise ParsingError(source.file, message, row_index=source.row)
+
+
 def _is_complete_award_export(content: str, file_path: Path) -> bool:
     """Say which Equity Awards export the award input holds.
 
@@ -940,9 +994,10 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 type=existing_file_or_stdin_type,
                 default=None,
                 metavar="PATH",
-                help="Charles Schwab Equity Awards export: the award-price CSV "
-                "that prices vests in the main history, or the complete "
-                "transaction history as JSON or CSV",
+                help="Charles Schwab Equity Awards export: the price-only "
+                "export that prices vests in the main history, as the "
+                "award-price CSV or as JSON holding only Lapse rows, or the "
+                "complete transaction history as JSON or CSV",
             ),
             shtab.FILE,
         )
@@ -1001,9 +1056,10 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
     def _load_award_file(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
         """Read --schwab-award-file and route it by what it holds.
 
-        An award-price CSV supplies `awards_prices` and imports nothing; a
-        complete export imports its own history and prices no vests. Either
-        way `awards_prices` is assigned, because it is class-level state and
+        An award-price CSV supplies `awards_prices` and imports nothing, and
+        so does the JSON export whose every row is a Lapse; a complete export
+        imports its own history and prices no vests. Either way
+        `awards_prices` is assigned, because it is class-level state and
         leaving it would price this run's vests from the last run's file.
         """
         cls.awards_prices = AwardPrices(award_prices={})
@@ -1012,13 +1068,8 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
             return []
         # Read once and classify the text: stdin cannot be reopened, and the
         # reader that owns the layout is handed this same content.
-        if award_path == STDIN_PATH:
-            parsing_msg("stdin")
-            content = sys.stdin.read()
-        else:
-            with award_path.open(encoding=cls.encoding) as award_file:
-                parsing_msg(award_path)
-                content = award_file.read()
+        parsing_msg("stdin" if award_path == STDIN_PATH else award_path)
+        content = read_input(award_path, cls.encoding)
         # The same leading noise a complete export already tolerates. It is
         # applied before classification, so a price CSV led by a byte-order
         # mark or a blank line is now read too.
@@ -1026,6 +1077,29 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         if not _is_complete_award_export(content, award_path):
             cls.awards_prices = _award_prices_from_lines(
                 list(csv.reader(io.StringIO(content))), award_path
+            )
+            return []
+        # Before the checks below, and for the same reason the price CSV is
+        # exempt from them: an export whose every row is a Lapse states vest
+        # prices and no transactions, so it can neither duplicate a history
+        # nor need reconciling with one.
+        #
+        # Classified, then checked against the other inputs, and only then
+        # read. A file passed without the main history it exists to price has
+        # to be answered with the input it is missing, not with the first of
+        # its rows cgt-calc declines to use.
+        price_only = lapse_only_rows(content, award_path)
+        if price_only is not None:
+            if not (args.schwab_file or args.schwab_dir):
+                raise CgtError(price_only_alone_message(canonical_option=True))
+            rows, names = price_only
+            lapse_prices = lapse_award_prices(rows, award_path, names)
+            first_priced: dict[str, datetime.date] = {}
+            for priced_date, prices in sorted(lapse_prices.items()):
+                for symbol in prices:
+                    first_priced.setdefault(symbol, priced_date)
+            cls.awards_prices = AwardPrices(
+                award_prices=lapse_prices, lapse_priced_from=first_priced
             )
             return []
         if args.schwab_equity_award_json:
@@ -1070,12 +1144,15 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
     def finalize_transactions(
         cls, transactions: list[BrokerTransaction]
     ) -> list[BrokerTransaction]:
-        """Reconcile option lifecycles once the whole account is read.
+        """Check and reconcile what only the whole account can answer.
 
-        An opening row and its outcome can sit in different files of one
-        `--schwab-dir` export, so this cannot run per file. The boundary hook
-        runs exactly once, after every file has been read and stamped.
+        An opening option row and its outcome can sit in different files of
+        one `--schwab-dir` export, so that pairing cannot run per file. A
+        split can likewise be exported after the vest whose units it puts in
+        doubt. The boundary hook runs exactly once, after every file has been
+        read and stamped.
         """
+        _reject_split_of_a_lapse_priced_symbol(transactions, cls.awards_prices)
         return reconcile_written_options(
             [row for row in transactions if isinstance(row, SchwabTransaction)]
         )
