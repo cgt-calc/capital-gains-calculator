@@ -48,3 +48,6 @@
 # "how many candidates there are" is correct; ThereIsAgreement expects the noun
 # after the verb, but this construction puts it first.
 ^trading212\.py:.*ThereIsAgreement
+# "Either layout of the price-only export" is a compound noun; Harper
+# reads it as the verb "lay out".
+^schwab\.md:.*PhrasalVerbAsCompoundNoun

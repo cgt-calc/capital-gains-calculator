@@ -4,10 +4,10 @@ cgt-calc reads the CSV export of a Charles Schwab brokerage account. It treats e
 export as US dollars and converts it to pounds using HMRC's monthly exchange rate for the month of
 each transaction.
 
-If you receive shares from an employer, you may also need an Equity Awards CSV to supply the market
-price used for each employer-share acquisition. Read [Equity awards](#equity-awards) before
-exporting that file: Schwab currently produces more than one award layout, and cgt-calc does not
-support all of them.
+If you receive shares from an employer, you may also need an Equity Awards export to supply the
+market price used for each employer-share acquisition. It can be a CSV or a JSON file. Read
+[Equity awards](#equity-awards) before exporting it: Schwab currently produces more than one award
+layout, and cgt-calc does not support all of them.
 
 ## Export the complete transaction history
 
@@ -80,13 +80,17 @@ cgt-calc --year 2025 --schwab-dir schwab/
 
 `--schwab-file` and `--schwab-dir` cannot be used together.
 
-If a `Stock Plan Activity` row has no price, also pass the supported Equity Awards CSV described
-below:
+If a `Stock Plan Activity` row has no price, also pass the supported Equity Awards export described
+below. Either layout goes to the same option:
 
 ```shell
 cgt-calc --year 2025 \
   --schwab-file schwab_transactions.csv \
   --schwab-award-file schwab_awards.csv
+
+cgt-calc --year 2025 \
+  --schwab-file schwab_transactions.csv \
+  --schwab-award-file schwab_awards.json
 ```
 
 ## Recognised activity
@@ -145,8 +149,8 @@ calculation could create a purchase that never happened.
 ### Dates containing `as of`
 
 Schwab can show a date such as `08/18/2023 as of 08/15/2023`. cgt-calc uses the first date,
-`08/18/2023`, for the transaction. An Equity Awards CSV can supply a market price from the earlier
-date, but it does not change the transaction date.
+`08/18/2023`, for the transaction. An Equity Awards export, CSV or JSON, can supply a market price
+from the earlier date, but it does not change the transaction date.
 
 That choice affects the tax year and the same-day and 30-day matching rules. Check any such row
 carefully when the two dates cross 5 April or another purchase or disposal falls between them.
@@ -245,19 +249,30 @@ legs are read as ordinary written and purchased options, and the purchased legs 
 Schwab exports your Equity Awards account in two different shapes, and cgt-calc uses them for
 different things:
 
-- an **award-price CSV**, which prices the vests already listed in your main transaction CSV. It
-    imports no transactions of its own.
+- a **price-only export**, which prices the vests already listed in your main transaction CSV and
+    imports no transactions of its own. It comes as the award-price CSV, and as a JSON export whose
+    every row is a `Lapse`.
 - a **complete transaction export**, which is the award account's own history. It comes as JSON or
     as CSV, and cgt-calc reads both.
 
-Check the file's heading to see which one you have. `FairMarketValuePrice` and no
-`VestFairMarketValue` means the award-price CSV. `VestFairMarketValue` and `PurchaseFairMarketValue`
-means the complete CSV export.
+You do not choose which one Schwab gives you, so open the file and look rather than predicting it
+from your share plan:
 
-Both go to `--schwab-award-file`, which reads the heading and works out which one it has. What
+- **CSV:** check the heading. `FairMarketValuePrice` and no `VestFairMarketValue` means the
+    award-price CSV. `VestFairMarketValue` and `PurchaseFairMarketValue` means the complete export.
+- **JSON:** look at the `"Action"` of each transaction. Older exports spell the field `"action"`.
+    Nothing but `"Lapse"` means the price-only export. A file holding `"Deposit"`, `"Sale"` or
+    `"Dividend"` is the complete export.
+- **Neither:** a JSON file holding `"Lapse"` together with cash rows such as `"Journal"` or
+    `"Wire Transfer"` is rejected. cgt-calc reads vest prices only from an export whose every row is
+    a `Lapse`, and those cash rows are discarded, so the file would import nothing and price
+    nothing. Export the same history as the award-price CSV, which reads the vests and ignores the
+    cash rows.
+
+Both go to `--schwab-award-file`, which reads the contents and works out which one it has. What
 changes is what cgt-calc does with the file, described in the two sections below.
 
-### Award-price CSV
+### Price-only export
 
 Use this method when the main transaction CSV contains `Stock Plan Activity` rows with a blank
 `Price`:
@@ -265,23 +280,67 @@ Use this method when the main transaction CSV contains `Stock Plan Activity` row
 1. In Schwab, open the Equity Awards account. Schwab's
     [grant guide](https://eac.schwab.com/content/how-to-accept-your-grant) shows how to reach the
     account from **Accounts → Equity Awards**.
-2. Export its complete transaction history as CSV.
-3. Check that the file's heading contains `Date`, `Symbol` and `FairMarketValuePrice`.
+2. Export its complete transaction history as CSV or as JSON.
+3. Check the file as described above: the CSV heading contains `Date`, `Symbol` and
+    `FairMarketValuePrice`, or every JSON transaction is a `Lapse`.
 4. Pass it with `--schwab-award-file` alongside the main CSV.
 
 The award-history export control is behind the Schwab login, so its wording may change. The file's
-columns and row layout, rather than the button name, determine whether cgt-calc supports it.
+contents, rather than the button name, determine whether cgt-calc supports it.
 
-This extra CSV does **not** import a second set of transactions. It supplies a missing market price
+This extra file does **not** import a second set of transactions. It supplies a missing market price
 for a vest in the main CSV. cgt-calc looks for the same symbol on the activity date or one of the
 previous six days, which covers awards dated around weekends and holidays.
 
-The supported award layout stores one activity across two CSV rows. Keep the file unchanged. A
+Always pass it with `--schwab-file` or `--schwab-dir`. On its own it prices nothing: the JSON form
+is refused, and the award-price CSV is accepted but produces an empty calculation.
+
+The supported award-price CSV layout stores one activity across two CSV rows. Keep the file
+unchanged. A
 [sanitised example](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/schwab/data/rsu_settlement/awards.csv)
 shows the expected structure.
 
-If your export has `VestFairMarketValue` instead, it is the complete transaction export described
-below. Do not rename the column: the rest of the row structure differs too.
+The two layouts are not otherwise interchangeable. The JSON reader refuses three things the CSV
+reader does not check, and each of them stops the run with an error naming the file:
+
+- a `Lapse` that states no market value, or one of zero or less;
+- two grants vesting on the same day at different prices, because the pair does not say which figure
+    is the acquisition cost;
+- a symbol whose price could be stated in pre-split units, either because your main history holds a
+    `Stock Split` for it or because cgt-calc's own split table records one on or after the earliest
+    vest the file prices. The price comes from the award file and the number of shares from the main
+    history, and neither says whether the split restated both.
+
+If the JSON export holds anything besides lapses, such as a `Journal` row moving cash out, cgt-calc
+will not read prices from it. Export the same history as the award-price CSV, which reads the vests
+and ignores the cash rows.
+
+#### What cgt-calc does not check
+
+Nothing verifies that the two files come from linked accounts, that either is complete, or that the
+quantities agree. The price lookup takes the nearest award date at or before the activity date,
+within six days. Finding a price that way is not evidence that the two rows describe the same vest.
+
+A split cgt-calc has not been told about, and that your main history does not record, cannot be
+detected at all. A price and a quantity in different units produce a wrong acquisition cost rather
+than an error.
+
+You can check the quantities yourself, but the two files do not identify each other, so start from
+your vest or settlement confirmations rather than from the dates:
+
+1. From the confirmations, list the grants that vested and the shares each one delivered to the
+    brokerage account.
+2. Find the award rows for those grants and add up their `NetSharesDeposited`, not their gross
+    `Quantity`, which includes the shares withheld for tax.
+3. Find the `Stock Plan Activity` rows that delivered them and add up their quantities. The two
+    totals should agree.
+4. Check the `FairMarketValuePrice` on those award rows against the price on the confirmations.
+
+Work per grant rather than per date. One award date can carry several grants, one delivery can be
+split over more than one posting date, and a posting date can carry shares from more than one award
+date, so a posting-date total need not equal an award-date total. Investigate anything that does not
+line up rather than assuming the nearest date is right: two awards a few days apart with the same
+net quantity but different prices both satisfy the lookup, and only one of them is your vest.
 
 ### Complete transaction export
 
@@ -309,9 +368,10 @@ complete award history, so anything present in both is counted twice. Passing a 
 The complete importer supports restricted-stock vests, ESPP purchases, sales, forced quick sales,
 dividends, dividend tax and forced cash disbursements. It recognises gifts but stops so that you can
 classify the recipient, as explained below. It skips `Lapse` rows because they repeat the shares
-already recorded by the related vest. For an ESPP purchase it uses the market value on the purchase
-date as the acquisition cost, on the assumption that the discount was taxed as employment income.
-Check that assumption against your payroll and award records.
+already recorded by the related vest. A price-only export has no such vest row, which is why its
+lapses are read for their prices instead. For an ESPP purchase it uses the market value on the
+purchase date as the acquisition cost, on the assumption that the discount was taxed as employment
+income. Check that assumption against your payroll and award records.
 
 #### Combining a main history with a complete export
 
@@ -381,13 +441,18 @@ use the one with the correct quantity.
 
 ### `Cannot price a vest`
 
-The named `Stock Plan Activity` has no price in the main CSV. Export the Equity Awards CSV and pass
-it with `--schwab-award-file`. If you already did, check that it contains the same ticker and a
-`FairMarketValuePrice` dated no more than six days before the activity.
+The named `Stock Plan Activity` has no price in the main CSV. Export the Equity Awards history and
+pass it with `--schwab-award-file`. Either layout of the price-only export will do: the award-price
+CSV, or the JSON export whose every row is a `Lapse`. If you already did, check that it contains the
+same ticker and a `FairMarketValuePrice` dated no more than six days before the activity.
 
-If the file instead uses the `VestFairMarketValue` layout, it is the complete transaction export,
-and cgt-calc cannot use it to price a vest in your main history. Which way round to work depends on
-what each file holds:
+If its JSON holds `Lapse` rows together with cash rows such as `Journal` or `Wire Transfer`,
+cgt-calc will not read prices from it. Export the same history as the award-price CSV, which reads
+the vests and ignores the cash rows.
+
+If the file instead uses the `VestFairMarketValue` layout, or its JSON holds `Deposit`, `Sale` or
+`Dividend` rows, it is the complete transaction export, and cgt-calc cannot use it to price a vest
+in your main history. Which way round to work depends on what each file holds:
 
 - If the complete export holds everything you need for the year, including any purchases, sales,
     dividends and cash movements, pass it with `--schwab-award-file` on its own and leave out

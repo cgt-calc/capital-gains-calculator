@@ -14,6 +14,7 @@ ArgumentParser
 ArgumentTypeError
 arm64
 AttributeError
+AwardPrices
 autoconvert
 autoconverted
 autosale
@@ -26,6 +27,7 @@ BrokerTransaction
 BSF
 BST
 calc
+calc's
 CalculationEntry
 Center
 CG12313
@@ -211,6 +213,7 @@ Schwab
 schwab
 Schwab's
 SchwabAwardTransaction
+SchwabParser
 SchwabTransaction
 Sharesight
 Sharesight's
@@ -220,6 +223,7 @@ shtab
 SIPP
 SLF001
 SOLV
+SortValue
 SpinOff
 SpinOffs
 SplitHistory
@@ -247,6 +251,7 @@ tzinfo
 UCITS
 un
 unmapped
+unpriced
 unprovable
 UnresolvedRatio
 unvalidated

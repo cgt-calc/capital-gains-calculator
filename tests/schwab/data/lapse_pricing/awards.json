@@ -1,0 +1,98 @@
+{
+    "FromDate": "01/01/2023",
+    "ToDate": "12/31/2023",
+    "Transactions": [
+        {
+            "Date": "12/15/2023",
+            "Action": "Lapse",
+            "Symbol": "ZQX",
+            "Quantity": "40",
+            "Description": "Restricted Stock Lapse",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "12/15/2020",
+                        "AwardId": "C0004",
+                        "FairMarketValuePrice": "$25.00",
+                        "SalePrice": "",
+                        "SharesSoldWithheldForTaxes": "16",
+                        "NetSharesDeposited": "24",
+                        "Taxes": "$400.00"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "09/13/2023",
+            "Action": "Lapse",
+            "Symbol": "ZQX",
+            "Quantity": "50",
+            "Description": "Restricted Stock Lapse",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "09/13/2021",
+                        "AwardId": "C0003",
+                        "FairMarketValuePrice": "$20.00",
+                        "SalePrice": "",
+                        "SharesSoldWithheldForTaxes": "20",
+                        "NetSharesDeposited": "30",
+                        "Taxes": "$400.00"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "09/13/2023",
+            "Action": "Lapse",
+            "Symbol": "ZQX",
+            "Quantity": "200",
+            "Description": "Restricted Stock Lapse",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "09/13/2020",
+                        "AwardId": "C0002",
+                        "FairMarketValuePrice": "$20.00",
+                        "SalePrice": "",
+                        "SharesSoldWithheldForTaxes": "80",
+                        "NetSharesDeposited": "120",
+                        "Taxes": "$1,600.00"
+                    }
+                }
+            ]
+        },
+        {
+            "Date": "06/12/2023",
+            "Action": "Lapse",
+            "Symbol": "ZQX",
+            "Quantity": "100",
+            "Description": "Restricted Stock Lapse",
+            "FeesAndCommissions": null,
+            "DisbursementElection": null,
+            "Amount": null,
+            "TransactionDetails": [
+                {
+                    "Details": {
+                        "AwardDate": "06/12/2020",
+                        "AwardId": "C0001",
+                        "FairMarketValuePrice": "$10.00",
+                        "SalePrice": "",
+                        "SharesSoldWithheldForTaxes": "40",
+                        "NetSharesDeposited": "60",
+                        "Taxes": "$400.00"
+                    }
+                }
+            ]
+        }
+    ]
+}

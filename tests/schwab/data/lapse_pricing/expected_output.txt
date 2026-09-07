@@ -1,0 +1,32 @@
+Final portfolio
+  ZQX: 234.00
+
+Final balance
+  Charles Schwab: 12210.00 (USD)
+
+Dividends
+  ZQX: 12.00 (USD)
+
+Portfolio at the end of 2023/2024 tax year
+  ZQX: 234.00, £2,852.08
+
+Tax summary for 2023/2024
+
+Capital gains
+  Disposals:                  1
+  Disposal proceeds:  £2,425.81
+  Allowable costs:    £1,131.03
+  Gain:               £1,294.78
+  Loss:                   £0.00
+  Total gain:         £1,294.78
+  Taxable gain:           £0.00
+
+Dividends
+  Proceeds:               £9.46
+  Tax-free allowance: £1,000.00
+  Taxable proceeds:       £0.00
+
+Interest
+  UK proceeds:            £0.00
+  Foreign proceeds:       £0.00
+  Tax paid:               £0.00
