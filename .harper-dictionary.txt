@@ -251,6 +251,7 @@ ty
 tzinfo
 UCITS
 un
+unattributable
 unmapped
 unpriced
 unprovable
