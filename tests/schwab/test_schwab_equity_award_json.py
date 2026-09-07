@@ -284,6 +284,7 @@ def test_split_history_demands_a_price_floor_it_can_use() -> None:
         ("Stock Plan Activity", ActionType.STOCK_ACTIVITY),
         ("NRA Tax Adj", ActionType.DIVIDEND_TAX),
         ("NRA Withholding", ActionType.DIVIDEND_TAX),
+        ("NRA Withhold", ActionType.DIVIDEND_TAX),
         ("Foreign Tax Paid", ActionType.DIVIDEND_TAX),
         ("Tax Reversal", ActionType.DIVIDEND_TAX),
         ("Tax Withholding", ActionType.DIVIDEND_TAX),
