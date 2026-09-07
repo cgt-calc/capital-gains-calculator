@@ -105,6 +105,7 @@ GSU
 hashable
 HL
 Hmrc
+ICAV
 I/O
 IBKR
 IBKR's
@@ -217,11 +218,13 @@ Schwab's
 SchwabAwardTransaction
 SchwabParser
 SchwabTransaction
+SEDOL
 Sharesight
 Sharesight's
 Shareworks
 shfmt
 shtab
+SICAV
 SIPP
 SLF001
 SOLV

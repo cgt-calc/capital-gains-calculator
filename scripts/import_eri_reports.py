@@ -19,6 +19,7 @@ from cgt_calc.exceptions import (
 )
 from cgt_calc.parsers.eri.importer.blackrock import BlackrockImporter
 from cgt_calc.parsers.eri.importer.invesco import InvescoImporter
+from cgt_calc.parsers.eri.importer.legal_and_general import LegalAndGeneralImporter
 from cgt_calc.parsers.eri.importer.vanguard import VanguardImporter
 from cgt_calc.parsers.eri.importer.xtrackers import XtrackersImporter
 from cgt_calc.parsers.eri.raw import COLUMNS, RAW_DATE_FORMAT, ERIRawParser
@@ -35,6 +36,7 @@ ERI_IMPORTERS: list[ERIImporter] = [
     InvescoImporter(),
     VanguardImporter(),
     XtrackersImporter(),
+    LegalAndGeneralImporter(),
 ]
 
 logging.basicConfig(level=logging.INFO)
@@ -155,7 +157,7 @@ def main() -> None:
         "eri_reports",
         type=str,
         help=(
-            "Input file or folder to import ERI reports into "
+            "Input file or folder to import ERI reports from "
             "the project resources folder using the existing ERI parsers available."
         ),
     )

@@ -101,6 +101,18 @@ reporting status:
 - **Excess of reporting income over distribution:** Per unit excess reportable income over
     distributions in respect of the reporting period column
 
+### L&G
+
+L&G's reports are here: <https://am.landg.com/en-uk/institutional/fundcentre/uk-reporting-funds/>
+
+There are a few formats for different funds but for the currently supported UCITS ETF funds the
+columns are self explanatory:
+
+- **ISIN:** ISIN/SEDOL
+- **Fund Reporting Period End Date:** Reporting Period -> Reporting To (a sub-column)
+- **Currency:** Currency of calculation
+- **Excess of reporting income over distribution:** Excess of reportable income per unit
+
 ## Contributing data back
 
 If you compile ERI data for any fund, please contribute it so other holders of the same fund can

@@ -35,6 +35,7 @@ cgt-calc currently bundles:
 - [Invesco Funds 2018-2024](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/invesco_eri.csv)
 - [Xtrackers Funds 2024](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/xtrackers_eri.csv)
 - [Amundi CSH2 2015-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/amundi_csh2_eri.csv)
+- [L&G 2023-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/legal_and_general_eri.csv)
 
 Open the relevant file and check that it contains the exact ISIN and every reporting period you
 need. cgt-calc cannot detect a missing ERI row. If supplied ERI cannot be matched to the holding,
