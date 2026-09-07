@@ -17,12 +17,13 @@ import datetime
 from decimal import Decimal
 import itertools
 
+import pandas as pd
 import pytest
 
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
-from cgt_calc.exceptions import CalculationError
+from cgt_calc.exceptions import CalculationError, MarketDataMissingError
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
@@ -717,5 +718,143 @@ def test_a_third_price_against_agreeing_ends_is_still_refused() -> None:
             ],
             "SRCOLD",
             _priced(SRCOLD=40, SRC=25, DST=40),
+            sources={"DST": "SRCOLD"},
+        )
+
+
+class _NoMarketData:
+    """Stand-in for `yf.Ticker` with no price history for any day."""
+
+    def history(self, **kwargs: str) -> pd.DataFrame:
+        """Return an empty price history."""
+        return pd.DataFrame()
+
+
+@pytest.fixture
+def unlisted(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make every price the run was not given fail rather than be looked up."""
+    monkeypatch.setattr(
+        "cgt_calc.current_price_fetcher.yf.Ticker", lambda symbol: _NoMarketData()
+    )
+
+
+@pytest.mark.parametrize("priced", ["SRC", "SRCNEW"], ids=["old", "new"])
+@RENAME_FIRST
+@pytest.mark.usefixtures("unlisted")
+def test_a_source_priced_under_its_other_name_keeps_that_price(
+    priced: str, *, rename_first: bool
+) -> None:
+    """One of a holding's two names carrying its price prices the holding.
+
+    The day's renames say `SRC` and `SRCNEW` are one security, so they have
+    one market value between them, and the spin-offs file's spelling is not
+    the one it has to be given under. Where the file named the other, the run
+    used to go to the market for a ticker nobody had priced and stop for want
+    of market data - or, worse, come back with the price of a real holding
+    that happened to share the name.
+    """
+    rename = rename_row("SRC", "SRCNEW")
+    spin = spin_off_row("DST")
+    report = run(
+        [
+            transaction(BUY_DAY, ActionType.BUY, "SRC", 10, 10, 0, -100, GBP),
+            *([rename, spin] if rename_first else [spin, rename]),
+        ],
+        "SRCNEW" if priced == "SRC" else "SRC",
+        _priced(**{priced: 90, "DST": 10}),
+    )
+
+    (entry,) = report.calculation_log[DAY]["buy$DST"]
+    assert entry.allowable_cost == Decimal(10)
+    assert holding(report, "SRCNEW") == (Decimal(10), Decimal(90))
+
+
+@pytest.mark.parametrize("priced", ["DST", "DSTNEW"], ids=["old", "new"])
+@RENAME_FIRST
+@pytest.mark.usefixtures("unlisted")
+def test_a_destination_priced_under_its_other_name_keeps_that_price(
+    priced: str, *, rename_first: bool
+) -> None:
+    """The same, for the holding the shares arrive in.
+
+    Its own name is the spin-off row's, and the day renames it, so the price
+    can as easily have been given under the other spelling.
+    """
+    rename = rename_row("DST", "DSTNEW")
+    spin = spin_off_row("DSTNEW" if priced == "DST" else "DST")
+    report = run(
+        [
+            transaction(BUY_DAY, ActionType.BUY, "SRC", 10, 10, 0, -100, GBP),
+            *([rename, spin] if rename_first else [spin, rename]),
+        ],
+        "SRC",
+        _priced(**{priced: 10, "SRC": 90}),
+    )
+
+    (entry,) = report.calculation_log[DAY][f"buy${spin.symbol}"]
+    assert entry.allowable_cost == Decimal(10)
+    assert holding(report, "DSTNEW") == (Decimal(10), Decimal(10))
+
+
+@pytest.mark.usefixtures("unlisted")
+def test_a_holding_priced_under_none_of_its_names_is_still_looked_up() -> None:
+    """A holding nobody priced is not made up from a name that is.
+
+    `SRC` has two names and neither was priced, so there is nothing to read
+    and the run goes to the market as it always did, saying which ticker it
+    could not price.
+    """
+    with pytest.raises(MarketDataMissingError, match="SRCNEW"):
+        run(
+            [
+                transaction(BUY_DAY, ActionType.BUY, "SRC", 10, 10, 0, -100, GBP),
+                spin_off_row("DST"),
+                rename_row("SRC", "SRCNEW"),
+            ],
+            "SRCNEW",
+            _priced(DST=10),
+        )
+
+
+@pytest.mark.usefixtures("unlisted")
+def test_two_of_a_source_s_other_names_disagreeing_are_refused() -> None:
+    """Reading a price from another name does not excuse it from the check.
+
+    `SRCOLD` and `SRCALT` both become `SRC`, which the spin-offs file names
+    and nobody priced. The two that were priced disagree, £75 against £60,
+    and one holding has one market value on a day.
+    """
+    with pytest.raises(CalculationError, match="priced differently"):
+        run(
+            [
+                transaction(BUY_DAY, ActionType.BUY, "SRCOLD", 12, 12, 0, -144, GBP),
+                spin_off_row("DST", 12),
+                rename_row("SRCOLD", "SRC"),
+                rename_row("SRCALT", "SRC"),
+            ],
+            "SRC",
+            _priced(SRCOLD=75, SRCALT=60, DST=25),
+        )
+
+
+@pytest.mark.usefixtures("unlisted")
+def test_a_merged_day_takes_no_price_from_the_name_it_shares() -> None:
+    """Where both ends close under one name, neither can borrow from it.
+
+    `SRCOLD` becomes `SRC` and the new `DST` shares are renamed into `SRC`
+    too, so `SRC` is claimed by both ends and its £40 says nothing about
+    which. Reading it as the unpriced source's would price that holding at
+    whatever the day's other one was worth.
+    """
+    with pytest.raises(MarketDataMissingError, match="SRCOLD"):
+        run(
+            [
+                transaction(BUY_DAY, ActionType.BUY, "SRCOLD", 12, 12, 0, -144, GBP),
+                spin_off_row("DST", 12),
+                rename_row("SRCOLD", "SRC"),
+                rename_row("DST", "SRC"),
+            ],
+            "SRCOLD",
+            _priced(SRC=40, DST=40),
             sources={"DST": "SRCOLD"},
         )

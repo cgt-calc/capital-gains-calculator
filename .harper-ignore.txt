@@ -45,6 +45,9 @@
 ^model\.py:.*Everyone
 # "every one of those decisions" is two words; the Everyone rule misfires.
 ^report_view\.py:.*Everyone
+# "every one of them is claimed by both ends" counts the names one at a time;
+# the Everyone rule misfires.
+^ingestion\.py:.*Everyone
 # "how many candidates there are" is correct; ThereIsAgreement expects the noun
 # after the verb, but this construction puts it first.
 ^trading212\.py:.*ThereIsAgreement

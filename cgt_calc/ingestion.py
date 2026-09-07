@@ -373,6 +373,40 @@ class TransactionIngester:
             + f"{symbol} out by hand (consider professional advice)."
         )
 
+    def _end_price(
+        self, symbol: str, date_index: datetime.date, *, other_end: str
+    ) -> Decimal:
+        """Return what one end of a reorganisation was worth on the day.
+
+        A day may rename this end, so the price the run was given can sit
+        under its other name. The two are one security with one market value,
+        so either name answers. Asking only under the spelling this end is
+        recorded by would send the run looking the price up instead, under a
+        ticker the market need not carry at all - or worse, one it carries for
+        somebody else's holding.
+
+        The other end's names are not this end's, the same exclusion
+        `_refuse_disagreeing_alias` makes. Where the day's renames leave both
+        ends under one name, this end has no other name of its own: every one
+        of them is claimed by both ends, which is what
+        `_refuse_unattributable_price` refuses. Only the end's own spelling
+        answers there.
+
+        Two names disagreeing is still refused, not resolved here. That
+        check measures the end's other names against the price this returns,
+        so the end's own name answers first: return another's and the end's
+        own price becomes the one nothing reads, and the disagreement passes.
+        A holding none of whose names was priced is looked up as before.
+        """
+        renames = self.history.rename_list.get(date_index, {})
+        own = connected_names(renames, symbol)
+        aliases = () if other_end in own else sorted(own - {symbol})
+        for name in (symbol, *aliases):
+            known = self.price_fetcher.known_closing_price(name, date_index)
+            if known is not None:
+                return known
+        return self.price_fetcher.get_closing_price(symbol, date_index)
+
     def _refuse_disagreeing_alias(
         self,
         symbol: str,
@@ -641,8 +675,8 @@ class TransactionIngester:
         # holding it creates. Reading a price under a name that depends on
         # where the RENAME row landed would let the export's layout decide
         # how much cost carries across.
-        dst_price = self.price_fetcher.get_closing_price(symbol, transaction.date)
-        src_price = self.price_fetcher.get_closing_price(recorded, transaction.date)
+        dst_price = self._end_price(symbol, transaction.date, other_end=recorded)
+        src_price = self._end_price(recorded, transaction.date, other_end=symbol)
         # The wider question first, so that a day whose two ends close under
         # one name is refused for that rather than for whichever of its names
         # happened to be compared.
