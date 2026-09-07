@@ -68,6 +68,15 @@ class CurrentPriceFetcher:
             market_price_decimal, ticker.get("currency"), datetime.datetime.now().date()
         )
 
+    def known_closing_price(self, symbol: str, date: datetime.date) -> Decimal | None:
+        """Return an already-known closing price, or None without fetching.
+
+        For asking about a ticker that may not exist. Only the prices given to
+        this run answer; nothing is looked up, so a name the market never
+        carried costs nothing to ask about and cannot fail the run.
+        """
+        return self.historical_prices_data.get(symbol, {}).get(date)
+
     def get_closing_price(self, symbol: str, date: datetime.date) -> Decimal:
         """Get the price of the share on closing time."""
         with suppress(KeyError):

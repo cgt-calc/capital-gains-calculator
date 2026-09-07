@@ -28,7 +28,7 @@ from .stock_splits import quantity_sign
 from .transaction_log import has_key
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Mapping
     import datetime
 
     from .calculator_state import CalculatorState, PreparedHistory
@@ -39,7 +39,6 @@ RENAME_DAY_UNSUPPORTED_ACTIONS: Final = frozenset(
     {
         # Restate or apportion the pool itself, so where the pool sits when
         # the row is read decides what they do.
-        ActionType.SPIN_OFF,
         ActionType.STOCK_SPLIT,
         ActionType.FEE,
         ActionType.EXCESS_REPORTED_INCOME,
@@ -59,17 +58,20 @@ RENAME_DAY_UNSUPPORTED_ACTIONS: Final = frozenset(
 """Actions that keep their component on the existing row-position path."""
 
 
-UNNAMED_HOLDING_ACTIONS: Final = frozenset(
-    {ActionType.SPIN_OFF, ActionType.EXCESS_REPORTED_INCOME}
-)
+UNNAMED_HOLDING_ACTIONS: Final = frozenset({ActionType.EXCESS_REPORTED_INCOME})
 """Rows that change a pool without naming it, so no component can exclude them.
 
-A spin-off row names only the holding it creates: its source is chosen when
-the row is read, out of the portfolio as the day's earlier rows have left it.
 An excess reported income row names no ticker at all, only an ISIN, which is
-resolved to the holdings it adds cost to when that row is read. Neither can be
-matched to a rename component by the ticker on its own row, so a day carrying
-either is left to the row-position pool in its entirety.
+resolved to the holdings it adds cost to when that row is read. It cannot be
+matched to a rename component by anything on its own row, so a day carrying
+one is left to the row-position pool in its entirety.
+
+A spin-off used to be read this way too, because the holding it draws from is
+chosen when the row is read rather than named on it. But the row does name the
+holding it creates, which is the only one whose count it changes, and a
+spin-off leaves the source's count alone. So a component can take a spin-off
+into account like any other row that adds units, and a spin-off elsewhere on
+the day no longer stops an unrelated rename being read as one holding.
 """
 
 
@@ -86,6 +88,43 @@ class RenameComponent:
     names: tuple[str, ...]
     closing_name: str
     capacity: Decimal
+
+
+def end_name(renames: Mapping[str, str], symbol: str) -> str:
+    """Return the name a day's renames leave this holding under.
+
+    A rename changes what a holding is called and nothing else, so two rows
+    spelling it differently are rows of one holding. The name it ends the day
+    under is what they agree on, and is the same answer whichever of the
+    day's spellings is asked about, so it is what tells one holding from
+    another: comparing the spellings themselves makes one holding look like
+    two, and each half is then worked out as if the other were a different
+    security.
+
+    Chains and cycles are refused before any of the day's rows is read, so a
+    single hop reaches the end.
+    """
+    return renames.get(symbol, symbol)
+
+
+def connected_names(renames: Mapping[str, str], symbol: str) -> set[str]:
+    """Return every ticker a day's renames say is this holding.
+
+    Walked in both directions: a holding is reached from the name it is
+    renamed to as well as from the ones renamed into it.
+    """
+    reached = {symbol}
+    frontier = [symbol]
+    while frontier:
+        name = frontier.pop()
+        for old_name, new_name in renames.items():
+            other = (
+                new_name if name == old_name else old_name if name == new_name else None
+            )
+            if other is not None and other not in reached:
+                reached.add(other)
+                frontier.append(other)
+    return reached
 
 
 def rename_pair(transaction: BrokerTransaction) -> tuple[str, str]:
@@ -125,6 +164,13 @@ def plan_renames(
     ]
     for _, renames in components:
         _refuse_rename_chain(renames, date_index)
+    # Which names the day makes one holding, recorded before any of its rows
+    # is read. The pool still moves where the RENAME row sits, but a row that
+    # names either spelling can be resolved to the holding whatever order the
+    # export lists them in, which the row-position record cannot do for a
+    # rename it has not reached yet.
+    for _, renames in components:
+        state.history.rename_list[date_index].update(renames)
     # These rows cannot be assigned to components by ticker alone.
     if any(
         transaction.action in UNNAMED_HOLDING_ACTIONS

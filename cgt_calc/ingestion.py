@@ -38,6 +38,8 @@ from .model import (
     SpinOff,
 )
 from .rename_planning import (
+    connected_names,
+    end_name,
     plan_renames,
     reconcile_rename_day,
     rename_day_units,
@@ -47,7 +49,7 @@ from .rename_planning import (
 from .stock_split_planning import plan_stock_splits, source_account
 from .stock_splits import quantity_sign
 from .transaction_log import add_to_list, day_acquisitions
-from .util import approx_equal, normalize_amount, round_decimal
+from .util import approx_equal, normalize_amount, round_decimal, strip_zeros
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -345,6 +347,145 @@ class TransactionIngester:
         if self.run.portfolio[symbol].quantity == 0:
             del self.run.portfolio[symbol]
 
+    @staticmethod
+    def _source_is_the_destination_message(
+        recorded: str, symbol: str, date_index: datetime.date, *, renamed: bool
+    ) -> str:
+        """Say why a holding cannot be spun off from itself."""
+        cause = (
+            f"the day renames {recorded} to {symbol} as well, so {symbol} names"
+            if renamed
+            else f"the spin-offs file gives {symbol} itself as the holding the "
+            f"shares came from, so {symbol} would name"
+        )
+        return (
+            f"Cannot compute the spin-off of {symbol} on {date_index}: {cause} "
+            "both the holding the shares came from and the one they arrived "
+            "in. What a holding was worth that day is read from its ticker, "
+            "and that ticker would have to stand for both at once, so there is "
+            "no price to read. "
+            + (
+                "Put the rename on the day it happened, or work "
+                if renamed
+                else "Name the holding the shares came from in the spin-offs "
+                "file, or work "
+            )
+            + f"{symbol} out by hand (consider professional advice)."
+        )
+
+    def _refuse_disagreeing_alias(
+        self,
+        symbol: str,
+        date_index: datetime.date,
+        price: Decimal,
+        *,
+        other_end: str,
+    ) -> None:
+        """Refuse a second, different price under this end's own other name.
+
+        A day may rename that end, so it has a second name of its own, and the
+        two are the same security and should carry one price. Two different
+        ones would each give a different answer with nothing to choose
+        between them, so a disagreement is refused.
+
+        Every name the day's renames connect to this end is its own, except
+        the other end's: a merge back reaches that one, and its price is not
+        this end's to be measured against. Sibling names that meet only
+        through the other end are its own too - nothing in the rename graph
+        tells a second spelling of this holding from a third holding joining
+        it, so a price under either contradicts this end's just the same.
+
+        Only prices this run was already given take part. A name the market
+        never carried is not looked up, so asking cannot slow a run down or
+        fail it.
+        """
+        renames = self.history.rename_list.get(date_index, {})
+        own = connected_names(renames, symbol)
+        for alias in sorted(own - {symbol, other_end}):
+            known = self.price_fetcher.known_closing_price(alias, date_index)
+            if known is not None and known != price:
+                raise CalculationError(
+                    f"Cannot compute the spin-off of {symbol} on {date_index}: "
+                    f"the day's renames make {symbol} and {alias} one holding, "
+                    f"and they are priced differently "
+                    f"({strip_zeros(price)} and {strip_zeros(known)}). One "
+                    "holding has one market value on a day, and that value "
+                    "decides how much of the cost the reorganisation carries "
+                    "across, so there is no telling what it should be. Correct "
+                    f"whichever price is wrong, or work {symbol} out by hand "
+                    "(consider professional advice)."
+                )
+
+    def _refuse_unattributable_price(
+        self,
+        recorded: str,
+        symbol: str,
+        date_index: datetime.date,
+        src_price: Decimal,
+        dst_price: Decimal,
+    ) -> None:
+        """Refuse a price that could belong to either end of a reorganisation.
+
+        The day's renames can leave the holding the shares came from and the
+        one they arrived in ending under a single name. Where they do, a name
+        in that group which is neither end's own is claimed by both: a price
+        given for it is a third figure for the day, and nothing says which end
+        it belongs to. Picking one would let the spin-offs file's spelling
+        decide how the cost is split.
+
+        Unless there is nothing to decide. Where the two ends are worth the
+        same and the name is priced at that figure too, the day has one
+        market value and no reading of it splits the cost differently. That is
+        the whole of the exception: matching just one end of two that differ
+        proves nothing, because the name may belong to the other, and the
+        price it contradicts is the one that would then be used.
+        """
+        renames = self.history.rename_list.get(date_index, {})
+        merged = connected_names(renames, symbol)
+        if recorded not in merged:
+            return
+        settled = src_price == dst_price
+        for name in sorted(merged - {recorded, symbol}):
+            known = self.price_fetcher.known_closing_price(name, date_index)
+            if known is None or (settled and known == src_price):
+                continue
+            raise CalculationError(
+                f"Cannot compute the spin-off of {symbol} on {date_index}: "
+                f"the day's renames leave {recorded} and {symbol} under one "
+                f"name, and {name} is priced at {strip_zeros(known)} in the "
+                "same group. That figure is neither holding's own, so "
+                "whether it prices the shares the reorganisation came from "
+                "or the ones it created cannot be told, and the two split "
+                f"the cost differently. Price {recorded} and {symbol} "
+                "themselves, or work this day out by hand (consider "
+                "professional advice)."
+            )
+
+    def _source_holding_name(self, ticker: str, date_index: datetime.date) -> str:
+        """Return the name a spin-off's source holding is under right now.
+
+        The spin-offs file records one spelling, and a day that renames the
+        source has two. The pool moves where the RENAME row sits, so which of
+        them holds it here depends on where the export put that row, which is
+        not something the file's author knew. Every name the day's renames
+        connect is checked, and the one holding shares answers.
+
+        The recorded spelling stands when nothing is found, so a source that
+        really is missing, or one spun off later the same day out of order,
+        still reaches the refusal below.
+        """
+        renames = self.history.rename_list.get(date_index, {})
+        reached = connected_names(renames, ticker)
+        held = sorted(
+            name
+            for name in reached
+            if self.run.portfolio.get(name, Position()).quantity > 0
+        )
+        # One name holding shares is the holding. Two means the day merges
+        # two of them, which ``_spin_off_pool`` refuses in the second pass
+        # with the reason; nothing is gained by guessing between them here.
+        return held[0] if len(held) == 1 else ticker
+
     def _pooled_quantity(self, transaction: BrokerTransaction) -> Decimal:
         """Return the count to pool, in the units in force at the day's end."""
         quantity = transaction.pool_quantity
@@ -414,9 +555,53 @@ class TransactionIngester:
         symbol = get_symbol_or_fail(transaction)
         quantity = self._pooled_quantity(transaction)
 
-        ticker = self.spin_off_handler.get_spin_off_source(
+        recorded = self.spin_off_handler.get_spin_off_source(
             symbol, transaction.date, self.run.portfolio
         )
+        renames = self.history.rename_list.get(transaction.date, {})
+        # Which holding a row is about, rather than which spelling it used.
+        holding = end_name(renames, symbol)
+        # Only the source's own ticker becoming the destination's overloads
+        # it. A destination renamed *into* the source merges after the
+        # reorganisation, by which time both have been priced.
+        if symbol in {recorded, renames.get(recorded)}:
+            raise CalculationError(
+                self._source_is_the_destination_message(
+                    recorded, symbol, transaction.date, renamed=recorded != symbol
+                )
+            )
+        # One event's shares must all reach the same acquisition record, and
+        # that record is kept under the ticker each row states. Rows of one
+        # spin-off spelled two ways would be pooled apart and apportioned
+        # twice, each from a source the other had already reduced.
+        #
+        # Only rows of the same event: two holdings can each spin something
+        # off into what the day's renames make one holding, and those are two
+        # reorganisations, settled separately and pooled together at the day's
+        # close.
+        split = next(
+            (
+                spin_off
+                for spin_off in self.history.spin_offs[transaction.date]
+                if end_name(renames, spin_off.dest) == holding
+                and spin_off.dest != symbol
+                and end_name(renames, spin_off.source) == end_name(renames, recorded)
+            ),
+            None,
+        )
+        if split is not None:
+            raise CalculationError(
+                f"Cannot compute the spin-off of {symbol} on {transaction.date}: "
+                f"the day already spins shares from {recorded} into "
+                f"{split.dest}, which its renames make the same holding as "
+                f"{symbol}. One reorganisation splits the value of everything "
+                "it hands over at once, and these rows are recorded under two "
+                "names, so what each is worth cannot be settled separately. "
+                "Record the day's spin-off rows for this holding under one "
+                f"name, or work {symbol} out by hand (consider professional "
+                "advice)."
+            )
+        ticker = self._source_holding_name(recorded, transaction.date)
         # Nothing to apportion from an empty holding, and no proportion of
         # value to work out either. On a day the source is itself created by
         # a spin-off, this is the first sign the rows are out of order, and
@@ -437,7 +622,7 @@ class TransactionIngester:
             (
                 spin_off
                 for spin_off in self.history.spin_offs[transaction.date]
-                if spin_off.source == symbol
+                if end_name(renames, spin_off.source) == holding
             ),
             None,
         )
@@ -451,8 +636,25 @@ class TransactionIngester:
                 f"{symbol} before the one it makes, or work this day out by "
                 "hand (consider professional advice). Do not change the dates."
             )
+        # Each end is priced under the name that does not move with the
+        # RENAME row: the file's name for the source, the row's own for the
+        # holding it creates. Reading a price under a name that depends on
+        # where the RENAME row landed would let the export's layout decide
+        # how much cost carries across.
         dst_price = self.price_fetcher.get_closing_price(symbol, transaction.date)
-        src_price = self.price_fetcher.get_closing_price(ticker, transaction.date)
+        src_price = self.price_fetcher.get_closing_price(recorded, transaction.date)
+        # The wider question first, so that a day whose two ends close under
+        # one name is refused for that rather than for whichever of its names
+        # happened to be compared.
+        self._refuse_unattributable_price(
+            recorded, symbol, transaction.date, src_price, dst_price
+        )
+        self._refuse_disagreeing_alias(
+            symbol, transaction.date, dst_price, other_end=recorded
+        )
+        self._refuse_disagreeing_alias(
+            recorded, transaction.date, src_price, other_end=symbol
+        )
         dst_amount = quantity * dst_price
         src_amount = self.run.portfolio[ticker].quantity * src_price
         original_src_amount = self.run.portfolio[ticker].amount

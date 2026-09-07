@@ -51,3 +51,5 @@
 # "Either layout of the price-only export" is a compound noun; Harper
 # reads it as the verb "lay out".
 ^schwab\.md:.*PhrasalVerbAsCompoundNoun
+# "a single hop" is the graph sense, as in this file's own `_one_hop_renames`.
+^rename_planning\.py:.*HopHope

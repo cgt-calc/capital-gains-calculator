@@ -1839,7 +1839,14 @@ def test_every_action_says_what_a_rename_day_does_with_it() -> None:
 
     Adding an action without classifying it must fail this test.
     """
-    read_as_one_holding = {ActionType.BUY, ActionType.SELL, ActionType.RENAME}
+    read_as_one_holding = {
+        ActionType.BUY,
+        ActionType.SELL,
+        ActionType.RENAME,
+        # A spin-off names the holding it creates, which is the only one whose
+        # count it changes, so a component can take it into account.
+        ActionType.SPIN_OFF,
+    }
     touch_no_holding = {
         ActionType.ADJUSTMENT,
         ActionType.CANCEL_BUY,
@@ -1866,10 +1873,12 @@ def test_every_action_says_what_a_rename_day_does_with_it() -> None:
         RENAME_DAY_UNSUPPORTED_ACTIONS
     )
     # Nothing that moves a share count is read as part of the whole holding
-    # but an ordinary purchase or sale.
+    # but an ordinary purchase or sale, and a spin-off, which adds units to
+    # the holding its own row names.
     assert (QUANTITY_INCREASING_ACTIONS | QUANTITY_DECREASING_ACTIONS) - {
         ActionType.BUY,
         ActionType.SELL,
+        ActionType.SPIN_OFF,
     } <= RENAME_DAY_UNSUPPORTED_ACTIONS
 
 
