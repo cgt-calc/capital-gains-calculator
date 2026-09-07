@@ -49,7 +49,13 @@ from .rename_planning import (
 from .stock_split_planning import plan_stock_splits, source_account
 from .stock_splits import quantity_sign
 from .transaction_log import add_to_list, day_acquisitions
-from .util import approx_equal, normalize_amount, round_decimal, strip_zeros
+from .util import (
+    approx_equal,
+    indent_entry,
+    normalize_amount,
+    round_decimal,
+    strip_zeros,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -1576,7 +1582,7 @@ class TransactionIngester:
                 # row that spent the money, so the day is what to name here.
                 msg += f" at the end of {transaction.date}"
                 msg += " after processing the following transactions:\n"
-                msg += "\n".join(entries) + "\n"
+                msg += "\n".join(indent_entry(entry) for entry in entries) + "\n"
                 msg += "Tip: If your input file is missing deposits/withdrawals use --no-balance-check."
                 raise CalculationError(msg)
             balance[transaction.broker, transaction.currency] = new_balance

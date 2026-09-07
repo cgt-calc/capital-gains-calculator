@@ -10,7 +10,7 @@ from typing import override
 
 import pytest
 
-from cgt_calc.exceptions import CalculationError
+from cgt_calc.exceptions import CalculationError, InvalidTransactionError
 from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
@@ -311,3 +311,224 @@ def test_source_is_not_part_of_transaction_equality() -> None:
 
     assert first == second
     assert len({first, second}) == 1
+
+
+def _sale(**changes: object) -> BrokerTransaction:
+    """Build a disposal to render, with any field overridden."""
+    transaction = BrokerTransaction(
+        date=datetime.date(2024, 6, 27),
+        action=ActionType.SELL,
+        symbol="FOO",
+        description="FOO INC",
+        quantity=Decimal(10),
+        price=Decimal("12.50"),
+        fees=Decimal("0.02"),
+        amount=Decimal("124.98"),
+        currency=USD,
+        broker="Charles Schwab",
+    )
+    return replace(transaction, **changes)  # type: ignore[arg-type]
+
+
+def test_str_states_the_row_without_python_syntax() -> None:
+    """Errors print this, so it has to read as a transaction, not a dump."""
+    rendered = str(_sale())
+
+    assert rendered.startswith("2024-06-27 Sell 10 FOO, price 12.5 USD")
+    assert "amount 124.98" in rendered
+    assert "fees 0.02" in rendered
+    assert "Charles Schwab" in rendered
+    assert '"FOO INC"' in rendered
+    for python_syntax in ("Decimal(", "datetime.date(", "ActionType.", "<", "="):
+        assert python_syntax not in rendered
+
+
+def test_str_leaves_out_what_the_export_did_not_state() -> None:
+    """An absent field is absent, not None, an empty dict or an empty list."""
+    rendered = str(
+        _sale(
+            symbol=None,
+            description="",
+            quantity=None,
+            price=None,
+            amount=None,
+            fees=Decimal(0),
+        )
+    )
+
+    assert rendered == "2024-06-27 Sell\n  Charles Schwab"
+    for empty in ("None", "{}", "[]", "''"):
+        assert empty not in rendered
+
+
+def test_str_names_the_file_and_row_it_was_read_from() -> None:
+    """The provenance is the one field that says where to look.
+
+    The path is written the way the platform writes one, with backslashes
+    on Windows: it is there for the reader to open, so it has to match what
+    their own tools show them.
+    """
+    path = Path("exports/main.csv")
+
+    rendered = str(_sale(source=TransactionSource(file=path, row=8)))
+
+    assert f"read from row 8 of {path}" in rendered
+
+
+def test_str_states_the_currency_against_the_amount_when_there_is_no_price() -> None:
+    """A dividend states no price, so the currency goes with the amount."""
+    rendered = str(
+        _sale(
+            action=ActionType.DIVIDEND,
+            quantity=None,
+            price=None,
+            fees=Decimal(0),
+            amount=Decimal("3.10"),
+            isin=Isin(VALID_ISIN),
+        )
+    )
+
+    assert rendered.startswith("2024-06-27 Dividend FOO, amount 3.1 USD")
+    assert f"ISIN {VALID_ISIN}" in rendered
+
+
+def test_str_names_a_file_that_states_no_row() -> None:
+    """A parser that tracks the file but not the line still says which file."""
+    rendered = str(_sale(source=TransactionSource(file=Path("main.csv"))))
+
+    assert "read from main.csv" in rendered
+    assert "row" not in rendered
+
+
+def test_str_reads_the_broker_name_and_isin_as_one_phrase() -> None:
+    """Three ways of saying what the row is, so they are not three items.
+
+    The comma that is left marks the break that matters, from what the row
+    is to where it was read from.
+    """
+    transaction = _sale(
+        isin=Isin(VALID_ISIN), source=TransactionSource(file=Path("main.csv"), row=8)
+    )
+
+    rendered = str(transaction)
+
+    assert (
+        f'  Charles Schwab "FOO INC" (ISIN {VALID_ISIN}), read from row 8 of main.csv'
+    ) in rendered
+
+
+def test_str_never_names_the_source_account() -> None:
+    """`account` is a calculation-local token, not a broker account number."""
+    rendered = str(
+        _sale(
+            source=TransactionSource(
+                file=Path("main.csv"), row=8, account="opaque-boundary-token"
+            )
+        )
+    )
+
+    assert "opaque-boundary-token" not in rendered
+
+
+def test_str_states_a_foreign_fee_in_its_own_currency() -> None:
+    """The row's own currency is stated once; another currency carries its own."""
+    rendered = str(_sale(foreign_fees={CurrencyCode("EUR"): Decimal("1.20")}))
+
+    assert "price 12.5 USD" in rendered
+    assert "fees 1.2 EUR" in rendered
+
+
+def test_str_states_the_other_count_an_ambiguous_row_could_mean() -> None:
+    """Where a split leaves the count uncertain, both readings are shown."""
+    rendered = str(_sale(ambiguous_quantity=Decimal(40)))
+
+    assert "10 (or 40) FOO" in rendered
+
+
+def test_str_marks_a_derived_price_it_shortened() -> None:
+    """A price a parser divided out runs long, and shortening it is stated.
+
+    Printing the division in full buries the figures either side of it;
+    printing it short and unmarked states a figure the export does not hold.
+    """
+    price = Decimal("523.6400000971875840180380156")
+    quantity = Decimal("3.130074725274725274725274725")
+
+    rendered = str(_sale(price=price, quantity=quantity))
+
+    assert "~3.1300747253 FOO" in rendered
+    assert "price ~523.6400000972 USD" in rendered
+
+
+def test_str_leaves_an_exported_figure_as_the_export_states_it() -> None:
+    """Eight decimal places is a real Freetrade price, not a division."""
+    rendered = str(_sale(price=Decimal("716.14212813"), quantity=Decimal("0.01475964")))
+
+    assert "0.01475964 FOO" in rendered
+    assert "price 716.14212813 USD" in rendered
+    assert "~" not in rendered
+
+
+def test_str_states_a_figure_too_small_to_shorten_in_full() -> None:
+    """Shortening this one leaves "0", which is worse than a long figure."""
+    rendered = str(_sale(price=Decimal("0.000000000000123")))
+
+    assert "price 0.000000000000123 USD" in rendered
+
+
+def test_str_states_a_figure_too_large_to_shorten_in_full() -> None:
+    """Rounding a copy of this one does not fit, and raising loses the row.
+
+    Absurd for money, and an absurd figure is exactly what the errors
+    calling this exist to report, so the row still has to print.
+    """
+    rendered = str(_sale(amount=Decimal("1E+19")))
+
+    assert "amount 10000000000000000000" in rendered
+
+
+def test_str_states_a_figure_that_is_not_a_number() -> None:
+    """Rounding one raises, and an error about it has to print the row."""
+    rendered = str(_sale(amount=Decimal("Infinity")))
+
+    assert "amount Infinity" in rendered
+
+
+def test_str_states_an_amount_of_nothing_without_a_sign() -> None:
+    """A row that came to nothing reads as an error in the tool as "-0"."""
+    rendered = str(_sale(amount=Decimal("-0.00")))
+
+    assert "amount 0," in rendered
+
+
+def test_action_reads_as_a_word_wherever_it_is_interpolated() -> None:
+    """Messages interpolate an action directly, so its own str has to read."""
+    assert str(ActionType.BUY) == "Buy"
+    assert str(ActionType.STOCK_ACTIVITY) == "Stock activity"
+    assert str(ActionType.DIVIDEND_TAX) == "Dividend tax"
+
+
+def test_str_leaves_out_a_description_that_only_repeats_the_symbol() -> None:
+    """Some exports set the description to the ticker, which says nothing."""
+    assert str(_sale(description="FOO")).endswith("Charles Schwab")
+
+
+def test_repr_still_carries_every_field() -> None:
+    """__str__ is for the reader; __repr__ stays the full dump for debugging."""
+    rendered = repr(_sale())
+
+    assert "Decimal('12.50')" in rendered
+    assert "capital_adjustments=[]" in rendered
+
+
+def test_an_error_about_a_transaction_prints_the_readable_form() -> None:
+    """Every raise site reaches this one message through the base class."""
+    transaction = _sale(source=TransactionSource(file=Path("main.csv"), row=8))
+
+    error = InvalidTransactionError(transaction, "Tried to sell more than the balance")
+
+    assert str(error) == (
+        "Tried to sell more than the balance for the following transaction:\n"
+        "2024-06-27 Sell 10 FOO, price 12.5 USD, amount 124.98, fees 0.02\n"
+        '  Charles Schwab "FOO INC", read from row 8 of main.csv'
+    )

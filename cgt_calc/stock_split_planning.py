@@ -26,7 +26,7 @@ from .stock_splits import (
     quantity_sign,
     scale_quantity,
 )
-from .util import strip_zeros
+from .util import indent_entry, strip_zeros
 
 if TYPE_CHECKING:
     import datetime
@@ -282,7 +282,7 @@ def _sole_reorganisation(
     broker_changes = [_get_quantity_or_fail(row) for row in broker_rows]
     raw_change = _get_quantity_or_fail(raw_row)
     if event_times := _conflicting_reorganisation_times(broker_rows):
-        listed = "\n".join(f"  {row}" for row in rows)
+        listed = "\n".join(indent_entry(row) for row in rows)
         raise CalculationError(
             f"Cannot use the RAW STOCK_SPLIT row for {symbol} on "
             f"{date_index}: the same source reports reorganisations at "
@@ -294,7 +294,7 @@ def _sole_reorganisation(
     if not raw_change.is_finite():
         return raw_row
     if any(not change.is_finite() for change in broker_changes):
-        listed = "\n".join(f"  {row}" for row in rows)
+        listed = "\n".join(indent_entry(row) for row in rows)
         raise CalculationError(
             f"Cannot use the RAW STOCK_SPLIT row for {symbol} on "
             f"{date_index}: a broker row states a change that cannot be "
@@ -308,7 +308,7 @@ def _sole_reorganisation(
         or any(change * raw_change <= 0 for change in broker_changes)
         or abs(broker_change) > abs(raw_change)
     ):
-        listed = "\n".join(f"  {row}" for row in rows)
+        listed = "\n".join(indent_entry(row) for row in rows)
         raise CalculationError(
             f"Cannot use the RAW STOCK_SPLIT row for {symbol} on "
             f"{date_index}: the broker rows change their holdings by "
@@ -569,7 +569,7 @@ def _two_splits_message(
     rows: list[BrokerTransaction],
 ) -> str:
     """Explain why two reorganisations of one holding cannot be combined."""
-    listed = "\n".join(f"  {row}" for row in rows)
+    listed = "\n".join(indent_entry(row) for row in rows)
     if any(isinstance(row, RawTransaction) for row in rows):
         # A single RAW row settles a day the brokers also reported, so
         # more than one of them is the thing to fix rather than to add.
@@ -621,8 +621,8 @@ def _split_chronology_message(
         f"Cannot apply the reorganisation of {symbol} on {date_index}: "
         f"this row is on the same day and cannot be placed either side of "
         f"it, so there is no telling whether its count is stated in the "
-        f"units before or after:\n  {other}\n"
-        f"The reorganisation is:\n  {row}\n"
+        f"units before or after:\n{indent_entry(other)}\n"
+        f"The reorganisation is:\n{indent_entry(row)}\n"
     )
     stated = other.source is not None and other.source.timestamp is not None
     if len(instants) == 1 and stated:
@@ -651,7 +651,7 @@ def _unresolved_same_day_message(
     assert isinstance(event.ratio, UnresolvedRatio)
     return (
         f"Cannot apply the reorganisation of {event.describe()}: "
-        f"{event.symbol} also changed hands earlier that day:\n  {other}\n"
+        f"{event.symbol} also changed hands earlier that day:\n{indent_entry(other)}\n"
         "That row's count is in the units before the reorganisation, so it "
         "has to be restated into the units after it, and the ratio for "
         f"that cannot be recovered from the export: {event.ratio.describe()}. "

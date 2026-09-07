@@ -22,7 +22,7 @@ from cgt_calc.parsers.eri.importer.invesco import InvescoImporter
 from cgt_calc.parsers.eri.importer.vanguard import VanguardImporter
 from cgt_calc.parsers.eri.importer.xtrackers import XtrackersImporter
 from cgt_calc.parsers.eri.raw import COLUMNS, RAW_DATE_FORMAT, ERIRawParser
-from cgt_calc.util import approx_equal
+from cgt_calc.util import approx_equal, display_str
 
 if TYPE_CHECKING:
     import datetime
@@ -67,10 +67,14 @@ def validate_and_remove_duplicates(
             current_transaction, current_price = transaction_index[key]
             if approx_equal(current_price, price, Decimal("0.0001")):
                 continue
+            # With the currency: two rows for one fund on one day can state
+            # their prices in different currencies, and "1.25 against 0.98"
+            # is a different conflict from "1.25 USD against 0.98 GBP".
             raise InvalidTransactionError(
                 transaction,
-                "Duplicate same day ERI with different price from "
-                f"{current_transaction}",
+                "Duplicate same day ERI with a different price: an earlier "
+                f"row on this date states {display_str(current_price)} "
+                f"{current_transaction.currency}",
             )
         result.append(transaction)
         transaction_index[key] = (transaction, price)

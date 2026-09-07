@@ -63,3 +63,27 @@ def test_unusable_eri_price_is_rejected_before_it_is_written(price: Decimal) -> 
 
     with pytest.raises(InvalidTransactionError, match="finite and non-negative"):
         import_eri_reports.validate_and_remove_duplicates([transaction])
+
+
+def test_conflicting_eri_prices_name_the_currency_of_each() -> None:
+    """Two rows for one fund on one day can price it in different currencies.
+
+    Stating only the figures turns a currency mismatch into what looks like
+    a disagreement about the price, so the earlier row's currency is named
+    beside its figure and the refused row prints its own.
+    """
+    date = datetime.date(2024, 6, 30)
+    isin = Isin("IE00B3RBWM25")
+    earlier = ERITransaction(
+        date=date, isin=isin, price=Decimal("1.25"), currency=CurrencyCode("USD")
+    )
+    later = ERITransaction(
+        date=date, isin=isin, price=Decimal("0.98"), currency=CurrencyCode("GBP")
+    )
+
+    with pytest.raises(InvalidTransactionError) as excinfo:
+        import_eri_reports.validate_and_remove_duplicates([earlier, later])
+
+    message = str(excinfo.value)
+    assert "an earlier row on this date states 1.25 USD" in message
+    assert "price 0.98 GBP" in message

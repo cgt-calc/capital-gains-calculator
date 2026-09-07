@@ -1769,7 +1769,7 @@ def test_a_malformed_purchase_on_a_rename_day_blames_its_own_row(
     with pytest.raises(QuantityNotPositiveError) as excinfo:
         get_report(calculator, transactions)
 
-    assert "symbol='NEW'" in str(excinfo.value)
+    assert f"Buy {quantity} NEW" in str(excinfo.value)
 
 
 def test_a_purchase_under_the_retired_name_is_there_to_sell_later() -> None:
@@ -2283,8 +2283,12 @@ def test_negative_balance_error_shows_only_relevant_transactions() -> None:
 
     message = str(excinfo.value)
     assert message.count("Balance after transaction=") == 3
-    assert "currency='EUR'" not in message
+    assert "amount 5 EUR" not in message
     assert "Split of FOO" not in message
+    # Each listed row is a headline, its own indented second line, and the
+    # running balance, all at the depth of one entry.
+    assert message.count("\n  Balance after transaction=") == 3
+    assert message.count("\n    ") == 3
 
 
 @pytest.mark.parametrize("deposit_first", [True, False])

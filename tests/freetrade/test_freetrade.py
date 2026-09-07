@@ -460,3 +460,17 @@ def test_freetrade_transaction_unsupported_action(
         match="Unsupported Freetrade action 'ADJUSTMENT'",
     ):
         FreetradeTransaction(dict(zip(COLUMNS, row, strict=True)), dummy_file)
+
+
+def test_description_reads_as_words_not_python(tmp_path: Path) -> None:
+    """The description interpolates the action, and errors quote it back.
+
+    An enum's default string is its Python name, so this description used to
+    end in `ActionType.BUY` and carried that into every error naming the row.
+    """
+    path = _write_csv(tmp_path, COLUMNS, [_default_row()])
+
+    transaction = FreetradeParser().load_from_file(path)[0]
+
+    assert transaction.description.endswith(" Buy")
+    assert "ActionType" not in str(transaction)
