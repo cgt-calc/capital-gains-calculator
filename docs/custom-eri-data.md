@@ -86,6 +86,9 @@ Amundi UK publishes annual Reportable Income reports here:
 - **Excess of reporting income over distribution:** Per unit excess reportable income over
     distributions in respect of the reporting period column
 
+Not all Amundi funds are published here. Some are also available at
+<https://www.kpmgreportingfunds.co.uk>.
+
 ### Invesco
 
 Invesco publishes annual Reportable Income reports in the documents section of each fund with UK
