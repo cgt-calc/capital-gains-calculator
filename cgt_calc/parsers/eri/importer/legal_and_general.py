@@ -114,15 +114,17 @@ class LegalAndGeneralImporter(ERIImporter):
             if len(tables) != 1:
                 raise ParsingError(
                     file,
-                    f"Found {len(tables)} tables on page {page_number} (expected 1)",
+                    f"Found {len(tables) + 1} tables on page {page_number} (expected 1)",
                 )
             table = tables[0]
             for row_number, row in enumerate(table):
-                if not (
+                # The first column is a number, but the header rows don't have a number. The following three checks try to guarantee that only ERI rows (not header or unpredicted rows) are included
+                is_probably_eri_row = (
                     len(row) == COLUMN_COUNT
                     and isinstance(row[0], str)
                     and ROWNUM_REGEX.match(row[0])
-                ):
+                )
+                if not is_probably_eri_row:
                     continue
                 transaction = LegalAndGeneralImporter._parse_row(
                     row_number=row_number, row=row, file=file, page_number=page_number
