@@ -297,6 +297,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label in {
         "NRA Tax Adj",
         "NRA Withholding",
+        "NRA Withhold",
         "Foreign Tax Paid",
         "Tax Reversal",
         "Tax Withholding",

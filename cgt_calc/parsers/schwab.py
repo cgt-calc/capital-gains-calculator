@@ -187,7 +187,12 @@ def action_from_str(label: str, file: Path) -> ActionType:
     }:
         return ActionType.DIVIDEND
 
-    if label in {"NRA Tax Adj", "NRA Withholding", "Foreign Tax Paid"}:
+    if label in {
+        "NRA Tax Adj",
+        "NRA Withholding",
+        "NRA Withhold",
+        "Foreign Tax Paid",
+    }:
         return ActionType.DIVIDEND_TAX
 
     if label == "ADR Mgmt Fee":

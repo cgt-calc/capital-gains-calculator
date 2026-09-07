@@ -97,37 +97,37 @@ cgt-calc --year 2025 \
 
 The importer recognises these exact values from the main CSV's `Action` column:
 
-| Exported action                                                    | How cgt-calc handles it                                                             |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `Buy`, `Sell`                                                      | A purchase or disposal, including `Fees & Comm`                                     |
-| `Cancel Buy`                                                       | Removes the cancellation and the matching `Buy`                                     |
-| `Stock Plan Activity`                                              | An employer-share acquisition at the exported or Equity Awards price; no cash moves |
-| `Qualified Dividend`, `Cash Dividend`, `Qual Div Reinvest`         | Dividend income                                                                     |
-| `Div Adjustment`, `Special Qual Div`, `Non-Qualified Div`          | Dividend income                                                                     |
-| `NRA Tax Adj`, `NRA Withholding`, `Foreign Tax Paid`               | Tax deducted from a dividend                                                        |
-| `Credit Interest`, `Bond Interest`                                 | Interest income                                                                     |
-| `Short Term Cap Gain`, `Long Term Cap Gain`                        | A fund distribution reported with dividend income                                   |
-| `ADR Mgmt Fee`                                                     | A charge added to the holding's pooled cost and deducted from cash                  |
-| `Adjustment`, `IRS Withhold Adj`, `Wire Funds Adj`                 | A cash-balance correction                                                           |
-| `MoneyLink Transfer`, `MoneyLink Deposit`, `MoneyLink Adj`         | A cash movement only                                                                |
-| `Wire Funds`, `Wire Sent`, `Wire Funds Received`, `Funds Received` | A cash movement only                                                                |
-| `Misc Cash Entry`, `Service Fee`, `Journal`, `Cash In Lieu`        | A cash movement only                                                                |
-| `Visa Purchase`                                                    | A cash movement only                                                                |
-| `Security Transfer`                                                | An `ACH`-related cash movement; an `Amount` is required and no holding is moved     |
-| `Reinvest Shares`                                                  | A purchase of the reinvested shares                                                 |
-| `Reinvest Dividend`                                                | Unsupported; the row is ignored and cgt-calc prints a warning                       |
-| `Stock Split`                                                      | A share reorganisation: the pooled cost is unchanged and spread over the new count  |
-| `Spin-off`                                                         | Adds the new holding and moves part of the old holding's pooled cost to it          |
-| `Cash Merger` followed by `Cash Merger Adj`                        | A disposal for cash, built from the adjacent amount and quantity rows               |
-| `Full Redemption Adj` followed by `Full Redemption`                | A disposal for cash, built from the adjacent amount and quantity rows               |
-| `Sell to Open`                                                     | Writing an equity option: a disposal of the option on the grant date                |
-| `Buy to Close`                                                     | Closing a written option: an allowable cost of the original grant                   |
-| `Expired`                                                          | A written option that lapsed; the grant keeps the premium as its gain               |
-| `Assigned`                                                         | A written option that was assigned; the premium moves into the share transaction    |
+| Exported action                                                      | How cgt-calc handles it                                                             |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `Buy`, `Sell`                                                        | A purchase or disposal, including `Fees & Comm`                                     |
+| `Cancel Buy`                                                         | Removes the cancellation and the matching `Buy`                                     |
+| `Stock Plan Activity`                                                | An employer-share acquisition at the exported or Equity Awards price; no cash moves |
+| `Qualified Dividend`, `Cash Dividend`, `Qual Div Reinvest`           | Dividend income                                                                     |
+| `Div Adjustment`, `Special Qual Div`, `Non-Qualified Div`            | Dividend income                                                                     |
+| `NRA Tax Adj`, `NRA Withholding`, `NRA Withhold`, `Foreign Tax Paid` | Tax deducted from a dividend                                                        |
+| `Credit Interest`, `Bond Interest`                                   | Interest income                                                                     |
+| `Short Term Cap Gain`, `Long Term Cap Gain`                          | A fund distribution reported with dividend income                                   |
+| `ADR Mgmt Fee`                                                       | A charge added to the holding's pooled cost and deducted from cash                  |
+| `Adjustment`, `IRS Withhold Adj`, `Wire Funds Adj`                   | A cash-balance correction                                                           |
+| `MoneyLink Transfer`, `MoneyLink Deposit`, `MoneyLink Adj`           | A cash movement only                                                                |
+| `Wire Funds`, `Wire Sent`, `Wire Funds Received`, `Funds Received`   | A cash movement only                                                                |
+| `Misc Cash Entry`, `Service Fee`, `Journal`, `Cash In Lieu`          | A cash movement only                                                                |
+| `Visa Purchase`                                                      | A cash movement only                                                                |
+| `Security Transfer`                                                  | An `ACH`-related cash movement; an `Amount` is required and no holding is moved     |
+| `Reinvest Shares`                                                    | A purchase of the reinvested shares                                                 |
+| `Reinvest Dividend`                                                  | Unsupported; the row is ignored and cgt-calc prints a warning                       |
+| `Stock Split`                                                        | A share reorganisation: the pooled cost is unchanged and spread over the new count  |
+| `Spin-off`                                                           | Adds the new holding and moves part of the old holding's pooled cost to it          |
+| `Cash Merger` followed by `Cash Merger Adj`                          | A disposal for cash, built from the adjacent amount and quantity rows               |
+| `Full Redemption Adj` followed by `Full Redemption`                  | A disposal for cash, built from the adjacent amount and quantity rows               |
+| `Sell to Open`                                                       | Writing an equity option: a disposal of the option on the grant date                |
+| `Buy to Close`                                                       | Closing a written option: an allowable cost of the original grant                   |
+| `Expired`                                                            | A written option that lapsed; the grant keeps the premium as its gain               |
+| `Assigned`                                                           | A written option that was assigned; the premium moves into the share transaction    |
 
-An `NRA Tax Adj`, `NRA Withholding` or `Foreign Tax Paid` row is treated as tax on account interest
-only when its `Symbol` is blank and its `Description` contains `SCHWAB1 INT`. Otherwise, it is
-treated as dividend tax.
+An `NRA Tax Adj`, `NRA Withholding`, `NRA Withhold` or `Foreign Tax Paid` row is treated as tax on
+account interest only when its `Symbol` is blank and its `Description` contains `SCHWAB1 INT`.
+Otherwise, it is treated as dividend tax.
 
 For `Reinvest Dividend`, check the Schwab statement and the finished report. Confirm that the
 dividend income and reinvested purchase were recorded by other rows; do not assume the ignored row
