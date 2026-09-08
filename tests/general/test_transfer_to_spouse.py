@@ -1667,6 +1667,36 @@ def test_a_later_day_s_transfer_to_a_spouse_reserves_its_purchase_too() -> None:
     assert report.total_gain() == Decimal(375)
 
 
+@pytest.mark.parametrize("purchase_spelling", ["X", "Z"])
+def test_a_later_day_s_purchase_is_contended_under_either_of_its_names(
+    purchase_spelling: str,
+) -> None:
+    """A rename that day does not put the purchase beyond one of the two.
+
+    The 20 June purchase is the same holding whichever of the day's tickers
+    it is written under, so the sale and the transfer of 10 June both have a
+    claim on it either way. Looking only under the name the day ends with
+    found it spelled Z and missed it spelled X, and the two were then
+    computed with nothing said, whichever ran first taking the whole
+    purchase.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    with pytest.raises(CalculationError, match="does not say how to split") as err:
+        get_report(
+            calculator,
+            _contention_history(
+                [
+                    _gbp_trade(
+                        CONTENTION_LATER_DAY, ActionType.BUY, purchase_spelling, 30, 600
+                    )
+                ]
+            ),
+        )
+
+    assert str(CONTENTION_LATER_DAY) in str(err.value)
+
+
 def _free_shares(date: datetime.date, symbol: str, quantity: int) -> BrokerTransaction:
     """Build a purchase of shares that cost nothing."""
     return BrokerTransaction(
