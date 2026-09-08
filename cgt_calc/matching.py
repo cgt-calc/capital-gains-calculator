@@ -94,6 +94,21 @@ class DisposalContext:
     calculation_entries: list[CalculationEntry]
 
 
+def _share_of_cost(units: Decimal, quantity: Decimal, amount: Decimal) -> Decimal:
+    """Return what `units` of an acquisition of `quantity` for `amount` cost.
+
+    Multiplied before dividing, to keep the division's rounding error out of
+    the figure. The result is rounded to ten decimal places, and an amount
+    need not sit on that grid, because a conversion out of any other currency
+    leaves a repeating decimal. A part of it rounded up can then come to more
+    than the whole, and no part of an acquisition costs more than all of it,
+    so the whole is also the cap. Claiming all of it costs all of it exactly.
+    """
+    if units == quantity:
+        return amount
+    return min(normalize_amount(units * amount / quantity), amount)
+
+
 class Matcher:
     """Matches disposals against acquisitions across the whole history."""
 
@@ -239,13 +254,16 @@ class Matcher:
         if identifiable.quantity > 0 and has_key(self.run.bnb_list, date_index, symbol):
             bnb_acquisition = self.run.bnb_list[date_index][symbol]
             assert bnb_acquisition.quantity <= identifiable.quantity
-            # Multiply by the B&B quantity before dividing to avoid rounding errors from division
-            bnb_cost_basis = normalize_amount(
-                (bnb_acquisition.quantity * identifiable.amount) / identifiable.quantity
+            bnb_cost_basis = _share_of_cost(
+                bnb_acquisition.quantity, identifiable.quantity, identifiable.amount
             )
             modified_amount -= bnb_cost_basis
             modified_amount += bnb_acquisition.amount
-            assert modified_amount > 0
+            # A repurchase gives up what its own units cost and takes on the
+            # basis the disposal it replaces carried, so shares that cost
+            # nothing leave it holding nothing. Nil is a real cost, not a
+            # broken invariant.
+            assert modified_amount >= 0
             bed_and_breakfast_fees = (
                 identifiable.fees * bnb_acquisition.quantity / identifiable.quantity
             )
@@ -609,12 +627,11 @@ class Matcher:
                     fees = (
                         ctx.disposal.fees * available_quantity / ctx.disposal.quantity
                     )
-                    # Multiply by the consumed quantity before dividing to
-                    # avoid rounding errors from division. Both counts here
-                    # are in the acquisition's own units.
-                    bnb_acquisition_cost = normalize_amount(
-                        (consumed_acquisition_units * acquisition.amount)
-                        / acquisition.quantity
+                    # Both counts here are in the acquisition's own units.
+                    bnb_acquisition_cost = _share_of_cost(
+                        consumed_acquisition_units,
+                        acquisition.quantity,
+                        acquisition.amount,
                     )
                     acquisition_price = bnb_acquisition_cost / available_quantity
                     # No gain/no loss: deemed proceeds equal the allowable cost.
@@ -1926,11 +1943,25 @@ class Matcher:
                             calculated_proceeds += entry.amount + entry.fees
                             calculated_gain += entry.gain
                         assert transaction_quantity == calculated_quantity
-                        assert round_decimal(
-                            transaction_disposal_proceeds, 10
-                        ) == round_decimal(calculated_proceeds, 10), (
-                            f"{transaction_disposal_proceeds} != {calculated_proceeds}"
-                        )
+                        # One side is the amount as recorded, the other is
+                        # rebuilt from the entries' unit prices, so the two
+                        # differ far below the calculator's precision. Rounded
+                        # separately they can land either side of a step, so
+                        # what is measured is the distance between them: less
+                        # than half a ten-decimal-place unit apart and they
+                        # are the same amount.
+                        assert (
+                            round_decimal(
+                                transaction_disposal_proceeds - calculated_proceeds, 10
+                            )
+                            == 0
+                        ), f"{transaction_disposal_proceeds} != {calculated_proceeds}"
+                        # The gain is not the same shape. What is reported has
+                        # already been rounded to the penny, so what is asked
+                        # is whether the raw figure rounds to it. Measuring
+                        # the distance instead would refuse a gain of exactly
+                        # half a penny, which rounds up to a penny and so sits
+                        # half a penny away from what is reported.
                         assert transaction_capital_gain == round_decimal(
                             calculated_gain, 2
                         )

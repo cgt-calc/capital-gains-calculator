@@ -880,10 +880,10 @@ def _gbp_trade(
     date: datetime.date,
     action: ActionType,
     symbol: str,
-    quantity: int,
-    amount: int,
+    quantity: Decimal | int,
+    amount: Decimal | int,
 ) -> BrokerTransaction:
-    """Build a whole-pound BUY or SELL of a whole number of shares."""
+    """Build a GBP BUY or SELL, whole numbers or exact decimals."""
     return BrokerTransaction(
         date=date,
         action=action,
@@ -2727,3 +2727,149 @@ def test_calculate_matches_the_two_step_sequence() -> None:
     assert str(combined.calculate(transactions())) == str(
         two_step.calculate_capital_gain()
     )
+
+
+BUY_DAY = datetime.date(2024, 5, 1)
+SELL_DAY = datetime.date(2024, 5, 10)
+REBUY_DAY = datetime.date(2024, 5, 20)
+
+
+def test_a_repurchase_of_shares_that_cost_nothing_computes() -> None:
+    """Shares that cost nothing leave a repurchase holding nothing.
+
+    A repurchase within 30 days of a disposal gives up what its own units
+    cost and takes on the basis the disposal carried. Where the shares sold
+    cost nothing, the two cancel and the pool keeps exactly nothing, which is
+    a real cost rather than a broken invariant. The run used to stop here on a
+    bare assertion with no message.
+    """
+    calculator = create_calculator(tax_year=2024)
+    transactions = [
+        _gbp_trade(BUY_DAY, ActionType.BUY, "FOO", 10, 0),
+        _gbp_trade(SELL_DAY, ActionType.SELL, "FOO", 10, 100),
+        _gbp_trade(REBUY_DAY, ActionType.BUY, "FOO", 10, 50),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    (entry,) = report.calculation_log[SELL_DAY]["sell$FOO"]
+    assert entry.rule_type is RuleType.BED_AND_BREAKFAST
+    assert entry.bed_and_breakfast_date_index == REBUY_DAY
+    assert entry.allowable_cost == Decimal(50)
+    # GBP 100 of proceeds against the GBP 50 the repurchase cost.
+    assert report.total_gain() == Decimal(50)
+    assert calculator.portfolio["FOO"] == Position(Decimal(10), Decimal(0))
+
+
+def test_a_part_of_a_cost_never_comes_to_more_than_the_whole() -> None:
+    """A repurchase's cost is not always on the grid its share is rounded to.
+
+    The share of a repurchase claimed under the 30-day rule is rounded to ten
+    decimal places, and an amount converted out of another currency need not
+    sit on that grid, so the part can round to more than all of it. Here
+    2.9999999999 of the 3 shares repurchased for GBP 1.00000000009 are
+    claimed, and the unrounded share rounds up past the whole. The run used to
+    stop on a bare assertion once the pool went a hundred-billionth of a pound
+    negative.
+    """
+    calculator = create_calculator(tax_year=2024)
+    quantity = Decimal("2.9999999999")
+    transactions = [
+        _gbp_trade(BUY_DAY, ActionType.BUY, "FOO", quantity, 0),
+        _gbp_trade(SELL_DAY, ActionType.SELL, "FOO", quantity, 3),
+        _gbp_trade(REBUY_DAY, ActionType.BUY, "FOO", 3, Decimal("1.00000000009")),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    (entry,) = report.calculation_log[SELL_DAY]["sell$FOO"]
+    assert entry.rule_type is RuleType.BED_AND_BREAKFAST
+    assert entry.allowable_cost == Decimal("1.00000000009")
+    # GBP 3 of proceeds against the whole of what the repurchase cost.
+    assert report.total_gain() == Decimal(2)
+    assert calculator.portfolio["FOO"].amount == Decimal(0)
+
+
+def test_proceeds_sitting_on_a_rounding_step_reconcile() -> None:
+    """The recorded proceeds and the rebuilt ones are compared as one figure.
+
+    A disposal's proceeds are checked against the sum rebuilt from its
+    calculation entries. One side is the amount as recorded, the other comes
+    from a unit price, so they can differ far below the calculator's
+    precision. Rounding each on its own used to send a recorded amount sitting
+    exactly on a rounding step to a different grid point from the rebuilt one,
+    and the run stopped.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    quantity = Decimal("0.6245225058")
+    transactions = [
+        _gbp_trade(BUY_DAY, ActionType.BUY, "FOO", quantity, Decimal("6.245225058")),
+        _gbp_trade(
+            SELL_DAY, ActionType.SELL, "FOO", quantity, Decimal("9.40968379635")
+        ),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    # GBP 9.40968379635 of proceeds against a GBP 6.245225058 cost.
+    assert report.total_gain() == Decimal("3.16")
+
+
+def test_claiming_the_whole_of_an_acquisition_costs_the_whole_of_it() -> None:
+    """All of a repurchase costs all of it, down to the last figure.
+
+    The share claimed under the 30-day rule is rounded to ten decimal places,
+    and an amount converted out of another currency need not sit on that grid.
+    Where the whole repurchase is claimed, going through the arithmetic rounds
+    a figure that is already exact, and the relief the disposal is given comes
+    out short of what the repurchase cost, so the whole is handed over as it
+    stands. The pool is normalised as it is written and shows nothing of this;
+    the allowable cost is where it survives.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    cost = Decimal("1.00000000001")
+    transactions = [
+        _gbp_trade(BUY_DAY, ActionType.BUY, "FOO", 3, 30),
+        _gbp_trade(SELL_DAY, ActionType.SELL, "FOO", 3, 5),
+        _gbp_trade(REBUY_DAY, ActionType.BUY, "FOO", 3, cost),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    (entry,) = report.calculation_log[SELL_DAY]["sell$FOO"]
+    assert entry.rule_type is RuleType.BED_AND_BREAKFAST
+    assert entry.allowable_cost == cost
+    # GBP 5 of proceeds against the GBP 1.00000000001 the repurchase cost.
+    assert report.total_gain() == Decimal(4)
+    # The repurchase keeps the basis of the shares it replaces, and nothing of
+    # its own cost is left behind.
+    assert calculator.portfolio["FOO"] == Position(Decimal(3), Decimal(30))
+
+
+@pytest.mark.parametrize(
+    ("proceeds", "reported"),
+    [(Decimal("1.005"), Decimal("0.01")), (Decimal("0.995"), Decimal("-0.01"))],
+)
+def test_a_gain_of_exactly_half_a_penny_is_reported_not_rejected(
+    proceeds: Decimal, reported: Decimal
+) -> None:
+    """A gain landing exactly on the half-penny is rounded, not refused.
+
+    What a disposal reports is its gain rounded to the penny, and the walk
+    checks that figure against the entries it was built from. Half a penny
+    rounds up to a whole one, so measuring how far the reported figure moved
+    lands on the same step again and the run stopped. Asking instead whether
+    the raw gain rounds to the figure already reported settles it.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(BUY_DAY, ActionType.BUY, "ABC", 1, 1),
+        _gbp_trade(SELL_DAY, ActionType.SELL, "ABC", 1, proceeds),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    (entry,) = report.calculation_log[SELL_DAY]["sell$ABC"]
+    assert entry.rule_type is RuleType.SECTION_104
+    assert entry.gain == proceeds - 1
+    assert report.total_gain() == reported

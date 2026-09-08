@@ -595,10 +595,15 @@ class CalculationEntry:
             RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
             RuleType.RENAME,
         }:
-            assert self.gain == self.amount + self.fees - self.allowable_cost, (
-                f"Mismatch: {self.gain} != "
-                f"{self.amount} + {self.fees} - {self.allowable_cost} (for {self})"
-            )
+            # An entry that states a gain has to add up. One that states none
+            # is an acquisition, whose amount is the cost it took on, written
+            # negative. A cost of nothing is written as zero, which the sign
+            # alone reads as proceeds of nothing.
+            if gain is not None:
+                assert self.gain == self.amount + self.fees - self.allowable_cost, (
+                    f"Mismatch: {self.gain} != "
+                    f"{self.amount} + {self.fees} - {self.allowable_cost} (for {self})"
+                )
 
     @override
     def __repr__(self) -> str:
