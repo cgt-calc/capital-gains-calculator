@@ -8,10 +8,11 @@
 #   external - everything, including third party sites. Can fail for reasons
 #              unrelated to the change under review.
 #
-# Shared settings live in lychee.toml. The remap resolves cgt-calc.uk URLs
-# against the local docs sources, so a link to a page added in the same change
-# is checked before the site is deployed. lychee requires an absolute file://
-# target for a remap, hence the interpolation of the repository root below.
+# Shared settings live in lychee.toml. The remaps resolve cgt-calc.uk URLs
+# against the local docs sources and this repository's own file URLs against
+# the checkout, so a link to a page or file added in the same change is checked
+# before it reaches main. lychee requires an absolute file:// target for a
+# remap, hence the interpolation of the repository root below.
 #
 # The offline pass also reads the package sources, where the error messages
 # print documentation URLs. lychee treats any file it does not recognise as
@@ -27,11 +28,16 @@ set -uo pipefail
 root="$(git rev-parse --show-toplevel)" || exit 1
 cd "$root" || exit 1
 
-# Single quotes around the pattern keep the backslash and lychee's own $1
+# Single quotes around the patterns keep the backslash and lychee's own $1
 # capture reference literal; only the repository root is interpolated.
 remap='https://cgt-calc\.uk/(.*) file://'"$root"'/docs/$1'
 
-lychee=(uv run --only-group links lychee --remap "$remap")
+# Only blob URLs, which name a file. A tree URL names a directory, which lychee
+# resolves through the index_files setting, so remapping one would look for an
+# index.md inside the target and report the link as broken.
+repo_remap='https://github\.com/cgt-calc/capital-gains-calculator/blob/main/(.*) file://'"$root"'/$1'
+
+lychee=(uv run --only-group links lychee --remap "$remap" --remap "$repo_remap")
 
 status=0
 
