@@ -52,6 +52,7 @@ CG55545
 CG57800
 CG57835
 CG59562
+CSH2
 cgt
 classmethod
 cli
@@ -104,6 +105,7 @@ GSU
 hashable
 HL
 Hmrc
+ICAV
 I/O
 IBKR
 IBKR's
@@ -121,13 +123,17 @@ ISIN
 IsinConverter
 ISINs
 isoformat
+JPN
+JPY
 json
+KPMG
 KeyError
 jsonable
 Lansdown
 latex
 len
 LF
+LGIM
 lifecycle
 lifecycles
 LSE
@@ -216,11 +222,13 @@ Schwab's
 SchwabAwardTransaction
 SchwabParser
 SchwabTransaction
+SEDOL
 Sharesight
 Sharesight's
 Shareworks
 shfmt
 shtab
+SICAV
 SIPP
 SLF001
 SOLV

@@ -86,6 +86,9 @@ Amundi UK publishes annual Reportable Income reports here:
 - **Excess of reporting income over distribution:** Per unit excess reportable income over
     distributions in respect of the reporting period column
 
+Amundi does not publish every fund there. The rest are on <https://www.kpmgreportingfunds.co.uk>,
+which requires an account.
+
 ### Invesco
 
 Invesco publishes annual Reportable Income reports in the documents section of each fund with UK
@@ -97,6 +100,23 @@ reporting status:
 - **Currency:** Currency of Share Class column
 - **Excess of reporting income over distribution:** Per unit excess reportable income over
     distributions in respect of the reporting period column
+
+### Legal & General
+
+LGIM publishes annual Reportable Income reports here:
+<https://am.landg.com/en-uk/institutional/fundcentre/uk-reporting-funds/>
+
+The columns below are those of the Legal & General UCITS ETF plc report. The Legal & General ICAV,
+Legal & General SICAV and LGIM Liquidity Funds plc reports on the same page set their tables out
+differently, so read the equivalent columns from the report named in your fund documents.
+
+The ETF report splits its headings over two rows: **Reporting from** and **Reporting to** sit in a
+second row under a shared **Reporting Period** heading.
+
+- **ISIN:** ISIN/SEDOL column
+- **Fund Reporting Period End Date:** Reporting to column
+- **Currency:** Currency of calculation column
+- **Excess of reporting income over distribution:** Excess of reportable income per unit column
 
 ## Contributing data back
 
