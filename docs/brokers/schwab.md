@@ -532,6 +532,26 @@ This complete-export error means the purchased share count does not equal the sh
 withheld and sold for tax after any known split. Compare those figures with the ESPP confirmation
 and split history. Do not change a quantity merely to make the import continue.
 
+### `is not a date cgt-calc reads` or `states no ...Date`
+
+Equity Awards exports write every date as MM/DD/YYYY, and cgt-calc reads only that form. The error
+names the transaction and the field, spelled as your export spells it: `Date` for a transaction's
+own date, and `VestDate` or `PurchaseDate` for one inside a vest or an ESPP purchase. Where the
+export states a value, the error quotes it so that you can search the file for it.
+
+Re-export from Schwab and use the file unchanged. If you need to look inside it, open it in a text
+editor rather than a spreadsheet: a spreadsheet can reinterpret a date column according to its own
+settings, so `06/12/2023` may be read as 6 December where Schwab means 12 June, and written back in
+a form cgt-calc does not read.
+
+This check catches only a date it cannot read at all. A swapped day and month that is still a valid
+MM/DD/YYYY date passes it: `12/06/2023` is read as 6 December whatever it was meant to be. That is
+why working from an unedited export matters more than correcting dates by hand.
+
+If an unchanged export still fails, open a
+[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the complete
+error and a sanitised copy of the row.
+
 ### An export overlaps another one
 
 Two files in the `--schwab-dir` directory have earliest-to-latest transaction-date spans that

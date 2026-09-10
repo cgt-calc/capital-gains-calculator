@@ -289,6 +289,14 @@ def test_a_lapse_with_an_unreadable_date_fails(tmp_path: Path) -> None:
         _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
 
 
+def test_a_lapse_stating_no_date_fails(tmp_path: Path) -> None:
+    """A price with no date cannot be matched to the vest it prices."""
+    award_file = _export(tmp_path, _lapse(date=""))
+
+    with pytest.raises(ParsingError, match=r"Transactions\[0\] states no Date"):
+        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+
+
 def test_a_lapse_stating_two_grants_in_one_row_fails(tmp_path: Path) -> None:
     """One lapse prices one vest, and cgt-calc will not pick between two."""
     detail_rows = [

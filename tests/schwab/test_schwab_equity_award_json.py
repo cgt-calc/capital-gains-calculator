@@ -1850,7 +1850,33 @@ def test_csv_deposit_missing_its_vest_date_names_the_row() -> None:
         _parse(content)
 
     assert exc_info.value.row_index == 2
-    assert "VestDate is missing from this transaction" in str(exc_info.value)
+    assert "The Deposit of GOOG on 12/30/2025 states no VestDate" in str(exc_info.value)
+
+
+def test_csv_deposit_missing_its_award_id_names_the_row() -> None:
+    """A detail with no guard of its own is still answered with its row."""
+    content = _csv_text(
+        [
+            {
+                "Date": "12/30/2025",
+                "Action": "Deposit",
+                "Symbol": "GOOG",
+                "Description": "RS",
+                "Quantity": "10",
+            },
+            {
+                "VestDate": "12/25/2025",
+                "VestFairMarketValue": "$315.67",
+                "AwardDate": "03/05/2025",
+            },
+        ]
+    )
+
+    with pytest.raises(ParsingError) as exc_info:
+        _parse(content)
+
+    assert exc_info.value.row_index == 2
+    assert "AwardId is missing from this transaction" in str(exc_info.value)
 
 
 def test_csv_blank_lines_between_transactions_are_ignored() -> None:

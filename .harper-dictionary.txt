@@ -237,6 +237,7 @@ stdout
 StockPlan
 StockSplitTransaction
 str
+strptime
 subrow
 tablefinder
 TCGA
@@ -271,3 +272,4 @@ worktree
 Xetra
 xtrackers
 yfinance
+YYYY
