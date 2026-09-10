@@ -123,6 +123,8 @@ ISIN
 IsinConverter
 ISINs
 isoformat
+JPN
+JPY
 json
 KeyError
 jsonable
@@ -130,6 +132,7 @@ Lansdown
 latex
 len
 LF
+LGIM
 lifecycle
 lifecycles
 LSE

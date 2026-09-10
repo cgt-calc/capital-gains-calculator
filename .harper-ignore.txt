@@ -59,3 +59,7 @@
 # "at least three to list" is the ordinary quantifier; the
 # QuantifierNumeralConflict rule expects the two to disagree.
 ^matching\.py:.*QuantifierNumeralConflict
+# Fragments of L&G's published report file names, quoted in a comment.
+^legal_and_general\.py:.*`(ucits|etf|ukrfs)`
+# "a layout change" is a compound noun; Harper reads it as the verb "lay out".
+^legal_and_general\.py:.*PhrasalVerbAsCompoundNoun
