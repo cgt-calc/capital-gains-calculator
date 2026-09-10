@@ -126,6 +126,7 @@ isoformat
 JPN
 JPY
 json
+KPMG
 KeyError
 jsonable
 Lansdown

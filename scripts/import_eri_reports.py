@@ -157,8 +157,8 @@ def main() -> None:
         "eri_reports",
         type=str,
         help=(
-            "Input file or folder to import ERI reports from "
-            "the project resources folder using the existing ERI parsers available."
+            "Input file or folder containing ERI reports to import into "
+            "the project resources folder."
         ),
     )
 

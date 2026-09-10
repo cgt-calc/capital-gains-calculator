@@ -34,7 +34,8 @@ cgt-calc currently bundles:
 - [iShares Funds 2018-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/ishares_eri.csv)
 - [Invesco Funds 2018-2024](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/invesco_eri.csv)
 - [Xtrackers Funds 2024](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/xtrackers_eri.csv)
-- [Amundi Smart Overnight Return (CSH2) 2015-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/amundi_eri.csv)
+- [Amundi Smart Overnight Return (CSH2) 2015-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/amundi_eri.csv),
+    entered by hand from KPMG Reporting Funds
 - [Legal & General UCITS ETF plc 2023-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/legal_and_general_eri.csv)
 
 Open the relevant file and check that it contains the exact ISIN and every reporting period you
