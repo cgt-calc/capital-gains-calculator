@@ -27,7 +27,7 @@ from .model import (
     RuleType,
     SpinOff,
 )
-from .rename_planning import end_name
+from .rename_planning import connected_names, end_name
 from .stock_splits import (
     StockSplitDetail,
     StockSplitEvent,
@@ -523,6 +523,10 @@ class Matcher:
                 transformation = day_splits.get(effective_symbol) or day_splits.get(
                     renamed_symbol
                 )
+                # The name the holding enters the day under, which is its own
+                # and no other holding's, whatever else the day's renames pool
+                # it with by the close.
+                opening_symbol = effective_symbol
                 effective_symbol = renamed_symbol
                 if transformation is not None:
                     if transformation.ratio is None:
@@ -544,13 +548,51 @@ class Matcher:
                 eri = self.get_eri(effective_symbol, search_index)
                 if eri:
                     eris.append(eri)
+                # The shares are the same holding under either spelling, so
+                # reading only the name the day ends with would let a row's
+                # spelling decide whether this disposal is identified against it.
+                day_names, merged = self._search_day_names(effective_symbol, renames)
+                bought_under = [
+                    name
+                    for name in day_names
+                    if self._unclaimed_acquisition(search_index, name) > 0
+                ]
+                # A merge leaves the day's other names claimed by more than
+                # one holding: they were separate until the renames, and a
+                # purchase under one of them may belong to either. That
+                # includes the name they all end under. Only the name this
+                # holding opened the day with is nobody else's, so a purchase
+                # under it is still this holding's repurchase.
+                if merged:
+                    unattributable = [
+                        name for name in bought_under if name != opening_symbol
+                    ]
+                    if unattributable:
+                        raise CalculationError(
+                            self._merged_repurchase_message(
+                                ctx.symbol,
+                                ctx.date_index,
+                                search_index,
+                                day_names,
+                                unattributable,
+                            )
+                        )
+                if len(bought_under) > 1:
+                    raise CalculationError(
+                        self._split_repurchase_message(
+                            ctx.symbol, ctx.date_index, search_index, bought_under
+                        )
+                    )
+                # With nothing spare under any of them the name the walk
+                # carries stands in, and the day falls out at the checks below.
+                acquired_symbol = bought_under[0] if bought_under else effective_symbol
                 acquisition = self._identifiable_acquisition(
-                    search_index, effective_symbol
+                    search_index, acquired_symbol
                 )
                 if acquisition.quantity > 0:
                     bnb_acquisition = (
-                        self.run.bnb_list[search_index][effective_symbol]
-                        if has_key(self.run.bnb_list, search_index, effective_symbol)
+                        self.run.bnb_list[search_index][acquired_symbol]
+                        if has_key(self.run.bnb_list, search_index, acquired_symbol)
                         else HmrcTransactionData()
                     )
                     assert bnb_acquisition.quantity <= acquisition.quantity
@@ -689,7 +731,7 @@ class Matcher:
                     add_to_list(
                         self.run.bnb_list,
                         search_index,
-                        effective_symbol,
+                        acquired_symbol,
                         consumed_acquisition_units,
                         amount_delta + total_dist_amount,
                         Decimal(0),
@@ -893,6 +935,43 @@ class Matcher:
                 frontier.append(other)
                 yield other, (old_name, new_name)
 
+    @staticmethod
+    def _search_day_names(
+        symbol: str, renames: dict[str, str]
+    ) -> tuple[list[str], bool]:
+        """Return a day's names for this holding, and whether the day merges it.
+
+        Used walking forward from a disposal, where the day's pools are not
+        known yet, so this reads the renames the first pass recorded and
+        nothing else. Chains are refused before any of them, so every name of
+        a holding ends the day under one closing name.
+
+        Two or more names renamed to that closing name is a merge: holdings
+        that were separate until this day end it under a single spelling, and
+        nothing in the renames tells a second spelling of this holding from
+        another holding joining it. The names are still returned; what may be
+        done with a row under them is the flag's business.
+
+        Counting the renames that arrive at the closing name catches the shape
+        where two names are retired into a third. It does not catch a rename
+        onto a ticker a second holding is already keeping, because only one
+        rename arrives there and the day reads as an ordinary ticker change.
+        That is deliberate, not an oversight: this fix supports a ticker
+        change to a holding's own new name, and a rename onto a name already
+        in use is read the same way, as one security continuing under a
+        spelling it shares. Telling that apart from two genuinely distinct
+        securities colliding on one ticker (which this position-keyed-by-
+        string model cannot represent either way) would need a record of
+        what every ticker had held before the day, which is a great deal of
+        machinery for a collision no single broker's own export would ever
+        produce. A hand-built history representing two distinct securities
+        under one ticker is computed under the same-security assumption
+        instead of refused, and may give an incorrect matching or pool cost.
+        """
+        closing = end_name(renames, symbol)
+        merged = sum(1 for new in renames.values() if new == closing) > 1
+        return sorted(connected_names(renames, symbol)), merged
+
     def _rename_pooling_with(
         self,
         symbol: str,
@@ -992,6 +1071,23 @@ class Matcher:
                 if has_key(claims, date_index, name):
                     claimed = claimed + claims[date_index][name]
         return claimed
+
+    def _unclaimed_acquisition(self, date_index: datetime.date, symbol: str) -> Decimal:
+        """Return what a day's purchases under this name still have to give.
+
+        The same-day rule comes first (CG51560) and an earlier disposal's own
+        30-day claim is already settled, so neither is left for the disposal
+        being identified here. A purchase with nothing spare is not a
+        repurchase this disposal could reach, so it is not one of the day's
+        names for the walk to choose between.
+        """
+        acquisition = self._identifiable_acquisition(date_index, symbol)
+        if acquisition.quantity <= 0:
+            return Decimal(0)
+        claimed = self._same_day_claims(date_index, symbol).quantity
+        if has_key(self.run.bnb_list, date_index, symbol):
+            claimed += self.run.bnb_list[date_index][symbol].quantity
+        return acquisition.quantity - claimed
 
     def _day_identity(
         self, symbol: str, date_index: datetime.date, *, after_renames: bool = False
@@ -1277,6 +1373,55 @@ class Matcher:
             "two counts are in different units. Converting one to the other "
             "needs the corporate ratio, and that cannot be recovered from the "
             f"export: {event.ratio.describe()}. Work this disposal out by hand "
+            "(consider professional advice)."
+        )
+
+    @staticmethod
+    def _merged_repurchase_message(
+        symbol: str,
+        date_index: datetime.date,
+        search_index: datetime.date,
+        names: list[str],
+        bought_under: list[str],
+    ) -> str:
+        """Explain why a merge inside the window blocks a 30-day match."""
+        # A merge renames two or more names to one, so there are always at
+        # least three to list.
+        listed = f"{', '.join(names[:-1])} and {names[-1]}"
+        return (
+            f"Cannot compute the disposal of {symbol} on {date_index}: the "
+            f"renames on {search_index} make {listed} one "
+            f"holding, and shares were bought under "
+            f"{' and '.join(bought_under)} there, within 30 days of this "
+            "disposal. A rename says two tickers are one security, but "
+            "holdings renamed into one name that day were separate until "
+            "then, and the input does not say whether those shares were ever "
+            "the same holding as the ones disposed of here. Whether this "
+            "disposal is identified against that purchase or against its "
+            "Section 104 pool cannot be established, and the two give "
+            "different figures. Record the purchase under the ticker the "
+            "holding was bought as, or work these holdings out by hand "
+            "(consider professional advice)."
+        )
+
+    @staticmethod
+    def _split_repurchase_message(
+        symbol: str,
+        date_index: datetime.date,
+        search_index: datetime.date,
+        bought_under: list[str],
+    ) -> str:
+        """Explain why a day's purchases under two names block a 30-day match."""
+        return (
+            f"Cannot compute the disposal of {symbol} on {date_index}: shares "
+            f"were bought under {' and '.join(bought_under)} on "
+            f"{search_index}, within 30 days of it, and that day's renames "
+            "make them one holding. The day's purchases are one acquisition "
+            "at one blended cost (TCGA 1992 s105(1)(a)), and this tool cannot "
+            "split that cost back across the names the shares were bought "
+            "under, so which of them this disposal is identified against "
+            "would be decided by the spelling on the rows. Record that day's "
+            "purchases under one name, or work this disposal out by hand "
             "(consider professional advice)."
         )
 
@@ -1579,12 +1724,17 @@ class Matcher:
             dates.append(date_index)
         for i in range(BED_AND_BREAKFAST_DAYS):
             search_index = date_index + datetime.timedelta(days=i + 1)
-            # HMRC treats renames as the same security for B&B purposes.
-            effective_symbol = self.history.rename_list.get(search_index, {}).get(
-                effective_symbol, effective_symbol
-            )
-            if has_shares_going_spare(
-                search_index, effective_symbol, is_disposal_day=False
+            # HMRC treats renames as the same security for B&B purposes, and a
+            # rename that day leaves the purchase under either spelling, so
+            # every name the day connects is asked. Reading one name here
+            # while the 30-day walk reads them all would let a repurchase be
+            # matched that this check reported nothing to argue over.
+            renames = self.history.rename_list.get(search_index, {})
+            effective_symbol = end_name(renames, effective_symbol)
+            day_names, _ = self._search_day_names(effective_symbol, renames)
+            if any(
+                has_shares_going_spare(search_index, name, is_disposal_day=False)
+                for name in day_names
             ):
                 dates.append(search_index)
         return dates

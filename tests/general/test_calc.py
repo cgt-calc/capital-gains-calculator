@@ -1703,6 +1703,182 @@ def test_a_day_buying_under_both_names_of_one_holding_is_refused() -> None:
     )
 
 
+# A rename inside the 30-day window rather than on the disposal day itself.
+WINDOW_SALE_DAY = datetime.date(2024, 5, 5)
+WINDOW_RENAME_DAY = datetime.date(2024, 5, 20)
+
+
+@pytest.mark.parametrize("repurchase_spelling", ["OLD", "NEW"])
+def test_a_repurchase_under_either_of_the_day_s_names_is_bed_and_breakfasted(
+    repurchase_spelling: str,
+) -> None:
+    """A rename on the repurchase day does not change what the sale is matched to.
+
+    The rename is neither a disposal nor an acquisition (TCGA 1992 s127), so
+    the shares bought back are the ones that were sold whichever of the day's
+    two tickers the row states, and the 30-day rule reaches them either way.
+    Searching only under the name the day ends with found the repurchase
+    spelled NEW and missed the one spelled OLD, taking the sale to the
+    Section 104 pool and a GBP 1,500 gain on the same facts.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 500),
+        _gbp_trade(WINDOW_SALE_DAY, ActionType.SELL, "OLD", 100, 2000),
+        _gbp_trade(WINDOW_RENAME_DAY, ActionType.BUY, repurchase_spelling, 100, 800),
+        _rename_transaction(WINDOW_RENAME_DAY, "OLD", "NEW"),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    (entry,) = report.calculation_log[WINDOW_SALE_DAY]["sell$OLD"]
+    assert entry.rule_type is RuleType.BED_AND_BREAKFAST
+    assert entry.bed_and_breakfast_date_index == WINDOW_RENAME_DAY
+    assert entry.allowable_cost == Decimal(800)
+    # GBP 2,000 of proceeds against the GBP 800 the repurchase cost.
+    assert report.total_gain() == Decimal(1200)
+    # The repurchase gives up the 800 its own units cost and takes on the 500
+    # the sold shares carried, which only happens if the claim was reserved
+    # under the ticker the purchase row states.
+    assert calculator.portfolio["NEW"] == Position(Decimal(100), Decimal(500))
+
+
+@pytest.mark.parametrize("new_first", [True, False], ids=["new first", "old first"])
+def test_a_repurchase_split_across_the_day_s_two_names_is_refused(
+    *, new_first: bool
+) -> None:
+    """One acquisition at one blended cost cannot be split back up by ticker.
+
+    Both rows buy the one holding (TCGA 1992 s105(1)(a)). Identifying the sale
+    against either on its own prices it differently, and the day gives nothing
+    to choose between them by, so neither reading is established.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    purchases = [
+        _gbp_trade(WINDOW_RENAME_DAY, ActionType.BUY, "NEW", 50, 500),
+        _gbp_trade(WINDOW_RENAME_DAY, ActionType.BUY, "OLD", 50, 300),
+    ]
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 500),
+        _gbp_trade(WINDOW_SALE_DAY, ActionType.SELL, "OLD", 100, 2000),
+        *(purchases if new_first else purchases[::-1]),
+        _rename_transaction(WINDOW_RENAME_DAY, "OLD", "NEW"),
+    ]
+
+    with pytest.raises(CalculationError) as excinfo:
+        get_report(calculator, transactions)
+
+    assert str(excinfo.value).startswith(
+        f"Cannot compute the disposal of OLD on {WINDOW_SALE_DAY}: shares were "
+        f"bought under NEW and OLD on {WINDOW_RENAME_DAY}, within 30 days of "
+        "it, and that day's renames make them one holding."
+    )
+
+
+def _merged_window_rows(repurchase_spelling: str) -> list[BrokerTransaction]:
+    """Sell OLD, then buy back the day OLD and OTHER are renamed into MERGED."""
+    return [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 500),
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OTHER", 100, 700),
+        _gbp_trade(WINDOW_SALE_DAY, ActionType.SELL, "OLD", 100, 2000),
+        _gbp_trade(WINDOW_RENAME_DAY, ActionType.BUY, repurchase_spelling, 100, 800),
+        _rename_transaction(WINDOW_RENAME_DAY, "OLD", "MERGED"),
+        _rename_transaction(WINDOW_RENAME_DAY, "OTHER", "MERGED"),
+    ]
+
+
+@pytest.mark.parametrize("repurchase_spelling", ["MERGED", "OTHER"])
+def test_a_repurchase_under_a_merged_holding_s_name_is_refused(
+    repurchase_spelling: str,
+) -> None:
+    """Two holdings ending under one name leave a purchase belonging to either.
+
+    OTHER was a separate holding until the renames, so a purchase under its
+    name, or under the name both end up with, may be a repurchase of the
+    shares sold here or a purchase of the other holding. The two give
+    different figures and nothing in the input chooses between them.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    with pytest.raises(CalculationError) as excinfo:
+        get_report(calculator, _merged_window_rows(repurchase_spelling))
+
+    assert str(excinfo.value).startswith(
+        f"Cannot compute the disposal of OLD on {WINDOW_SALE_DAY}: the renames "
+        f"on {WINDOW_RENAME_DAY} make MERGED, OLD and OTHER one holding, and "
+        f"shares were bought under {repurchase_spelling} there, within 30 days "
+        "of this disposal."
+    )
+
+
+def test_a_repurchase_under_the_disposal_s_own_name_survives_a_merge() -> None:
+    """The name the holding entered the day under is nobody else's.
+
+    OTHER only shares a name with this holding from the close of the day, so
+    a purchase recorded under OLD is a repurchase of the shares sold here
+    whatever else the day pools them with, and the 30-day rule reaches it.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    report = get_report(calculator, _merged_window_rows("OLD"))
+
+    (entry,) = report.calculation_log[WINDOW_SALE_DAY]["sell$OLD"]
+    assert entry.rule_type is RuleType.BED_AND_BREAKFAST
+    assert entry.allowable_cost == Decimal(800)
+    assert report.total_gain() == Decimal(1200)
+
+
+def test_an_unrelated_rename_on_the_same_day_is_not_a_merge() -> None:
+    """A second rename elsewhere on the day says nothing about this holding.
+
+    A boundary pin rather than a fix: counting the day's renames instead of
+    the ones ending under this holding's own closing name would read two
+    unconnected ticker changes as two holdings becoming one, and refuse a
+    repurchase that is not in doubt at all.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 500),
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "FOO", 50, 250),
+        _gbp_trade(WINDOW_SALE_DAY, ActionType.SELL, "OLD", 100, 2000),
+        _gbp_trade(WINDOW_RENAME_DAY, ActionType.BUY, "NEW", 100, 800),
+        _rename_transaction(WINDOW_RENAME_DAY, "OLD", "NEW"),
+        _rename_transaction(WINDOW_RENAME_DAY, "FOO", "BAR"),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    (entry,) = report.calculation_log[WINDOW_SALE_DAY]["sell$OLD"]
+    assert entry.rule_type is RuleType.BED_AND_BREAKFAST
+    assert report.total_gain() == Decimal(1200)
+    assert calculator.portfolio["BAR"] == Position(Decimal(50), Decimal(250))
+
+
+def test_a_purchase_under_the_retired_name_after_the_rename_is_a_new_holding() -> None:
+    """The 30-day walk does not keep looking under names the holding has left.
+
+    A boundary pin rather than a fix: the rename takes effect at the close of
+    its own day and the pool moves with it, so a row under the retired ticker
+    on a later day opens a holding of its own and is not a repurchase of what
+    was sold.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 500),
+        _gbp_trade(WINDOW_SALE_DAY, ActionType.SELL, "OLD", 100, 2000),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        _gbp_trade(WINDOW_RENAME_DAY, ActionType.BUY, "OLD", 100, 800),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    (entry,) = report.calculation_log[WINDOW_SALE_DAY]["sell$OLD"]
+    assert entry.rule_type is RuleType.SECTION_104
+    assert entry.allowable_cost == Decimal(500)
+    assert report.total_gain() == Decimal(1500)
+    assert calculator.portfolio["OLD"] == Position(Decimal(100), Decimal(800))
+
+
 @pytest.mark.parametrize("rename_first", [True, False], ids=["rename first", "last"])
 def test_a_rename_day_refuses_more_units_than_the_whole_holding_has(
     *, rename_first: bool

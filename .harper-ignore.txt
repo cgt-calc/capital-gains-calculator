@@ -56,3 +56,6 @@
 ^schwab\.md:.*PhrasalVerbAsCompoundNoun
 # "a single hop" is the graph sense, as in this file's own `_one_hop_renames`.
 ^rename_planning\.py:.*HopHope
+# "at least three to list" is the ordinary quantifier; the
+# QuantifierNumeralConflict rule expects the two to disagree.
+^matching\.py:.*QuantifierNumeralConflict
