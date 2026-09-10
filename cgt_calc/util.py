@@ -6,6 +6,7 @@ import decimal
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import sys
+import textwrap
 from typing import TextIO
 
 
@@ -53,6 +54,16 @@ def normalize_amount(amount: Decimal) -> Decimal:
     return round_decimal(amount, 10)
 
 
+def indent_entry(entry: object) -> str:
+    """Indent every line of one item in a message that lists several.
+
+    A transaction renders over more than one line, so indenting only the
+    first would leave every line at the same depth and a list of two rows
+    would read as a list of four.
+    """
+    return textwrap.indent(str(entry), "  ")
+
+
 def strip_zeros(value: Decimal) -> str:
     """Strip trailing zeros from Decimal."""
     return f"{value:.10f}".rstrip("0").rstrip(".")
@@ -66,9 +77,52 @@ def exact_str(value: Decimal) -> str:
     has to keep every digit it has, in plain notation so the reader does
     not need to cope with exponents. Formatting never rounds, unlike
     `normalize()`, which applies the context precision.
+
+    Also the fallback for `display_str` when shortening a figure would
+    hide it.
     """
     text = format(value, "f")
     return text.rstrip("0").rstrip(".") if "." in text else text
+
+
+# Past what the brokers here export, so an exported figure is not marked,
+# and the precision the calculation itself normalises to.
+DISPLAY_PLACES = 10
+
+
+def display_str(value: Decimal) -> str:
+    """Format a figure for someone reading it, marking a shortened one.
+
+    Several parsers state no price and divide an amount by a quantity to
+    get one, so the figure carries the full precision of that division: a
+    holding bought for 2381.35 renders a price of
+    99.02666666666666666666666667, which buries the figures either side of
+    it. Shortening it silently would state a figure neither the export nor
+    the calculation holds, so a shortened one is marked.
+
+    A figure that cannot be shortened is printed whole rather than refused,
+    because every caller is an error already naming a row the user has to
+    find. That covers "NaN" and "Infinity", a value with more integer
+    digits than a rounded copy will fit in, and one small enough that
+    shortening would leave "0": a figure the reader cannot check is worse
+    than a long one.
+    """
+    if not value.is_finite():
+        return exact_str(value)
+    if value == 0:
+        # A figure subtracted to nothing keeps the sign it was heading for,
+        # and "amount -0" reads as a fault in the tool rather than a row
+        # that came to nothing.
+        return "0"
+    try:
+        shown = round_decimal(value, DISPLAY_PLACES)
+    except InvalidOperation:
+        return exact_str(value)
+    if shown == value:
+        return exact_str(value)
+    if shown == 0:
+        return exact_str(value)
+    return f"~{exact_str(shown)}"
 
 
 def luhn_check_digit(payload: str) -> int:

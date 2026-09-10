@@ -97,8 +97,10 @@ def test_split_export_matches_the_whole_file(tmp_path: Path) -> None:
     from_dir = _load(schwab_dir=str(directory))
     from_file = _load(schwab_file=str(whole))
 
-    assert [str(transaction) for transaction in from_dir] == [
-        str(transaction) for transaction in from_file
+    # repr, not str: str names the file each row was read from, which is
+    # exactly what differs between a directory and one whole file.
+    assert [repr(transaction) for transaction in from_dir] == [
+        repr(transaction) for transaction in from_file
     ]
     assert [transaction.date for transaction in from_dir] == sorted(
         transaction.date for transaction in from_dir
@@ -129,8 +131,10 @@ def test_single_file_directory_matches_the_file_through_the_award_path(
     )
 
     assert from_dir
-    assert [str(transaction) for transaction in from_dir] == [
-        str(transaction) for transaction in from_file
+    # repr, not str: str names the file each row was read from, which is
+    # exactly what differs between a directory and one whole file.
+    assert [repr(transaction) for transaction in from_dir] == [
+        repr(transaction) for transaction in from_file
     ]
 
 

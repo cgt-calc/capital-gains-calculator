@@ -22,6 +22,13 @@ The external services used are:
 Reports and cache files are saved locally. Store them under the same access, retention and deletion
 controls as your own tax records.
 
+**Error messages can quote your own data.** When cgt-calc refuses a transaction it prints that
+transaction, which can include the path of the file it was read from and the row number within it. A
+path can carry your username. The broker pages ask for the complete error message when you report a
+problem: read it first, and shorten a path or replace a figure you would rather not publish. See the
+[instructions for your broker](brokers/index.md). The `--dump-transactions` export also includes the
+source file path and row number for every transaction.
+
 ## Disclaimer
 
 This tool is a calculation aid, **not tax advice**. It calculates capital gains figures from the

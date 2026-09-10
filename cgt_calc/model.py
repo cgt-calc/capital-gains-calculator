@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Final, NamedTuple, Self, override
 from .exceptions import CalculationError
 from .util import (
     approx_equal,
+    display_str,
     luhn_check_digit,
     normalize_amount,
     round_decimal,
@@ -387,6 +388,16 @@ class ActionType(Enum):
     OPTION_EXPIRY = 29
     OPTION_ASSIGNMENT = 30
 
+    @override
+    def __str__(self) -> str:
+        """Name the action the way a message to the user should say it.
+
+        An enum's default string is its Python name, ``ActionType.BUY``,
+        and several messages interpolate an action straight into text a
+        user reads. Naming it here fixes all of them at once.
+        """
+        return self.name.replace("_", " ").capitalize()
+
 
 class CalculationType(Enum):
     """Calculation type enumeration."""
@@ -451,16 +462,17 @@ class BrokerTransaction:
     # Where this row was read from. Excluded from equality and from any
     # __hash__: parsers deduplicate overlapping exports by comparing
     # transactions, and a field that varies with the file would keep both
-    # copies of every row two exports share. Out of the repr too, which is
-    # printed whole in several errors and is about the transaction, not about
-    # which file on this machine it was read from.
+    # copies of every row two exports share. Out of the repr, which is a
+    # field dump for debugging. Its file and row are in __str__, which is
+    # what the errors print, because they are what let a reader find the row
+    # in their own export.
     source: TransactionSource | None = field(default=None, compare=False, repr=False)
     # This row's count restated into the units in force after a share
     # reorganisation later the same day. The exported quantity, price and
     # amount are left alone: they are what validation, deduplication and
     # diagnostics read, and a restated count paired with the exported price
     # would look like a discrepancy. Set by the calculator, so it takes no
-    # part in equality either, nor in the repr the errors print.
+    # part in equality either, nor in anything printed to the user.
     calculation_quantity: Decimal | None = field(
         default=None, compare=False, repr=False
     )
@@ -475,9 +487,10 @@ class BrokerTransaction:
     # False on a row whose tax event is dated apart from the cash it involves,
     # which another row carries on the date the money really moved. The row
     # still acquires or disposes of the shares; it leaves the cash balance,
-    # and the balance check, to that other row. Out of the repr the errors
-    # print: the balance error lists only rows that did move cash, so the
-    # flag reads True on every one of them.
+    # and the balance check, to that other row. Out of the repr and out of
+    # __str__, so no error prints it: the balance error lists only rows that
+    # did move cash, so the flag reads True on every one of them.
+    # `--dump-transactions` does export it.
     affects_cash_balance: bool = field(default=True, repr=False)
 
     @property
@@ -503,6 +516,77 @@ class BrokerTransaction:
                 code = CurrencyCode(key)
                 coerced[code] = coerced.get(code, Decimal(0)) + fee
             self.foreign_fees = coerced
+
+    @override
+    def __str__(self) -> str:
+        """Describe this row for someone reading an error about it.
+
+        Errors print a whole transaction, and the generated ``__repr__`` is
+        Python syntax carrying every internal field, including several the
+        user never supplied. This says what the export stated and where it
+        was read from, and leaves out what it did not state. ``__repr__``
+        is unchanged, so debugging still has the full dump.
+
+        Figures are shortened only where that is marked, so a figure the
+        export states is printed as it states it.
+
+        Two lines: the row, then the context it was read in. An error can
+        list a row for every holding, and each line spent on one row is a
+        line the next one is pushed down by.
+        """
+        what = [self.date.isoformat(), str(self.action)]
+        if self.quantity is not None:
+            what.append(display_str(self.quantity))
+        if self.ambiguous_quantity is not None:
+            what.append(f"(or {display_str(self.ambiguous_quantity)})")
+        if self.symbol is not None:
+            what.append(self.symbol)
+
+        # The price is labelled and grouped with the other figures rather
+        # than trailing the symbol: an option's symbol already ends in "at a
+        # strike of N", and "at a strike of 50 at 1 USD" reads as one clause.
+        money = []
+        if self.price is not None:
+            money.append(f"price {display_str(self.price)}")
+        if self.amount is not None:
+            money.append(f"amount {display_str(self.amount)}")
+        if self.fees:
+            money.append(f"fees {display_str(self.fees)}")
+        # The transaction's own currency is stated once, against the first
+        # figure in it; a fee paid in another currency carries its own.
+        if money:
+            money[0] = f"{money[0]} {self.currency}"
+        money += [
+            f"fees {display_str(fee)} {code}"
+            for code, fee in sorted(self.foreign_fees.items())
+        ]
+
+        headline = " ".join(what)
+        if money:
+            headline += ", " + ", ".join(money)
+
+        # Never the source's `account`: it is a calculation-local token for
+        # the boundary the user declared, and reads as an account number it
+        # is not.
+        # Broker, description and ISIN are one thing said three ways, so
+        # they read as one phrase. The one comma left is the break that
+        # matters, from what the row is to where it was read from.
+        what_it_is = self.broker
+        if self.description and self.description != self.symbol:
+            what_it_is += f' "{self.description}"'
+        if self.isin is not None:
+            what_it_is += f" (ISIN {self.isin})"
+
+        where = [what_it_is]
+        if self.source is not None and self.source.file is not None:
+            # "row N of the file", not "the file, row N": this is one item in
+            # a comma-separated line, and a trailing ", row 8" reads as
+            # another item rather than as part of the file it belongs to.
+            # Last, so that a long path wraps with nothing after it.
+            place = f"row {self.source.row} of " if self.source.row is not None else ""
+            where.append(f"read from {place}{self.source.file}")
+
+        return f"{headline}\n  {', '.join(where)}"
 
 
 class RuleType(Enum):

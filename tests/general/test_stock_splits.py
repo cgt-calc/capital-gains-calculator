@@ -1777,7 +1777,7 @@ def test_two_raw_rows_for_one_day_are_still_refused() -> None:
     """
     with pytest.raises(
         CalculationError, match="Leave all but one of the RAW STOCK_SPLIT rows out"
-    ):
+    ) as excinfo:
         run(
             [
                 trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
@@ -1785,6 +1785,13 @@ def test_two_raw_rows_for_one_day_are_still_refused() -> None:
                 raw_split(EVENT_DAY, "FOO", "20"),
             ]
         )
+
+    # A row renders over two lines, so both rows are listed at one depth and
+    # each row's own second line one deeper. Indenting only the first line
+    # would show two rows as four items.
+    message = str(excinfo.value)
+    assert message.count(f"\n  {EVENT_DAY.isoformat()} Stock split") == 2
+    assert message.count("\n    ") == 2
 
 
 # ===== a reorganisation row that also states money =====

@@ -288,10 +288,10 @@ def test_assigned_put_without_its_funding_deposit_still_errors() -> None:
         _report(rows, balance_check=True)
 
     message = str(error.value)
-    assert "datetime.date(2024, 5, 21)" in message
+    assert "2024-05-21 Transfer" in message
     # The taxable purchase moves no cash, so listing it under a running
     # balance it did not change would only mislead.
-    assert "ActionType.BUY" not in message
+    assert "Buy 100 META" not in message
 
 
 @pytest.mark.parametrize("deposit_first", [True, False])
