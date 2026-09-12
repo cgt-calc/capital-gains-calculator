@@ -555,6 +555,62 @@ def _espp_net_shares(
     return deposited * multiplier
 
 
+def _row_where(row: JsonRowType, names: FieldNames, *, with_date: bool) -> str:
+    """Say which row an error is about, using what the row itself states.
+
+    An Equity Awards export gives its transactions no identifier, so the only
+    way to point at one is to describe what a reader would search the file
+    for. The stated date is left out where it is the field being read, and is
+    what locates the row when the unreadable date is inside a lot or grant.
+    """
+    where = f"The {row.get(names.action) or 'transaction'}"
+    symbol = row.get(names.symbol)
+    if symbol:
+        where += f" of {symbol}"
+    date = row.get(names.date)
+    if with_date and date:
+        where += f" on {date}"
+    return where
+
+
+def _row_date(
+    container: JsonRowType, field: str, where: str, file_path: Path
+) -> datetime.date:
+    """Read one date, naming the row and the field where it cannot be read.
+
+    Every date this module reads comes through here. A bare `strptime` answers
+    a hand-edited or hand-combined export with `time data '2023-06-12' does
+    not match format '%m/%d/%Y'`, or with `KeyError` where the field is
+    absent, and neither says which of several hundred rows to go and look at.
+
+    `MM/DD/YYYY` stays the only form accepted. A file stating dates in some
+    other form may have been through a conversion, and a spreadsheet that
+    reads `06/12/2023` as 6 December writes back a date months out; refusing
+    sends the reader to the export rather than to a copy of it. What this
+    establishes is only that a value cannot be read, never how it came to be
+    that way, and a swap landing on a valid date passes: `12/06/2023` is read
+    as 6 December whatever it was meant to be.
+    """
+    stated = container.get(field)
+    if stated is None or stated == "":
+        raise ParsingError(
+            file_path,
+            f"{where} states no {field}. Equity Awards exports state MM/DD/YYYY.",
+        )
+    try:
+        # A JSON export can state a date as a bare number, which the decoder
+        # hands over as a Decimal and `strptime` refuses outright. The row
+        # does state something, so it is quoted back like any other value
+        # that cannot be read.
+        return datetime.datetime.strptime(stated, "%m/%d/%Y").date()
+    except (TypeError, ValueError) as err:
+        raise ParsingError(
+            file_path,
+            f"{where} states {field} as {stated!r}, which is not a date "
+            "cgt-calc reads. Equity Awards exports state MM/DD/YYYY.",
+        ) from err
+
+
 def _number_error(
     err: _UnparseableNumber, row: JsonRowType, names: FieldNames, file_path: Path
 ) -> ParsingError:
@@ -625,7 +681,9 @@ def _check_one_lapse(row: JsonRowType, file_path: Path, names: FieldNames) -> No
     if deposited is None or withheld is None:
         return
 
-    date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
+    date = _row_date(
+        row, names.date, _row_where(row, names, with_date=False), file_path
+    )
     multiplier = _detail_counts_multiplier(symbol, date)
     expected = (deposited + withheld) * multiplier
 
@@ -976,6 +1034,11 @@ class SchwabAwardTransaction(BrokerTransaction):
         quantity = _row_decimal(row, names.quantity, names, self.raw_action, file)
         amount = _row_decimal(row, names.amount, names, self.raw_action, file)
         fees = _row_decimal(row, names.fees, names, self.raw_action, file)
+        # The row a date error names. A date inside a lot or grant is
+        # located by the transaction's own stated date; the transaction's own
+        # date is not, because that is the field being read.
+        where = _row_where(row, names, with_date=False)
+        dated_where = _row_where(row, names, with_date=True)
         if row[names.action] == "Deposit":
             if len(row[names.transac_details]) != 1:
                 raise ParsingError(
@@ -995,9 +1058,7 @@ class SchwabAwardTransaction(BrokerTransaction):
                 # discount is taxed as employment income through payroll.
                 # Using the price paid understates the basis roughly tenfold
                 # on the older purchases.
-                date = datetime.datetime.strptime(
-                    details[names.purchase_date], "%m/%d/%Y"
-                ).date()
+                date = _row_date(details, names.purchase_date, dated_where, file)
                 price = _decimal_from_str(
                     details[names.purchase_fair_market_value],
                     names.purchase_fair_market_value,
@@ -1028,9 +1089,7 @@ class SchwabAwardTransaction(BrokerTransaction):
                 amount = price * quantity
                 description = f"ESPP purchase on {details[names.purchase_date]}"
             else:
-                date = datetime.datetime.strptime(
-                    details[names.vest_date], "%m/%d/%Y"
-                ).date()
+                date = _row_date(details, names.vest_date, dated_where, file)
                 # Schwab only provides this one as a string:
                 price = _parse_vest_price(details, names, date, file)
                 if amount == Decimal(0):
@@ -1041,7 +1100,7 @@ class SchwabAwardTransaction(BrokerTransaction):
                     f"(ID {details[names.award_id]})"
                 )
         elif row[names.action] in {"Sale", "Forced Quick Sell"}:
-            date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
+            date = _row_date(row, names.date, where, file)
 
             if _restates_acquisitions_only(symbol):
                 # Derive the price from the money rather than from the per-lot
@@ -1087,7 +1146,7 @@ class SchwabAwardTransaction(BrokerTransaction):
                 )
 
         elif action is ActionType.UNCLASSIFIED_GIFT:
-            date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
+            date = _row_date(row, names.date, where, file)
             price = None
             # A gift moves shares, not money. Anything in these fields means
             # the row is not what this branch assumes it is.
@@ -1103,7 +1162,7 @@ class SchwabAwardTransaction(BrokerTransaction):
             # proceeds of the autosale programme.
             ActionType.TRANSFER,
         }:
-            date = datetime.datetime.strptime(row[names.date], "%m/%d/%Y").date()
+            date = _row_date(row, names.date, where, file)
             price = None
             amount = _parse_cash_amount(row, names, self.raw_action, date, file)
             description = self.raw_action
@@ -1354,15 +1413,7 @@ def _lapse_price(
     # under the old spelling would never be found.
     symbol = TICKER_RENAMES.get(symbol, symbol)
 
-    stated_date = row.get(names.date)
-    try:
-        date = datetime.datetime.strptime(stated_date, "%m/%d/%Y").date()
-    except (TypeError, ValueError) as err:
-        raise ParsingError(
-            file_path,
-            f"{where}.{names.date} is not a date cgt-calc reads: "
-            f"{stated_date!r}. Equity Awards exports state MM/DD/YYYY.",
-        ) from err
+    date = _row_date(row, names.date, where, file_path)
 
     detail_rows = row.get(names.transac_details) or []
     if not isinstance(detail_rows, list):
@@ -1503,8 +1554,6 @@ def _csv_row_errors(row_index: int | None, file_path: Path) -> Iterator[None]:
             f"{err.args[0]} is missing from this transaction",
             row_index=row_index,
         ) from err
-    except ValueError as err:
-        raise ParsingError(file_path, str(err), row_index=row_index) from err
 
 
 def _csv_aware_transaction(
