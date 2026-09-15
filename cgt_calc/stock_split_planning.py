@@ -8,23 +8,21 @@ from fractions import Fraction
 import logging
 from typing import TYPE_CHECKING, Literal
 
-from .exceptions import (
-    CalculationError,
-    InvalidTransactionError,
-    QuantityMissingError,
-    QuantityNotPositiveError,
-    SymbolMissingError,
-)
+from .exceptions import CalculationError, InvalidTransactionError, SymbolMissingError
 from .model import ActionType, Position
 from .parsers.raw import RawTransaction
+from .rename_planning import connected_names
 from .stock_splits import (
     SplitMode,
     SplitTransformation,
     StockSplitEvent,
     StockSplitTransaction,
     UnresolvedRatio,
+    get_quantity_or_fail,
     quantity_sign,
     scale_quantity,
+    signed_quantity,
+    stated_quantity,
 )
 from .util import indent_entry, strip_zeros
 
@@ -43,33 +41,6 @@ def _get_symbol_or_fail(transaction: BrokerTransaction) -> str:
     if symbol is None:
         raise SymbolMissingError(transaction)
     return symbol
-
-
-def _get_quantity_or_fail(transaction: BrokerTransaction) -> Decimal:
-    """Return the transaction quantity or raise an error if missing."""
-    quantity = transaction.quantity
-    if quantity is None:
-        raise QuantityMissingError(transaction)
-    return quantity
-
-
-def _stated_quantity(transaction: BrokerTransaction) -> Decimal:
-    """Return a trade row's stated count, refusing one that is not positive.
-
-    A day is planned before any of its rows has been processed, so a row
-    stating nothing, or a count of zero or less, has to be refused where the
-    plan reads it. Left to the row's own processing it would first shape the
-    plan, and whichever valid row is then measured against that plan is the
-    one the calculator blames.
-
-    Only rows that move a share count are read this way. A reorganisation
-    row states its own delta, which a consolidation states as a negative
-    number.
-    """
-    quantity = _get_quantity_or_fail(transaction)
-    if quantity <= 0:
-        raise QuantityNotPositiveError(transaction)
-    return quantity
 
 
 def source_account(transaction: BrokerTransaction) -> str:
@@ -279,8 +250,8 @@ def _sole_reorganisation(
         raise CalculationError(_two_splits_message(symbol, date_index, rows))
     raw_row = stated_in_full[0]
     broker_rows = [row for row in rows if row is not raw_row]
-    broker_changes = [_get_quantity_or_fail(row) for row in broker_rows]
-    raw_change = _get_quantity_or_fail(raw_row)
+    broker_changes = [get_quantity_or_fail(row) for row in broker_rows]
+    raw_change = get_quantity_or_fail(raw_row)
     if event_times := _conflicting_reorganisation_times(broker_rows):
         listed = "\n".join(indent_entry(row) for row in rows)
         raise CalculationError(
@@ -339,10 +310,20 @@ def _plan_stock_split(
 ) -> None:
     """Work out and record one reorganisation."""
     instants = _split_instants(row)
+    # A rename says two tickers are one security, so a row under either
+    # spelling is a row of the holding this reorganisation restates, and has
+    # to be placed either side of it and counted like any other. The day's
+    # renames were recorded and checked before this ran, so the graph read
+    # here has no chains in it and every name in it is this holding's.
+    names = connected_names(state.history.rename_list.get(date_index, {}), symbol)
     before_rows: list[BrokerTransaction] = []
     after_rows: list[BrokerTransaction] = []
     for other in day_transactions:
-        if other is row or other.symbol != symbol or quantity_sign(other.action) == 0:
+        if (
+            other is row
+            or other.symbol not in names
+            or quantity_sign(other.action) == 0
+        ):
             continue
         placement = _relative_to_split(instants, row.source, other.source)
         if placement is None:
@@ -351,12 +332,16 @@ def _plan_stock_split(
             )
         (before_rows if placement == "before" else after_rows).append(other)
 
-    day_open_quantity = state.run.portfolio[symbol].quantity
+    # The pool sits under whichever name the earlier rows used, which need
+    # not be the one this row states. A day whose renames bring a second
+    # holding in is refused before the second pass reads this figure, so
+    # only one of these names can be holding anything.
+    day_open_quantity = sum(
+        (state.run.portfolio.get(name, Position()).quantity for name in names),
+        Decimal(0),
+    )
     holding_at_event = day_open_quantity + sum(
-        (
-            quantity_sign(other.action) * _stated_quantity(other)
-            for other in before_rows
-        ),
+        (quantity_sign(other.action) * stated_quantity(other) for other in before_rows),
         Decimal(0),
     )
     if holding_at_event <= 0:
@@ -394,7 +379,7 @@ def _plan_stock_split(
         # pool by another route and needs no special case anywhere else.
         for other in before_rows:
             other.calculation_quantity = scale_quantity(
-                _get_quantity_or_fail(other), exact_ratio
+                get_quantity_or_fail(other), exact_ratio
             )
 
     # What the event leaves of the holding it acts on. The day-opening
@@ -463,7 +448,13 @@ def _plan_stock_split(
     # Everything the day can give up, in the order the replay puts it:
     # the restated opening, then every increase, then the reconciliation.
     # Decreases draw on this rather than on the running count.
-    state.history.split_day_capacity[symbol, date_index] = (
+    #
+    # Recorded under every name the day's renames give this holding, because
+    # a decrease may state any of them. Reading only the name this row states
+    # would leave a sale under the other spelling checked against a running
+    # count that holds the shares only once the RENAME row has been
+    # processed, which the input's order does not settle.
+    capacity = (
         scaled_day_open_quantity
         + signed_quantity(
             [
@@ -474,21 +465,8 @@ def _plan_stock_split(
         )
         + reconciliation_delta
     )
-
-
-def signed_quantity(transactions: list[BrokerTransaction]) -> Decimal:
-    """Net units these rows add to a holding, in their pooled counts."""
-    total = Decimal(0)
-    for transaction in transactions:
-        stated = _stated_quantity(transaction)
-        # ``BrokerTransaction.pool_quantity``, now that the stated count is
-        # known to be there: a same-day reorganisation restates a row into the
-        # units the day ends in, and that is the count the pool moves by.
-        restated = transaction.calculation_quantity
-        total += quantity_sign(transaction.action) * (
-            stated if restated is None else restated
-        )
-    return total
+    for name in names:
+        state.history.split_day_capacity[name, date_index] = capacity
 
 
 def _split_instants(row: BrokerTransaction) -> tuple[datetime.datetime, ...]:
@@ -521,7 +499,7 @@ def _stock_split_event(
     """
     if isinstance(row, StockSplitTransaction):
         return row.event
-    delta = _get_quantity_or_fail(row)
+    delta = get_quantity_or_fail(row)
     if not delta.is_finite():
         raise CalculationError(
             f"Cannot apply the reorganisation of {symbol} on {date_index}: "

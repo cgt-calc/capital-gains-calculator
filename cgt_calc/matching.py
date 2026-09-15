@@ -852,7 +852,7 @@ class Matcher:
                         "apply the reorganisation of", symbol, date_index, *chained
                     )
                 )
-            pooled = self._rename_pooling_with(symbol, date_index, renames)
+            pooled = self._rename_pooling_with(symbol, renames)
             if pooled is not None:
                 raise CalculationError(
                     self._rename_and_split_message(symbol, date_index, *pooled)
@@ -871,16 +871,20 @@ class Matcher:
                 transformation.scaled_day_open_quantity, position.amount
             )
 
-    def _holds_units_today(self, symbol: str, date_index: datetime.date) -> bool:
-        """Whether a rename today could move units of ``symbol`` anywhere.
+    def _opened_holding_units(self, symbol: str) -> bool:
+        """Whether this name was a holding of its own as the day opened.
 
         Called from ``apply_split_openings``, before any of the day's rows, so
-        the portfolio still holds the day-opening pool; an acquisition later
-        today lands before the rename, which is applied at the end of the day.
+        the portfolio still holds the day-opening pool.
+
+        What the day itself buys under the name is deliberately not read. A
+        purchase is not a second holding: the day's renames say the names are
+        one security, and the reorganisation planning that ran in the first
+        pass has already placed that purchase either side of the event and
+        restated it if it fell before. Shares held before the day are the
+        ones no rename accounts for, and they are what this asks about.
         """
-        if symbol in self.run.portfolio and self.run.portfolio[symbol].quantity != 0:
-            return True
-        return has_key(self.history.acquisition_list, date_index, symbol)
+        return symbol in self.run.portfolio and self.run.portfolio[symbol].quantity != 0
 
     @staticmethod
     def _rename_chain_at(
@@ -975,7 +979,6 @@ class Matcher:
     def _rename_pooling_with(
         self,
         symbol: str,
-        date_index: datetime.date,
         renames: dict[str, str],
     ) -> tuple[str, tuple[str, str]] | None:
         """Return a second holding the day's renames would pool this one with.
@@ -989,7 +992,7 @@ class Matcher:
         reaches it.
         """
         for other, rename in self._renames_reaching(symbol, renames):
-            if self._holds_units_today(other, date_index):
+            if self._opened_holding_units(other):
                 return other, rename
         return None
 

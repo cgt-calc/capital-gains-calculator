@@ -23,8 +23,7 @@ from typing import TYPE_CHECKING, Final
 from .const import RENAME_DESCRIPTION_PREFIX
 from .exceptions import CalculationError, InvalidTransactionError, SymbolMissingError
 from .model import ActionType, Position
-from .stock_split_planning import signed_quantity
-from .stock_splits import quantity_sign
+from .stock_splits import quantity_sign, signed_quantity
 from .transaction_log import has_key
 
 if TYPE_CHECKING:

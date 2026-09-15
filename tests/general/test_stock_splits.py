@@ -2134,6 +2134,192 @@ def test_a_second_holding_renamed_onto_the_same_name_is_refused() -> None:
         )
 
 
+# ===== a day's rows under either of its two tickers =====
+
+
+@pytest.mark.parametrize("spelling", ["OLD", "NEW"])
+def test_a_sale_under_either_of_the_day_s_tickers_gives_the_same_answer(
+    spelling: str,
+) -> None:
+    """The sale is of the reorganised holding whichever name it states.
+
+    A rename is neither a disposal nor an acquisition (TCGA 1992 s127), so
+    the shares sold are the shares the reorganisation restated, and the
+    ticker the row happens to be written under cannot change the tax.
+    """
+    calculator = create_calculator(tax_year=2023, balance_check=False)
+    report = get_report(
+        calculator,
+        [
+            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+            legacy_split(EVENT_DAY, "OLD", "10"),
+            rename(EVENT_DAY, "OLD", "NEW"),
+            trade(EVENT_DAY, ActionType.SELL, spelling, "5", "16"),
+        ],
+    )
+    (entry,) = report.calculation_log[EVENT_DAY][f"sell${spelling}"]
+    assert entry.rule_type is RuleType.SECTION_104
+    assert entry.allowable_cost == Decimal(25)
+    assert entry.gain == Decimal(55)
+    assert report.total_gain() == Decimal(55)
+    assert "OLD" not in calculator.portfolio
+    assert calculator.portfolio["NEW"] == Position(Decimal(15), Decimal(75))
+
+
+@pytest.mark.parametrize(
+    "rename_first", [True, False], ids=["rename-first", "sale-first"]
+)
+def test_where_the_rename_row_sits_does_not_change_an_alias_sale(
+    *, rename_first: bool
+) -> None:
+    """A date carries no order, so the answer must not depend on one.
+
+    The pool moves where the RENAME row sits, so listing the sale on either
+    side of it used to decide whether the new ticker held anything yet.
+    """
+    rename_row = rename(EVENT_DAY, "OLD", "NEW")
+    sale = trade(EVENT_DAY, ActionType.SELL, "NEW", "5", "16")
+    calculator = create_calculator(tax_year=2023, balance_check=False)
+    report = get_report(
+        calculator,
+        [
+            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+            legacy_split(EVENT_DAY, "OLD", "10"),
+            *((rename_row, sale) if rename_first else (sale, rename_row)),
+        ],
+    )
+    assert report.total_gain() == Decimal(55)
+    assert calculator.portfolio["NEW"] == Position(Decimal(15), Decimal(75))
+
+
+@pytest.mark.parametrize("spelling", ["OLD", "NEW"])
+def test_a_sale_before_the_reorganisation_is_restated_under_either_ticker(
+    spelling: str,
+) -> None:
+    """A row that precedes the event is stated in the units before it.
+
+    Five units sold ahead of a 2-for-1 are ten of the units the day ends in,
+    and that is the count the pool gives up, whichever ticker the row names.
+    """
+    calculator = create_calculator(tax_year=2023, balance_check=False)
+    report = get_report(
+        calculator,
+        [
+            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+            trade(EVENT_DAY, ActionType.SELL, spelling, "5", "16"),
+            paired_split(EVENT_DAY, "OLD", "10", "20", Fraction(2)),
+            rename(EVENT_DAY, "OLD", "NEW"),
+        ],
+    )
+    (entry,) = report.calculation_log[EVENT_DAY][f"sell${spelling}"]
+    assert entry.quantity == Decimal(10)
+    assert entry.allowable_cost == Decimal(50)
+    assert entry.gain == Decimal(30)
+    assert calculator.portfolio["NEW"] == Position(Decimal(10), Decimal(50))
+
+
+@pytest.mark.parametrize("spelling", ["OLD", "NEW"])
+def test_a_purchase_under_either_of_the_day_s_tickers_joins_the_same_pool(
+    spelling: str,
+) -> None:
+    """Shares bought today are the holding's own under either spelling.
+
+    The day's renames say the two tickers are one security, so a purchase
+    under the new one is not a second holding arriving; it is this holding
+    buying more.
+    """
+    calculator = create_calculator(tax_year=2023, balance_check=False)
+    report = get_report(
+        calculator,
+        [
+            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+            legacy_split(EVENT_DAY, "OLD", "10"),
+            trade(EVENT_DAY, ActionType.BUY, spelling, "5", "12"),
+            rename(EVENT_DAY, "OLD", "NEW"),
+        ],
+    )
+    assert report.total_gain() == Decimal(0)
+    assert "OLD" not in calculator.portfolio
+    assert calculator.portfolio["NEW"] == Position(Decimal(25), Decimal(160))
+
+
+def test_a_sale_under_the_new_ticker_of_more_than_the_holding_is_refused() -> None:
+    """Reading both tickers must not let the day give up more than it has."""
+    with pytest.raises(
+        CalculationError, match="the day's activity would leave -5 units"
+    ):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+                legacy_split(EVENT_DAY, "OLD", "10"),
+                rename(EVENT_DAY, "OLD", "NEW"),
+                trade(EVENT_DAY, ActionType.SELL, "NEW", "25", "16"),
+            ]
+        )
+
+
+@pytest.mark.parametrize(
+    "rename_first", [True, False], ids=["rename-first", "sale-first"]
+)
+def test_a_sale_under_the_new_ticker_does_not_excuse_a_merge(
+    *, rename_first: bool
+) -> None:
+    """A name holding shares of its own is still a second holding.
+
+    Reading the day's rows under both tickers says nothing about whether the
+    shares already under the second one were part of the event.
+    """
+    rename_row = rename(EVENT_DAY, "OLD", "NEW")
+    sale = trade(EVENT_DAY, ActionType.SELL, "NEW", "5", "16")
+    with pytest.raises(
+        CalculationError, match="pool it with NEW, which holds shares of its own"
+    ):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+                trade(POOL_DAY, ActionType.BUY, "NEW", "4", "10"),
+                legacy_split(EVENT_DAY, "OLD", "10"),
+                *((rename_row, sale) if rename_first else (sale, rename_row)),
+            ]
+        )
+
+
+def test_an_alias_sale_that_cannot_be_placed_around_the_event_is_refused() -> None:
+    """The other ticker's rows face the same chronology question.
+
+    A row from a separate input cannot be put either side of the
+    reorganisation, and which side it falls decides what units it states.
+    """
+    sale = trade(EVENT_DAY, ActionType.SELL, "NEW", "5", "16", source=elsewhere(0))
+    with pytest.raises(CalculationError, match="cannot be placed either side of it"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+                legacy_split(EVENT_DAY, "OLD", "10"),
+                rename(EVENT_DAY, "OLD", "NEW"),
+                sale,
+            ]
+        )
+
+
+def test_two_reorganisation_rows_on_the_day_s_two_tickers_are_refused() -> None:
+    """One security has one corporate ratio a day.
+
+    Two rows on names the day's renames connect are two brokers reporting
+    one event under two spellings, and nothing tells that apart from two
+    events, so neither reading is chosen.
+    """
+    with pytest.raises(CalculationError, match="which holds shares of its own"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+                legacy_split(EVENT_DAY, "OLD", "10"),
+                legacy_split(EVENT_DAY, "NEW", "10"),
+                rename(EVENT_DAY, "OLD", "NEW"),
+            ]
+        )
+
+
 # ===== matching across a reorganisation that also renames =====
 
 
