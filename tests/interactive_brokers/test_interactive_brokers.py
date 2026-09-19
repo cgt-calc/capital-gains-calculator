@@ -480,32 +480,84 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert "Final balance\n  Interactive Brokers: 999.82 (GBP)" in result.stdout
         assert "GBP.USD" not in (tmp_path / "out.tex").read_text(encoding="utf-8")
 
-    def test_same_day_round_trip_buys_before_its_own_sell(self, tmp_path: Path) -> None:
+    def test_same_day_round_trip_is_read_in_the_order_it_is_listed(
+        self, tmp_path: Path
+    ) -> None:
         """A security bought and sold on one day must fill its pool first.
 
-        Sorting every sell before every buy funds the day's purchases, but it
-        empties the pool of a security whose buy and sell are both on that
-        day, and the disposal is then refused as "not owned". The round
-        trip's own buy has to lead; other sells still come before it. Where
-        the sale falls in the day does not change the gain, which TCGA 1992
-        s105 works out by matching the day's acquisitions and disposals with
-        each other.
+        Sorting every sell of a day before its buys funds the day's purchases,
+        but it empties the pool of a security that was bought earlier the same
+        day, and the disposal is then refused as "not owned". Trades in one
+        security on one day are instead read in the order the statement lists
+        them, here buy, sell, buy. Where the sale falls within the day does
+        not change the gain, which TCGA 1992 s105 works out by matching the
+        day's acquisitions and disposals with each other.
         """
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
             self.base_header
-            + "Transaction History,Data,2025-01-01,U***00000,Electronic Fund Transfer,Deposit,-,-,-,5000.0,-,5000.0\n"
-            # Listed sell-first, and bought and sold on the same day.
-            + "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Sell,AAA,-10.0,110.0,1100.0,-,1100.0\n"
+            + "Transaction History,Data,2025-01-01,U***00000,Electronic Fund Transfer,Deposit,-,-,-,1000.0,-,1000.0\n"
+            # Bought, sold and bought back again, all on the same day.
             + "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Buy,AAA,10.0,100.0,-1000.0,-,-1000.0\n"
+            + "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Sell,AAA,-10.0,110.0,1100.0,-,1100.0\n"
+            + "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Buy,AAA,10.0,110.0,-1100.0,-,-1100.0\n"
         )
 
-        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+        cmd = build_cmd(
+            "--year",
+            "2025",
+            "--interactive-brokers-file",
+            str(csv_file),
+            "--output",
+            str(tmp_path / "out"),
+        )
+        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
+        if result.returncode:
+            pytest.fail(
+                "Integration test failed\n"
+                f"stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}"
+            )
+        assert stderr_alerts(result.stderr) == []
+        assert "Final balance\n  Interactive Brokers: 0.00 (GBP)" in result.stdout
 
-        assert [(t.action, t.symbol) for t in transactions[1:]] == [
-            (ActionType.BUY, "AAA"),
-            (ActionType.SELL, "AAA"),
-        ]
+    def test_same_day_sell_funding_its_own_buy_back_does_not_go_negative(
+        self, tmp_path: Path
+    ) -> None:
+        """Shares held from an earlier day may be sold to fund buying them back.
+
+        The account holds AAA and no cash, and on one day sells the holding and
+        spends the proceeds on the same security again. Promoting the buy ahead
+        of the sell to fill the pool would spend money the account does not have
+        yet, so the listed order, sell then buy, is what has to be kept.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header
+            + "Transaction History,Data,2025-01-01,U***00000,Electronic Fund Transfer,Deposit,-,-,-,1000.0,-,1000.0\n"
+            # Leaves the account holding 5 AAA and a zero cash balance.
+            + "Transaction History,Data,2025-01-01,U***00000,AAA STOCK,Buy,AAA,5.0,200.0,-1000.0,-,-1000.0\n"
+            + "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Sell,AAA,-5.0,220.0,1100.0,-,1100.0\n"
+            + "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Buy,AAA,5.0,220.0,-1100.0,-,-1100.0\n"
+        )
+
+        cmd = build_cmd(
+            "--year",
+            "2025",
+            "--interactive-brokers-file",
+            str(csv_file),
+            "--output",
+            str(tmp_path / "out"),
+        )
+        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
+        if result.returncode:
+            pytest.fail(
+                "Integration test failed\n"
+                f"stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}"
+            )
+        assert stderr_alerts(result.stderr) == []
+        assert "Final balance\n  Interactive Brokers: 0.00 (GBP)" in result.stdout
 
     def test_buy_before_same_day_sell_does_not_go_negative(
         self, tmp_path: Path

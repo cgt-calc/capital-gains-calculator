@@ -27,6 +27,10 @@ EXPECTED_COLS_IN_SUMMARY_SECTION: Final[int] = 4
 # Dividend ...". Trade rows carry a plain description, so this is best effort.
 _ISIN_IN_DESCRIPTION_RE: Final = re.compile(r"^[^\s(]+\((?P<isin>[A-Z0-9]{12})\)")
 
+# Actions that move shares in or out of a pool and so have to be read in
+# the statement's own order within a security's trading on one day.
+_TRADE_ACTIONS: Final[set[ActionType]] = {ActionType.BUY, ActionType.SELL}
+
 
 def _isin_from_description(description: str) -> Isin | None:
     """Return the ISIN the description is prefixed with, if it has one."""
@@ -248,28 +252,33 @@ class InteractiveBrokersParser(StandardCSVParser[InteractiveBrokersTransaction])
         )
 
     @staticmethod
-    def _round_trip_symbols(
+    def _trade_ranks(
         transactions: list[InteractiveBrokersTransaction],
-    ) -> set[tuple[datetime.date, str]]:
-        """Return the (date, symbol) pairs both bought and sold on one day."""
-        bought: set[tuple[datetime.date, str]] = set()
-        sold: set[tuple[datetime.date, str]] = set()
+    ) -> dict[tuple[datetime.date, str], bool]:
+        """Rank a day's trades in one security by the first of them listed.
+
+        Trades in the same security on the same day are left in the order the
+        statement lists them, so the whole group takes the rank of the first
+        one: a security bought and then sold has its pool filled before the
+        disposal reads it, and one sold and then bought back has the proceeds
+        in hand before they are spent.
+        """
+        ranks: dict[tuple[datetime.date, str], bool] = {}
         for transaction in transactions:
-            if transaction.symbol is None:
+            if transaction.symbol is None or transaction.action not in _TRADE_ACTIONS:
                 continue
-            key = (transaction.date, transaction.symbol)
-            if transaction.action is ActionType.BUY:
-                bought.add(key)
-            elif transaction.action is ActionType.SELL:
-                sold.add(key)
-        return bought & sold
+            ranks.setdefault(
+                (transaction.date, transaction.symbol),
+                transaction.action is ActionType.BUY,
+            )
+        return ranks
 
     @staticmethod
     def _by_date_and_action(
         transaction: BrokerTransaction,
-        round_trips: set[tuple[datetime.date, str]],
-    ) -> tuple[datetime.date, int]:
-        """Sort by date, then by what each row needs to already be true."""
+        trade_ranks: dict[tuple[datetime.date, str], bool],
+    ) -> tuple[datetime.date, bool]:
+        """Sort by date and action type."""
 
         # If there's a deposit in the same second as a buy
         # (happens with the referral award at least)
@@ -277,25 +286,21 @@ class InteractiveBrokersParser(StandardCSVParser[InteractiveBrokersTransaction])
         # Tax withheld at source goes last for the same reason: IBKR lists it
         # before the dividend it was taken from.
         #
-        # A security bought and sold on the same day is the exception: its
-        # pool has to hold the shares before the disposal reads them, so the
-        # round trip's own buy comes first and its sell follows. Ordinary
-        # sells still lead, funding the day's buys. Where the sale falls in
-        # the day does not change the gain, which TCGA 1992 s105 works out by
-        # matching the day's acquisitions and disposals with each other.
-        key = (
-            (transaction.date, transaction.symbol)
-            if transaction.symbol is not None
-            else None
+        # Sells lead so that the day's disposals fund its purchases, except
+        # where the same security is traded more than once that day: those
+        # trades keep the order they are listed in, under the rank the first
+        # of them earns. Where the sale falls within the day does not change
+        # the gain, which TCGA 1992 s105 works out by matching the day's
+        # acquisitions and disposals with each other.
+        if transaction.action in _TRADE_ACTIONS and transaction.symbol is not None:
+            return (
+                transaction.date,
+                trade_ranks[transaction.date, transaction.symbol],
+            )
+        return (
+            transaction.date,
+            transaction.action in {ActionType.BUY, ActionType.DIVIDEND_TAX},
         )
-        in_round_trip = key in round_trips
-        if transaction.action is ActionType.BUY:
-            return (transaction.date, 1 if in_round_trip else 3)
-        if transaction.action is ActionType.SELL:
-            return (transaction.date, 2 if in_round_trip else 0)
-        if transaction.action is ActionType.DIVIDEND_TAX:
-            return (transaction.date, 3)
-        return (transaction.date, 0)
 
     @classmethod
     @override
@@ -303,6 +308,6 @@ class InteractiveBrokersParser(StandardCSVParser[InteractiveBrokersTransaction])
         cls, transactions: list[InteractiveBrokersTransaction]
     ) -> list[InteractiveBrokersTransaction]:
         """Sort transactions by date, buys and withheld tax last."""
-        round_trips = cls._round_trip_symbols(transactions)
-        transactions.sort(key=lambda t: cls._by_date_and_action(t, round_trips))
+        trade_ranks = cls._trade_ranks(transactions)
+        transactions.sort(key=lambda t: cls._by_date_and_action(t, trade_ranks))
         return transactions
