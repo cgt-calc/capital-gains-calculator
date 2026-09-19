@@ -231,6 +231,79 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert transactions[0].quantity is None
         assert transactions[0].price is None
 
+    def test_absent_symbol_is_not_read_as_a_holding_called_dash(
+        self, tmp_path: Path
+    ) -> None:
+        """IBKR's "-" placeholder in the Symbol column means no security.
+
+        Taken at face value it becomes a holding named "-", which pools and
+        prices as though it were real.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header + "Transaction History,Data,2025-10-05,U***00000,"
+            "GBP Credit Interest for Sep-2025,Credit Interest,-,-,-,0.80,-,0.80\n"
+            + "Transaction History,Data,2025-10-06,U***00000,"
+            "Electronic Fund Transfer,Deposit,-,-,-,500.00,-,500.00\n"
+        )
+
+        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert [t.action for t in transactions] == [
+            ActionType.INTEREST,
+            ActionType.TRANSFER,
+        ]
+        assert all(t.symbol is None for t in transactions)
+
+    def test_account_level_fee_has_no_holding_to_charge(self, tmp_path: Path) -> None:
+        """A market-data subscription is not a cost of any security.
+
+        IBKR bills it as an "Other Fee" with "-" for the symbol. FEE adds to
+        a named holding's pooled cost, so read as one the "-" would open a
+        pooled holding literally called "-" and quietly attach cost to it. An
+        ADR fee, which really is charged against a holding, keeps its meaning.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header + "Transaction History,Data,2025-09-04,U***00000,"
+            "Global Snapshot for Aug 2025,Other Fee,-,-,-,-0.03,-,-0.03\n"
+            + "Transaction History,Data,2025-09-09,U***00000,"
+            "ARM(US0420682058) ADR Fee USD 0.02 per Share,Other Fee,ARM,-,-,-0.09,-,-0.09\n"
+        )
+
+        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert [t.action for t in transactions] == [
+            ActionType.ADJUSTMENT,
+            ActionType.FEE,
+        ]
+        assert [t.symbol for t in transactions] == [None, "ARM"]
+
+    def test_withholding_without_a_security_is_interest_tax(
+        self, tmp_path: Path
+    ) -> None:
+        """Tax withheld from cash interest is not dividend tax.
+
+        IBKR names no symbol on it, so there is no holding for a dividend tax
+        row to belong to.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header + "Transaction History,Data,2025-02-01,U***00000,"
+            "GBP Credit Interest for Feb-2025,Credit Interest,-,-,-,13.0,-,13.0\n"
+            + "Transaction History,Data,2025-02-01,U***00000,"
+            "Withholding @ 30% on Credit Interest for Feb-2025,"
+            "Foreign Tax Withholding,-,-,-,-3.9,-,-3.9\n"
+        )
+
+        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert [t.action for t in transactions] == [
+            ActionType.INTEREST,
+            ActionType.INTEREST_TAX,
+        ]
+        assert transactions[1].symbol is None
+
     def test_forex_trade_component_is_an_adjustment_not_a_fee(
         self, tmp_path: Path
     ) -> None:

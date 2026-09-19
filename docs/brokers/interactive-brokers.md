@@ -53,16 +53,16 @@ check the date range and filters as described in [Troubleshooting](#troubleshoot
 
 The importer recognises these literal values from the CSV's `Transaction Type` column:
 
-| Transaction type              | How cgt-calc handles it                                      |
-| ----------------------------- | ------------------------------------------------------------ |
-| `Buy`, `Sell`                 | Share or fund acquisitions and disposals, with commission    |
-| `Dividend`, `Payment in Lieu` | Dividend income                                              |
-| `Foreign Tax Withholding`     | Tax deducted at source; treated as dividend tax              |
-| `Credit Interest`             | Interest income                                              |
-| `Deposit`, `Withdrawal`       | Cash movements used by the balance check                     |
-| `Other Fee`                   | A charge against a holding, added to its pooled cost         |
-| `Adjustment`                  | Cash-balance adjustments such as `FX Translations P&L`       |
-| `Forex Trade Component`       | The base-currency net of a currency conversion; balance only |
+| Transaction type              | How cgt-calc handles it                                                                                             |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `Buy`, `Sell`                 | Share or fund acquisitions and disposals, with commission                                                           |
+| `Dividend`, `Payment in Lieu` | Dividend income                                                                                                     |
+| `Foreign Tax Withholding`     | Tax deducted at source; treated as dividend tax                                                                     |
+| `Credit Interest`             | Interest income                                                                                                     |
+| `Deposit`, `Withdrawal`       | Cash movements used by the balance check                                                                            |
+| `Other Fee`                   | A charge against a named holding, added to its pooled cost; one naming no symbol is an account charge, balance only |
+| `Adjustment`                  | Cash-balance adjustments such as `FX Translations P&L`                                                              |
+| `Forex Trade Component`       | The base-currency net of a currency conversion; balance only                                                        |
 
 For a GBP-base account, IBKR reports gross amounts, commissions and net amounts in GBP, so every row
 is recorded in GBP whatever the security is priced in. `Price Currency` describes the unit price
@@ -89,9 +89,8 @@ treaty applies.
 - The importer does not read an asset-class field. It has been validated for ordinary share and fund
     trades; do not rely on it to calculate options, futures, bonds, contracts for difference or
     crypto assets.
-- Every `Foreign Tax Withholding` row is treated as dividend tax. If IBKR withholds tax from credit
-    interest and does not reverse it, cgt-calc records that amount against a placeholder symbol. It
-    reduces the cash balance but is not reported as interest tax in the summary.
+- A `Foreign Tax Withholding` row naming a security is treated as dividend tax. One naming no symbol
+    is withholding on the account's cash interest, so it is reported as interest tax instead.
 - The `Account` column is not used to keep separate ledgers. Rows for multiple taxable IBKR accounts
     in one CSV are combined under one broker balance and portfolio.
 
