@@ -138,6 +138,7 @@ TICKER_RENAMES: Final[dict[str, str]] = {
 ISIN_TICKER_ALIASES: Final[dict[tuple[Isin, str], str]] = {
     (Isin("US67066G1040"), "NVD"): "NVDA",
     (Isin("US11135F1012"), "1YD"): "AVGO",
+    (Isin("DE0007030009"), "RHMd"): "RHM",
 }
 
 # For ActionType.RENAME: set symbol=new_ticker, description=f"{RENAME_DESCRIPTION_PREFIX}{old_ticker}"
