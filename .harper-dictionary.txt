@@ -191,6 +191,7 @@ rescanning
 restkey
 restval
 Revolut
+Revolut's
 RKT
 roundings
 RowIterator
