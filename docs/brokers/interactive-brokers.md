@@ -108,9 +108,8 @@ cgt-calc stops with an error.
 - The importer does not read an asset-class field. It has been validated for ordinary share and fund
     trades; do not rely on it to calculate options, futures, bonds, contracts for difference or
     crypto assets.
-- Every `Foreign Tax Withholding` row is treated as dividend tax. If IBKR withholds tax from credit
-    interest and does not reverse it, cgt-calc records that amount against a placeholder symbol. It
-    reduces the cash balance but is not reported as interest tax in the summary.
+- A `Foreign Tax Withholding` row naming a security is treated as dividend tax. One naming no symbol
+    is withholding on the account's cash interest, so it is reported as interest tax instead.
 - The `Account` column is not used to keep separate ledgers. Rows for multiple taxable IBKR accounts
     in one CSV are combined under one broker balance and portfolio.
 
