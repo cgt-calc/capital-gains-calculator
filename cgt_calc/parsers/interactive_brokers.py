@@ -248,20 +248,54 @@ class InteractiveBrokersParser(StandardCSVParser[InteractiveBrokersTransaction])
         )
 
     @staticmethod
+    def _round_trip_symbols(
+        transactions: list[InteractiveBrokersTransaction],
+    ) -> set[tuple[datetime.date, str]]:
+        """Return the (date, symbol) pairs both bought and sold on one day."""
+        bought: set[tuple[datetime.date, str]] = set()
+        sold: set[tuple[datetime.date, str]] = set()
+        for transaction in transactions:
+            if transaction.symbol is None:
+                continue
+            key = (transaction.date, transaction.symbol)
+            if transaction.action is ActionType.BUY:
+                bought.add(key)
+            elif transaction.action is ActionType.SELL:
+                sold.add(key)
+        return bought & sold
+
+    @staticmethod
     def _by_date_and_action(
         transaction: BrokerTransaction,
-    ) -> tuple[datetime.date, bool]:
-        """Sort by date and action type."""
+        round_trips: set[tuple[datetime.date, str]],
+    ) -> tuple[datetime.date, int]:
+        """Sort by date, then by what each row needs to already be true."""
 
         # If there's a deposit in the same second as a buy
         # (happens with the referral award at least)
         # we want to put the buy last to avoid negative balance errors.
         # Tax withheld at source goes last for the same reason: IBKR lists it
         # before the dividend it was taken from.
-        return (
-            transaction.date,
-            transaction.action in {ActionType.BUY, ActionType.DIVIDEND_TAX},
+        #
+        # A security bought and sold on the same day is the exception: its
+        # pool has to hold the shares before the disposal reads them, so the
+        # round trip's own buy comes first and its sell follows. Ordinary
+        # sells still lead, funding the day's buys. Where the sale falls in
+        # the day does not change the gain, which TCGA 1992 s105 works out by
+        # matching the day's acquisitions and disposals with each other.
+        key = (
+            (transaction.date, transaction.symbol)
+            if transaction.symbol is not None
+            else None
         )
+        in_round_trip = key in round_trips
+        if transaction.action is ActionType.BUY:
+            return (transaction.date, 1 if in_round_trip else 3)
+        if transaction.action is ActionType.SELL:
+            return (transaction.date, 2 if in_round_trip else 0)
+        if transaction.action is ActionType.DIVIDEND_TAX:
+            return (transaction.date, 3)
+        return (transaction.date, 0)
 
     @classmethod
     @override
@@ -269,5 +303,6 @@ class InteractiveBrokersParser(StandardCSVParser[InteractiveBrokersTransaction])
         cls, transactions: list[InteractiveBrokersTransaction]
     ) -> list[InteractiveBrokersTransaction]:
         """Sort transactions by date, buys and withheld tax last."""
-        transactions.sort(key=cls._by_date_and_action)
+        round_trips = cls._round_trip_symbols(transactions)
+        transactions.sort(key=lambda t: cls._by_date_and_action(t, round_trips))
         return transactions
