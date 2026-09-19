@@ -231,6 +231,52 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert transactions[0].quantity is None
         assert transactions[0].price is None
 
+    def test_debit_interest_adjusts_the_balance_only(self, tmp_path: Path) -> None:
+        """Interest charged on a borrowed balance is a cash move, nothing more.
+
+        IBKR bills it monthly per currency as "Debit Interest", with no
+        symbol. It cannot be a FEE, which adds to a named holding's pooled
+        cost, and netting it against "Credit Interest" would understate the
+        interest received: interest paid on margin is not deductible against
+        it.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header + "Transaction History,Data,2025-10-05,U***00000,"
+            "USD Debit Interest for Sep-2025,Debit Interest,-,-,-,-0.66,-,-0.66\n"
+            + "Transaction History,Data,2025-10-05,U***00000,"
+            "EUR Credit Interest for Sep-2025,Credit Interest,-,-,-,0.80,-,0.80\n"
+        )
+
+        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert [t.action for t in transactions] == [
+            ActionType.ADJUSTMENT,
+            ActionType.INTEREST,
+        ]
+        assert [t.amount for t in transactions] == [Decimal("-0.66"), Decimal("0.80")]
+        # No holding behind it, so nothing downstream can read it as a cost.
+        assert transactions[0].symbol is None
+
+    def test_sales_tax_adjusts_the_balance_only(self, tmp_path: Path) -> None:
+        """VAT on an account-level service is not a cost of any security.
+
+        IBKR files the VAT on a market-data subscription under its own
+        "Sales Tax" type, with no symbol, so FEE has nothing to charge it to.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header + "Transaction History,Data,2025-09-04,U***00000,"
+            "VAT on Global Snapshot,Sales Tax,-,-,-,-0.01,-,-0.01\n"
+        )
+
+        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert len(transactions) == 1
+        assert transactions[0].action == ActionType.ADJUSTMENT
+        assert transactions[0].amount == Decimal("-0.01")
+        assert transactions[0].symbol is None
+
     def test_forex_trade_component_is_an_adjustment_not_a_fee(
         self, tmp_path: Path
     ) -> None:
