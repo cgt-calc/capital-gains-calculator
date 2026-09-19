@@ -1,5 +1,6 @@
 ActionType
 ActionTypes
+ADR
 amd64
 Amundi
 AMZN

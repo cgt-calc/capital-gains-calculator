@@ -132,7 +132,7 @@ class InteractiveBrokersTransaction(BrokerTransaction):
         action = _action_from_str(
             row[InteractiveBrokersColumn.TRANSACTION_TYPE], file_path
         )
-        symbol = row[InteractiveBrokersColumn.SYMBOL] or None
+        symbol = _parse_str(row, InteractiveBrokersColumn.SYMBOL)
 
         if symbol is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
@@ -148,6 +148,22 @@ class InteractiveBrokersTransaction(BrokerTransaction):
             if InteractiveBrokersColumn.EXCHANGE_RATE in row
             else None
         )
+
+        # Withholding with no security behind it is tax on the account's cash
+        # interest, not on a dividend. Read as dividend tax it was filed
+        # against the literal "-", a placeholder holding that pooled and
+        # priced as though it were real; INTEREST_TAX reports it against the
+        # interest it was taken from. The Schwab parser makes the same switch.
+        if action is ActionType.DIVIDEND_TAX and symbol is None:
+            action = ActionType.INTEREST_TAX
+
+        # "Other Fee" covers both a charge against a holding, such as an ADR
+        # fee, and an account-level charge with no security behind it, such as
+        # a market-data subscription. Only the first can be a FEE, which adds
+        # to a named holding's pooled cost; the second has nowhere to attach
+        # and moves the cash balance alone.
+        if action is ActionType.FEE and symbol is None:
+            action = ActionType.ADJUSTMENT
 
         # An adjustment moves the cash balance and nothing else: the calculator
         # reads its amount and never its symbol, quantity or price. IBKR files a
