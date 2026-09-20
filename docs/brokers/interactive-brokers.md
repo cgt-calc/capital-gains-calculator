@@ -76,6 +76,25 @@ IBKR descriptions for dividends and payments in lieu can put an ISIN in parenthe
 after the symbol. cgt-calc uses that identifier when deciding whether a supported double-taxation
 treaty applies.
 
+### Tickers and exchange listings
+
+IBKR names a security by the ticker of the listing you traded, so one security can appear under two
+tickers: the German line of Rheinmetall AG is exported as `RHMd` alongside `RHM`. cgt-calc pools,
+matches and prices holdings by ticker, so it rewrites the aliases it has confirmed to the ticker of
+the primary listing, and the report shows one holding rather than two. `RHMd` under `DE0007030009`
+is reported as `RHM`. The rewrite is scoped to that ISIN: the same ticker code under another
+security is left alone.
+
+Trade rows carry no ISIN, only a company name, so cgt-calc takes the ticker's identity from the
+dividend rows of the same export, wherever they appear in the file. A holding whose trades are never
+accompanied by a dividend naming the ISIN cannot be recognised this way; add a row listing every
+verified ticker for that ISIN to the `--isin-translation-file` cache, as described in
+[ISIN to ticker translation](../extra-data-and-options.md#isin-to-ticker-translation).
+
+Only confirmed pairs are rewritten. Where your exports disagree about a security, cgt-calc refuses
+rather than guess: an unrecognised second ticker for one ISIN, or one ticker used for two ISINs.
+Combining the wrong two holdings, or splitting one, changes the gain.
+
 ## Known limitations
 
 - Only the transaction types listed above are mapped. Any other value stops the import with

@@ -92,6 +92,11 @@ class IsinConverter:
         # a pool really splits, and the only one refused here.
         self.transaction_symbols: dict[Isin, set[str]] = {}
         self.transaction_isins: dict[str, Isin] = {}
+        # The ISIN each ticker was exported under, before any alias rewrite.
+        # A broker that names the security only on some of its rows - IBKR
+        # puts the ISIN in a dividend description but not in a trade one -
+        # identifies the rest of them through this.
+        self.exported_isins: dict[str, Isin] = {}
         self._read_isin_translation_data()
         self.validate_data()
 
@@ -132,12 +137,15 @@ class IsinConverter:
         rest of the calculation reads, so the holding pools, matches and
         prices under one ticker instead of one per listing.
 
-        A row without an ISIN is resolved from reference data first, when its
-        ticker already ties to exactly one, and then treated exactly like a
-        row that carried that ISIN - alias rewriting included. A broker that
-        never reports an ISIN would otherwise let a holding split past every
-        check below, and past the alias table, just by leaving the field
-        blank.
+        A row without an ISIN is resolved from what the rest of the export
+        says its ticker stands for, or failing that from reference data, and
+        then treated exactly like a row that carried that ISIN - alias
+        rewriting included. A broker that never reports an ISIN would
+        otherwise let a holding split past every check below, and past the
+        alias table, just by leaving the field blank. Resolving from the
+        export needs add_from_transactions(), which reads every row's
+        identity before the first is normalised, so a trade is not left
+        split by arriving ahead of the dividend that names its security.
 
         Anything else is recorded as this run's name for the ISIN. Two
         transactions disagreeing is refused, in either direction: one ISIN
@@ -157,7 +165,9 @@ class IsinConverter:
 
         isin = transaction.isin
         if isin is None:
-            isin = self._isin_for_symbol(transaction.symbol)
+            isin = self.exported_isins.get(transaction.symbol) or self._isin_for_symbol(
+                transaction.symbol
+            )
             if isin is None:
                 return
 
@@ -200,6 +210,39 @@ class IsinConverter:
 
         self.transaction_symbols.setdefault(isin, set()).add(symbol)
         self.transaction_isins[symbol] = isin
+
+    def add_from_transactions(self, transactions: list[BrokerTransaction]) -> None:
+        """Normalise a whole run's tickers, reading their identities first.
+
+        Which security a ticker stands for is settled across the input before
+        any row is normalised, so the answer does not depend on the order the
+        broker exported its rows in.
+
+        One exported ticker standing for two ISINs is refused here, and has to
+        be: the alias rewrite below moves an aliased row to its canonical
+        ticker before the ownership check can see the collision, so `NVD`
+        under Nvidia and `NVD` under anything else would both go through, and
+        a row naming no ISIN of its own would join whichever the export listed
+        first. A ticker code belongs to an exchange, so two brokers really can
+        export one code for two securities; which of them a trade belongs to
+        is not in the file, so cgt-calc refuses rather than pick one.
+        """
+        for transaction in transactions:
+            if not transaction.symbol or not transaction.isin:
+                continue
+            known = self.exported_isins.setdefault(transaction.symbol, transaction.isin)
+            if known != transaction.isin:
+                raise InvalidTransactionError(
+                    transaction,
+                    f"Ticker {transaction.symbol} is exported for ISIN {known} "
+                    f"and for ISIN {transaction.isin}. Two securities under one "
+                    "ticker cannot be told apart, and a row naming no ISIN of "
+                    "its own would be pooled with whichever listing the export "
+                    "stated first. Check the exports and calculate the two "
+                    "securities in separate runs",
+                )
+        for transaction in transactions:
+            self.add_from_transaction(transaction)
 
     def get_symbols(self, isin: Isin) -> set[str]:
         """Return the set of symbols associated with the input ISIN (may be empty).
