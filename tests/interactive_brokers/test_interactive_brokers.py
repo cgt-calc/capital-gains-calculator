@@ -629,3 +629,63 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
                 f"stderr:\n{result.stderr}"
             )
         assert stderr_alerts(result.stderr) == []
+
+    @pytest.mark.parametrize(
+        "cache", [None, "ISIN,symbol\nDE0007030009,RHM\n"], ids=["no-cache", "cache"]
+    )
+    def test_exchange_alias_pools_trades_named_only_by_a_dividend(
+        self, tmp_path: Path, cache: str | None
+    ) -> None:
+        """Trades under an alias join the holding the dividends identify.
+
+        IBKR names the security by ISIN on a dividend row but not on a trade
+        row, so the RHMd buy and sell carry no ISIN of their own and the
+        alias table cannot reach them on its own. Left split, the five shares
+        sold take their cost from the RHMd purchase alone: GBP 1,000 rather
+        than the GBP 750 the pooled holding gives them.
+
+        The buys come before the dividends that name them, so the identity
+        has to be read across the whole export rather than as each row
+        arrives. A cache row listing only RHM must not restore the split
+        either.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header
+            + "Transaction History,Data,2024-01-01,U***00000,Electronic Fund Transfer,Deposit,-,-,-,3000.0,-,3000.0\n"
+            + "Transaction History,Data,2024-01-02,U***00000,RHEINMETALL AG,Buy,RHM,10.0,100.0,-1000.0,-,-1000.0\n"
+            + "Transaction History,Data,2024-02-02,U***00000,RHEINMETALL AG,Buy,RHMd,10.0,200.0,-2000.0,-,-2000.0\n"
+            + "Transaction History,Data,2024-06-03,U***00000,"
+            "RHM(DE0007030009) Cash Dividend GBP 1.00 per Share (Ordinary Dividend),"
+            "Dividend,RHM,-,-,10.0,-,10.0\n"
+            + "Transaction History,Data,2024-06-03,U***00000,"
+            "RHM(DE0007030009) Cash Dividend GBP 1.00 per Share (Ordinary Dividend),"
+            "Dividend,RHMd,-,-,10.0,-,10.0\n"
+            + "Transaction History,Data,2025-06-02,U***00000,RHEINMETALL AG,Sell,RHMd,-5.0,300.0,1500.0,-,1500.0\n"
+        )
+
+        cmd = build_cmd(
+            "--year",
+            "2025",
+            "--interactive-brokers-file",
+            str(csv_file),
+            "--output",
+            str(tmp_path / "out"),
+        )
+        if cache is not None:
+            cache_file = tmp_path / "isin.csv"
+            cache_file.write_text(cache)
+            cmd += ["--isin-translation-file", str(cache_file)]
+
+        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
+        if result.returncode:
+            pytest.fail(
+                "Integration test failed\n"
+                f"stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}"
+            )
+        assert stderr_alerts(result.stderr) == []
+        assert "RHMd" not in result.stdout
+        assert "RHM: 15.00, £2,250.00" in result.stdout
+        assert re.search(r"Allowable costs:\s+£750\.00", result.stdout)
+        assert re.search(r"Total gain:\s+£750\.00", result.stdout)

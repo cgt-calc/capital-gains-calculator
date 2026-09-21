@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build>=0.12.13,<0.13.0"]
+requires = ["uv_build>=0.12.16,<0.13.0"]
 build-backend = "uv_build"
 
 [project]
@@ -65,7 +65,7 @@ cgt-calc = "cgt_calc.cli:init"
 dev = [
   "codespell>=2.4.1",
   "dprint-py>=0.57.1.0",
-  "harper-cli>=2.9.1",
+  "harper-cli>=2.11.0",
   "mypy>=2.3.1",
   "packaging>=26.3",
   "pandas-stubs>=2.2",
@@ -75,16 +75,16 @@ dev = [
   "pytest-env>=1.7.1",
   "pytest-xdist>=3.8.0",
   "reportlab>=5.0.1",
-  "ruff>=0.16.7",
+  "ruff>=0.16.8",
   "ty>=0.0.80,<0.1.0",
   "types-colorama>=0.4.15.20260508",
   "types-defusedxml>=0.7.0.20260504",
   "types-python-dateutil>=2.9.0.20250822",
   "types-reportlab>=4.5.1.20260827",
-  "types-requests>=2.33.0.20260712",
+  "types-requests>=2.33.0.20260906",
 ]
 docs = [
-  "zensical>=0.0.60",
+  "zensical>=0.0.62",
 ]
 # Kept out of the dev group: the Linux wheel is large and only the link check
 # job needs it.

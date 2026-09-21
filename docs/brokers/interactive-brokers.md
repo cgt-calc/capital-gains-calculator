@@ -57,7 +57,7 @@ The importer recognises these literal values from the CSV's `Transaction Type` c
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `Buy`, `Sell`                 | Share or fund acquisitions and disposals, with commission                                                           |
 | `Dividend`, `Payment in Lieu` | Dividend income                                                                                                     |
-| `Foreign Tax Withholding`     | Tax deducted at source; treated as dividend tax                                                                     |
+| `Foreign Tax Withholding`     | Dividend tax when a security is named; interest tax when the symbol is blank or `-`                                 |
 | `Credit Interest`             | Interest income                                                                                                     |
 | `Deposit`, `Withdrawal`       | Cash movements used by the balance check                                                                            |
 | `Other Fee`                   | A charge against a named holding, added to its pooled cost; one naming no symbol is an account charge, balance only |
@@ -76,6 +76,23 @@ IBKR descriptions for dividends and payments in lieu can put an ISIN in parenthe
 after the symbol. cgt-calc uses that identifier when deciding whether a supported double-taxation
 treaty applies.
 
+### Tickers and exchange listings
+
+IBKR can report one security under different tickers. cgt-calc combines supported ticker pairs into
+one holding when it can identify the security by ISIN. An ISIN in a dividend description can also
+identify trades under that ticker, wherever the dividend appears in your input.
+
+Without an ISIN or reference mapping, tickers can remain separate without an error. If your report
+shows one security twice, compare the ISINs in its dividend descriptions or IBKR's instrument
+details. If they match, add all its verified tickers to one row in your
+[ISIN to ticker mapping](../extra-data-and-options.md#isin-to-ticker-translation). Rerun and check
+that the report shows one holding.
+
+Adding a mapping does not add support for a new ticker pair. If the holding remains split, report
+both tickers and the ISIN as described in [Troubleshooting](#troubleshooting); do not rely on that
+holding's calculated gain until resolved. If your input assigns different ISINs to one ticker,
+cgt-calc stops with an error.
+
 ## Known limitations
 
 - Only the transaction types listed above are mapped. Any other value stops the import with
@@ -89,8 +106,6 @@ treaty applies.
 - The importer does not read an asset-class field. It has been validated for ordinary share and fund
     trades; do not rely on it to calculate options, futures, bonds, contracts for difference or
     crypto assets.
-- A `Foreign Tax Withholding` row naming a security is treated as dividend tax. One naming no symbol
-    is withholding on the account's cash interest, so it is reported as interest tax instead.
 - The `Account` column is not used to keep separate ledgers. Rows for multiple taxable IBKR accounts
     in one CSV are combined under one broker balance and portfolio.
 

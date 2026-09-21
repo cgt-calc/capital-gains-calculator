@@ -1,6 +1,7 @@
 ActionType
 ActionTypes
 ADR
+AG
 amd64
 Amundi
 AMZN
@@ -192,6 +193,7 @@ rescanning
 restkey
 restval
 Revolut
+Rheinmetall
 RKT
 roundings
 RowIterator
