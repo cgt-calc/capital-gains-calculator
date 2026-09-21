@@ -16,6 +16,7 @@ from .exceptions import (
     AmountMissingError,
     CalculatedAmountDiscrepancyError,
     CalculationError,
+    InitialPriceMissingError,
     InvalidTransactionError,
     IsinMissingError,
     PriceMissingError,
@@ -411,6 +412,11 @@ class TransactionIngester:
             known = self.price_fetcher.known_closing_price(name, date_index)
             if known is not None:
                 return known
+        for name in (symbol, *aliases):
+            try:
+                return self.initial_prices.get(date_index, name)
+            except InitialPriceMissingError:
+                continue
         return self.price_fetcher.get_closing_price(symbol, date_index)
 
     def _refuse_disagreeing_alias(
