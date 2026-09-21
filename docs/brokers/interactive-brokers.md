@@ -78,22 +78,20 @@ treaty applies.
 
 ### Tickers and exchange listings
 
-IBKR names a security by the ticker of the listing you traded, so one security can appear under two
-tickers: the German line of Rheinmetall AG is exported as `RHMd` alongside `RHM`. cgt-calc pools,
-matches and prices holdings by ticker, so it rewrites the aliases it has confirmed to the ticker of
-the primary listing, and the report shows one holding rather than two. `RHMd` under `DE0007030009`
-is reported as `RHM`. The rewrite is scoped to that ISIN: the same ticker code under another
-security is left alone.
+IBKR can report one security under different tickers. cgt-calc combines supported ticker pairs into
+one holding when it can identify the security by ISIN. An ISIN in a dividend description can also
+identify trades under that ticker, wherever the dividend appears in your input.
 
-Trade rows carry no ISIN, only a company name, so cgt-calc takes the ticker's identity from the
-dividend rows of the same export, wherever they appear in the file. A holding whose trades are never
-accompanied by a dividend naming the ISIN cannot be recognised this way; add a row listing every
-verified ticker for that ISIN to the `--isin-translation-file` cache, as described in
-[ISIN to ticker translation](../extra-data-and-options.md#isin-to-ticker-translation).
+Without an ISIN or reference mapping, tickers can remain separate without an error. If your report
+shows one security twice, compare the ISINs in its dividend descriptions or IBKR's instrument
+details. If they match, add all its verified tickers to one row in your
+[ISIN to ticker mapping](../extra-data-and-options.md#isin-to-ticker-translation). Rerun and check
+that the report shows one holding.
 
-Only confirmed pairs are rewritten. Where your exports disagree about a security, cgt-calc refuses
-rather than guess: an unrecognised second ticker for one ISIN, or one ticker used for two ISINs.
-Combining the wrong two holdings, or splitting one, changes the gain.
+Adding a mapping does not add support for a new ticker pair. If the holding remains split, report
+both tickers and the ISIN as described in [Troubleshooting](#troubleshooting); do not rely on that
+holding's calculated gain until resolved. If your input assigns different ISINs to one ticker,
+cgt-calc stops with an error.
 
 ## Known limitations
 
