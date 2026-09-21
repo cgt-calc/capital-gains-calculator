@@ -1360,8 +1360,18 @@ class TransactionIngester:
                 or self.run.portfolio[held].quantity == 0
             ]:
                 del self.history.holding_sources[symbol]
-            plan_stock_splits(self.state, transaction.date, days[transaction.date])
+            # Renames first: reorganisation planning reads the day's rename
+            # graph to find its holding's other names, and reads it after it
+            # has been checked, so a chain is refused rather than walked.
+            #
+            # Nothing here needs the other order. Rename planning works out a
+            # component's capacity from counts a reorganisation restates, but
+            # never for a component carrying one: STOCK_SPLIT is in
+            # RENAME_DAY_UNSUPPORTED_ACTIONS, which excludes that component
+            # from capacity planning altogether. Taking STOCK_SPLIT out of
+            # that set would make this order wrong.
             plan_renames(self.state, transaction.date, days[transaction.date])
+            plan_stock_splits(self.state, transaction.date, days[transaction.date])
         if quantity_sign(transaction.action) > 0 and transaction.symbol:
             self.history.holding_sources[transaction.symbol].add(
                 source_account(transaction)
