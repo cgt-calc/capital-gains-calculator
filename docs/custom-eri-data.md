@@ -54,9 +54,9 @@ BlackRock UK publishes annual Reportable Income reports here:
 iShares UK publishes annual Reportable Income reports in its document library:
 <https://www.ishares.com/uk/professionals/en/library?materialType=tax+information>
 
-Each fund's page on ishares.com lists the same reports under Tax Information, titled after the fund
-company that publishes them, such as “iShares VI Reportable Income – 2025”. Look there if your fund
-documents do not name the company.
+On your fund's page on ishares.com, open **Literature** and look for **Tax Information**. The report
+titles name the fund company that publishes them, such as “iShares VI Reportable Income – 2025”.
+Look there if your fund documents do not name the company.
 
 BlackRock groups its reports by fund range, such as BGIF, BGF and BSF. iShares groups them by fund
 company. Choose the group named in your fund documents.
