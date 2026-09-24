@@ -1264,8 +1264,9 @@ class Matcher:
         A holding renamed today is checked under the name it was renamed to:
         the rename has moved the pool by now. That single hop is the whole
         journey, and the pool arrived alone, because a day that renames the
-        holding onward again or pools it with a second one is refused before
-        any of this (see ``apply_split_openings``).
+        holding onward again is refused by ``plan_renames`` and one that pools
+        it with a second holding by ``apply_split_openings``, both before any
+        of this.
         """
         renames = self.history.rename_list.get(date_index, {})
         for symbol, transformation in sorted(
