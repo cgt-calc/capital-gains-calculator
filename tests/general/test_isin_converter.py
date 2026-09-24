@@ -358,6 +358,43 @@ def test_add_from_transaction_links_isin_less_row_without_conflict() -> None:
     assert converter.transaction_symbols[ISIN_A] == {"FOO"}
 
 
+def test_add_from_transactions_reads_identities_before_normalising() -> None:
+    """A row with no ISIN is named by a later row that carries one.
+
+    IBKR puts the ISIN in a dividend description but not in a trade one, and
+    the trades come first. Taking each row as it arrives leaves the earlier
+    ones unresolved, so the export is read for identities first.
+    """
+    converter = IsinConverter()
+
+    trade = _transaction(None, "NVD")
+    converter.add_from_transactions([trade, _transaction(NVIDIA_ISIN, "NVD")])
+
+    assert trade.symbol == "NVDA"
+    assert converter.transaction_symbols[NVIDIA_ISIN] == {"NVDA"}
+
+
+@pytest.mark.parametrize("reverse", [False, True], ids=["alias-first", "alias-last"])
+def test_add_from_transactions_rejects_one_exported_ticker_for_two_isins(
+    reverse: bool,
+) -> None:
+    """Refuse a ticker the export gives to two securities, in either order.
+
+    The ownership check below cannot catch this one: the alias rewrite moves
+    the NVD row that belongs to Nvidia to NVDA before the check runs, so the
+    two NVD rows never collide there. Left to go through, the trade that
+    names no ISIN of its own joins whichever listing the export stated first,
+    which is the holding it lands in decided by row order.
+    """
+    converter = IsinConverter()
+    identities = [_transaction(NVIDIA_ISIN, "NVD"), _transaction(ISIN_A, "NVD")]
+    if reverse:
+        identities.reverse()
+
+    with pytest.raises(InvalidTransactionError, match="is exported for ISIN"):
+        converter.add_from_transactions([_transaction(None, "NVD"), *identities])
+
+
 def test_add_from_transaction_ignores_isin_less_unknown_ticker() -> None:
     """A row with no ISIN and no reference match records nothing."""
     converter = IsinConverter()

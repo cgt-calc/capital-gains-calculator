@@ -78,6 +78,23 @@ IBKR descriptions for dividends and payments in lieu can put an ISIN in parenthe
 after the symbol. cgt-calc uses that identifier when deciding whether a supported double-taxation
 treaty applies.
 
+### Tickers and exchange listings
+
+IBKR can report one security under different tickers. cgt-calc combines supported ticker pairs into
+one holding when it can identify the security by ISIN. An ISIN in a dividend description can also
+identify trades under that ticker, wherever the dividend appears in your input.
+
+Without an ISIN or reference mapping, tickers can remain separate without an error. If your report
+shows one security twice, compare the ISINs in its dividend descriptions or IBKR's instrument
+details. If they match, add all its verified tickers to one row in your
+[ISIN to ticker mapping](../extra-data-and-options.md#isin-to-ticker-translation). Rerun and check
+that the report shows one holding.
+
+Adding a mapping does not add support for a new ticker pair. If the holding remains split, report
+both tickers and the ISIN as described in [Troubleshooting](#troubleshooting); do not rely on that
+holding's calculated gain until resolved. If your input assigns different ISINs to one ticker,
+cgt-calc stops with an error.
+
 ## Known limitations
 
 - Only the transaction types listed above are mapped. Any other value stops the import with

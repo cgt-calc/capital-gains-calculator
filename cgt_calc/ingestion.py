@@ -1400,8 +1400,7 @@ class TransactionIngester:
         interest_taxes: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(Decimal)
         balance_history: list[Decimal] = []
 
-        for transaction in transactions:
-            self.isin_converter.add_from_transaction(transaction)
+        self.isin_converter.add_from_transactions(transactions)
 
         transactions = self._resolve_gifts(transactions)
         # The cash balance is judged once a day is complete rather than after

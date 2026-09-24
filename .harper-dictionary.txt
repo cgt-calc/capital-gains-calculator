@@ -1,5 +1,6 @@
 ActionType
 ActionTypes
+AG
 amd64
 Amundi
 AMZN
@@ -192,6 +193,7 @@ restkey
 restval
 Revolut
 Revolut's
+Rheinmetall
 RKT
 roundings
 RowIterator

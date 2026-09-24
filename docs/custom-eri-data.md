@@ -1,7 +1,8 @@
 # Providing Custom ERI Data
 
-Use a custom file only when the [bundled data](offshore-funds.md#bundled-data) does not cover the
-exact ISIN and every reporting period you need.
+Use a custom file to supply excess reported income (ERI) data for an ETF or investment fund you held
+when the [bundled data](offshore-funds.md#bundled-data) does not cover its exact ISIN and every
+reporting period you need.
 
 ## ERI_RAW format
 
@@ -51,11 +52,15 @@ ETFs. Check the fund company in your fund documents if you are unsure.
 BlackRock UK publishes annual Reportable Income reports here:
 <https://www.blackrock.com/uk/solutions/adviser-resources/reporting-fund-status>
 
-iShares UK publishes annual Reportable Income reports here:
-<https://www.ishares.com/uk/individual/en/education/library?materialType=tax+information>
+BlackRock groups its reports by fund range, such as BGIF, BGF and BSF. Choose the range named in the
+fund documents.
 
-BlackRock groups its reports by fund range, such as BGIF, BGF and BSF. iShares groups them by fund
-company. Choose the group named in your fund documents.
+iShares UK publishes annual Reportable Income reports in its document library:
+<https://www.ishares.com/uk/professionals/en/library?materialType=tax+information>
+
+To find a report for a particular ETF, open its product page on ishares.com and look under
+**Literature → Tax Information**. Reports may cover several ETFs belonging to one fund company, such
+as iShares II plc. Within the report, find the exact ISIN and reporting period you need.
 
 - **ISIN:** same name column
 - **Fund Reporting Period End Date:** End date in the Reporting Period column
