@@ -432,7 +432,7 @@ def test_invalid_management_fee_has_a_transaction_error(
 
 
 def test_zero_management_fee_is_accepted() -> None:
-    """A zero fee leaves pooled cost unchanged and remains valid input."""
+    """A zero fee is valid input: only a positive or non-finite amount is refused."""
     fee = BrokerTransaction(
         date=datetime.date(2024, 6, 3),
         action=ActionType.FEE,

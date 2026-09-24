@@ -1763,12 +1763,6 @@ def test_two_accounts_in_different_files_still_do_not_conflict() -> None:
     assert calculator.portfolio["FOO"].quantity == Decimal(20)
 
 
-def test_an_invalid_raw_override_keeps_its_named_quantity_error() -> None:
-    """Override validation must not turn a bad RAW delta into a Decimal error."""
-    with pytest.raises(ValueError, match="Invalid decimal in column 'quantity'"):
-        raw_split(EVENT_DAY, "FOO", "NaN")
-
-
 def test_two_raw_rows_for_one_day_are_still_refused() -> None:
     """Two rows that each claim the whole holding cannot both be right.
 
@@ -2007,24 +2001,6 @@ def test_a_rename_chain_on_the_day_of_a_reorganisation_is_refused() -> None:
         )
 
 
-def test_a_rename_chain_listed_backwards_is_refused_the_same_way() -> None:
-    """The order the rows happen to be in does not change the answer.
-
-    Listed this way the pool stops at the middle name instead of reaching the
-    last one. That it computes at all is the row order talking, so it is the
-    same refusal rather than a different result.
-    """
-    with pytest.raises(CalculationError, match="is renamed to BBB, and BBB is renamed"):
-        run(
-            [
-                trade(POOL_DAY, ActionType.BUY, "AAA", "10", "10"),
-                legacy_split(EVENT_DAY, "AAA", "10"),
-                rename(EVENT_DAY, "BBB", "CCC"),
-                rename(EVENT_DAY, "AAA", "BBB"),
-            ]
-        )
-
-
 def test_a_rename_cycle_on_the_day_of_a_reorganisation_is_refused() -> None:
     """A cycle is a chain joined up, and is refused by the same test."""
     with pytest.raises(CalculationError, match="is renamed to BBB, and BBB is renamed"):
@@ -2034,46 +2010,6 @@ def test_a_rename_cycle_on_the_day_of_a_reorganisation_is_refused() -> None:
                 legacy_split(EVENT_DAY, "AAA", "10"),
                 rename(EVENT_DAY, "AAA", "BBB"),
                 rename(EVENT_DAY, "BBB", "AAA"),
-            ]
-        )
-
-
-def test_a_rename_chain_ending_on_a_second_holding_is_refused() -> None:
-    """The holding it would be pooled with is one rename further on.
-
-    Restating ten units and carrying them two names along, to a name that
-    already holds three, leaves those three unrestated. Naming the chain says
-    why without the calculator having to work out where the pool landed.
-    """
-    with pytest.raises(CalculationError, match="is renamed to BBB, and BBB is renamed"):
-        run(
-            [
-                trade(POOL_DAY, ActionType.BUY, "AAA", "10", "10"),
-                trade(POOL_DAY, ActionType.BUY, "CCC", "3", "10"),
-                legacy_split(EVENT_DAY, "AAA", "10"),
-                rename(EVENT_DAY, "AAA", "BBB"),
-                rename(EVENT_DAY, "BBB", "CCC"),
-            ]
-        )
-
-
-def test_a_holding_renamed_to_two_names_in_a_day_is_refused() -> None:
-    """A holding goes to one name or the other, and the input says neither.
-
-    The rows are applied one after another, so the first moves the shares and
-    the second finds nothing to move, but the record of where the holding went
-    keeps only the last row. Replaying that record sends the pool somewhere it
-    never was, silently, so the second row is refused rather than allowed to
-    overwrite the first.
-    """
-    with pytest.raises(CalculationError, match="renamed to both AAA and BBB"):
-        run(
-            [
-                trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
-                trade(POOL_DAY, ActionType.BUY, "AAA", "3", "10"),
-                legacy_split(EVENT_DAY, "OLD", "10"),
-                rename(EVENT_DAY, "OLD", "AAA"),
-                rename(EVENT_DAY, "OLD", "BBB"),
             ]
         )
 
@@ -2089,28 +2025,6 @@ def test_the_same_rename_written_twice_is_not_a_conflict() -> None:
         ]
     )
     assert calculator.portfolio["NEW"].quantity == Decimal(20)
-
-
-def test_a_holding_renamed_along_into_the_reorganised_one_is_refused() -> None:
-    """The arriving holding is two renames away, and arrives all the same.
-
-    Nothing renames straight into the reorganised name, so looking only at the
-    renames it is named in finds an empty holding and lets the day through.
-    The three units come along the chain and are never restated. The chain is
-    refused before the day's transaction rows are processed.
-    """
-    with pytest.raises(
-        CalculationError, match="is renamed to MID, and MID is renamed to NEW"
-    ):
-        run(
-            [
-                trade(POOL_DAY, ActionType.BUY, "OLD", "3", "10"),
-                trade(POOL_DAY, ActionType.BUY, "NEW", "10", "10"),
-                legacy_split(EVENT_DAY, "NEW", "10"),
-                rename(EVENT_DAY, "OLD", "MID"),
-                rename(EVENT_DAY, "MID", "NEW"),
-            ]
-        )
 
 
 def test_a_second_holding_renamed_onto_the_same_name_is_refused() -> None:

@@ -137,7 +137,7 @@ def test_hl_parser(request: pytest.FixtureRequest) -> None:
 
 
 def test_hl_parser_missing_pdf(request: pytest.FixtureRequest) -> None:
-    """Runs the tool and verifies it doesn't fail."""
+    """A trade whose contract note PDF is missing stops the run."""
     cmd = build_cmd(
         "--year",
         "2025",

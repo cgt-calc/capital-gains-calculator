@@ -97,8 +97,12 @@ def test_treaty_from_currency_when_no_isin_is_available() -> None:
 
 
 def test_isin_wins_over_the_currency_guess() -> None:
-    """A US security paying in USD resolves the same way through either path."""
-    assert _treaty_country(_dividend_pair(CurrencyCode("USD"), US_ISIN)) == "USA"
+    """A US security paid in zloty is still a US dividend.
+
+    The currency alone would say Poland, whose treaty rate does not match the
+    15% withheld, so no treaty would apply.
+    """
+    assert _treaty_country(_dividend_pair(CurrencyCode("PLN"), US_ISIN)) == "USA"
 
 
 def test_no_treaty_when_the_source_country_cannot_be_determined(

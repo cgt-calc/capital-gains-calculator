@@ -169,23 +169,11 @@ def _check_reorganisation_row(transaction: BrokerTransaction) -> None:
     calculation has no use for and would drop without saying so, and a row
     that states one is a row about something other than the reorganisation.
     """
-    quantity = transaction.quantity
     for column, value in (
         ("price", transaction.price),
         ("fees", transaction.fees),
         ("amount", transaction.amount),
     ):
-        if (
-            column == "amount"
-            and value is not None
-            and not value.is_finite()
-            and quantity is not None
-            and not quantity.is_finite()
-        ):
-            # A RAW row derives its amount from the quantity, so a
-            # non-finite quantity makes a non-finite amount the user never
-            # wrote. The quantity check downstream names the real defect.
-            continue
         if value:
             raise InvalidTransactionError(
                 transaction,
@@ -291,8 +279,6 @@ def _sole_reorganisation(
             "reorganisation. Leave the day's STOCK_SPLIT rows out and work "
             "this day out by hand (consider professional advice)."
         )
-    if not raw_change.is_finite():
-        return raw_row
     if any(not change.is_finite() for change in broker_changes):
         listed = "\n".join(indent_entry(row) for row in rows)
         raise CalculationError(

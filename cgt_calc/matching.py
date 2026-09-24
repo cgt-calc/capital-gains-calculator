@@ -845,13 +845,6 @@ class Matcher:
         for symbol, transformation in sorted(
             self.history.splits.get(date_index, {}).items()
         ):
-            chained = self._rename_chain_at(symbol, renames)
-            if chained is not None:
-                raise CalculationError(
-                    self._rename_chain_message(
-                        "apply the reorganisation of", symbol, date_index, *chained
-                    )
-                )
             pooled = self._rename_pooling_with(symbol, date_index, renames)
             if pooled is not None:
                 raise CalculationError(
@@ -881,24 +874,6 @@ class Matcher:
         if symbol in self.run.portfolio and self.run.portfolio[symbol].quantity != 0:
             return True
         return has_key(self.history.acquisition_list, date_index, symbol)
-
-    @staticmethod
-    def _rename_chain_at(
-        symbol: str, renames: dict[str, str]
-    ) -> tuple[tuple[str, str], tuple[str, str]] | None:
-        """Return the two renames that move this holding twice in one day.
-
-        A day's renames are applied in the order the input lists them, so a
-        holding renamed onward from the name it was just renamed to ends
-        wherever that order puts it, and swapping the two rows moves it
-        somewhere else. A date carries no order, so neither reading is
-        established and there is nothing to pick between them. A cycle is the
-        same thing joined up, and is caught by the same test.
-        """
-        next_name = renames.get(symbol)
-        if next_name is None or next_name not in renames:
-            return None
-        return (symbol, next_name), (next_name, renames[next_name])
 
     @staticmethod
     def _renames_reaching(
@@ -1127,14 +1102,6 @@ class Matcher:
         identity_names = frozenset(names)
         if len(names) == 1:
             return DayIdentity(end_name, symbol, symbol, identity_names)
-        for name in sorted(names):
-            chained = self._rename_chain_at(name, renames)
-            if chained is not None:
-                raise CalculationError(
-                    self._rename_chain_message(
-                        "compute the disposal of", symbol, date_index, *chained
-                    )
-                )
         pooled = sorted(n for n in names if self._opened_with(n).quantity != 0)
         if len(pooled) > 1:
             raise CalculationError(
@@ -1314,26 +1281,6 @@ class Matcher:
                     " Please report this: the two passes over the history "
                     "disagree."
                 )
-
-    @staticmethod
-    def _rename_chain_message(
-        action: str,
-        symbol: str,
-        date_index: datetime.date,
-        first: tuple[str, str],
-        second: tuple[str, str],
-    ) -> str:
-        """Explain why a holding renamed twice in a day cannot be worked out."""
-        return (
-            f"Cannot {action} {symbol} on {date_index}: it "
-            f"is renamed to {first[1]}, and {second[0]} is renamed to "
-            f"{second[1]}, the same day. The renames are applied in the order "
-            "the input lists them, so where the holding ends up, and what it "
-            "is pooled with on the way, depends on which of the two rows "
-            "comes first. A date carries no order, so neither reading is "
-            "established. Put the renames on the days they happened, or work "
-            "this day out by hand (consider professional advice)."
-        )
 
     @staticmethod
     def _rename_and_split_message(

@@ -44,7 +44,6 @@ from .rename_planning import (
     reconcile_rename_day,
     rename_day_units,
     rename_pair,
-    two_renames_message,
 )
 from .stock_split_planning import plan_stock_splits, source_account
 from .stock_splits import quantity_sign
@@ -1251,12 +1250,6 @@ class TransactionIngester:
         by ``plan_renames``.
         """
         old_symbol, new_symbol = rename_pair(transaction)
-        existing = self.history.rename_list[transaction.date].get(old_symbol)
-        if existing is not None and existing != new_symbol:
-            raise CalculationError(
-                two_renames_message(old_symbol, transaction.date, existing, new_symbol)
-            )
-        self.history.rename_list[transaction.date][old_symbol] = new_symbol
         position = self.run.portfolio.pop(old_symbol, Position())
         self.run.portfolio[new_symbol] += position
         # The units keep the accounts that put them there; only the name

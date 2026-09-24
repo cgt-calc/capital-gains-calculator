@@ -46,11 +46,15 @@ def test_schwab_interest_tax_without_symbol_is_account_level() -> None:
 
 
 def test_schwab_nra_tax_with_symbol_stays_dividend_tax(tmp_path: Path) -> None:
-    """NRA Tax Adj rows tied to a security are still treated as dividend tax."""
+    """NRA Tax Adj rows tied to a security are still treated as dividend tax.
+
+    The description is the one account-level interest withholding carries, so
+    only the symbol keeps this row dividend tax.
+    """
     csv_path = tmp_path / "transactions.csv"
     csv_path.write_text(
         "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
-        "06/27/2024,NRA Tax Adj,FOO,FOO INC,,,,$-1.50\n",
+        "06/27/2024,NRA Tax Adj,FOO,SCHWAB1 INT 05/30-06/26,,,,$-1.50\n",
         encoding="utf-8",
     )
 
