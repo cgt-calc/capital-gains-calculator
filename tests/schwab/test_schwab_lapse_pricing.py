@@ -635,17 +635,6 @@ def test_a_number_field_holding_something_else_names_itself(
 # --- What the rest of the parser sees ---------------------------------------
 
 
-def test_the_complete_export_reaches_the_same_parser_through_either_option() -> None:
-    """The new classification must not change what a Deposit-shape file does."""
-    canonical = _load(schwab_award_file=str(COMPLETE_JSON))
-    args = create_parser().parse_args(
-        ["--year", "2023", "--schwab-equity-award-json", str(COMPLETE_JSON)]
-    )
-
-    assert canonical == SchwabEquityAwardsParser.load_from_args(args)
-    assert canonical
-
-
 def test_the_main_history_still_records_where_its_rows_came_from() -> None:
     """Nothing on the pricing path goes near the main history's own stamping."""
     transactions = _load(

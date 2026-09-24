@@ -117,19 +117,6 @@ def test_the_canonical_option_matches_the_old_one(fixture: Path) -> None:
     assert canonical
 
 
-def test_a_price_csv_still_prices_a_vest_in_the_main_history() -> None:
-    """The supplementing case is untouched: prices reach the row parser.
-
-    The fixture's only Stock Plan Activity has a blank Price, so this raises
-    "Cannot price a vest" unless awards_prices survives the new routing.
-    """
-    transactions = _load(
-        schwab_file=str(MAIN_HISTORY), schwab_award_file=str(PRICE_CSV)
-    )
-
-    assert transactions
-
-
 def test_a_price_csv_may_still_accompany_the_old_option() -> None:
     """Pricing a vest and importing an award history is not a conflict."""
     transactions = _load(

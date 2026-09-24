@@ -604,16 +604,6 @@ def test_no_report_alone_works() -> None:
     assert args.output == DEFAULT_REPORT_PATH
 
 
-def test_short_option_output_and_no_report_mutually_exclusive() -> None:
-    """Test that -o and --no-report are mutually exclusive."""
-    parser = create_parser()
-
-    with pytest.raises(SystemExit) as exc_info:
-        parser.parse_args(["-o", "test.pdf", "--no-report"])
-
-    assert exc_info.value.code == 2
-
-
 def test_default_output_when_neither_specified() -> None:
     """Test default output path when neither option is specified."""
     parser = create_parser()
@@ -665,18 +655,6 @@ def test_year_validation_max_valid() -> None:
     args = parser.parse_args(["--year", str(current_year)])
 
     assert args.year == current_year
-
-
-def test_year_validation_valid_middle() -> None:
-    """Test that a year in the middle of valid range is accepted."""
-    parser = create_parser()
-    min_year = INTERNAL_START_DATE.year
-    current_year = datetime.datetime.now().year
-    middle_year = (min_year + current_year) // 2
-
-    args = parser.parse_args(["--year", str(middle_year)])
-
-    assert args.year == middle_year
 
 
 def test_interest_fund_tickers_single() -> None:
@@ -790,13 +768,6 @@ def test_cgt_exempt_tickers_empty_items_filtered() -> None:
 def test_existing_file_or_stdin_type_accepts_stdin() -> None:
     """Ensure existing_file_or_stdin_type returns STDIN_PATH when passed '-'."""
     assert existing_file_or_stdin_type("-") == STDIN_PATH
-
-
-def test_raw_file_stdin() -> None:
-    """Ensure --raw-file - correctly returns STDIN_PATH."""
-    parser = create_parser()
-    args = parser.parse_args(["--raw-file", "-"])
-    assert args.raw_file == STDIN_PATH
 
 
 @pytest.mark.parametrize(

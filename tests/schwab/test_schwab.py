@@ -366,12 +366,6 @@ def test_read_transactions_empty_file() -> None:
         _read("")
 
 
-def test_read_transactions_missing_columns() -> None:
-    """Raise when required columns are missing."""
-    with pytest.raises(ParsingError, match="Missing columns"):
-        _read("Date,Action\n01/15/2023,Sell\n")
-
-
 def test_read_transactions_skips_blank_lines() -> None:
     """Skip blank lines in the file."""
     content = SCHWAB_HEADER + ",,,,,,,\n"

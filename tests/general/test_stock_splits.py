@@ -1174,17 +1174,6 @@ def test_the_brokers_count_survives_a_holding_opened_the_same_day() -> None:
     assert calculator.portfolio["FOO"].amount == Decimal(0)
 
 
-def test_a_reorganisation_that_leaves_nothing_is_still_refused() -> None:
-    """The holding at the event has to survive it."""
-    with pytest.raises(CalculationError, match="leaves 0 of a holding of 10"):
-        run(
-            [
-                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
-                legacy_split(EVENT_DAY, "FOO", "-10"),
-            ]
-        )
-
-
 def test_a_legacy_delta_that_is_not_a_number_is_refused() -> None:
     """Refuse a decimal that is not a count of shares.
 

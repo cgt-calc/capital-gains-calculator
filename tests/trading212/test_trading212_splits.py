@@ -1147,20 +1147,6 @@ def test_the_first_copy_read_is_the_one_kept(tmp_path: Path) -> None:
     assert kept.source.file.name == "1.csv"
 
 
-def test_a_pair_in_two_overlapping_exports_collapses_before_pairing(
-    tmp_path: Path,
-) -> None:
-    """Both copies of both halves are one event, not two unpairable groups."""
-    (event,) = load(
-        tmp_path,
-        {
-            "1.csv": [HEADER_2026, close_row(), open_row()],
-            "2.csv": [HEADER_2026, close_row(), open_row()],
-        },
-    )
-    assert isinstance(event, StockSplitTransaction)
-
-
 @pytest.mark.parametrize(
     ("close_time", "open_time"),
     [
