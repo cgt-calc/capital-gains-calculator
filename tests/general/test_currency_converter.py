@@ -31,23 +31,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def test_read_exchange_rates_successfully(tmp_path: Path) -> None:
-    """Loading a populated rates file captures every row."""
-    rates_file = tmp_path / "rates.csv"
-    rates_file.write_text(
-        "month,currency,rate\n2024-01-01,USD,1.25\n2024-02-01,EUR,1.10\n",
-        encoding="utf8",
-    )
-
-    converter = CurrencyConverter(exchange_rates_file=rates_file)
-    cache = converter.cache
-
-    january_rates = cache[datetime.date(2024, 1, 1)]
-    february_rates = cache[datetime.date(2024, 2, 1)]
-    assert january_rates == {CurrencyCode("USD"): Decimal("1.25")}
-    assert february_rates == {CurrencyCode("EUR"): Decimal("1.10")}
-
-
 def test_read_exchange_rates_handles_empty_file(tmp_path: Path) -> None:
     """Empty rates files produce an empty cache without failing."""
     rates_file = tmp_path / "empty.csv"

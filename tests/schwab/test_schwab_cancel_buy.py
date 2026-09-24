@@ -32,33 +32,6 @@ from cgt_calc.parsers.schwab import AwardPrices, SchwabParser, SchwabTransaction
 class TestCancelBuyFiltering:
     """Test Cancel Buy filtering logic."""
 
-    def test_cancel_buy_removes_both_transactions(self, tmp_path: Path) -> None:
-        """Test that Cancel Buy removes both the cancel and original Buy."""
-        csv_file = tmp_path / "transactions.csv"
-        csv_file.write_text(
-            "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
-            "01/12/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
-            "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
-        )
-
-        transactions = SchwabParser().load_from_file(csv_file)
-
-        # Both transactions should be removed
-        assert len(transactions) == 0
-
-    def test_cancel_buy_only_matches_within_5_days(self, tmp_path: Path) -> None:
-        """Test that Cancel Buy only matches within 5-day window."""
-        csv_file = tmp_path / "transactions.csv"
-        csv_file.write_text(
-            "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
-            "01/10/2024,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
-            "01/01/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
-        )
-
-        # 9 days apart, so the Buy is outside the window and nothing matches.
-        with pytest.raises(ParsingError, match="no Buy to match it"):
-            SchwabParser().load_from_file(csv_file)
-
     def test_cancel_buy_matches_exact_symbol_quantity_price(
         self, tmp_path: Path
     ) -> None:

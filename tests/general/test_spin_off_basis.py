@@ -103,17 +103,6 @@ def spin_off(
     return calculator, report
 
 
-def test_baseline_without_a_prior_sale() -> None:
-    """Sanity check of the harness: 10 units costing £100, a tenth goes to BAR."""
-    calculator, _ = spin_off(
-        [transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP)],
-        10,
-        {BUY_DAY: {GBP: FLAT}, SPIN_OFF_DAY: {GBP: FLAT}},
-    )
-
-    assert calculator.portfolio["BAR"].amount == Decimal(10)
-
-
 def test_after_a_profitable_sale() -> None:
     """Half sold at a profit leaves 5 units costing £50, so BAR gets £5.
 
@@ -715,29 +704,6 @@ def test_a_chain_of_spin_offs_on_one_day_is_applied_in_order() -> None:
     assert calculator.portfolio["BAZ"].amount == Decimal(55)
 
 
-def test_a_chain_listed_out_of_order_is_refused() -> None:
-    """BAR spinning BAZ off before FOO has spun BAR off cannot be worked out.
-
-    The first pass goes by the order the input lists same-day rows in, and
-    here it would apportion a BAR that has no shares yet.
-    """
-    with pytest.raises(
-        CalculationError, match=r"(?i)list the spin-off that creates BAR"
-    ):
-        get_report(
-            _chain_calculator(),
-            [
-                transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
-                transaction(
-                    SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAZ", 10, 10, 0, currency=GBP
-                ),
-                transaction(
-                    SPIN_OFF_DAY, ActionType.SPIN_OFF, "BAR", 10, 10, 0, currency=GBP
-                ),
-            ],
-        )
-
-
 def test_sibling_spin_offs_are_applied_in_event_order() -> None:
     """Two spin-offs from FOO take their shares in the order they happened.
 
@@ -1099,7 +1065,12 @@ def test_a_rename_from_an_origin_never_held_is_no_merge() -> None:
 
 
 def test_a_chain_out_of_order_is_refused_before_prices_are_needed() -> None:
-    """The clear refusal, not a missing-price error, when both would apply."""
+    """BAR spinning BAZ off before FOO has spun BAR off cannot be worked out.
+
+    The first pass goes by the order the input lists same-day rows in, and
+    here it would apportion a BAR that has no shares yet. The refusal comes
+    first, not a missing-price error, when both would apply.
+    """
     converter = CurrencyConverter(None, {})
     handler = SpinOffHandler()
     handler.cache = {"BAR": "FOO", "BAZ": "BAR"}

@@ -37,7 +37,10 @@ def _fetcher() -> CurrentPriceFetcher:
 
 
 def test_uses_current_price_when_present(monkeypatch: pytest.MonkeyPatch) -> None:
-    """currentPrice, when present, is used as-is."""
+    """currentPrice, when present, is used as-is.
+
+    The ticker info has no "currency" field, so the price is read as USD.
+    """
     monkeypatch.setattr(
         "cgt_calc.current_price_fetcher.yf.Ticker",
         lambda symbol: FakeTicker({"currentPrice": 100.0}),
@@ -117,18 +120,6 @@ def test_eur_quoted_ticker_uses_eur_rate_not_usd(
     )
     price = _fetcher().get_current_market_price("MC.PA")
     assert price == Decimal("100.0") / Decimal("1.15")
-
-
-def test_defaults_to_usd_when_currency_field_absent(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """When "currency" is missing from ticker info, fall back to USD."""
-    monkeypatch.setattr(
-        "cgt_calc.current_price_fetcher.yf.Ticker",
-        lambda symbol: FakeTicker({"currentPrice": 100.0}),
-    )
-    price = _fetcher().get_current_market_price("AAPL")
-    assert price == Decimal("100.0") / Decimal("1.25")
 
 
 class FakeEmptyHistoryTicker:
