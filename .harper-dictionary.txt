@@ -192,6 +192,7 @@ rescanning
 restkey
 restval
 Revolut
+Revolut's
 Rheinmetall
 RKT
 roundings
