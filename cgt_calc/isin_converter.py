@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from importlib import resources
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, override
+from typing import TYPE_CHECKING, Final
 
 from pyrate_limiter import limiter_factory
 from pyrate_limiter.abstracts.rate import Duration
@@ -57,11 +57,6 @@ class IsinTranslationEntry:
             raise ParsingError(file, f"Row contains invalid ISIN '{row[0]}'")
         self.isin = isin
         self.symbols = set(row[1:])
-
-    @override
-    def __str__(self) -> str:
-        """Return string representation."""
-        return f"ISIN: {self.isin}, symbol: {self.symbols}"
 
 
 class IsinConverter:

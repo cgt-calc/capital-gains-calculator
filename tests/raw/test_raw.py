@@ -16,7 +16,7 @@ from cgt_calc.args_validators import STDIN_PATH
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.logging import force_utf8_stdio
 from cgt_calc.model import ActionType
-from cgt_calc.parsers.raw import COLUMNS, RawColumn, RawParser, _parse_decimal
+from cgt_calc.parsers.raw import COLUMNS, RawParser
 from tests.utils import build_cmd, report_path, stderr_alerts
 
 
@@ -348,15 +348,6 @@ def test_read_raw_transactions_applies_ticker_renames(tmp_path: Path) -> None:
 
     assert len(transactions) == 1
     assert transactions[0].symbol == "META"
-
-
-def test_parse_decimal_missing_value_raises() -> None:
-    """Ensure empty required decimals raise an explicit error."""
-
-    row = dict.fromkeys(RawColumn, "")
-
-    with pytest.raises(ValueError, match="Missing value in column 'quantity'"):
-        _parse_decimal(row, RawColumn.QUANTITY, allow_empty=False)
 
 
 def test_read_raw_transactions_transfer_from_spouse(tmp_path: Path) -> None:

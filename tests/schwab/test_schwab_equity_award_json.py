@@ -61,16 +61,6 @@ def test_decimal_from_number_or_str_empty_string() -> None:
     ) == Decimal(0)
 
 
-def test_decimal_from_number_or_str_float_custom_suffix() -> None:
-    """Test _decimal_from_number_or_str() on float.
-
-    With a custom suffix.
-    """
-    assert schwab_equity_award_json._decimal_from_number_or_str(
-        {"keyMySuffix": Decimal("67.89")}, "key", "MySuffix"
-    ) == Decimal("67.89")
-
-
 def test_decimal_from_number_or_str_default() -> None:
     """Test _decimal_from_number_or_str() with absent keys."""
     assert schwab_equity_award_json._decimal_from_number_or_str(

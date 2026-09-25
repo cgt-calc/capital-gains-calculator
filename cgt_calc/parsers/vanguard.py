@@ -70,9 +70,6 @@ _SECTION_NAMES: Final[dict[TableType, str]] = {
 }
 
 
-# Backward-compatible alias used by tests
-COLUMNS: Final[list[str]] = [c.value for c in CashColumn]
-
 BOUGHT_RE = re.compile(r"^Bought ([\d,]*\.?\d+) (.+?)(?:\s*\(([^()]+)\))?$")
 SOLD_RE = re.compile(r"^Sold ([\d,]*\.?\d+) (.+?)(?:\s*\(([^()]+)\))?$")
 DIV_RE = re.compile(r"^DIV: ([^\.]+)\.[^ ]+ @ ([A-Z]+) (\d*[,\.]?\d*)")

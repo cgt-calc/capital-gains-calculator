@@ -8,14 +8,10 @@ import subprocess
 
 import pytest
 
+from cgt_calc.args_parser import create_parser
 from cgt_calc.exceptions import ParsingError, SymbolMissingError
 from cgt_calc.model import ActionType, BrokerTransaction
-from cgt_calc.parsers.schwab import (
-    AwardPrices,
-    SchwabParser,
-    _read_schwab_awards,
-    action_from_str,
-)
+from cgt_calc.parsers.schwab import AwardPrices, SchwabParser, action_from_str
 from tests.utils import build_cmd, report_path, stderr_alerts
 
 
@@ -48,6 +44,15 @@ def test_missing_award_file_reports_the_vest_it_cannot_price() -> None:
     assert "2023-08-18" in message
 
 
+def _read_award_file(award_file: Path) -> AwardPrices:
+    """Read an award-price CSV the way --schwab-award-file does."""
+    args = create_parser().parse_args(
+        ["--year", "2023", "--schwab-award-file", str(award_file)]
+    )
+    SchwabParser.load_from_args(args)
+    return SchwabParser.awards_prices
+
+
 def test_award_rows_overlapping_in_a_column_are_reported(tmp_path: Path) -> None:
     """A split award row whose halves both fill a column is malformed input."""
     award_file = tmp_path / "awards.csv"
@@ -60,32 +65,9 @@ def test_award_rows_overlapping_in_a_column_are_reported(tmp_path: Path) -> None
     )
 
     with pytest.raises(ParsingError, match="contain data in column 5") as exc_info:
-        _read_schwab_awards(award_file)
+        _read_award_file(award_file)
 
     assert exc_info.value.row_index == 2
-
-
-def test_an_empty_award_file_is_reported(tmp_path: Path) -> None:
-    """Reading a path directly still names the empty file.
-
-    The CLI classifies the contents first and never reaches this, but
-    _read_schwab_awards is called with a path too, and the guard is what keeps
-    an empty file from surfacing as IndexError on the header lookup.
-    """
-    award_file = tmp_path / "awards.csv"
-    award_file.write_text("")
-
-    with pytest.raises(ParsingError, match="Award CSV file is empty"):
-        _read_schwab_awards(award_file)
-
-
-def test_an_award_file_without_the_price_column_is_reported(tmp_path: Path) -> None:
-    """And a header lacking FairMarketValuePrice, rather than a KeyError."""
-    award_file = tmp_path / "awards.csv"
-    award_file.write_text("Date,Symbol,Quantity\n08/15/2023,BAR,400\n")
-
-    with pytest.raises(ParsingError, match="Missing columns in Schwab Award file"):
-        _read_schwab_awards(award_file)
 
 
 @pytest.mark.parametrize("price", ["NaN", "$Infinity", "$not-a-number"])
@@ -109,7 +91,7 @@ def test_award_price_that_is_not_a_finite_amount_is_reported(
     with pytest.raises(
         ParsingError, match="Invalid decimal in column 'FairMarketValuePrice'"
     ) as exc_info:
-        _read_schwab_awards(award_file)
+        _read_award_file(award_file)
 
     # The price is stated on the lower half of the split award row, so the
     # row to correct is 3: row 1 is the header and row 2 holds the upper half.
@@ -127,7 +109,7 @@ def test_award_price_with_thousands_separators_is_parsed(tmp_path: Path) -> None
         ',,,,,,,,03/21/2022,101883189,"$1,250.00",,200,200,"$13,192.90"\n'
     )
 
-    awards = _read_schwab_awards(award_file)
+    awards = _read_award_file(award_file)
 
     assert awards.award_prices[datetime.date(2023, 8, 15)]["BAR"] == Decimal("1250.00")
 

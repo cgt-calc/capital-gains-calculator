@@ -64,18 +64,15 @@ class CurrencyConverter:
         self.session.mount("https://", HTTPAdapter(max_retries=retries))
 
     @staticmethod
-    def create(
-        exchange_rates_file: Path | None = None,
-        initial_data: dict[datetime.date, dict[CurrencyCode, Decimal]] | None = None,
-    ) -> CurrencyConverter:
+    def create(exchange_rates_file: Path | None = None) -> CurrencyConverter:
         """Create the appropriate CurrencyConverter for the current runtime mode."""
         match CGT_MODE:
             case RuntimeMode.PROD:
-                return CurrencyConverter(exchange_rates_file, initial_data)
+                return CurrencyConverter(exchange_rates_file)
             case RuntimeMode.TEST_STRICT:
-                return StrictTestCurrencyConverter(exchange_rates_file, initial_data)
+                return StrictTestCurrencyConverter(exchange_rates_file)
             case RuntimeMode.TEST:
-                return TestCurrencyConverter(exchange_rates_file, initial_data)
+                return TestCurrencyConverter(exchange_rates_file)
         raise NotImplementedError(
             f"Missing CurrencyConverter implementation for {CGT_MODE}"
         )
@@ -363,16 +360,12 @@ class TestCurrencyConverter(CurrencyConverter):
     when adding new tests.
     """
 
-    def __init__(
-        self,
-        exchange_rates_file: Path | None = None,
-        initial_data: dict[datetime.date, dict[CurrencyCode, Decimal]] | None = None,
-    ):
-        """Load data from exchange_rates_file and optionally from initial_data.
+    def __init__(self, exchange_rates_file: Path | None = None):
+        """Load data from exchange_rates_file.
 
         Store the initial view of exchange rates to compare against later on.
         """
-        super().__init__(exchange_rates_file, initial_data)
+        super().__init__(exchange_rates_file)
         self._test_file_cache = deepcopy(self.cache)
 
     @override
