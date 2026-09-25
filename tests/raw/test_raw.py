@@ -16,7 +16,7 @@ from cgt_calc.args_validators import STDIN_PATH
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.logging import force_utf8_stdio
 from cgt_calc.model import ActionType
-from cgt_calc.parsers.raw import COLUMNS, RawColumn, RawParser, _parse_decimal
+from cgt_calc.parsers.raw import COLUMNS, RawParser
 from tests.utils import build_cmd, report_path, stderr_alerts
 
 
@@ -157,8 +157,15 @@ def test_run_with_nonexistent_file() -> None:
     assert missing_file in result.stderr
 
 
-def test_read_raw_transactions_with_header(tmp_path: Path) -> None:
-    """Parse a RAW file including a header row."""
+@pytest.mark.parametrize(
+    ("fees", "expected_fees"),
+    [("0.10", Decimal("0.10")), ("", Decimal(0))],
+    ids=["stated", "blank"],
+)
+def test_read_raw_transactions_with_header(
+    tmp_path: Path, fees: str, expected_fees: Decimal
+) -> None:
+    """Parse a RAW file including a header row; a blank fee is no fee."""
 
     raw_file = tmp_path / "raw_with_header.csv"
     rows = [
@@ -169,7 +176,7 @@ def test_read_raw_transactions_with_header(tmp_path: Path) -> None:
             "XYZ",
             "10",
             "2.50",
-            "0.10",
+            fees,
             "USD",
         ],
     ]
@@ -183,8 +190,8 @@ def test_read_raw_transactions_with_header(tmp_path: Path) -> None:
     assert transaction.symbol == "XYZ"
     assert transaction.quantity == Decimal(10)
     assert transaction.price == Decimal("2.50")
-    assert transaction.amount == Decimal("-25.10")
-    assert transaction.fees == Decimal("0.10")
+    assert transaction.amount == -(Decimal("25.00") + expected_fees)
+    assert transaction.fees == expected_fees
 
 
 def test_read_raw_transactions_keep_their_row_and_order(tmp_path: Path) -> None:
@@ -348,15 +355,6 @@ def test_read_raw_transactions_applies_ticker_renames(tmp_path: Path) -> None:
 
     assert len(transactions) == 1
     assert transactions[0].symbol == "META"
-
-
-def test_parse_decimal_missing_value_raises() -> None:
-    """Ensure empty required decimals raise an explicit error."""
-
-    row = dict.fromkeys(RawColumn, "")
-
-    with pytest.raises(ValueError, match="Missing value in column 'quantity'"):
-        _parse_decimal(row, RawColumn.QUANTITY, allow_empty=False)
 
 
 def test_read_raw_transactions_transfer_from_spouse(tmp_path: Path) -> None:

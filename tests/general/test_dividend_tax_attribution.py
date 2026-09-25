@@ -78,10 +78,9 @@ def _reported(
         autoconvert_currency=autoconvert_currency,
         gbp_prices=gbp_prices,
     )
-    calculator.prepare_history(transactions)
-    calculator.process_dividends()
+    report = calculator.calculate(transactions)
     rows = []
-    for entries in calculator.calculation_log_yields.values():
+    for entries in report.calculation_log_yields.values():
         for key, log in entries.items():
             if not key.startswith("dividend$"):
                 continue
@@ -104,14 +103,13 @@ def _unattributed_warnings(
     caplog: pytest.LogCaptureFixture,
     tax_year: int = TAX_YEAR,
 ) -> list[str]:
-    """Run the dividend pass and return the unattributed tax warnings."""
+    """Run the calculation and return the unattributed tax warnings."""
     # A test that also reports the run has already made the calculator warn
     # once, and those records must not be counted again here.
     caplog.clear()
     calculator = _calculator(transactions, tax_year)
     with caplog.at_level(logging.WARNING, logger="cgt_calc.income"):
-        calculator.prepare_history(transactions)
-        calculator.process_dividends()
+        calculator.calculate(transactions)
     return [
         record.message
         for record in caplog.records
@@ -284,7 +282,7 @@ def test_tax_in_another_currency_than_its_dividend_is_refused(
     calculator.prepare_history(transactions)
 
     with pytest.raises(CalculationError, match="currencies do not match"):
-        calculator.process_dividends()
+        calculator.calculate_capital_gain()
 
 
 def test_ambiguous_tax_warns_in_the_year_of_each_payment(

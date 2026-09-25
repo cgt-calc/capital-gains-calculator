@@ -12,8 +12,11 @@ import pytest
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType
-from cgt_calc.parsers.vanguard import COLUMNS, VanguardParser, VanguardTransaction
+from cgt_calc.parsers.vanguard import VanguardParser, VanguardTransaction
 from tests.utils import build_cmd, report_path, stderr_alerts
+
+# The header of a cash-only export, as Vanguard writes it.
+COLUMNS = ["Date", "Details", "Amount", "Balance"]
 
 
 def _write_csv(path: Path, rows: list[list[str]]) -> None:

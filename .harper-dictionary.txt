@@ -188,6 +188,7 @@ rata
 regularMarketPrice
 reportable
 repr
+RequiredAwardColumn
 rescanning
 restkey
 restval

@@ -5,8 +5,7 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 import logging
-from pathlib import Path
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
 import pytest
 from requests import exceptions as requests_exceptions
@@ -20,8 +19,11 @@ from cgt_calc.exceptions import (
     UnexpectedColumnCountError,
 )
 import cgt_calc.isin_converter
-from cgt_calc.isin_converter import IsinConverter, IsinTranslationEntry
+from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # Well-formed but unassigned, so it cannot be in the bundled translation data.
 UNKNOWN_ISIN = Isin("ZZ0000000008")
@@ -554,10 +556,12 @@ def test_translation_file_invalid_row(tmp_path: Path) -> None:
     assert excinfo.value.row_index == 2
 
 
-def test_translation_entry() -> None:
-    """Translation entries validate their rows."""
-    entry = IsinTranslationEntry([ISIN_A, "FOO"], Path("test.csv"))
-    assert str(entry) == f"ISIN: {ISIN_A}, symbol: {{'FOO'}}"
+def test_translation_file_row_without_a_symbol(tmp_path: Path) -> None:
+    """Refuse a translation row that names no symbol, with its row number."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"ISIN,symbol\n{ISIN_A}\n")
 
-    with pytest.raises(UnexpectedColumnCountError):
-        IsinTranslationEntry([ISIN_A], Path("test.csv"))
+    with pytest.raises(UnexpectedColumnCountError) as excinfo:
+        IsinConverter(isin_translation_file=translation_file)
+
+    assert excinfo.value.row_index == 2
