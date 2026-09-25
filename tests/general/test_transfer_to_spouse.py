@@ -347,7 +347,10 @@ def test_transfer_to_spouse_fee_is_added_to_the_base_cost() -> None:
 
 
 def test_transfer_to_spouse_shown_in_report() -> None:
-    """The text report lists each transfer with the base cost passed on."""
+    """The text report lists each transfer with the base cost passed on.
+
+    It also prints the exact RAW row the recipient needs.
+    """
     buy_day = datetime.date(2024, 6, 1)
     transfer_day = datetime.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
@@ -365,6 +368,7 @@ def test_transfer_to_spouse_shown_in_report() -> None:
     assert "Transferred to spouse" in output
     # Quantities are shown as entered, like the PDF, so fractions survive.
     assert f"{transfer_day}: FOO 400 units, base cost £4,000.00" in output
+    assert "2024-06-10,TRANSFER_FROM_SPOUSE,FOO,400,10,0.00,GBP" in output
 
 
 def test_unclassified_gift_is_rejected_with_instructions() -> None:
@@ -1361,23 +1365,6 @@ def test_transfer_from_spouse_sorts_before_a_same_day_sale() -> None:
     )
 
     assert report.total_gain() == Decimal(400)
-
-
-def test_transferor_report_hands_over_the_recipients_row() -> None:
-    """The text report prints the exact RAW row the recipient needs."""
-    buy_day = datetime.date(2024, 6, 1)
-    transfer_day = datetime.date(2024, 6, 10)
-    report = get_report(
-        create_calculator(tax_year=2024, balance_check=False),
-        [
-            transaction(
-                buy_day, ActionType.BUY, "FOO", 1000, 10, 0, -10000, CurrencyCode(GBP)
-            ),
-            transfer_to_spouse_transaction(transfer_day, "FOO", 400),
-        ],
-    )
-
-    assert "2024-06-10,TRANSFER_FROM_SPOUSE,FOO,400,10,0.00,GBP" in str(report)
 
 
 def test_hand_over_row_round_trips_through_the_raw_parser(tmp_path: Path) -> None:

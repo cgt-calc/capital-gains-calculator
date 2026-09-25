@@ -120,10 +120,12 @@ def test_an_export_of_nothing_but_lapses_prices_vests_and_imports_nothing() -> N
     )
 
     assert transactions
-    assert not any(
-        transaction.source and transaction.source.file == AWARD_JSON
-        for transaction in transactions
-    )
+    # Every row is the main history's, stamped as the main history stamps it:
+    # nothing on the pricing path goes near that.
+    for transaction in transactions:
+        assert transaction.source is not None
+        assert transaction.source.file == MAIN_HISTORY
+        assert transaction.source.account is not None
     assert SchwabParser.awards_prices
 
 
@@ -621,18 +623,6 @@ def test_a_number_field_holding_something_else_names_itself(
 
 
 # --- What the rest of the parser sees ---------------------------------------
-
-
-def test_the_main_history_still_records_where_its_rows_came_from() -> None:
-    """Nothing on the pricing path goes near the main history's own stamping."""
-    transactions = load_via_cli(
-        schwab_file=str(MAIN_HISTORY), schwab_award_file=str(AWARD_JSON)
-    )
-
-    for transaction in transactions:
-        assert transaction.source is not None
-        assert transaction.source.file == MAIN_HISTORY
-        assert transaction.source.account is not None
 
 
 def test_a_json_error_names_a_field_path_and_a_csv_error_names_a_row(

@@ -1792,8 +1792,12 @@ def test_a_reorganisation_that_states_a_price_is_refused() -> None:
 
 
 def test_a_reorganisation_that_states_a_fee_is_refused() -> None:
-    """A fee on the row is money the calculation would otherwise drop."""
-    with pytest.raises(InvalidTransactionError, match="The fees column"):
+    """A fee on the row is money the calculation would otherwise drop.
+
+    Cash in lieu has two treatments and cgt-calc computes neither, so the
+    refusal names both rather than prescribing one.
+    """
+    with pytest.raises(InvalidTransactionError, match="The fees column") as excinfo:
         run(
             [
                 trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
@@ -1801,19 +1805,7 @@ def test_a_reorganisation_that_states_a_fee_is_refused() -> None:
             ]
         )
 
-
-def test_a_reorganisation_fee_error_does_not_prescribe_cash_treatment() -> None:
-    """Cash in lieu has two treatments and cgt-calc computes neither."""
-    with pytest.raises(
-        InvalidTransactionError,
-        match="cgt-calc can represent neither",
-    ):
-        run(
-            [
-                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
-                raw_split(EVENT_DAY, "FOO", "10", fees="1.50"),
-            ]
-        )
+    assert "cgt-calc can represent neither" in str(excinfo.value)
 
 
 def test_a_reorganisation_that_states_an_amount_is_refused() -> None:
