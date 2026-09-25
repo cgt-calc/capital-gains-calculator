@@ -18,7 +18,6 @@ import datetime
 from decimal import Decimal
 import json
 from pathlib import Path
-import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
@@ -31,7 +30,13 @@ from cgt_calc.parsers.schwab_equity_award_json import (
     SchwabEquityAwardsParser,
 )
 from tests.schwab.helpers import load_via_cli
-from tests.utils import build_cmd, report_path, stderr_alerts
+from tests.utils import (
+    assert_stdout_matches,
+    build_cmd,
+    report_path,
+    run_cli,
+    stderr_alerts,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -726,14 +731,6 @@ def test_run_over_the_paired_fixture(request: pytest.FixtureRequest) -> None:
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-
-    if result.returncode:
-        pytest.fail(f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == []
-    expected_file = LAPSE_PRICING / "expected_output.txt"
-    assert result.stdout == expected_file.read_text(encoding="utf-8"), (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{' '.join(param or chr(39) * 2 for param in cmd)} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, LAPSE_PRICING / "expected_output.txt")
