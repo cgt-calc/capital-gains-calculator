@@ -155,13 +155,15 @@ def test_overlapping_exports_are_refused(tmp_path: Path) -> None:
 
 
 def test_adjacent_exports_are_not_refused(tmp_path: Path) -> None:
-    """Consecutive ranges that merely touch in time are fine."""
+    """An export that starts the day after the previous one ends is fine."""
     directory = tmp_path / "schwab"
     directory.mkdir()
     (directory / "a_2023.csv").write_text(HEADER + OLDER)
-    (directory / "z_2024.csv").write_text(HEADER + NEWER)
+    (directory / "z_2023.csv").write_text(
+        HEADER + "11/21/2023,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
+    )
 
-    assert len(_load(schwab_dir=str(directory))) == 4
+    assert len(_load(schwab_dir=str(directory))) == 3
 
 
 def test_empty_directory_warns(
@@ -483,7 +485,7 @@ def test_both_flags_are_refused_before_the_award_file_is_read(
     directory.mkdir()
     (directory / "transactions.csv").write_text(HEADER + OLDER)
     bad_award_file = tmp_path / "bad-award.csv"
-    bad_award_file.write_text("")  # would itself raise "CSV file is empty"
+    bad_award_file.write_text("")  # would itself be refused as an award file
 
     with pytest.raises(CgtError, match="cannot be used together"):
         _load(

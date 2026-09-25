@@ -291,8 +291,7 @@ def test_pdf_report_rendering_exempt_disposal(tmp_path: Path) -> None:
     assert "Exempt disposal: 100 units of T26 valued at £12,000" in source_flat
     assert "the gain or loss is disregarded" in source_flat
     # The cost label carries its colon like the chargeable branch does: no
-    # stray space in front of it, and on a bed-and-breakfast line the date and
-    # its colon stay in one \mbox so they cannot be split across lines.
+    # stray space in front of it.
     assert "cost used for this illustrative calculation: £10,000" in source_flat
     assert "not allowable deductions against other gains" in source_flat
 

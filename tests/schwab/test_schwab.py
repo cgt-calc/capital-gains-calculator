@@ -448,9 +448,11 @@ def test_invalid_cash_merger_pair() -> None:
     content = (
         SCHWAB_HEADER
         + '01/16/2023,Cash Merger,FOO,Merger,,,,"$100.00"\n'
-        + '01/15/2023,Cash Merger Adj,FOO,Merger,,-10,,"$5.00"\n'
+        + "01/15/2023,Cash Merger Adj,FOO,Merger,,-10,,\n"
     )
-    with pytest.raises(ParsingError, match="Invalid Cash Merger format") as exc_info:
+    with pytest.raises(
+        ParsingError, match="must have the same date, symbol and description"
+    ) as exc_info:
         _read(content)
 
     assert "FOO on 2023-01-16" in str(exc_info.value)
@@ -507,10 +509,10 @@ def test_invalid_full_redemption_pair() -> None:
     content = (
         SCHWAB_HEADER
         + '01/16/2023,Full Redemption Adj,FOO,Redemption,,,,"$100.00"\n'
-        + '01/15/2023,Full Redemption,FOO,Redemption,"$1.00",-10,,\n'
+        + "01/15/2023,Full Redemption,FOO,Redemption,,-10,,\n"
     )
     with pytest.raises(
-        ParsingError, match="Invalid Full Redemption format"
+        ParsingError, match="must have the same date, symbol and description"
     ) as exc_info:
         _read(content)
 

@@ -33,7 +33,6 @@ from cgt_calc.exceptions import (
     UnclassifiedGiftError,
     UnexpectedColumnCountError,
     UnexpectedRowCountError,
-    UnsupportedBrokerActionError,
     UnsupportedBrokerCurrencyError,
 )
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
@@ -88,7 +87,7 @@ def test_add_row_context_on_parsing_error_subclass() -> None:
     File readers catch ParsingError and call add_row_context, so the
     machinery has to work on every subclass, not just the base class.
     """
-    err = UnsupportedBrokerActionError(Path("f.csv"), "TestBroker", "Dance")
+    err = UnsupportedBrokerCurrencyError(Path("f.csv"), "TestBroker", "XXX")
 
     err.add_row_context(5)
 
@@ -111,10 +110,6 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
     (QuantityNotPositiveError(TRANSACTION), ["FOO", "2023"]),
     # Both the calculated and the supplied amount are needed to see the gap.
     (CalculatedAmountDiscrepancyError(TRANSACTION, Decimal(-42)), ["-42", "-1", "FOO"]),
-    (
-        UnsupportedBrokerActionError(Path("f.csv"), "TestBroker", "Dance"),
-        ["f.csv", "TestBroker", "Dance"],
-    ),
     (
         UnsupportedBrokerCurrencyError(Path("f.csv"), "TestBroker", "XXX"),
         ["f.csv", "TestBroker", "XXX"],

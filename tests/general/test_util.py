@@ -12,7 +12,7 @@ from cgt_calc.util import approx_equal, exact_str
 @pytest.mark.parametrize(
     ("val_a", "val_b", "approx_quantity", "expected"),
     [
-        # Default tolerance (0.01): values within/outside of it.
+        # The 0.01 tolerance the default uses, given explicitly.
         (Decimal("1.00"), Decimal("1.005"), Decimal("0.01"), True),
         (Decimal("1.00"), Decimal("1.02"), Decimal("0.01"), False),
         # A tight explicit tolerance (0.0001) must actually be honoured:

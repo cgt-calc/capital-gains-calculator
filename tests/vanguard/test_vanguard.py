@@ -127,8 +127,7 @@ def test_read_vanguard_fractional_share(tmp_path: Path) -> None:
     transaction = transactions[0]
     assert transaction.action is ActionType.BUY
     assert transaction.symbol == "FOO"
-    assert transaction.quantity is not None
-    assert transaction.quantity - Decimal("0.2") < Decimal("0.000001")
+    assert transaction.quantity == Decimal("0.2")
     assert transaction.price == Decimal(500)
     assert transaction.amount == Decimal(-100)
     assert transaction.currency == "GBP"
