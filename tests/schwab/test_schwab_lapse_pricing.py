@@ -30,12 +30,12 @@ from cgt_calc.parsers.schwab_equity_award_json import (
     JsonRowType,
     SchwabEquityAwardsParser,
 )
+from tests.schwab.helpers import load_via_cli
 from tests.utils import build_cmd, report_path, stderr_alerts
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from cgt_calc.model import BrokerTransaction
 
 LAPSE_PRICING = Path("tests") / "schwab" / "data" / "lapse_pricing"
 MAIN_HISTORY = LAPSE_PRICING / "transactions.csv"
@@ -44,12 +44,6 @@ AWARD_JSON = LAPSE_PRICING / "awards.json"
 EQUITY_AWARD = Path("tests") / "schwab" / "data" / "equity_award"
 COMPLETE_JSON = EQUITY_AWARD / "schwab_equity_award_v2.json"
 COMPLETE_CSV = EQUITY_AWARD / "schwab_equity_award_v2.csv"
-
-
-@pytest.fixture(autouse=True)
-def _reset_awards_prices(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep changes to the class-level award prices out of other test modules."""
-    monkeypatch.setattr(SchwabParser, "awards_prices", AwardPrices(award_prices={}))
 
 
 def _lapse(
@@ -95,15 +89,6 @@ def _export(
     return str(target)
 
 
-def _load(**flags: str) -> list[BrokerTransaction]:
-    """Load through the CLI wiring rather than calling the parser directly."""
-    argv = ["--year", "2023"]
-    for flag, value in flags.items():
-        argv += [f"--{flag.replace('_', '-')}", value]
-    args = create_parser().parse_args(argv)
-    return SchwabParser.load_from_args(args)
-
-
 def _bare_main(tmp_path: Path) -> str:
     """Write a main history with no vest, so a test can be about the award file."""
     target = tmp_path / "main.csv"
@@ -118,7 +103,10 @@ def _bare_main(tmp_path: Path) -> str:
 
 def _prices(tmp_path: Path, award_file: str) -> AwardPrices:
     """Load a price-only export alongside a main history and return its prices."""
-    assert _load(schwab_file=_bare_main(tmp_path), schwab_award_file=award_file) != []
+    assert (
+        load_via_cli(schwab_file=_bare_main(tmp_path), schwab_award_file=award_file)
+        != []
+    )
     return SchwabParser.awards_prices
 
 
@@ -127,7 +115,7 @@ def _prices(tmp_path: Path, award_file: str) -> AwardPrices:
 
 def test_an_export_of_nothing_but_lapses_prices_vests_and_imports_nothing() -> None:
     """The whole point: the JSON form now does what its CSV form always did."""
-    transactions = _load(
+    transactions = load_via_cli(
         schwab_file=str(MAIN_HISTORY), schwab_award_file=str(AWARD_JSON)
     )
 
@@ -153,7 +141,7 @@ def test_a_cash_row_alongside_the_lapses_is_refused_by_name(tmp_path: Path) -> N
     )
 
     with pytest.raises(ParsingError, match="Journal") as exc_info:
-        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
 
     assert "award-price CSV" in str(exc_info.value)
 
@@ -194,7 +182,7 @@ def test_a_purchase_that_acquired_nothing_is_not_a_price_only_export(
     )
 
     with pytest.raises(CgtError, match="not supported yet"):
-        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
 
 
 def test_an_export_with_no_transactions_is_not_a_price_only_export(
@@ -204,7 +192,7 @@ def test_an_export_with_no_transactions_is_not_a_price_only_export(
     award_file = _export(tmp_path)
 
     with pytest.raises(CgtError, match="not supported yet"):
-        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
 
 
 def test_an_unknown_action_keeps_its_own_error(tmp_path: Path) -> None:
@@ -220,7 +208,7 @@ def test_an_unknown_action_keeps_its_own_error(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ParsingError, match="Unknown action: Rehypothecation"):
-        _load(schwab_award_file=award_file)
+        load_via_cli(schwab_award_file=award_file)
 
 
 # --- Reading one price ------------------------------------------------------
@@ -256,7 +244,7 @@ def test_a_lapse_cgt_calc_cannot_cost_names_the_field(
     award_file = _export(tmp_path, _lapse(details={"FairMarketValuePrice": price}))
 
     with pytest.raises(ParsingError, match=expected) as exc_info:
-        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
 
     message = str(exc_info.value)
     assert "Transactions[0].TransactionDetails[0].Details" in message
@@ -270,7 +258,7 @@ def test_a_lapse_that_omits_the_price_field_entirely_fails(tmp_path: Path) -> No
     award_file = _export(tmp_path, row)
 
     with pytest.raises(ParsingError, match="states no price"):
-        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
 
 
 def test_a_lapse_with_no_symbol_fails(tmp_path: Path) -> None:
@@ -278,7 +266,7 @@ def test_a_lapse_with_no_symbol_fails(tmp_path: Path) -> None:
     award_file = _export(tmp_path, _lapse(symbol="  "))
 
     with pytest.raises(ParsingError, match="names no symbol"):
-        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
 
 
 def test_a_lapse_with_an_unreadable_date_fails(tmp_path: Path) -> None:
@@ -286,7 +274,7 @@ def test_a_lapse_with_an_unreadable_date_fails(tmp_path: Path) -> None:
     award_file = _export(tmp_path, _lapse(date="12 June 2023"))
 
     with pytest.raises(ParsingError, match="is not a date cgt-calc reads"):
-        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
 
 
 def test_a_lapse_stating_no_date_fails(tmp_path: Path) -> None:
@@ -294,7 +282,7 @@ def test_a_lapse_stating_no_date_fails(tmp_path: Path) -> None:
     award_file = _export(tmp_path, _lapse(date=""))
 
     with pytest.raises(ParsingError, match=r"Transactions\[0\] states no Date"):
-        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
 
 
 def test_a_lapse_stating_two_grants_in_one_row_fails(tmp_path: Path) -> None:
@@ -306,7 +294,7 @@ def test_a_lapse_stating_two_grants_in_one_row_fails(tmp_path: Path) -> None:
     award_file = _export(tmp_path, _lapse(detail_rows=detail_rows))
 
     with pytest.raises(ParsingError, match="holds 2 entries, not one"):
-        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
 
 
 @pytest.mark.parametrize(
@@ -333,7 +321,7 @@ def test_a_malformed_detail_container_names_itself(
     award_file = _export(tmp_path, _lapse(detail_rows=detail_rows))
 
     with pytest.raises(ParsingError, match=expected) as exc_info:
-        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
 
     message = str(exc_info.value)
     assert "Transactions[0].TransactionDetails" in message
@@ -420,7 +408,7 @@ def test_grants_vesting_together_at_different_prices_are_refused(
     )
 
     with pytest.raises(ParsingError) as exc_info:
-        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
 
     message = str(exc_info.value)
     assert "Transactions[0]" in message
@@ -453,7 +441,7 @@ def test_a_split_that_could_have_restated_a_priced_vest_is_refused(
     award_file = _export(tmp_path, *[_lapse(date, "NVDA") for date in priced])
 
     with pytest.raises(ParsingError, match="post-split units") as exc_info:
-        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
 
     assert "NVDA" in str(exc_info.value)
 
@@ -478,7 +466,7 @@ def test_a_split_refusal_offers_the_alternative_conditionally(
     main = _main_history_with_a_split(tmp_path, "01/08/2024")
 
     with pytest.raises(CgtError) as exc_info:
-        _load(schwab_file=main, schwab_award_file=award_file_of(tmp_path))
+        load_via_cli(schwab_file=main, schwab_award_file=award_file_of(tmp_path))
 
     message = str(exc_info.value)
     assert "If you have a complete Equity Awards export" in message
@@ -498,7 +486,7 @@ def test_the_tabled_split_refusal_does_not_tie_a_shorter_export_to_the_year(
     award_file = _export(tmp_path, _lapse("06/01/2021", "NVDA"))
 
     with pytest.raises(ParsingError) as exc_info:
-        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
 
     message = str(exc_info.value)
     assert "If no vest in your main history needs a price on or before" in message
@@ -530,7 +518,7 @@ def test_a_split_of_a_symbol_the_award_file_does_not_price_is_ignored(
         encoding="utf-8",
     )
 
-    assert _load(schwab_file=str(main), schwab_award_file=str(AWARD_JSON))
+    assert load_via_cli(schwab_file=str(main), schwab_award_file=str(AWARD_JSON))
 
 
 def _main_history_with_a_split(tmp_path: Path, date: str, symbol: str = "ZQX") -> str:
@@ -561,7 +549,7 @@ def test_a_split_in_the_main_history_is_refused(tmp_path: Path, split: str) -> N
     main = _main_history_with_a_split(tmp_path, split)
 
     with pytest.raises(ParsingError, match="stock split") as exc_info:
-        _load(schwab_file=main, schwab_award_file=str(AWARD_JSON))
+        load_via_cli(schwab_file=main, schwab_award_file=str(AWARD_JSON))
 
     message = str(exc_info.value)
     assert "out by the split factor" in message
@@ -581,7 +569,7 @@ def test_a_main_history_split_before_every_priced_vest_is_not_a_problem(
     """
     main = _main_history_with_a_split(tmp_path, "05/10/2023")
 
-    assert _load(schwab_file=main, schwab_award_file=str(AWARD_JSON))
+    assert load_via_cli(schwab_file=main, schwab_award_file=str(AWARD_JSON))
 
 
 def test_a_standalone_export_is_answered_before_its_rows_are_read(
@@ -596,7 +584,7 @@ def test_a_standalone_export_is_answered_before_its_rows_are_read(
     award_file = _export(tmp_path, _lapse("06/01/2021", "NVDA"))
 
     with pytest.raises(CgtError, match="vest prices and no transactions"):
-        _load(schwab_award_file=award_file)
+        load_via_cli(schwab_award_file=award_file)
 
 
 @pytest.mark.parametrize(
@@ -625,7 +613,7 @@ def test_a_number_field_holding_something_else_names_itself(
     award_file = _export(tmp_path, _lapse(details=details))
 
     with pytest.raises(ParsingError, match="is not a number") as exc_info:
-        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
 
     message = str(exc_info.value)
     assert f"Details.{field}" in message
@@ -637,7 +625,7 @@ def test_a_number_field_holding_something_else_names_itself(
 
 def test_the_main_history_still_records_where_its_rows_came_from() -> None:
     """Nothing on the pricing path goes near the main history's own stamping."""
-    transactions = _load(
+    transactions = load_via_cli(
         schwab_file=str(MAIN_HISTORY), schwab_award_file=str(AWARD_JSON)
     )
 
@@ -657,9 +645,9 @@ def test_a_json_error_names_a_field_path_and_a_csv_error_names_a_row(
     csv_file.write_text("\n".join([lines[0], "just,one,cell"]) + "\n", encoding="utf-8")
 
     with pytest.raises(ParsingError) as json_error:
-        _load(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
     with pytest.raises(ParsingError) as csv_error:
-        _load(schwab_award_file=str(csv_file))
+        load_via_cli(schwab_award_file=str(csv_file))
 
     assert ", row " not in str(json_error.value)
     assert "TransactionDetails[0]" in str(json_error.value)
@@ -676,7 +664,7 @@ def test_a_price_only_export_on_its_own_is_refused() -> None:
     it understates the tax but that the figure cannot be checked.
     """
     with pytest.raises(CgtError, match="vest prices and no transactions") as exc_info:
-        _load(schwab_award_file=str(AWARD_JSON))
+        load_via_cli(schwab_award_file=str(AWARD_JSON))
 
     assert "--schwab-file <main history>" in str(exc_info.value)
 
@@ -724,7 +712,7 @@ def test_a_price_only_export_may_accompany_the_old_option() -> None:
     The award-price CSV has always been allowed here, and this export does the
     same job.
     """
-    transactions = _load(
+    transactions = load_via_cli(
         schwab_file=str(MAIN_HISTORY),
         schwab_award_file=str(AWARD_JSON),
         schwab_equity_award_json=str(COMPLETE_JSON),

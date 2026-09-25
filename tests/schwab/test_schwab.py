@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from cgt_calc.args_parser import create_parser
 from cgt_calc.exceptions import ParsingError, SymbolMissingError
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.parsers.schwab import AwardPrices, SchwabParser, action_from_str
+from tests.schwab.helpers import load_via_cli
 from tests.utils import (
     assert_stdout_matches,
     build_cmd,
@@ -18,12 +18,6 @@ from tests.utils import (
     run_cli,
     stderr_alerts,
 )
-
-
-@pytest.fixture(autouse=True)
-def _reset_awards_prices(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep changes to the class-level award prices out of other test modules."""
-    monkeypatch.setattr(SchwabParser, "awards_prices", AwardPrices(award_prices={}))
 
 
 def test_missing_award_file_reports_the_vest_it_cannot_price() -> None:
@@ -51,10 +45,7 @@ def test_missing_award_file_reports_the_vest_it_cannot_price() -> None:
 
 def _read_award_file(award_file: Path) -> AwardPrices:
     """Read an award-price CSV the way --schwab-award-file does."""
-    args = create_parser().parse_args(
-        ["--year", "2023", "--schwab-award-file", str(award_file)]
-    )
-    SchwabParser.load_from_args(args)
+    load_via_cli(schwab_award_file=str(award_file))
     return SchwabParser.awards_prices
 
 
