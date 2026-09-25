@@ -48,7 +48,7 @@ from cgt_calc.stock_splits import (
     QUANTITY_INCREASING_ACTIONS,
 )
 from cgt_calc.util import round_decimal
-from tests.utils import build_cmd, report_path
+from tests.utils import assert_stdout_matches, build_cmd, report_path, run_cli
 
 from .calc_test_data import (
     GBP,
@@ -2323,13 +2323,7 @@ def test_run_with_example_files(request: pytest.FixtureRequest) -> None:
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
 
     # The progress narrative is a contract: it must reach stderr, in order.
     # The last two lines depend on whether pdflatex runs, so match by prefix.
@@ -2352,17 +2346,12 @@ def test_run_with_example_files(request: pytest.FixtureRequest) -> None:
     expected_file = (
         Path("tests") / "general" / "data" / "test_run_with_example_files_output.txt"
     )
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
     # The LaTeX source is pinned too. pdflatex leaves no source behind, so
     # the one CI job that runs it compiles the PDF instead of checking this.
     if "--no-pdflatex" in cmd:
+        cmd_str = " ".join([param or "''" for param in cmd])
         output = Path(report_path(request))
         tex_path = output.parent / f"{output.stem}.tex"
         expected_tex_file = (

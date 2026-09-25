@@ -8,11 +8,20 @@ a PDF to ``out/`` so CI keeps it as an artifact to look at.
 from __future__ import annotations
 
 from pathlib import Path
-import subprocess
+from typing import TYPE_CHECKING
 
-import pytest
+from tests.utils import (
+    assert_stdout_matches,
+    build_cmd,
+    report_path,
+    run_cli,
+    stderr_alerts,
+)
 
-from tests.utils import build_cmd, report_path, stderr_alerts
+if TYPE_CHECKING:
+    import subprocess
+
+    import pytest
 
 DATA = Path("tests") / "spouse" / "data"
 
@@ -29,18 +38,9 @@ def _run(name: str, request: pytest.FixtureRequest) -> subprocess.CompletedProce
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            f"{name} run failed\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
-    expected_file = DATA / f"expected_output_{name}.txt"
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected_file.read_text(encoding="utf-8"), (
-        f"The {name} report changed; if that is intended, update it with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, DATA / f"expected_output_{name}.txt")
     return result
 
 

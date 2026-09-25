@@ -4,14 +4,19 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 import re
-import subprocess
 
 import pytest
 
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 from cgt_calc.parsers.interactive_brokers import InteractiveBrokersParser
-from tests.utils import build_cmd, report_path, stderr_alerts
+from tests.utils import (
+    assert_stdout_matches,
+    build_cmd,
+    report_path,
+    run_cli,
+    stderr_alerts,
+)
 
 
 class TestInteractiveBrokers:
@@ -160,24 +165,12 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             "--output",
             report_path(request),
         )
-        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-        if result.returncode:
-            pytest.fail(
-                "Integration test failed\n"
-                f"stdout:\n{result.stdout}\n"
-                f"stderr:\n{result.stderr}"
-            )
+        result = run_cli(cmd)
         assert stderr_alerts(result.stderr) == []
         expected_file = (
             Path("tests") / "interactive_brokers" / "data" / "expected_output.txt"
         )
-        expected = expected_file.read_text(encoding="utf-8")
-        cmd_str = " ".join([param or "''" for param in cmd])
-        assert result.stdout == expected, (
-            "Run with example files generated unexpected outputs, "
-            "if you added new features update the test with:\n"
-            f"{cmd_str} > {expected_file}"
-        )
+        assert_stdout_matches(result, cmd, expected_file)
 
     def test_ordinary_dividend_and_its_withholding(self, tmp_path: Path) -> None:
         """An ordinary dividend is income, and the US tax on it is withheld.
@@ -355,13 +348,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             "--output",
             str(tmp_path / "out"),
         )
-        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-        if result.returncode:
-            pytest.fail(
-                "Integration test failed\n"
-                f"stdout:\n{result.stdout}\n"
-                f"stderr:\n{result.stderr}"
-            )
+        result = run_cli(cmd)
         assert stderr_alerts(result.stderr) == []
         assert "(USD)" not in result.stdout
         assert "Final balance\n  Interactive Brokers: 1100.00 (GBP)" in result.stdout
@@ -469,13 +456,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             str(tmp_path / "out"),
             keep_tex=True,
         )
-        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-        if result.returncode:
-            pytest.fail(
-                "Integration test failed\n"
-                f"stdout:\n{result.stdout}\n"
-                f"stderr:\n{result.stderr}"
-            )
+        result = run_cli(cmd)
         assert stderr_alerts(result.stderr) == []
         assert "Final balance\n  Interactive Brokers: 999.82 (GBP)" in result.stdout
         assert "GBP.USD" not in (tmp_path / "out.tex").read_text(encoding="utf-8")
@@ -511,13 +492,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             "--output",
             str(tmp_path / "out"),
         )
-        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-        if result.returncode:
-            pytest.fail(
-                "Integration test failed\n"
-                f"stdout:\n{result.stdout}\n"
-                f"stderr:\n{result.stderr}"
-            )
+        result = run_cli(cmd)
         assert stderr_alerts(result.stderr) == []
         assert "Final balance\n  Interactive Brokers: 0.00 (GBP)" in result.stdout
 
@@ -548,13 +523,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             "--output",
             str(tmp_path / "out"),
         )
-        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-        if result.returncode:
-            pytest.fail(
-                "Integration test failed\n"
-                f"stdout:\n{result.stdout}\n"
-                f"stderr:\n{result.stderr}"
-            )
+        result = run_cli(cmd)
         assert stderr_alerts(result.stderr) == []
 
     @pytest.mark.parametrize(
@@ -604,13 +573,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             cache_file.write_text(cache)
             cmd += ["--isin-translation-file", str(cache_file)]
 
-        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-        if result.returncode:
-            pytest.fail(
-                "Integration test failed\n"
-                f"stdout:\n{result.stdout}\n"
-                f"stderr:\n{result.stderr}"
-            )
+        result = run_cli(cmd)
         assert stderr_alerts(result.stderr) == []
         assert "RHMd" not in result.stdout
         assert "RHM: 15.00, £2,250.00" in result.stdout

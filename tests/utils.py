@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+import pytest
+
 if TYPE_CHECKING:
-    import pytest
+    from pathlib import Path
 
     from cgt_calc.model import BrokerTransaction
 
@@ -60,3 +63,41 @@ def stderr_alerts(stderr: str) -> list[str]:
         for line in stderr.splitlines()
         if line.startswith(("WARNING", "ERROR", "CRITICAL"))
     ]
+
+
+def run_cli(
+    cmd: list[str], *, stdin: str | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Run cgt-calc, failing the test with its output if it exits non-zero."""
+    result = subprocess.run(
+        cmd, input=stdin, capture_output=True, encoding="utf-8", check=False
+    )
+    if result.returncode:
+        pytest.fail(
+            "Integration test failed\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    return result
+
+
+def assert_stdout_matches(
+    result: subprocess.CompletedProcess[str],
+    cmd: list[str],
+    expected_file: Path,
+    *,
+    piped_from: Path | None = None,
+) -> None:
+    """Compare stdout with the expected output byte for byte.
+
+    On a mismatch, print the command that regenerates the file, reading
+    ``piped_from`` on stdin when the run did.
+    """
+    cmd_str = " ".join([param or "''" for param in cmd])
+    if piped_from is not None:
+        cmd_str = f"cat {piped_from} | {cmd_str}"
+    assert result.stdout == expected_file.read_text(encoding="utf-8"), (
+        "Run generated unexpected outputs, "
+        "if you added new features update the test with:\n"
+        f"{cmd_str} > {expected_file}"
+    )
