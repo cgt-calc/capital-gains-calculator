@@ -150,50 +150,28 @@ def test_output_and_no_report_mutually_exclusive() -> None:
     assert exc_info.value.code == 2
 
 
-def test_output_relative_path() -> None:
-    """Test that --output accepts relative paths."""
-    parser = create_parser()
-    args = parser.parse_args(["--output", "reports/out.pdf"])
+@pytest.mark.parametrize(
+    ("option", "value"),
+    [
+        ("--output", "reports/out.pdf"),
+        ("-o", "reports/out.pdf"),
+        ("--output", str(Path.cwd() / "report.pdf")),
+    ],
+    ids=["relative", "short option", "absolute"],
+)
+def test_output_accepts_a_path(option: str, value: str) -> None:
+    """--output and -o take a relative or absolute path."""
+    args = create_parser().parse_args([option, value])
 
-    assert args.output == Path("reports/out.pdf")
+    assert args.output == Path(value)
     assert args.no_report is False
 
 
-def test_output_short_relative_path() -> None:
-    """Test that -o accepts relative paths."""
-    parser = create_parser()
-    args = parser.parse_args(["-o", "reports/out.pdf"])
-
-    assert args.output == Path("reports/out.pdf")
-    assert args.no_report is False
-
-
-def test_output_absolute_path(tmp_path: Path) -> None:
-    """Test that --output accepts absolute paths."""
-    absolute_path = tmp_path / "report.pdf"
-    parser = create_parser()
-    args = parser.parse_args(["--output", str(absolute_path)])
-
-    assert args.output == absolute_path
-    assert args.no_report is False
-
-
-def test_output_rejects_empty_value() -> None:
-    """Test that --output rejects empty string values."""
-    parser = create_parser()
-
+@pytest.mark.parametrize("value", ["", "   "], ids=["empty", "whitespace"])
+def test_output_rejects_a_blank_value(value: str) -> None:
+    """--output refuses a value with nothing in it."""
     with pytest.raises(SystemExit) as exc_info:
-        parser.parse_args(["--output", ""])
-
-    assert exc_info.value.code == 2
-
-
-def test_output_rejects_whitespace_value() -> None:
-    """Test that --output rejects whitespace-only values."""
-    parser = create_parser()
-
-    with pytest.raises(SystemExit) as exc_info:
-        parser.parse_args(["--output", "   "])
+        create_parser().parse_args(["--output", value])
 
     assert exc_info.value.code == 2
 
@@ -404,23 +382,6 @@ def test_cache_path_arguments_reject_directory(tmp_path: Path, option: str) -> N
 
 
 @pytest.mark.parametrize(
-    "option",
-    ["--exchange-rates-file", "--isin-translation-file", "--spin-offs-file"],
-)
-def test_cache_path_arguments_reject_stdin(
-    option: str, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Ensure cache path arguments reject '-' instead of writing a file named '-'."""
-    parser = create_parser()
-
-    with pytest.raises(SystemExit) as exc_info:
-        parser.parse_args([option, "-"])
-
-    assert exc_info.value.code == 2
-    assert "got stdin marker" in capsys.readouterr().err
-
-
-@pytest.mark.parametrize(
     ("option", "attr"),
     [
         ("--exchange-rates-file", "exchange_rates_file"),
@@ -536,10 +497,15 @@ def test_cache_path_arguments_expand_user() -> None:
     assert "~" not in path.parts
 
 
-def test_optional_cache_file_type_rejects_unreadable_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "validator", [optional_cache_file_type, existing_file_or_stdin_type]
+)
+def test_file_types_reject_an_unreadable_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    validator: Callable[[str], Path | None],
 ) -> None:
-    """optional_cache_file_type raises when file cannot be read."""
+    """A file that exists but cannot be opened is refused at parse time."""
     target = tmp_path / "data.csv"
     target.write_text("value,1\n", encoding="utf8")
     original_open = cast(
@@ -562,36 +528,7 @@ def test_optional_cache_file_type_rejects_unreadable_file(
     monkeypatch.setattr(Path, "open", fake_open)
 
     with pytest.raises(argparse.ArgumentTypeError, match="unable to read file path"):
-        optional_cache_file_type(str(target))
-
-
-def test_existing_file_or_stdin_type_rejects_unreadable_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """existing_file_or_stdin_type raises when file cannot be read."""
-    target = tmp_path / "data.csv"
-    target.write_text("value,1\n", encoding="utf8")
-    original_open = cast(
-        "Callable[[Path, str, int, str | None, str | None, str | None], ReturnType]",
-        Path.open,
-    )
-
-    def fake_open(
-        self: Path,
-        mode: str = "r",
-        buffering: int = -1,
-        encoding: str | None = None,
-        errors: str | None = None,
-        newline: str | None = None,
-    ) -> ReturnType:
-        if self == target:
-            raise PermissionError("Permission denied")
-        return original_open(self, mode, buffering, encoding, errors, newline)
-
-    monkeypatch.setattr(Path, "open", fake_open)
-
-    with pytest.raises(argparse.ArgumentTypeError, match="unable to read file path"):
-        existing_file_or_stdin_type(str(target))
+        validator(str(target))
 
 
 def test_no_report_alone_works() -> None:
@@ -657,112 +594,29 @@ def test_year_validation_max_valid() -> None:
     assert args.year == current_year
 
 
-def test_interest_fund_tickers_single() -> None:
-    """Test that a single ticker is parsed correctly."""
-    parser = create_parser()
+@pytest.mark.parametrize("option", ["--interest-fund-tickers", "--cgt-exempt-tickers"])
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("VGOV", ["VGOV"]),
+        ("VGOV,VBMFX,VWEHX", ["VGOV", "VBMFX", "VWEHX"]),
+        (" VGOV , VBMFX , VWEHX ", ["VGOV", "VBMFX", "VWEHX"]),
+        ("vgov,vbmfx", ["VGOV", "VBMFX"]),
+        ("VGOV,,VBMFX,", ["VGOV", "VBMFX"]),
+    ],
+    ids=["single", "several", "spaces trimmed", "upper-cased", "empty items dropped"],
+)
+def test_ticker_list_options(option: str, value: str, expected: list[str]) -> None:
+    """Both ticker-list options split on commas, trim, upper-case, drop empties."""
+    args = create_parser().parse_args([option, value])
 
-    args = parser.parse_args(["--interest-fund-tickers", "VGOV"])
-
-    assert args.interest_fund_tickers == ["VGOV"]
-
-
-def test_interest_fund_tickers_multiple() -> None:
-    """Test that multiple tickers are parsed correctly."""
-    parser = create_parser()
-
-    args = parser.parse_args(["--interest-fund-tickers", "VGOV,VBMFX,VWEHX"])
-
-    assert args.interest_fund_tickers == ["VGOV", "VBMFX", "VWEHX"]
-
-
-def test_interest_fund_tickers_with_spaces() -> None:
-    """Test that tickers with spaces are trimmed correctly."""
-    parser = create_parser()
-
-    args = parser.parse_args(["--interest-fund-tickers", " VGOV , VBMFX , VWEHX "])
-
-    assert args.interest_fund_tickers == ["VGOV", "VBMFX", "VWEHX"]
+    assert getattr(args, option.removeprefix("--").replace("-", "_")) == expected
 
 
-def test_interest_fund_tickers_lowercase() -> None:
-    """Test that lowercase tickers are converted to uppercase."""
-    parser = create_parser()
-
-    args = parser.parse_args(["--interest-fund-tickers", "vgov,vbmfx"])
-
-    assert args.interest_fund_tickers == ["VGOV", "VBMFX"]
-
-
-def test_interest_fund_tickers_empty_default() -> None:
-    """Test that default is an empty list when not specified."""
-    parser = create_parser()
-
-    args = parser.parse_args([])
-
-    assert args.interest_fund_tickers == []
-
-
-def test_interest_fund_tickers_empty_items_filtered() -> None:
-    """Test that empty items (e.g., trailing commas) are filtered out."""
-    parser = create_parser()
-
-    args = parser.parse_args(["--interest-fund-tickers", "VGOV,,VBMFX,"])
-
-    assert args.interest_fund_tickers == ["VGOV", "VBMFX"]
-
-
-def test_cgt_exempt_tickers_single() -> None:
-    """Test that a single exempt ticker is parsed correctly."""
-    parser = create_parser()
-
-    args = parser.parse_args(["--cgt-exempt-tickers", "T26"])
-
-    assert args.cgt_exempt_tickers == ["T26"]
-
-
-def test_cgt_exempt_tickers_multiple() -> None:
-    """Test that multiple exempt tickers are parsed correctly."""
-    parser = create_parser()
-
-    args = parser.parse_args(["--cgt-exempt-tickers", "T26,TN28,TR32"])
-
-    assert args.cgt_exempt_tickers == ["T26", "TN28", "TR32"]
-
-
-def test_cgt_exempt_tickers_with_spaces() -> None:
-    """Test that exempt tickers with spaces are trimmed correctly."""
-    parser = create_parser()
-
-    args = parser.parse_args(["--cgt-exempt-tickers", " T26 , TN28 , TR32 "])
-
-    assert args.cgt_exempt_tickers == ["T26", "TN28", "TR32"]
-
-
-def test_cgt_exempt_tickers_lowercase() -> None:
-    """Test that lowercase exempt tickers are converted to uppercase."""
-    parser = create_parser()
-
-    args = parser.parse_args(["--cgt-exempt-tickers", "t26,tn28"])
-
-    assert args.cgt_exempt_tickers == ["T26", "TN28"]
-
-
-def test_cgt_exempt_tickers_empty_default() -> None:
-    """Test that default is an empty list when not specified."""
-    parser = create_parser()
-
-    args = parser.parse_args([])
-
-    assert args.cgt_exempt_tickers == []
-
-
-def test_cgt_exempt_tickers_empty_items_filtered() -> None:
-    """Test that empty items (e.g., trailing commas) are filtered out."""
-    parser = create_parser()
-
-    args = parser.parse_args(["--cgt-exempt-tickers", "T26,,TN28,"])
-
-    assert args.cgt_exempt_tickers == ["T26", "TN28"]
+@pytest.mark.parametrize("attr", ["interest_fund_tickers", "cgt_exempt_tickers"])
+def test_ticker_list_options_default_to_empty(attr: str) -> None:
+    """Without the option, the list is empty."""
+    assert getattr(create_parser().parse_args([]), attr) == []
 
 
 def test_existing_file_or_stdin_type_accepts_stdin() -> None:
@@ -773,6 +627,9 @@ def test_existing_file_or_stdin_type_accepts_stdin() -> None:
 @pytest.mark.parametrize(
     "option",
     [
+        "--exchange-rates-file",
+        "--isin-translation-file",
+        "--spin-offs-file",
         "--initial-prices-file",
         "--initial-prices",
     ],
@@ -780,7 +637,10 @@ def test_existing_file_or_stdin_type_accepts_stdin() -> None:
 def test_options_without_a_stdin_consumer_reject_stdin(
     option: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Ensure options that never read stdin reject '-' at parse time."""
+    """Options that never read stdin reject '-' at parse time.
+
+    A cache path would otherwise write a file named '-'.
+    """
     parser = create_parser()
 
     with pytest.raises(SystemExit) as exc_info:

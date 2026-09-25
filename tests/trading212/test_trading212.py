@@ -22,7 +22,13 @@ from cgt_calc.parsers.trading212 import (
     datetime_from_str,
 )
 from tests.general.test_calc import create_calculator
-from tests.utils import build_cmd, report_path, stderr_alerts
+from tests.utils import (
+    assert_stdout_matches,
+    build_cmd,
+    report_path,
+    run_cli,
+    stderr_alerts,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -1445,24 +1451,12 @@ def test_run_with_trading212_2026_files(request: pytest.FixtureRequest) -> None:
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], "Run with example files generated errors"
     expected_file = (
         Path("tests") / "trading212" / "data" / "2026" / "expected_output.txt"
     )
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 def test_run_with_trading212_2024_files(request: pytest.FixtureRequest) -> None:
@@ -1475,24 +1469,12 @@ def test_run_with_trading212_2024_files(request: pytest.FixtureRequest) -> None:
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], "Run with example files generated errors"
     expected_file = (
         Path("tests") / "trading212" / "data" / "2024" / "expected_output.txt"
     )
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 def test_the_legacy_single_row_stock_split_still_reaches_the_calculator(

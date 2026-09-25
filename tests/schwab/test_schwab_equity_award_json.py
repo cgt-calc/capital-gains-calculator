@@ -9,7 +9,6 @@ import io
 import json
 import logging
 from pathlib import Path
-import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
@@ -18,7 +17,14 @@ from cgt_calc.args_parser import create_parser
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers import schwab_equity_award_json
-from tests.utils import build_cmd, report_path, stderr_alerts, tax_fields
+from tests.utils import (
+    assert_stdout_matches,
+    build_cmd,
+    report_path,
+    run_cli,
+    stderr_alerts,
+    tax_fields,
+)
 
 if TYPE_CHECKING:
     from cgt_calc.parsers.schwab_equity_award_json import SchwabAwardTransaction
@@ -1570,13 +1576,7 @@ def test_run_with_schwab_equity_award_json(
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], (
         f"Run with example file {input_file_base}.{extension} generated errors"
     )
@@ -1587,13 +1587,7 @@ def test_run_with_schwab_equity_award_json(
         / "equity_award"
         / f"{input_file_base}-expected_output.txt"
     )
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 COMPLETE_CSV_HEADER = [

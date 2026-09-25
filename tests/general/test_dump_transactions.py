@@ -229,7 +229,8 @@ def test_every_field_is_exported() -> None:
             "currency": "USD",
         }
     ]
-    assert json.loads(row["source"]) == {
+    source = json.loads(row["source"])
+    assert source == {
         "parser": "RAW format",
         "account": "RAW format #1",
         # The exporter writes a path as its own platform spells it.
@@ -239,15 +240,7 @@ def test_every_field_is_exported() -> None:
         "timestamp": "2023-04-25T14:30:05",
         "rows_in_time_order": True,
     }
-
-
-def test_nested_integers_and_booleans_keep_their_json_types() -> None:
-    """Source row and index stay JSON numbers, and the order flag a boolean."""
-    (row,) = _read_rows(_dump_to_string([_rich()]))
-    source = json.loads(row["source"])
-
-    assert source["row"] == 7
-    assert source["index"] == 3
+    # Equality would also accept 1: the order flag has to stay a JSON boolean.
     assert source["rows_in_time_order"] is True
 
 

@@ -8,16 +8,17 @@ import logging
 import os
 from pathlib import Path
 import re
-import subprocess
-
-import pytest
+from typing import TYPE_CHECKING
 
 from cgt_calc.model import ActionType, RuleType
 from cgt_calc.render_latex import render_pdf
-from tests.utils import build_cmd, report_path, stderr_alerts
+from tests.utils import build_cmd, report_path, run_cli, stderr_alerts
 
 from .calc_test_data import GBP, transaction
 from .test_calc import create_calculator, get_report
+
+if TYPE_CHECKING:
+    import pytest
 
 TAX_YEAR = 2024
 BUY_DATE = datetime.date(2024, 5, 1)
@@ -373,11 +374,7 @@ def test_run_with_exempt_tickers(
         "--output",
         out_dir,
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            f"Integration test failed\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     assert "Exempt disposal proceeds: £12,000.00" in result.stdout
     if os.getenv("ENABLE_PDFLATEX"):

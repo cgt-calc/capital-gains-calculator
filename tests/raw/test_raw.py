@@ -17,7 +17,13 @@ from cgt_calc.exceptions import ParsingError
 from cgt_calc.logging import force_utf8_stdio
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.raw import COLUMNS, RawParser
-from tests.utils import build_cmd, report_path, stderr_alerts
+from tests.utils import (
+    assert_stdout_matches,
+    build_cmd,
+    report_path,
+    run_cli,
+    stderr_alerts,
+)
 
 
 def _write_csv(path: Path, rows: list[list[str]]) -> None:
@@ -39,22 +45,10 @@ def test_run_with_raw_files_no_balance_check(request: pytest.FixtureRequest) -> 
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output.txt"
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 def test_run_with_raw_files(request: pytest.FixtureRequest) -> None:
@@ -67,22 +61,10 @@ def test_run_with_raw_files(request: pytest.FixtureRequest) -> None:
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output_2.txt"
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 def test_run_with_raw_files_stdin(request: pytest.FixtureRequest) -> None:
@@ -99,25 +81,10 @@ def test_run_with_raw_files_stdin(request: pytest.FixtureRequest) -> None:
         "--output",
         report_path(request),
     )
-    result = subprocess.run(
-        cmd, input=csv_content, capture_output=True, encoding="utf-8", check=False
-    )
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd, stdin=csv_content)
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output_stdin.txt"
-    expected = expected_file.read_text(encoding="utf-8")
-
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with stdin generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"cat {csv_file} | {cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file, piped_from=csv_file)
 
 
 def test_stdin_decodes_utf8_under_a_legacy_locale(

@@ -30,7 +30,13 @@ from cgt_calc.parsers.trading212 import (
 )
 from cgt_calc.stock_splits import StockSplitTransaction, UnresolvedRatio
 from tests.general.test_calc import create_calculator
-from tests.utils import build_cmd, report_path, stderr_alerts
+from tests.utils import (
+    assert_stdout_matches,
+    build_cmd,
+    report_path,
+    run_cli,
+    stderr_alerts,
+)
 
 from .test_trading212 import HEADER_2026, HEADER_2026_UTC, _make_row, _write_csv
 
@@ -657,6 +663,11 @@ def test_halves_whose_totals_disagree_do_not_pair(tmp_path: Path) -> None:
     assert "export.csv, row 2" in message
     assert "export.csv, row 3" in message
     assert "replace these files with one complete export covering 2026-02-02" in message
+    # The refusal comes while the CSV is read, before any RAW row is seen, so
+    # a RAW STOCK_SPLIT row cannot settle it. An export that is already
+    # complete needs another remedy than a fuller export.
+    assert "a RAW STOCK_SPLIT row cannot override it" in message
+    assert "work the day out by hand" in message
 
 
 def test_halves_whose_positions_are_worth_different_amounts_do_not_pair(
@@ -901,24 +912,12 @@ def test_a_full_run_over_a_split_and_a_consolidation(
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], "Run with example files generated errors"
     expected_file = (
         Path("tests") / "trading212" / "data" / "splits" / "expected_output.txt"
     )
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 def test_a_full_run_renders_each_reorganisation(tmp_path: Path) -> None:
@@ -1496,24 +1495,6 @@ def test_an_unreadable_money_column_names_its_file_and_row(tmp_path: Path) -> No
     message = str(error.value)
     assert "Invalid decimal in Result: 'n/a'" in message
     assert "row 2" in message
-
-
-def test_an_unpairable_reorganisation_says_a_raw_row_cannot_override_it(
-    tmp_path: Path,
-) -> None:
-    """The refusal happens while the CSV is read, before the RAW row is seen.
-
-    A RAW `STOCK_SPLIT` row settles an unprovable reorganisation from every
-    other input, so a remedy that stops at "export the full range" leaves a
-    reader whose export is already complete with nothing left to try but
-    editing it, which the same sentence tells them not to do.
-    """
-    with pytest.raises(ParsingError) as error:
-        load_pair(tmp_path, [close_row(), open_row(total="95.00")])
-
-    message = str(error.value)
-    assert "a RAW STOCK_SPLIT row cannot override it" in message
-    assert "work the day out by hand" in message
 
 
 def test_a_transaction_from_elsewhere_is_named_rather_than_dereferenced() -> None:

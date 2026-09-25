@@ -59,30 +59,55 @@ def test_read_exchange_rates_skips_blank_rows(tmp_path: Path) -> None:
     assert cache[february] == {CurrencyCode("EUR"): Decimal("1.10")}
 
 
-def test_read_exchange_rates_raises_on_invalid_date(tmp_path: Path) -> None:
-    """Invalid month values raise a parsing error with context."""
-    rates_file = tmp_path / "invalid_date.csv"
-    rates_file.write_text(
-        "month,currency,rate\n2024/01/01,USD,1.25\n",
-        encoding="utf8",
-    )
+@pytest.mark.parametrize(
+    ("content", "match"),
+    [
+        pytest.param(
+            "month,currency,rate\n2024/01/01,USD,1.25\n",
+            "Invalid date '2024/01/01'",
+            id="invalid date",
+        ),
+        pytest.param(
+            "month,currency,rate\n2024-01-01,USD,one.two\n",
+            re.escape("Invalid rate 'one.two'"),
+            id="invalid rate",
+        ),
+        # Reported in the rates file, not later as a missing rate.
+        pytest.param(
+            "month,currency,rate\n2024-01-01,usd,1.25\n",
+            "Invalid currency code 'usd' at line 2",
+            id="malformed currency",
+        ),
+        pytest.param(
+            "# generated\n# do not edit\nmonth,currency,rate\n2024-01-01,usd,1.25\n",
+            "at line 4",
+            id="comment lines count towards the line number",
+        ),
+        pytest.param(
+            "month,currency,rate\n2024-01-01,USD,1.25\n2024-01-01,USD,1.30\n",
+            "Duplicate currency entry for USD on 2024-01-01",
+            id="duplicate",
+        ),
+        pytest.param(
+            "month,currency,rate,extra\n2024-01-01,USD,1.25,x\n",
+            "Unexpected columns",
+            id="unexpected columns",
+        ),
+        pytest.param(
+            "month,currency,rate\n2024-01-01,USD,\n",
+            "Missing data",
+            id="missing value",
+        ),
+    ],
+)
+def test_read_exchange_rates_refuses_a_malformed_file(
+    tmp_path: Path, content: str, match: str
+) -> None:
+    """A malformed rates file is refused with a message naming the problem."""
+    rates_file = tmp_path / "rates.csv"
+    rates_file.write_text(content, encoding="utf8")
 
-    with pytest.raises(ParsingError, match="Invalid date '2024/01/01'"):
-        CurrencyConverter(exchange_rates_file=rates_file)
-
-
-def test_read_exchange_rates_raises_on_invalid_rate(tmp_path: Path) -> None:
-    """Non-decimal rate values raise a parsing error."""
-    rates_file = tmp_path / "invalid_rate.csv"
-    rates_file.write_text(
-        "month,currency,rate\n2024-01-01,USD,one.two\n",
-        encoding="utf8",
-    )
-
-    with pytest.raises(
-        ParsingError,
-        match=re.escape("Invalid rate 'one.two'"),
-    ):
+    with pytest.raises(ParsingError, match=match):
         CurrencyConverter(exchange_rates_file=rates_file)
 
 
@@ -97,42 +122,6 @@ def test_read_exchange_rates_rejects_non_positive_or_non_finite_rate(
     )
 
     with pytest.raises(ParsingError, match="must be finite and positive"):
-        CurrencyConverter(exchange_rates_file=rates_file)
-
-
-def test_read_exchange_rates_raises_on_malformed_currency(tmp_path: Path) -> None:
-    """A malformed code in the rate file is reported there, not as a missing rate."""
-    rates_file = tmp_path / "rates.csv"
-    rates_file.write_text("month,currency,rate\n2024-01-01,usd,1.25\n", encoding="utf8")
-
-    with pytest.raises(ParsingError, match="Invalid currency code 'usd' at line 2"):
-        CurrencyConverter(exchange_rates_file=rates_file)
-
-
-def test_read_exchange_rates_reports_physical_line_numbers(tmp_path: Path) -> None:
-    """Comment lines count towards the reported line number."""
-    rates_file = tmp_path / "rates.csv"
-    rates_file.write_text(
-        "# generated\n# do not edit\nmonth,currency,rate\n2024-01-01,usd,1.25\n",
-        encoding="utf8",
-    )
-
-    with pytest.raises(ParsingError, match="at line 4"):
-        CurrencyConverter(exchange_rates_file=rates_file)
-
-
-def test_read_exchange_rates_raises_on_duplicate_currency(tmp_path: Path) -> None:
-    """Duplicate currency entries for the same month raise a parsing error."""
-    rates_file = tmp_path / "duplicate.csv"
-    rates_file.write_text(
-        "month,currency,rate\n2024-01-01,USD,1.25\n2024-01-01,USD,1.30\n",
-        encoding="utf8",
-    )
-
-    with pytest.raises(
-        ParsingError,
-        match="Duplicate currency entry for USD on 2024-01-01",
-    ):
         CurrencyConverter(exchange_rates_file=rates_file)
 
 
@@ -174,24 +163,24 @@ def test_hmrc_fetch_announces_itself(
     assert "Fetching HMRC exchange rates for 2021-05..." in caplog.text
 
 
-class CannedResponse:
-    """Minimal stand-in for a successful requests.Response."""
+class FakeResponse:
+    """Canned HMRC API response."""
 
-    ok = True
-
-    def __init__(self, text: str) -> None:
-        """Store the body to return."""
+    def __init__(self, *, ok: bool, status_code: int = 200, text: str = "") -> None:
+        """Store response fields."""
+        self.ok = ok
+        self.status_code = status_code
         self.text = text
 
 
-class CannedSession:
+class FakeSession:
     """Session stub that returns the same response for every request."""
 
-    def __init__(self, response: CannedResponse) -> None:
-        """Store the response to return."""
+    def __init__(self, response: FakeResponse) -> None:
+        """Store the canned response."""
         self._response = response
 
-    def get(self, url: str, timeout: int) -> CannedResponse:
+    def get(self, url: str, timeout: int) -> FakeResponse:
         """Return the canned response."""
         return self._response
 
@@ -206,7 +195,9 @@ def test_hmrc_response_missing_rate_element_raises_api_error(
         "</exchangeRateMonthList>"
     )
     converter = CurrencyConverter()
-    monkeypatch.setattr(converter, "session", CannedSession(CannedResponse(xml)))
+    monkeypatch.setattr(
+        converter, "session", FakeSession(FakeResponse(ok=True, text=xml))
+    )
 
     with pytest.raises(ExternalApiError, match="missing expected currency data"):
         converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
@@ -225,7 +216,9 @@ def test_hmrc_response_invalid_rate_value_raises_api_error(
         "</exchangeRateMonthList>"
     )
     converter = CurrencyConverter()
-    monkeypatch.setattr(converter, "session", CannedSession(CannedResponse(xml)))
+    monkeypatch.setattr(
+        converter, "session", FakeSession(FakeResponse(ok=True, text=xml))
+    )
 
     with pytest.raises(ExternalApiError, match="contains invalid rate"):
         converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
@@ -245,7 +238,9 @@ def test_hmrc_response_rejects_non_positive_or_non_finite_rate(
         "</exchangeRateMonthList>"
     )
     converter = CurrencyConverter()
-    monkeypatch.setattr(converter, "session", CannedSession(CannedResponse(xml)))
+    monkeypatch.setattr(
+        converter, "session", FakeSession(FakeResponse(ok=True, text=xml))
+    )
 
     with pytest.raises(ExternalApiError, match="non-positive or non-finite"):
         converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
@@ -264,7 +259,9 @@ def test_hmrc_response_malformed_currency_code_raises_api_error(
         "</exchangeRateMonthList>"
     )
     converter = CurrencyConverter()
-    monkeypatch.setattr(converter, "session", CannedSession(CannedResponse(xml)))
+    monkeypatch.setattr(
+        converter, "session", FakeSession(FakeResponse(ok=True, text=xml))
+    )
 
     with pytest.raises(ExternalApiError, match="invalid currency code"):
         converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
@@ -274,30 +271,6 @@ DATE = datetime.date(2024, 1, 1)
 GBP = CurrencyCode("GBP")
 USD = CurrencyCode("USD")
 PLN = CurrencyCode("PLN")
-
-
-class FakeResponse:
-    """Canned HMRC API response."""
-
-    def __init__(self, *, ok: bool, status_code: int = 200, text: str = "") -> None:
-        """Store response fields."""
-        self.ok = ok
-        self.status_code = status_code
-        self.text = text
-
-
-class FakeSession:
-    """Session stub returning a canned response and recording the URL."""
-
-    def __init__(self, response: FakeResponse) -> None:
-        """Store the canned response."""
-        self._response = response
-        self.urls: list[str] = []
-
-    def get(self, url: str, timeout: int) -> FakeResponse:
-        """Record the URL and return the canned response."""
-        self.urls.append(url)
-        return self._response
 
 
 def test_create_for_each_runtime_mode(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -312,26 +285,6 @@ def test_create_for_each_runtime_mode(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(cgt_calc.currency_converter, "CGT_MODE", RuntimeMode.TEST)
     assert type(CurrencyConverter.create()) is RecordingCurrencyConverter
-
-
-def test_read_exchange_rates_rejects_unexpected_columns(tmp_path: Path) -> None:
-    """Reject rates files with a different schema."""
-    rates_file = tmp_path / "rates.csv"
-    rates_file.write_text(
-        "month,currency,rate,extra\n2024-01-01,USD,1.25,x\n", encoding="utf8"
-    )
-
-    with pytest.raises(ParsingError, match="Unexpected columns"):
-        CurrencyConverter(exchange_rates_file=rates_file)
-
-
-def test_read_exchange_rates_rejects_missing_values(tmp_path: Path) -> None:
-    """Reject rows with missing values."""
-    rates_file = tmp_path / "rates.csv"
-    rates_file.write_text("month,currency,rate\n2024-01-01,USD,\n", encoding="utf8")
-
-    with pytest.raises(ParsingError, match="Missing data"):
-        CurrencyConverter(exchange_rates_file=rates_file)
 
 
 def test_write_exchange_rates_file(tmp_path: Path) -> None:
@@ -361,11 +314,7 @@ def test_query_hmrc_api_old_endpoint_error_includes_https_url_and_rates_file(
     rates_file.write_text("month,currency,rate\n", encoding="utf8")
     converter = CurrencyConverter(exchange_rates_file=rates_file)
 
-    class FailingSession:
-        def get(self, url: str, timeout: int) -> NoReturn:
-            raise requests_exceptions.ConnectionError(f"offline: {url}")
-
-    converter.session = FailingSession()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+    converter.session = OfflineSession()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
     with pytest.raises(ExternalApiError, match=r"rates\.csv") as excinfo:
         converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2019, 5, 1))
