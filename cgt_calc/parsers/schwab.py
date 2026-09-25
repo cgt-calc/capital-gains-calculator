@@ -791,8 +791,9 @@ def _award_prices_from_lines(
 ) -> AwardPrices:
     """Read initial stock prices from the rows of an award-price CSV.
 
-    ``_is_complete_award_export`` has already read the header and routed only
-    a file with every ``RequiredAwardColumn`` here.
+    ``_load_award_file`` calls this only for text ``_is_complete_award_export``
+    classified as the award-price CSV, so the first row holds every
+    ``RequiredAwardColumn``.
     """
     initial_prices: dict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
 

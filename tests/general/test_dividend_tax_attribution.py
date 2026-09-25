@@ -103,7 +103,7 @@ def _unattributed_warnings(
     caplog: pytest.LogCaptureFixture,
     tax_year: int = TAX_YEAR,
 ) -> list[str]:
-    """Run the dividend pass and return the unattributed tax warnings."""
+    """Run the calculation and return the unattributed tax warnings."""
     # A test that also reports the run has already made the calculator warn
     # once, and those records must not be counted again here.
     caplog.clear()
