@@ -78,6 +78,18 @@ IBKR descriptions for dividends and payments in lieu can put an ISIN in parenthe
 after the symbol. cgt-calc uses that identifier when deciding whether a supported double-taxation
 treaty applies.
 
+### Rows with no symbol
+
+IBKR writes `-` in the `Symbol` column on a row that names no security. cgt-calc reads that as no
+symbol, rather than as a holding called `-`, so two of the types above are handled differently
+depending on whether a security is named:
+
+- An `Other Fee` naming a security, such as an ADR fee, is added to that holding's pooled cost. One
+    naming no symbol is an account charge, such as a market-data subscription. It changes your cash
+    balance and is added to no holding.
+- A `Foreign Tax Withholding` naming a security is dividend tax. One naming no symbol is tax
+    withheld from your cash interest, so it is reported as interest tax.
+
 ### Tickers and exchange listings
 
 IBKR can report one security under different tickers. cgt-calc combines supported ticker pairs into
@@ -108,8 +120,6 @@ cgt-calc stops with an error.
 - The importer does not read an asset-class field. It has been validated for ordinary share and fund
     trades; do not rely on it to calculate options, futures, bonds, contracts for difference or
     crypto assets.
-- A `Foreign Tax Withholding` row naming a security is treated as dividend tax. One naming no symbol
-    is withholding on the account's cash interest, so it is reported as interest tax instead.
 - The `Account` column is not used to keep separate ledgers. Rows for multiple taxable IBKR accounts
     in one CSV are combined under one broker balance and portfolio.
 
