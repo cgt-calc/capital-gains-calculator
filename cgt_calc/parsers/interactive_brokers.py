@@ -163,9 +163,7 @@ class InteractiveBrokersTransaction(BrokerTransaction):
         )
 
         # Withholding with no security behind it is tax on the account's cash
-        # interest, not on a dividend. Read as dividend tax it was filed
-        # against the literal "-", a placeholder holding that pooled and
-        # priced as though it were real; INTEREST_TAX reports it against the
+        # interest, not on a dividend, so INTEREST_TAX reports it against the
         # interest it was taken from. The Schwab parser makes the same switch.
         if action is ActionType.DIVIDEND_TAX and symbol is None:
             action = ActionType.INTEREST_TAX

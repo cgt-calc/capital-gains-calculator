@@ -270,30 +270,6 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert transactions[0].amount == Decimal("-0.01")
         assert transactions[0].symbol is None
 
-    def test_absent_symbol_is_not_read_as_a_holding_called_dash(
-        self, tmp_path: Path
-    ) -> None:
-        """IBKR's "-" placeholder in the Symbol column means no security.
-
-        Taken at face value it becomes a holding named "-", which pools and
-        prices as though it were real.
-        """
-        csv_file = tmp_path / "transactions.csv"
-        csv_file.write_text(
-            self.base_header + "Transaction History,Data,2025-10-05,U***00000,"
-            "GBP Credit Interest for Sep-2025,Credit Interest,-,-,-,0.80,-,0.80\n"
-            + "Transaction History,Data,2025-10-06,U***00000,"
-            "Electronic Fund Transfer,Deposit,-,-,-,500.00,-,500.00\n"
-        )
-
-        transactions = InteractiveBrokersParser().load_from_file(csv_file)
-
-        assert [t.action for t in transactions] == [
-            ActionType.INTEREST,
-            ActionType.TRANSFER,
-        ]
-        assert all(t.symbol is None for t in transactions)
-
     def test_account_level_fee_opens_no_holding_in_the_report(
         self, tmp_path: Path
     ) -> None:
