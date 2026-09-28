@@ -53,16 +53,18 @@ check the date range and filters as described in [Troubleshooting](#troubleshoot
 
 The importer recognises these literal values from the CSV's `Transaction Type` column:
 
-| Transaction type              | How cgt-calc handles it                                      |
-| ----------------------------- | ------------------------------------------------------------ |
-| `Buy`, `Sell`                 | Share or fund acquisitions and disposals, with commission    |
-| `Dividend`, `Payment in Lieu` | Dividend income                                              |
-| `Foreign Tax Withholding`     | Tax deducted at source; treated as dividend tax              |
-| `Credit Interest`             | Interest income                                              |
-| `Deposit`, `Withdrawal`       | Cash movements used by the balance check                     |
-| `Other Fee`                   | A charge against a holding, added to its pooled cost         |
-| `Adjustment`                  | Cash-balance adjustments such as `FX Translations P&L`       |
-| `Forex Trade Component`       | The base-currency net of a currency conversion; balance only |
+| Transaction type              | How cgt-calc handles it                                           |
+| ----------------------------- | ----------------------------------------------------------------- |
+| `Buy`, `Sell`                 | Share or fund acquisitions and disposals, with commission         |
+| `Dividend`, `Payment in Lieu` | Dividend income                                                   |
+| `Foreign Tax Withholding`     | Tax deducted at source; treated as dividend tax                   |
+| `Credit Interest`             | Interest income                                                   |
+| `Debit Interest`              | Interest charged on a borrowed balance; balance only              |
+| `Deposit`, `Withdrawal`       | Cash movements used by the balance check                          |
+| `Other Fee`                   | A charge against a holding, added to its pooled cost              |
+| `Sales Tax`                   | VAT on an account-level service such as market data; balance only |
+| `Adjustment`                  | Cash-balance adjustments such as `FX Translations P&L`            |
+| `Forex Trade Component`       | The base-currency net of a currency conversion; balance only      |
 
 For a GBP-base account, IBKR reports gross amounts, commissions and net amounts in GBP, so every row
 is recorded in GBP whatever the security is priced in. `Price Currency` describes the unit price
