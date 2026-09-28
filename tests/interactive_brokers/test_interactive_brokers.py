@@ -270,6 +270,85 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert transactions[0].amount == Decimal("-0.01")
         assert transactions[0].symbol is None
 
+    def test_account_level_fee_opens_no_holding_in_the_report(
+        self, tmp_path: Path
+    ) -> None:
+        """A market-data subscription is not a cost of any security.
+
+        IBKR bills it as an "Other Fee" with "-" for the symbol, and FEE adds
+        to a named holding's pooled cost. The cost a fee opens is invisible in
+        the printed summary while the quantity is zero, so the rendered report
+        is what gives it away: on the fee path this file produces a
+        "Management fee for -" section for a holding that does not exist. An
+        ADR fee, which really is charged against a holding, keeps its meaning.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header + "Transaction History,Data,2025-09-01,U***00000,"
+            "Electronic Fund Transfer,Deposit,-,-,-,1000.0,-,1000.0\n"
+            + "Transaction History,Data,2025-09-02,U***00000,"
+            "ARM STOCK,Buy,ARM,10.0,50.0,-500.0,-,-500.0\n"
+            + "Transaction History,Data,2025-09-04,U***00000,"
+            "Global Snapshot for Aug 2025,Other Fee,-,-,-,-0.03,-,-0.03\n"
+            + "Transaction History,Data,2025-09-09,U***00000,"
+            "ARM(US0420682058) ADR Fee USD 0.02 per Share,Other Fee,ARM,-,-,-0.09,-,-0.09\n"
+        )
+
+        cmd = build_cmd(
+            "--year",
+            "2025",
+            "--interactive-brokers-file",
+            str(csv_file),
+            "--output",
+            str(tmp_path / "out"),
+            keep_tex=True,
+        )
+        result = run_cli(cmd)
+
+        assert stderr_alerts(result.stderr) == []
+        # Both fees leave the cash balance, but only the ADR fee is a cost of
+        # a holding, so the ARM pool carries 500.09 rather than 500.12.
+        assert "Final balance\n  Interactive Brokers: 499.88 (GBP)" in result.stdout
+        assert "ARM: 10.00, £500.09" in result.stdout
+        report = (tmp_path / "out.tex").read_text(encoding="utf-8")
+        assert "Management fee for ARM" in report
+        assert "Management fee for -" not in report
+
+    def test_withholding_without_a_security_is_reported_as_interest_tax(
+        self, tmp_path: Path
+    ) -> None:
+        """Tax withheld from cash interest is not dividend tax.
+
+        IBKR names no symbol on it, so there is no holding for a dividend tax
+        row to belong to. Read as one it reaches the report against a holding
+        called "-", and the interest it was taken from is reported with no tax
+        against it.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header + "Transaction History,Data,2025-09-01,U***00000,"
+            "Electronic Fund Transfer,Deposit,-,-,-,1000.0,-,1000.0\n"
+            + "Transaction History,Data,2025-09-30,U***00000,"
+            "GBP Credit Interest for Sep-2025,Credit Interest,-,-,-,13.0,-,13.0\n"
+            + "Transaction History,Data,2025-09-30,U***00000,"
+            "Withholding @ 30% on Credit Interest for Sep-2025,"
+            "Foreign Tax Withholding,-,-,-,-3.9,-,-3.9\n"
+        )
+
+        cmd = build_cmd(
+            "--year",
+            "2025",
+            "--interactive-brokers-file",
+            str(csv_file),
+            "--output",
+            str(tmp_path / "out"),
+        )
+        result = run_cli(cmd)
+
+        assert stderr_alerts(result.stderr) == []
+        assert "Interest taxes\n  Interactive Brokers: 3.90 (GBP)" in result.stdout
+        assert "Tax paid:             £3.90" in result.stdout
+
     def test_forex_trade_component_is_an_adjustment_not_a_fee(
         self, tmp_path: Path
     ) -> None:
