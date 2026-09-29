@@ -1,9 +1,10 @@
-"""Tests for initial stock prices."""
+"""Tests for share prices."""
 
 from __future__ import annotations
 
 import datetime
 from decimal import Decimal
+import re
 from typing import TYPE_CHECKING
 
 import pytest
@@ -11,11 +12,11 @@ import pytest
 from cgt_calc.args_parser import create_parser
 from cgt_calc.cli import calculate_cgt
 from cgt_calc.exceptions import (
-    InitialPriceCurrencyError,
-    InitialPriceMissingError,
+    BundledPriceCurrencyError,
     ParsingError,
+    SharePriceMissingError,
 )
-from cgt_calc.initial_prices import InitialPrices
+from cgt_calc.share_prices import SharePrices
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -23,72 +24,78 @@ if TYPE_CHECKING:
 
 def test_load_custom_file(tmp_path: Path) -> None:
     """Load prices from a custom file."""
-    prices_file = tmp_path / "initial_prices.csv"
+    prices_file = tmp_path / "share_prices.csv"
     prices_file.write_text('date,symbol,price\n"Mar 08, 2021",FOO,10.5\n')
 
-    prices = InitialPrices(initial_prices_file=prices_file)
+    prices = SharePrices(prices_file=prices_file)
 
     assert prices.get(datetime.date(2021, 3, 8), "FOO", "USD") == Decimal("10.5")
 
 
 def test_get_missing_price(tmp_path: Path) -> None:
     """Raise when no price is stored for the date and symbol."""
-    prices_file = tmp_path / "initial_prices.csv"
+    prices_file = tmp_path / "share_prices.csv"
     prices_file.write_text("date,symbol,price\n")
 
-    prices = InitialPrices(initial_prices_file=prices_file)
+    prices = SharePrices(prices_file=prices_file)
 
-    with pytest.raises(InitialPriceMissingError):
+    with pytest.raises(
+        SharePriceMissingError,
+        match=re.escape(
+            "No share price for FOO on 2021-03-08: add it to a file passed with "
+            "--prices-file"
+        ),
+    ):
         prices.get(datetime.date(2021, 3, 8), "FOO", "USD")
 
 
 def test_invalid_row(tmp_path: Path) -> None:
     """Raise with row context on invalid rows."""
-    prices_file = tmp_path / "initial_prices.csv"
+    prices_file = tmp_path / "share_prices.csv"
     prices_file.write_text('date,symbol,price\n"Mar 08, 2021",FOO\n')
 
     with pytest.raises(ParsingError) as excinfo:
-        InitialPrices(initial_prices_file=prices_file)
+        SharePrices(prices_file=prices_file)
 
     assert excinfo.value.row_index == 2
 
 
 def test_invalid_date(tmp_path: Path) -> None:
     """Report file and row context for unparsable dates."""
-    prices_file = tmp_path / "initial_prices.csv"
+    prices_file = tmp_path / "share_prices.csv"
     prices_file.write_text("date,symbol,price\n2021-03-08,FOO,10.5\n")
 
     with pytest.raises(ParsingError, match="Invalid date format") as excinfo:
-        InitialPrices(initial_prices_file=prices_file)
+        SharePrices(prices_file=prices_file)
 
     message = str(excinfo.value)
     assert excinfo.value.row_index == 2
     assert "2021-03-08" in message
-    assert "initial_prices.csv" in message
+    assert "share_prices.csv" in message
 
 
 def test_invalid_price(tmp_path: Path) -> None:
     """Report file and row context for unparsable prices."""
-    prices_file = tmp_path / "initial_prices.csv"
+    prices_file = tmp_path / "share_prices.csv"
     prices_file.write_text('date,symbol,price\n"Mar 08, 2021",FOO,ten\n')
 
     with pytest.raises(ParsingError, match="Invalid decimal price") as excinfo:
-        InitialPrices(initial_prices_file=prices_file)
+        SharePrices(prices_file=prices_file)
 
     message = str(excinfo.value)
     assert excinfo.value.row_index == 2
     assert "ten" in message
-    assert "initial_prices.csv" in message
+    assert "share_prices.csv" in message
 
 
 @pytest.mark.parametrize("price", ["-1", "NaN", "Infinity"])
 def test_invalid_numeric_price(tmp_path: Path, price: str) -> None:
     """Negative and non-finite prices are reported as invalid file data."""
-    prices_file = tmp_path / "initial_prices.csv"
+    prices_file = tmp_path / "share_prices.csv"
     prices_file.write_text(f'date,symbol,price\n"Mar 08, 2021",FOO,{price}\n')
 
     with pytest.raises(ParsingError, match="finite and non-negative") as excinfo:
-        InitialPrices(initial_prices_file=prices_file)
+        SharePrices(prices_file=prices_file)
 
     assert excinfo.value.row_index == 2
 
@@ -134,11 +141,16 @@ def test_a_vest_without_a_price_is_priced_in_its_own_currency(
     if given is not None:
         prices = tmp_path / "prices.csv"
         prices.write_text(f'date,symbol,price\n"Mar 25, 2021",GOOG,{given}\n')
-        args += ["--initial-prices-file", str(prices)]
+        args += ["--prices-file", str(prices)]
 
     if expected is None:
         with pytest.raises(
-            InitialPriceCurrencyError, match="is in USD, but the transaction is in GBP"
+            BundledPriceCurrencyError,
+            match=re.escape(
+                "is in USD, but the transaction is in GBP. Enter the vest's price in "
+                "the row, or give it in the transaction's currency in a file passed "
+                "with --prices-file."
+            ),
         ):
             calculate_cgt(create_parser().parse_args(args))
         return

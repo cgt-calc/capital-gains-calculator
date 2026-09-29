@@ -244,18 +244,19 @@ class ExchangeRateMissingError(CalculationError):
         super().__init__(self.message)
 
 
-class InitialPriceMissingError(CalculationError):
-    """Initial stock price is missing error."""
+class SharePriceMissingError(CalculationError):
+    """No share price is given for a vest without one."""
 
     def __init__(self, symbol: str, date: datetime.date):
         """Initialise."""
         self.message = (
-            f"No initial price for {symbol} on {date}, add it via --initial-prices-file"
+            f"No share price for {symbol} on {date}: add it to a file passed with "
+            "--prices-file"
         )
         super().__init__(self.message)
 
 
-class InitialPriceCurrencyError(CalculationError):
+class BundledPriceCurrencyError(CalculationError):
     """A bundled USD price was asked for a transaction in another currency."""
 
     def __init__(self, symbol: str, date: datetime.date, currency: str):
@@ -264,7 +265,7 @@ class InitialPriceCurrencyError(CalculationError):
             f"The bundled price for {symbol} on {date} is in USD, but the "
             f"transaction is in {currency}. Enter the vest's price in the row, or "
             "give it in the transaction's currency in a file passed with "
-            "--initial-prices-file."
+            "--prices-file."
         )
 
 
@@ -343,6 +344,6 @@ class MarketDataMissingError(CgtError):
             f"No market data found for {symbol} around {date}. Yahoo Finance "
             "may list it under a different ticker, or it may have been renamed "
             "or delisted. Give the closing prices of both holdings in the "
-            "spin-off on that day, in the same currency, in "
-            "--initial-prices-file, or work out the spin-off outside cgt-calc."
+            "spin-off on that day, in the same currency, in a file passed with "
+            "--prices-file, or work out the spin-off outside cgt-calc."
         )

@@ -24,10 +24,10 @@ from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import CalculationError
-from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.model import ActionType, BrokerTransaction, CapitalGainsReport
+from cgt_calc.share_prices import SharePrices
 from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.util import round_decimal
 
@@ -80,7 +80,7 @@ def run(
         IsinConverter(),
         CurrentPriceFetcher(converter, {}, prices if prices is not None else PRICES),
         handler,
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )

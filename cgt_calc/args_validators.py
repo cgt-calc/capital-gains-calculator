@@ -188,7 +188,8 @@ class DeprecatedAction(argparse.Action):
         assert isinstance(option_string, str), "Positional arguments are not supported"
         replacements: dict[str, str] = {
             "--freetrade": "--freetrade-file",
-            "--initial-prices": "--initial-prices-file",
+            "--initial-prices": "--prices-file",
+            "--initial-prices-file": "--prices-file",
             "--mssb": "--mssb-dir",
             "--raw": "--raw-file",
             "--report": "--output",

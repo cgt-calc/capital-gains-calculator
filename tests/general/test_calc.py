@@ -26,7 +26,6 @@ from cgt_calc.exceptions import (
     PriceMissingError,
     QuantityNotPositiveError,
 )
-from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator, main
 from cgt_calc.model import (
@@ -42,6 +41,7 @@ from cgt_calc.model import (
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.parsers.eri.model import ERITransaction
 from cgt_calc.rename_planning import RENAME_DAY_UNSUPPORTED_ACTIONS
+from cgt_calc.share_prices import SharePrices
 from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.stock_splits import (
     QUANTITY_DECREASING_ACTIONS,
@@ -131,7 +131,7 @@ def create_calculator(
         IsinConverter(),
         price_fetcher,
         SpinOffHandler(),
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         cgt_exempt_tickers=cgt_exempt_tickers,
         balance_check=balance_check,
@@ -191,7 +191,7 @@ def test_interest_tax_totals_are_positive() -> None:
         IsinConverter(),
         CurrentPriceFetcher(currency_converter, {}, {}),
         SpinOffHandler(),
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )
@@ -230,7 +230,7 @@ def test_interest_tax_reversals_cancel_across_months() -> None:
         IsinConverter(),
         CurrentPriceFetcher(currency_converter, {}, {}),
         SpinOffHandler(),
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )
@@ -496,14 +496,14 @@ def test_basic(
     )
     spin_off_handler = SpinOffHandler()
     spin_off_handler.cache = {"BAR": "FOO"}
-    initial_prices = InitialPrices()
+    share_prices = SharePrices()
     calculator = CapitalGainsCalculator(
         tax_year,
         currency_converter,
         isin_converter,
         price_fetcher,
         spin_off_handler,
-        initial_prices,
+        share_prices,
         interest_fund_tickers=["FOO"],
         calc_unrealized_gains=expected_unrealized is not None,
     )
@@ -598,7 +598,7 @@ def test_bed_and_breakfast_zero_available_quantity_skip() -> None:
         IsinConverter(),
         price_fetcher,
         SpinOffHandler(),
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
     )
 
@@ -2551,7 +2551,7 @@ def test_custom_period_narrows_reporting_window() -> None:
         IsinConverter(),
         CurrentPriceFetcher(currency_converter, {}, {}),
         SpinOffHandler(),
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
         period_start=datetime.date(2024, 4, 6),
@@ -2649,7 +2649,7 @@ def test_foreign_fees_folded_into_gbp_transaction() -> None:
         IsinConverter(),
         CurrentPriceFetcher(currency_converter, {}, {}),
         SpinOffHandler(),
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )
@@ -2686,7 +2686,7 @@ def test_foreign_fees_folded_into_non_gbp_transaction() -> None:
         IsinConverter(),
         CurrentPriceFetcher(currency_converter, {}, {}),
         SpinOffHandler(),
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )
@@ -2729,7 +2729,7 @@ def test_multiple_foreign_fee_currencies_on_sell() -> None:
         IsinConverter(),
         CurrentPriceFetcher(currency_converter, {}, {}),
         SpinOffHandler(),
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )

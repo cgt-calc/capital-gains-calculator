@@ -7,10 +7,10 @@ import pytest
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.ingestion import FirstPassTotals
-from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.model import CurrencyCode
+from cgt_calc.share_prices import SharePrices
 from cgt_calc.spin_off_handler import SpinOffHandler
 
 GBP = CurrencyCode("GBP")
@@ -25,7 +25,7 @@ def _calculator() -> CapitalGainsCalculator:
         IsinConverter(),
         CurrentPriceFetcher(currency_converter, {}, {}),
         SpinOffHandler(),
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )

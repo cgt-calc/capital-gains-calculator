@@ -11,10 +11,10 @@ import pytest
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import CalculationError
-from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
+from cgt_calc.share_prices import SharePrices
 from cgt_calc.spin_off_handler import SpinOffHandler
 
 from .calc_test_data import dividend_tax_transaction, dividend_transaction
@@ -57,7 +57,7 @@ def _calculator(
         IsinConverter(),
         CurrentPriceFetcher(currency_converter, {}, {}),
         SpinOffHandler(),
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
         autoconvert_currency=autoconvert_currency,
@@ -275,7 +275,7 @@ def test_tax_in_another_currency_than_its_dividend_is_refused(
         IsinConverter(),
         CurrentPriceFetcher(currency_converter, {}, {}),
         SpinOffHandler(),
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=tickers,
         balance_check=False,
     )

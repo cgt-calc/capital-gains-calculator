@@ -17,7 +17,6 @@ from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import CalculationError
-from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.model import (
@@ -28,6 +27,7 @@ from cgt_calc.model import (
     RuleType,
 )
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
+from cgt_calc.share_prices import SharePrices
 from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.util import round_decimal
 
@@ -75,7 +75,7 @@ def spin_off(
         IsinConverter(),
         CurrentPriceFetcher(converter, {}, PRICES),
         handler,
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )
@@ -484,7 +484,7 @@ def test_a_spin_off_before_the_period_is_applied_but_not_reported() -> None:
             },
         ),
         handler,
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )
@@ -575,7 +575,7 @@ def test_a_source_renamed_on_the_day_is_still_apportioned() -> None:
             {"NEW": {SPIN_OFF_DAY: Decimal(90)}, "BAR": {SPIN_OFF_DAY: Decimal(10)}},
         ),
         handler,
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )
@@ -626,7 +626,7 @@ def test_two_spin_offs_from_one_source_on_one_day_are_both_recorded() -> None:
             },
         ),
         handler,
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )
@@ -670,7 +670,7 @@ def _chain_calculator() -> CapitalGainsCalculator:
             },
         ),
         handler,
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )
@@ -729,7 +729,7 @@ def test_sibling_spin_offs_are_applied_in_event_order() -> None:
             },
         ),
         handler,
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )
@@ -788,7 +788,7 @@ def test_a_rename_of_another_symbol_on_the_day_is_ignored() -> None:
         IsinConverter(),
         CurrentPriceFetcher(converter, {}, PRICES),
         handler,
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )
@@ -852,7 +852,7 @@ def test_a_source_renamed_twice_on_the_day_is_refused(*, backwards: bool) -> Non
             {"NEW": {SPIN_OFF_DAY: Decimal(90)}, "BAR": {SPIN_OFF_DAY: Decimal(10)}},
         ),
         handler,
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )
@@ -904,7 +904,7 @@ def test_a_rename_graph_with_no_single_pool_is_refused(
             {"NEW": {SPIN_OFF_DAY: Decimal(90)}, "BAR": {SPIN_OFF_DAY: Decimal(10)}},
         ),
         handler,
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )
@@ -943,7 +943,7 @@ def _renaming_calculator(cache: dict[str, str]) -> CapitalGainsCalculator:
             },
         ),
         handler,
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )
@@ -1081,7 +1081,7 @@ def test_a_chain_out_of_order_is_refused_before_prices_are_needed() -> None:
         IsinConverter(),
         CurrentPriceFetcher(converter, {}, PRICES),
         handler,
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )

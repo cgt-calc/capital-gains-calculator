@@ -55,7 +55,7 @@ def test_print_completion_outputs_script(
     output = capsys.readouterr().out
     assert "--trading212-dir" in output
     assert "--schwab-dir" in output
-    assert "--initial-prices-file" in output
+    assert "--prices-file" in output
 
 
 def test_print_completion_zsh_completes_paths(
@@ -630,6 +630,7 @@ def test_existing_file_or_stdin_type_accepts_stdin() -> None:
         "--exchange-rates-file",
         "--isin-translation-file",
         "--spin-offs-file",
+        "--prices-file",
         "--initial-prices-file",
         "--initial-prices",
     ],
@@ -767,20 +768,22 @@ def test_main_rejects_stdin_given_to_several_options(
     assert "can only be given to one option" in capsys.readouterr().err
 
 
-def test_initial_prices_alias_warns_deprecated(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+@pytest.mark.parametrize("option", ["--initial-prices-file", "--initial-prices"])
+def test_old_prices_file_names_still_work_but_warn(
+    option: str, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The hidden --initial-prices alias still works but warns."""
+    """Both earlier names of --prices-file still set it, and name the new one."""
     file_path = tmp_path / "prices.csv"
     file_path.write_text("", encoding="utf-8")
     parser = create_parser()
 
     with caplog.at_level(logging.WARNING):
-        args = parser.parse_args(["--initial-prices", str(file_path)])
+        args = parser.parse_args([option, str(file_path)])
 
-    assert args.initial_prices_file == file_path
-    assert "Option '--initial-prices' is deprecated" in caplog.text
-    assert "--initial-prices-file" in caplog.text
+    assert args.prices_file == file_path
+    assert (
+        f"Option '{option}' is deprecated; use '--prices-file' instead." in caplog.text
+    )
 
 
 def test_resolve_period_from_to() -> None:

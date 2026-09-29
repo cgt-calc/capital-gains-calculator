@@ -23,12 +23,12 @@ from cgt_calc.exceptions import (
     QuantityNotPositiveError,
     UnclassifiedGiftError,
 )
-from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, RuleType
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.parsers.raw import RawParser
+from cgt_calc.share_prices import SharePrices
 from cgt_calc.spin_off_handler import SpinOffHandler
 
 from .calc_test_data import (
@@ -554,7 +554,7 @@ def test_transfer_to_spouse_after_a_spin_off_takes_the_apportioned_cost() -> Non
             },
         ),
         spin_off_handler,
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )

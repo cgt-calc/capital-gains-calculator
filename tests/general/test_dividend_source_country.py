@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING
 
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
-from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin, RuleType
+from cgt_calc.share_prices import SharePrices
 from cgt_calc.spin_off_handler import SpinOffHandler
 
 if TYPE_CHECKING:
@@ -66,7 +66,7 @@ def _treaty_country(transactions: list[BrokerTransaction]) -> str | None:
         IsinConverter(),
         CurrentPriceFetcher(currency_converter, {}, {}),
         SpinOffHandler(),
-        InitialPrices(),
+        SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
     )
