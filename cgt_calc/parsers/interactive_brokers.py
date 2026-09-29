@@ -274,27 +274,19 @@ class InteractiveBrokersParser(StandardCSVParser[InteractiveBrokersTransaction])
             "Couldn't find Transaction History header, is this the right file?",
         )
 
-    @staticmethod
-    def _by_date_and_action(
-        transaction: BrokerTransaction,
-    ) -> tuple[datetime.date, bool]:
-        """Sort by date and action type."""
-
-        # If there's a deposit in the same second as a buy
-        # (happens with the referral award at least)
-        # we want to put the buy last to avoid negative balance errors.
-        # Tax withheld at source goes last for the same reason: IBKR lists it
-        # before the dividend it was taken from.
-        return (
-            transaction.date,
-            transaction.action in {ActionType.BUY, ActionType.DIVIDEND_TAX},
-        )
-
     @classmethod
     @override
     def post_process_transactions(
         cls, transactions: list[InteractiveBrokersTransaction]
     ) -> list[InteractiveBrokersTransaction]:
-        """Sort transactions by date, buys and withheld tax last."""
-        transactions.sort(key=cls._by_date_and_action)
+        """Sort transactions by date, reading each day's sales last.
+
+        IBKR can list a day's rows newest first, so a security bought and then
+        sold that day may arrive sale first, and the sale would be refused as
+        not owned. With the sales last, a holding never runs short partway
+        through a day that it ends at zero or above. Neither the cash balance,
+        which is checked at the end of each day, nor the gain, which TCGA 1992
+        s105 works out from the day's totals, depends on the order within a day.
+        """
+        transactions.sort(key=lambda t: (t.date, t.action is ActionType.SELL))
         return transactions
