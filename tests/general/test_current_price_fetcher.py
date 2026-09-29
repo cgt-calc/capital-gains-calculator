@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 import pandas as pd
 import pytest
@@ -12,6 +13,9 @@ from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import MarketDataMissingError
 from cgt_calc.model import CurrencyCode
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class FakeTicker:
@@ -143,16 +147,44 @@ def test_raises_clear_error_when_no_market_data(
 
 
 class FakeHistoryTicker:
-    """Stand-in for yf.Ticker with a single day of price history."""
+    """Stand-in for yf.Ticker with daily price history from the day asked for.
 
-    def __init__(self, close: float, currency: str) -> None:
-        """Store the closing price and quote currency to return."""
+    Yahoo answers a request with no end with every day from the start, and
+    `Stock Splits` holds each day's split ratio, 0 where there was none.
+    """
+
+    def __init__(
+        self,
+        close: float,
+        currency: str,
+        *,
+        splits: Sequence[float] = (0.0,),
+        days_late: int = 0,
+    ) -> None:
+        """Store the first day's close, each day's split and the currency.
+
+        `splits` has one entry per day, the first for the day asked for.
+        `days_late` starts the history that many days after it, as a day the
+        market was shut does.
+        """
         self._close = close
+        self._splits = splits
+        self._days_late = days_late
         self.info = {"currency": currency}
+        self.requested: dict[str, object] = {}
 
-    def history(self, **kwargs: str) -> pd.DataFrame:
-        """Return a single-row price history."""
-        return pd.DataFrame({"Close": [self._close]})
+    def history(self, **kwargs: object) -> pd.DataFrame:
+        """Return the history and remember what was asked for."""
+        self.requested = kwargs
+        start = pd.Timestamp(str(kwargs["start"]), tz="America/New_York")
+        days = pd.date_range(
+            start + pd.Timedelta(days=self._days_late),
+            periods=len(self._splits),
+            freq="D",
+        )
+        return pd.DataFrame(
+            {"Close": self._close, "Stock Splits": list(self._splits)}, index=days
+        )
 
 
 def test_closing_price_converted_at_historical_rate(
@@ -181,3 +213,60 @@ def test_closing_price_converted_at_historical_rate(
     price = fetcher.get_closing_price("AAPL", historical_date)
 
     assert price == Decimal(100) / Decimal("1.25")
+
+
+@pytest.mark.parametrize(
+    ("splits", "expected"),
+    [
+        pytest.param(
+            (0.0, 0.0, 10.0, 0.0), Decimal("481.70"), id="a-later-split-is-undone"
+        ),
+        pytest.param(
+            (1.196,), Decimal("48.17"), id="the-day-s-own-entry-is-left-alone"
+        ),
+    ],
+)
+def test_closing_price_is_the_price_traded_that_day(
+    monkeypatch: pytest.MonkeyPatch, splits: tuple[float, ...], expected: Decimal
+) -> None:
+    """Yahoo divides past closes by later splits; they are multiplied back.
+
+    An entry on the day itself is left alone: that day's close is already
+    after it, and Yahoo records some spin-offs that way, such as 3M's 1.196
+    for Solventum on 2024-04-01.
+    """
+    monkeypatch.setattr(
+        "cgt_calc.current_price_fetcher.yf.Ticker",
+        lambda symbol: FakeHistoryTicker(48.17, "GBP", splits=splits),
+    )
+
+    price = _fetcher().get_closing_price("FOO", datetime.date(2024, 1, 2))
+
+    assert price == expected
+
+
+def test_closing_price_is_asked_for_without_dividend_adjustment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Yahoo's default, `auto_adjust=True`, lowers past closes for dividends."""
+    ticker = FakeHistoryTicker(48.17, "GBP")
+    monkeypatch.setattr(
+        "cgt_calc.current_price_fetcher.yf.Ticker", lambda symbol: ticker
+    )
+
+    _fetcher().get_closing_price("FOO", datetime.date(2024, 1, 2))
+
+    assert ticker.requested.get("auto_adjust", True) is False
+
+
+def test_a_history_starting_after_the_day_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A day the market was shut is not priced from the next day's close."""
+    monkeypatch.setattr(
+        "cgt_calc.current_price_fetcher.yf.Ticker",
+        lambda symbol: FakeHistoryTicker(48.17, "GBP", days_late=1),
+    )
+
+    with pytest.raises(MarketDataMissingError, match=r"FOO.*2024-01-01"):
+        _fetcher().get_closing_price("FOO", datetime.date(2024, 1, 1))
