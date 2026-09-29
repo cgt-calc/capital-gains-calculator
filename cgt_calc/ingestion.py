@@ -341,13 +341,13 @@ class TransactionIngester:
         """Drop a holding whose running count has just reached zero.
 
         Which accounts the units came from is deliberately not forgotten
-        here. The merged stream's order within a day is not chronology:
-        Trading 212 sorts equal-instant sells ahead of buys, so a running
-        count can touch zero on a day the holding never emptied, and
-        forgetting the other accounts then lets one account's later split
-        row restate a pool that still holds their units. The sources are
-        cleared when a day closes with nothing held, in
-        ``_open_transaction_day``.
+        here. The merged stream's order within a day is not chronology: a
+        parser that keeps its export's order within a day can read an
+        account's sale ahead of the same-day purchase it drew on, so a running
+        count can touch zero on a day the holding never emptied. Forgetting
+        the other accounts then lets one account's later split row restate a
+        pool that still holds their units. The sources are cleared when a day
+        closes with nothing held, in ``_open_transaction_day``.
         """
         if self.run.portfolio[symbol].quantity == 0:
             del self.run.portfolio[symbol]

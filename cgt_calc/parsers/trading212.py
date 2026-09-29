@@ -982,22 +982,13 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
             )
 
     @staticmethod
-    def _by_date_and_action(
-        transaction: BrokerTransaction,
-    ) -> tuple[datetime, bool]:
-        """Sort by the instant the export stated, and by action type."""
-
+    def _by_instant(transaction: BrokerTransaction) -> datetime:
+        """Sort by the instant the export stated."""
         if isinstance(transaction, StockSplitTransaction):
             # A reorganisation, which is two rows combined into one event.
             # It exists from the instant of its `open` half.
-            instant = max(transaction.event.instants)
-        else:
-            instant = _as_trading212(transaction).datetime
-
-        # If there's a deposit in the same second as a buy
-        # (happens with the referral award at least)
-        # we want to put the buy last to avoid negative balance errors
-        return (instant, transaction.action == ActionType.BUY)
+            return max(transaction.event.instants)
+        return _as_trading212(transaction).datetime
 
     @classmethod
     @override
@@ -1005,7 +996,7 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
         cls, transactions: list[BrokerTransaction]
     ) -> list[BrokerTransaction]:
         """Collapse rows two exports both report, and put them in order."""
-        return sorted(cls._deduplicate(transactions), key=cls._by_date_and_action)
+        return sorted(cls._deduplicate(transactions), key=cls._by_instant)
 
     @classmethod
     def _deduplicate(
@@ -1253,7 +1244,7 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
         events = cls._pair_split_halves(split_halves, legacy_splits)
         for event in events:
             cls._refuse_rows_between_halves(event, rest)
-        return sorted([*rest, *events], key=cls._by_date_and_action)
+        return sorted([*rest, *events], key=cls._by_instant)
 
     @staticmethod
     def _split_candidates(halves: list[SplitHalf]) -> list[list[SplitHalf]]:

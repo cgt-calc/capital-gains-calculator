@@ -1419,9 +1419,9 @@ def test_an_account_sold_out_of_is_no_longer_a_source() -> None:
 def test_a_running_count_touching_zero_within_a_day_forgets_nothing() -> None:
     """A same-day sell processed ahead of a buy is not the holding emptying.
 
-    Trading 212 sorts equal-instant sells ahead of buys, so account B's sale
-    of ten arrives before its purchase of fifteen and the running count
-    touches zero while account A's ten units are still in the pool all day.
+    Account B's sale of ten is read before its purchase of fifteen, so the
+    running count touches zero while account A's ten units are still in the
+    pool all day.
     Forgetting A there let B's later single-row split, its own five shares
     doubling, restate the whole fifteen by a 4/3 ratio that was never the
     corporate one.

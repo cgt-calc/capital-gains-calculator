@@ -343,22 +343,6 @@ def _make_transaction_from_investment(
     )
 
 
-def by_date_and_action(
-    transaction: VanguardTransaction,
-) -> tuple[datetime.date, bool, bool, bool]:
-    """Sort by date and action type."""
-    # Deprioritize BUY and reversal transaction to prevent balance errors
-    # Deprioritize debits (e.g. fee charged) so credits (e.g. fee cleared)
-    # are processed first, preventing temporary negative balances.
-    is_debit = transaction.amount is not None and transaction.amount < 0
-    return (
-        transaction.date,
-        transaction.action == ActionType.BUY,
-        is_debit,
-        transaction.is_reversal,
-    )
-
-
 def _detect_delimiter(text: str) -> str:
     """Detect whether the file uses comma or tab as delimiter."""
     for delimiter in (",", "\t"):
@@ -806,5 +790,8 @@ class VanguardParser(BaseSingleFileParser[VanguardTransaction]):
             matched_inv = _find_investment_match(txn, investment_lookup)
             txn.enrich_details(matched_inv)
 
-        transactions.sort(key=by_date_and_action)
+        # Vanguard lists the oldest row first, so a date sort keeps a day's rows
+        # in the order they happened. The cash balance is checked at the end of
+        # the day, and the gain comes from the day's totals.
+        transactions.sort(key=lambda t: t.date)
         return transactions
