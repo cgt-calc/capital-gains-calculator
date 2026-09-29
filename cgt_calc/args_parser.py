@@ -89,7 +89,7 @@ Environment variables:
             "--initial-prices-file",
             type=existing_file_type,
             metavar="PATH",
-            help="stock-plan acquisition prices in USD in CSV format",
+            help="stock-plan acquisition prices in CSV format",
         ),
         shtab.FILE,
     )

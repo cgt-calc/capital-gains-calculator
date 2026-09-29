@@ -61,8 +61,13 @@ received and negative for money paid. A £250 deposit and a £40 withdrawal look
 2024-03-14,TRANSFER,,1,-40.00,0.00,GBP
 ```
 
-Do not leave `quantity` or `price` blank: with no product, cgt-calc has no amount to apply and stops
-with `Amount missing`.
+Do not leave `quantity` or `price` blank. On a row that moves cash, such as a trade, dividend,
+deposit or withdrawal, cgt-calc then has no amount to apply and stops with `Amount missing`.
+
+If a `STOCK_ACTIVITY` row has no `price`, cgt-calc looks it up by ticker and date in the
+[initial prices](../extra-data-and-options.md#missing-stock-plan-prices) and reads it in the row's
+`currency`. If there is none, the run stops with `No initial price`: enter the market value per unit
+in `price`.
 
 ## Actions to use
 
