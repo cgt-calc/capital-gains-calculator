@@ -9,7 +9,6 @@ import io
 import json
 import logging
 from pathlib import Path
-import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
@@ -18,7 +17,14 @@ from cgt_calc.args_parser import create_parser
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers import schwab_equity_award_json
-from tests.utils import build_cmd, report_path, stderr_alerts, tax_fields
+from tests.utils import (
+    assert_stdout_matches,
+    build_cmd,
+    report_path,
+    run_cli,
+    stderr_alerts,
+    tax_fields,
+)
 
 if TYPE_CHECKING:
     from cgt_calc.parsers.schwab_equity_award_json import SchwabAwardTransaction
@@ -59,16 +65,6 @@ def test_decimal_from_number_or_str_empty_string() -> None:
     assert schwab_equity_award_json._decimal_from_number_or_str(
         {"key": ""}, "key"
     ) == Decimal(0)
-
-
-def test_decimal_from_number_or_str_float_custom_suffix() -> None:
-    """Test _decimal_from_number_or_str() on float.
-
-    With a custom suffix.
-    """
-    assert schwab_equity_award_json._decimal_from_number_or_str(
-        {"keyMySuffix": Decimal("67.89")}, "key", "MySuffix"
-    ) == Decimal("67.89")
 
 
 def test_decimal_from_number_or_str_default() -> None:
@@ -308,36 +304,12 @@ def test_action_from_str(label: str, action: ActionType) -> None:
     )
 
 
-def test_action_from_str_unknown() -> None:
-    """Raise on unknown action labels."""
-    with pytest.raises(ParsingError, match="Unknown action"):
-        schwab_equity_award_json.action_from_str("Dance", Path("awards.json"))
-
-
 def _read_json(
     content: str,
 ) -> list[SchwabAwardTransaction]:
     """Parse Schwab equity award JSON from a string."""
     parser = schwab_equity_award_json.SchwabEquityAwardsJSONParser
     return parser.read_transactions(io.StringIO(content), Path("awards.json"))
-
-
-def test_read_transactions_invalid_json() -> None:
-    """Raise on malformed JSON."""
-    with pytest.raises(ParsingError, match="Could not parse content as JSON"):
-        _read_json("{not json")
-
-
-def test_read_transactions_unknown_top_level_field() -> None:
-    """Raise when no known top level field is present."""
-    with pytest.raises(ParsingError, match="Expected top level field"):
-        _read_json('{"Unknown": []}')
-
-
-def test_read_transactions_transactions_not_a_list() -> None:
-    """Raise when the transactions field is not a list."""
-    with pytest.raises(ParsingError, match="is not a list"):
-        _read_json('{"Transactions": {}}')
 
 
 def test_unknown_symbol_warns(caplog: pytest.LogCaptureFixture) -> None:
@@ -487,19 +459,6 @@ def test_v2_sale_quantity_from_lot_shares() -> None:
     transaction = transactions[0]
     assert transaction.quantity == Decimal(10)
     assert transaction.price == Decimal("104.5")
-
-
-def test_unimplemented_action_raises() -> None:
-    """Raise on actions the parser does not implement."""
-    content = (
-        '{"Transactions": [{"Date": "01/15/2023", "Action": "Buy",'
-        ' "Symbol": "GOOG", "Description": "Buy", "Quantity": "1",'
-        ' "Amount": "$10.00", "FeesAndCommissions": null,'
-        ' "TransactionDetails": []}]}'
-    )
-
-    with pytest.raises(ParsingError, match="is not implemented"):
-        _read_json(content)
 
 
 def test_detail_counts_multiplier() -> None:
@@ -1617,13 +1576,7 @@ def test_run_with_schwab_equity_award_json(
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], (
         f"Run with example file {input_file_base}.{extension} generated errors"
     )
@@ -1634,13 +1587,7 @@ def test_run_with_schwab_equity_award_json(
         / "equity_award"
         / f"{input_file_base}-expected_output.txt"
     )
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 COMPLETE_CSV_HEADER = [

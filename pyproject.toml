@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build>=0.12.16,<0.13.0"]
+requires = ["uv_build>=0.12.19,<0.13.0"]
 build-backend = "uv_build"
 
 [project]
@@ -40,7 +40,7 @@ dependencies = [
   "colorama>=0.4.6",
   "defusedxml>=0.7.1,<1.0.0",
   "Jinja2>=2.11.3,<4.0.0",
-  "pandas>=3.0.5",
+  "pandas>=3.0.6",
   "pdfplumber>=0.11.9",
   "requests>=2.27.1",
   "pyrate-limiter>=4.5.0",
@@ -68,19 +68,19 @@ dev = [
   "harper-cli>=2.11.0",
   "mypy>=2.3.1",
   "packaging>=26.3",
-  "pandas-stubs>=2.2",
+  "pandas-stubs>=3.0.5.260914",
   "pytest>=8.4.2,<10.0.0",
   "pytest-clarity>=1.0.1",
   "pytest-cov>=7.0.0",
   "pytest-env>=1.7.1",
   "pytest-xdist>=3.8.0",
   "reportlab>=5.0.1",
-  "ruff>=0.16.8",
+  "ruff>=0.16.9",
   "ty>=0.0.80,<0.1.0",
   "types-colorama>=0.4.15.20260508",
   "types-defusedxml>=0.7.0.20260504",
   "types-python-dateutil>=2.9.0.20250822",
-  "types-reportlab>=4.5.1.20260827",
+  "types-reportlab>=5.0.0.20260911",
   "types-requests>=2.33.0.20260906",
 ]
 docs = [
@@ -271,4 +271,5 @@ relative_files = true
 [tool.coverage.report]
 exclude_also = [
   "if TYPE_CHECKING:",
+  "raise AssertionError",
 ]

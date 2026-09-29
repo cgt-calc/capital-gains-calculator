@@ -127,13 +127,6 @@ def test_currency_code_strips_whitespace() -> None:
     assert CurrencyCode("  USD ") == "USD"
 
 
-@pytest.mark.parametrize("value", ["usd", "Usd", "GBp"])
-def test_currency_code_does_not_fold_case(value: str) -> None:
-    """Case is meaningful ("GBp" is pence), so it is never guessed at."""
-    with pytest.raises(ValueError, match="Invalid currency code"):
-        CurrencyCode(value)
-
-
 @pytest.mark.parametrize(
     "value",
     [
@@ -143,11 +136,16 @@ def test_currency_code_does_not_fold_case(value: str) -> None:
         "US1",  # not alphabetic
         "£",  # a symbol, not a code
         "US Dollar",  # a name, not a code
+        "usd",  # lower case is not folded
+        "Usd",
         "GBp",  # pence, not a currency code
     ],
 )
 def test_currency_code_rejects_malformed_codes(value: str) -> None:
-    """Anything that is not three letters is refused."""
+    """Anything but three capital letters is refused.
+
+    Case is meaningful ("GBp" is pence), so it is never guessed at.
+    """
     with pytest.raises(ValueError, match="Invalid currency code"):
         CurrencyCode(value)
 

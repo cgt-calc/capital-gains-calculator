@@ -44,7 +44,8 @@ usually provide it, and cgt-calc includes some historical values in
 [`initial_prices.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv).
 
 If cgt-calc stops with a **No initial price** error, create a CSV in the same format with the
-missing USD price and pass it with `--initial-prices-file`.
+missing price, in the currency of the transaction it is for, and pass it with
+`--initial-prices-file`. Your file replaces the bundled prices rather than adding to them.
 
 ### Spin-off source mappings
 

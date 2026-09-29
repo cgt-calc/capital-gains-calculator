@@ -5,15 +5,23 @@ from __future__ import annotations
 from decimal import Decimal
 from pathlib import Path
 import re
-import subprocess
 
 import pytest
 
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType
-from cgt_calc.parsers.vanguard import COLUMNS, VanguardParser, VanguardTransaction
-from tests.utils import build_cmd, report_path, stderr_alerts
+from cgt_calc.parsers.vanguard import VanguardParser, VanguardTransaction
+from tests.utils import (
+    assert_stdout_matches,
+    build_cmd,
+    report_path,
+    run_cli,
+    stderr_alerts,
+)
+
+# The header of a cash-only export, as Vanguard writes it.
+COLUMNS = ["Date", "Details", "Amount", "Balance"]
 
 
 def _write_csv(path: Path, rows: list[list[str]]) -> None:
@@ -32,24 +40,12 @@ def test_run_with_vanguard_files(request: pytest.FixtureRequest) -> None:
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     alerts = stderr_alerts(result.stderr)
     assert len(alerts) == 1, f"Unexpected alerts: {alerts}"
     assert "no ISIN mapping was found" in alerts[0]
     expected_file = Path("tests") / "vanguard" / "data" / "expected_output.txt"
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 def test_read_vanguard_transactions_buy(tmp_path: Path) -> None:
@@ -127,8 +123,7 @@ def test_read_vanguard_fractional_share(tmp_path: Path) -> None:
     transaction = transactions[0]
     assert transaction.action is ActionType.BUY
     assert transaction.symbol == "FOO"
-    assert transaction.quantity is not None
-    assert transaction.quantity - Decimal("0.2") < Decimal("0.000001")
+    assert transaction.quantity == Decimal("0.2")
     assert transaction.price == Decimal(500)
     assert transaction.amount == Decimal(-100)
     assert transaction.currency == "GBP"

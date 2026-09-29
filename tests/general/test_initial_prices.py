@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from cgt_calc.exceptions import InitialPriceMissingError, ParsingError
-from cgt_calc.initial_prices import InitialPrices, InitialPricesEntry
+from cgt_calc.initial_prices import InitialPrices
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_load_custom_file(tmp_path: Path) -> None:
@@ -82,14 +85,3 @@ def test_invalid_numeric_price(tmp_path: Path, price: str) -> None:
         InitialPrices(initial_prices_file=prices_file)
 
     assert excinfo.value.row_index == 2
-
-
-def test_entry_parses_row() -> None:
-    """Parse the date, symbol and decimal price from a CSV row."""
-    entry = InitialPricesEntry(
-        ["Mar 08, 2021", "FOO", "10.5"], Path("initial_prices.csv")
-    )
-
-    assert entry.date == datetime.date(2021, 3, 8)
-    assert entry.symbol == "FOO"
-    assert entry.price == Decimal("10.5")

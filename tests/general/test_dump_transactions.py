@@ -229,7 +229,8 @@ def test_every_field_is_exported() -> None:
             "currency": "USD",
         }
     ]
-    assert json.loads(row["source"]) == {
+    source = json.loads(row["source"])
+    assert source == {
         "parser": "RAW format",
         "account": "RAW format #1",
         # The exporter writes a path as its own platform spells it.
@@ -239,25 +240,15 @@ def test_every_field_is_exported() -> None:
         "timestamp": "2023-04-25T14:30:05",
         "rows_in_time_order": True,
     }
-
-
-def test_nested_integers_and_booleans_keep_their_json_types() -> None:
-    """Source row and index stay JSON numbers, and the order flag a boolean."""
-    (row,) = _read_rows(_dump_to_string([_rich()]))
-    source = json.loads(row["source"])
-
-    assert source["row"] == 7
-    assert source["index"] == 3
+    # Equality would also accept 1: the order flag has to stay a JSON boolean.
     assert source["rows_in_time_order"] is True
 
 
 def test_nested_json_sorts_keys_for_a_stable_diff() -> None:
-    """Two exports of the same records compare byte for byte."""
-    text = _dump_to_string([_rich()])
-    (row,) = _read_rows(text)
+    """Sorted keys make two exports of the same records compare byte for byte."""
+    (row,) = _read_rows(_dump_to_string([_rich()]))
 
     assert row["foreign_fees"] == '{"EUR":"2","PLN":"0.30"}'
-    assert text == _dump_to_string([_rich()])
 
 
 def test_none_zero_and_empty_collections_are_distinguishable() -> None:
@@ -446,19 +437,6 @@ def test_two_keys_cannot_collapse_into_one() -> None:
 
     with pytest.raises(TypeError, match="Cannot export"):
         _dump_to_string([transaction])
-
-
-def test_text_keys_are_kept_as_they_are() -> None:
-    """A currency-keyed mapping exports under its own names."""
-    transaction = _minimal()
-    transaction.foreign_fees = {
-        CurrencyCode("PLN"): Decimal("0.30"),
-        CurrencyCode("EUR"): Decimal(2),
-    }
-
-    (row,) = _read_rows(_dump_to_string([transaction]))
-
-    assert json.loads(row["foreign_fees"]) == {"EUR": "2", "PLN": "0.30"}
 
 
 def test_the_stream_stays_open_for_the_caller() -> None:

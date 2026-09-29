@@ -1,5 +1,6 @@
 ActionType
 ActionTypes
+ADR
 AG
 amd64
 Amundi
@@ -188,10 +189,12 @@ rata
 regularMarketPrice
 reportable
 repr
+RequiredAwardColumn
 rescanning
 restkey
 restval
 Revolut
+Revolut's
 Rheinmetall
 RKT
 roundings

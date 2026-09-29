@@ -10,11 +10,7 @@ import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import UK_TIMEZONE
-from cgt_calc.exceptions import (
-    ParsingError,
-    UnsupportedBrokerActionError,
-    UnsupportedBrokerCurrencyError,
-)
+from cgt_calc.exceptions import ParsingError, UnsupportedBrokerCurrencyError
 from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
@@ -176,9 +172,9 @@ class FreetradeTransaction(BrokerTransaction):
             quantity, price = None, None
             currency = CurrencyCode("GBP")
         else:
-            raise UnsupportedBrokerActionError(
-                file, BROKER_NAME, row[FreetradeColumn.TYPE]
-            )
+            # _action_from_str refuses every other type, so only an action it
+            # learns to return without a branch here can reach this.
+            raise AssertionError(f"no branch for {action}")
 
         if row[FreetradeColumn.TYPE] == "FREESHARE_ORDER":
             price = Decimal(0)

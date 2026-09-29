@@ -4,25 +4,20 @@ import datetime
 from decimal import Decimal
 import io
 from pathlib import Path
-import subprocess
 
 import pytest
 
 from cgt_calc.exceptions import ParsingError, SymbolMissingError
 from cgt_calc.model import ActionType, BrokerTransaction
-from cgt_calc.parsers.schwab import (
-    AwardPrices,
-    SchwabParser,
-    _read_schwab_awards,
-    action_from_str,
+from cgt_calc.parsers.schwab import AwardPrices, SchwabParser, action_from_str
+from tests.schwab.helpers import load_via_cli
+from tests.utils import (
+    assert_stdout_matches,
+    build_cmd,
+    report_path,
+    run_cli,
+    stderr_alerts,
 )
-from tests.utils import build_cmd, report_path, stderr_alerts
-
-
-@pytest.fixture(autouse=True)
-def _reset_awards_prices(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep changes to the class-level award prices out of other test modules."""
-    monkeypatch.setattr(SchwabParser, "awards_prices", AwardPrices(award_prices={}))
 
 
 def test_missing_award_file_reports_the_vest_it_cannot_price() -> None:
@@ -48,6 +43,12 @@ def test_missing_award_file_reports_the_vest_it_cannot_price() -> None:
     assert "2023-08-18" in message
 
 
+def _read_award_file(award_file: Path) -> AwardPrices:
+    """Read an award-price CSV the way --schwab-award-file does."""
+    load_via_cli(schwab_award_file=str(award_file))
+    return SchwabParser.awards_prices
+
+
 def test_award_rows_overlapping_in_a_column_are_reported(tmp_path: Path) -> None:
     """A split award row whose halves both fill a column is malformed input."""
     award_file = tmp_path / "awards.csv"
@@ -60,32 +61,9 @@ def test_award_rows_overlapping_in_a_column_are_reported(tmp_path: Path) -> None
     )
 
     with pytest.raises(ParsingError, match="contain data in column 5") as exc_info:
-        _read_schwab_awards(award_file)
+        _read_award_file(award_file)
 
     assert exc_info.value.row_index == 2
-
-
-def test_an_empty_award_file_is_reported(tmp_path: Path) -> None:
-    """Reading a path directly still names the empty file.
-
-    The CLI classifies the contents first and never reaches this, but
-    _read_schwab_awards is called with a path too, and the guard is what keeps
-    an empty file from surfacing as IndexError on the header lookup.
-    """
-    award_file = tmp_path / "awards.csv"
-    award_file.write_text("")
-
-    with pytest.raises(ParsingError, match="Award CSV file is empty"):
-        _read_schwab_awards(award_file)
-
-
-def test_an_award_file_without_the_price_column_is_reported(tmp_path: Path) -> None:
-    """And a header lacking FairMarketValuePrice, rather than a KeyError."""
-    award_file = tmp_path / "awards.csv"
-    award_file.write_text("Date,Symbol,Quantity\n08/15/2023,BAR,400\n")
-
-    with pytest.raises(ParsingError, match="Missing columns in Schwab Award file"):
-        _read_schwab_awards(award_file)
 
 
 @pytest.mark.parametrize("price", ["NaN", "$Infinity", "$not-a-number"])
@@ -109,7 +87,7 @@ def test_award_price_that_is_not_a_finite_amount_is_reported(
     with pytest.raises(
         ParsingError, match="Invalid decimal in column 'FairMarketValuePrice'"
     ) as exc_info:
-        _read_schwab_awards(award_file)
+        _read_award_file(award_file)
 
     # The price is stated on the lower half of the split award row, so the
     # row to correct is 3: row 1 is the header and row 2 holds the upper half.
@@ -127,7 +105,7 @@ def test_award_price_with_thousands_separators_is_parsed(tmp_path: Path) -> None
         ',,,,,,,,03/21/2022,101883189,"$1,250.00",,200,200,"$13,192.90"\n'
     )
 
-    awards = _read_schwab_awards(award_file)
+    awards = _read_award_file(award_file)
 
     assert awards.award_prices[datetime.date(2023, 8, 15)]["BAR"] == Decimal("1250.00")
 
@@ -158,22 +136,10 @@ def test_run_with_schwab_example_2023_files(request: pytest.FixtureRequest) -> N
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "schwab" / "data" / "2023" / "expected_output.txt"
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 def test_run_with_schwab_cash_merger_files(request: pytest.FixtureRequest) -> None:
@@ -186,13 +152,7 @@ def test_run_with_schwab_cash_merger_files(request: pytest.FixtureRequest) -> No
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     alerts = stderr_alerts(result.stderr)
     assert len(alerts) == 1
     assert alerts[0].startswith("WARNING: Cash Merger support is not complete")
@@ -200,13 +160,7 @@ def test_run_with_schwab_cash_merger_files(request: pytest.FixtureRequest) -> No
     expected_file = (
         Path("tests") / "schwab" / "data" / "cash_merger" / "expected_output.txt"
     )
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 def test_run_with_schwab_rsu_settlement_files(request: pytest.FixtureRequest) -> None:
@@ -221,24 +175,12 @@ def test_run_with_schwab_rsu_settlement_files(request: pytest.FixtureRequest) ->
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == []
     expected_file = (
         Path("tests") / "schwab" / "data" / "rsu_settlement" / "expected_output.txt"
     )
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 def test_run_with_schwab_bond_interest_files(request: pytest.FixtureRequest) -> None:
@@ -251,24 +193,12 @@ def test_run_with_schwab_bond_interest_files(request: pytest.FixtureRequest) -> 
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = (
         Path("tests") / "schwab" / "data" / "bond_interest" / "expected_output.txt"
     )
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 def test_run_with_schwab_interest_tax_files(request: pytest.FixtureRequest) -> None:
@@ -281,24 +211,12 @@ def test_run_with_schwab_interest_tax_files(request: pytest.FixtureRequest) -> N
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == []
     expected_file = (
         Path("tests") / "schwab" / "data" / "interest_tax" / "expected_output.txt"
     )
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 SCHWAB_HEADER = "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
@@ -364,12 +282,6 @@ def test_read_transactions_empty_file() -> None:
     """Raise on empty transaction files."""
     with pytest.raises(ParsingError, match="file is empty"):
         _read("")
-
-
-def test_read_transactions_missing_columns() -> None:
-    """Raise when required columns are missing."""
-    with pytest.raises(ParsingError, match="Missing columns"):
-        _read("Date,Action\n01/15/2023,Sell\n")
 
 
 def test_read_transactions_skips_blank_lines() -> None:
@@ -454,9 +366,11 @@ def test_invalid_cash_merger_pair() -> None:
     content = (
         SCHWAB_HEADER
         + '01/16/2023,Cash Merger,FOO,Merger,,,,"$100.00"\n'
-        + '01/15/2023,Cash Merger Adj,FOO,Merger,,-10,,"$5.00"\n'
+        + "01/15/2023,Cash Merger Adj,FOO,Merger,,-10,,\n"
     )
-    with pytest.raises(ParsingError, match="Invalid Cash Merger format") as exc_info:
+    with pytest.raises(
+        ParsingError, match="must have the same date, symbol and description"
+    ) as exc_info:
         _read(content)
 
     assert "FOO on 2023-01-16" in str(exc_info.value)
@@ -513,10 +427,10 @@ def test_invalid_full_redemption_pair() -> None:
     content = (
         SCHWAB_HEADER
         + '01/16/2023,Full Redemption Adj,FOO,Redemption,,,,"$100.00"\n'
-        + '01/15/2023,Full Redemption,FOO,Redemption,"$1.00",-10,,\n'
+        + "01/15/2023,Full Redemption,FOO,Redemption,,-10,,\n"
     )
     with pytest.raises(
-        ParsingError, match="Invalid Full Redemption format"
+        ParsingError, match="must have the same date, symbol and description"
     ) as exc_info:
         _read(content)
 

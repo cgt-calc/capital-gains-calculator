@@ -44,7 +44,6 @@ from .rename_planning import (
     reconcile_rename_day,
     rename_day_units,
     rename_pair,
-    two_renames_message,
 )
 from .stock_split_planning import plan_stock_splits, source_account
 from .stock_splits import quantity_sign
@@ -1251,12 +1250,6 @@ class TransactionIngester:
         by ``plan_renames``.
         """
         old_symbol, new_symbol = rename_pair(transaction)
-        existing = self.history.rename_list[transaction.date].get(old_symbol)
-        if existing is not None and existing != new_symbol:
-            raise CalculationError(
-                two_renames_message(old_symbol, transaction.date, existing, new_symbol)
-            )
-        self.history.rename_list[transaction.date][old_symbol] = new_symbol
         position = self.run.portfolio.pop(old_symbol, Position())
         self.run.portfolio[new_symbol] += position
         # The units keep the accounts that put them there; only the name
@@ -1360,8 +1353,18 @@ class TransactionIngester:
                 or self.run.portfolio[held].quantity == 0
             ]:
                 del self.history.holding_sources[symbol]
-            plan_stock_splits(self.state, transaction.date, days[transaction.date])
+            # Renames first: reorganisation planning reads the day's rename
+            # graph to find its holding's other names, and reads it after it
+            # has been checked, so a chain is refused rather than walked.
+            #
+            # Nothing here needs the other order. Rename planning works out a
+            # component's capacity from counts a reorganisation restates, but
+            # never for a component carrying one: STOCK_SPLIT is in
+            # RENAME_DAY_UNSUPPORTED_ACTIONS, which excludes that component
+            # from capacity planning altogether. Taking STOCK_SPLIT out of
+            # that set would make this order wrong.
             plan_renames(self.state, transaction.date, days[transaction.date])
+            plan_stock_splits(self.state, transaction.date, days[transaction.date])
         if quantity_sign(transaction.action) > 0 and transaction.symbol:
             self.history.holding_sources[transaction.symbol].add(
                 source_account(transaction)

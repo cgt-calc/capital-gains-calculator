@@ -25,7 +25,6 @@ from cgt_calc.parsers.eri.importer.invesco import (
     ISIN_COLUMN,
     InvescoImporter,
 )
-from cgt_calc.parsers.eri.importer.model import ERIImporter
 from tests.eri_importers.helpers import check_transaction
 
 if TYPE_CHECKING:
@@ -401,9 +400,3 @@ def test_unmatched_file_name_is_not_accepted(tmp_path: Path) -> None:
     file = _build_pdf(tmp_path / "vanguard.pdf", ["Anything"], with_table=False)
 
     assert InvescoImporter().parse(file) is None
-
-
-def test_base_importer_is_abstract(tmp_path: Path) -> None:
-    """The base importer does not implement parse."""
-    with pytest.raises(NotImplementedError):
-        ERIImporter(name="base").parse(tmp_path / "any.pdf")

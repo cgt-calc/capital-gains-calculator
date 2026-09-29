@@ -53,16 +53,18 @@ check the date range and filters as described in [Troubleshooting](#troubleshoot
 
 The importer recognises these literal values from the CSV's `Transaction Type` column:
 
-| Transaction type              | How cgt-calc handles it                                      |
-| ----------------------------- | ------------------------------------------------------------ |
-| `Buy`, `Sell`                 | Share or fund acquisitions and disposals, with commission    |
-| `Dividend`, `Payment in Lieu` | Dividend income                                              |
-| `Foreign Tax Withholding`     | Tax deducted at source; treated as dividend tax              |
-| `Credit Interest`             | Interest income                                              |
-| `Deposit`, `Withdrawal`       | Cash movements used by the balance check                     |
-| `Other Fee`                   | A charge against a holding, added to its pooled cost         |
-| `Adjustment`                  | Cash-balance adjustments such as `FX Translations P&L`       |
-| `Forex Trade Component`       | The base-currency net of a currency conversion; balance only |
+| Transaction type              | How cgt-calc handles it                                           |
+| ----------------------------- | ----------------------------------------------------------------- |
+| `Buy`, `Sell`                 | Share or fund acquisitions and disposals, with commission         |
+| `Dividend`, `Payment in Lieu` | Dividend income                                                   |
+| `Foreign Tax Withholding`     | Tax deducted at source; treated as dividend tax                   |
+| `Credit Interest`             | Interest income                                                   |
+| `Debit Interest`              | Interest charged on a borrowed balance; balance only              |
+| `Deposit`, `Withdrawal`       | Cash movements used by the balance check                          |
+| `Other Fee`                   | A charge against a holding, added to its pooled cost              |
+| `Sales Tax`                   | VAT on an account-level service such as market data; balance only |
+| `Adjustment`                  | Cash-balance adjustments such as `FX Translations P&L`            |
+| `Forex Trade Component`       | The base-currency net of a currency conversion; balance only      |
 
 For a GBP-base account, IBKR reports gross amounts, commissions and net amounts in GBP, so every row
 is recorded in GBP whatever the security is priced in. `Price Currency` describes the unit price
@@ -75,6 +77,18 @@ Net Amount to the cash balance and reports no gain or loss on the conversion its
 IBKR descriptions for dividends and payments in lieu can put an ISIN in parentheses immediately
 after the symbol. cgt-calc uses that identifier when deciding whether a supported double-taxation
 treaty applies.
+
+### Rows with no symbol
+
+IBKR writes `-` in the `Symbol` column on a row that names no security. cgt-calc reads that as no
+symbol, rather than as a holding called `-`, so two of the types above are handled differently
+depending on whether a security is named:
+
+- An `Other Fee` naming a security, such as an ADR fee, is added to that holding's pooled cost. One
+    naming no symbol is an account charge, such as a market-data subscription. It changes your cash
+    balance and is added to no holding.
+- A `Foreign Tax Withholding` naming a security is dividend tax. One naming no symbol is tax
+    withheld from your cash interest, so it is reported as interest tax.
 
 ### Tickers and exchange listings
 
@@ -106,9 +120,6 @@ cgt-calc stops with an error.
 - The importer does not read an asset-class field. It has been validated for ordinary share and fund
     trades; do not rely on it to calculate options, futures, bonds, contracts for difference or
     crypto assets.
-- Every `Foreign Tax Withholding` row is treated as dividend tax. If IBKR withholds tax from credit
-    interest and does not reverse it, cgt-calc records that amount against a placeholder symbol. It
-    reduces the cash balance but is not reported as interest tax in the summary.
 - The `Account` column is not used to keep separate ledgers. Rows for multiple taxable IBKR accounts
     in one CSV are combined under one broker balance and portfolio.
 

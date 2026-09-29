@@ -44,18 +44,6 @@ class ParsingError(CgtError):
         self._update_message()
 
 
-class UnsupportedBrokerActionError(ParsingError):
-    """Raised when a broker export contains an unsupported action."""
-
-    def __init__(self, file: Path, broker: str, action: str):
-        """Initialise."""
-        message = (
-            f"Unsupported {broker} action '{action}'. "
-            "Please check if a newer version of cgt-calc adds support or open an issue."
-        )
-        super().__init__(file, message)
-
-
 class UnsupportedBrokerCurrencyError(ParsingError):
     """Raised when a broker export uses an unsupported account currency."""
 

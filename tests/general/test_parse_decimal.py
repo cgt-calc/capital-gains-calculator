@@ -40,9 +40,7 @@ PARSER_FIELDS: list[tuple[str, Callable[[str], Decimal | None], str]] = [
     (
         "raw",
         lambda value: raw._parse_decimal(  # noqa: SLF001
-            {raw.RawColumn.QUANTITY: value},
-            raw.RawColumn.QUANTITY,
-            allow_empty=False,
+            {raw.RawColumn.QUANTITY: value}, raw.RawColumn.QUANTITY
         ),
         "quantity",
     ),

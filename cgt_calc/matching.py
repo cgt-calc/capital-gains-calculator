@@ -845,14 +845,7 @@ class Matcher:
         for symbol, transformation in sorted(
             self.history.splits.get(date_index, {}).items()
         ):
-            chained = self._rename_chain_at(symbol, renames)
-            if chained is not None:
-                raise CalculationError(
-                    self._rename_chain_message(
-                        "apply the reorganisation of", symbol, date_index, *chained
-                    )
-                )
-            pooled = self._rename_pooling_with(symbol, date_index, renames)
+            pooled = self._rename_pooling_with(symbol, renames)
             if pooled is not None:
                 raise CalculationError(
                     self._rename_and_split_message(symbol, date_index, *pooled)
@@ -871,34 +864,20 @@ class Matcher:
                 transformation.scaled_day_open_quantity, position.amount
             )
 
-    def _holds_units_today(self, symbol: str, date_index: datetime.date) -> bool:
-        """Whether a rename today could move units of ``symbol`` anywhere.
+    def _opened_holding_units(self, symbol: str) -> bool:
+        """Whether this name was a holding of its own as the day opened.
 
         Called from ``apply_split_openings``, before any of the day's rows, so
-        the portfolio still holds the day-opening pool; an acquisition later
-        today lands before the rename, which is applied at the end of the day.
-        """
-        if symbol in self.run.portfolio and self.run.portfolio[symbol].quantity != 0:
-            return True
-        return has_key(self.history.acquisition_list, date_index, symbol)
+        the portfolio still holds the day-opening pool.
 
-    @staticmethod
-    def _rename_chain_at(
-        symbol: str, renames: dict[str, str]
-    ) -> tuple[tuple[str, str], tuple[str, str]] | None:
-        """Return the two renames that move this holding twice in one day.
-
-        A day's renames are applied in the order the input lists them, so a
-        holding renamed onward from the name it was just renamed to ends
-        wherever that order puts it, and swapping the two rows moves it
-        somewhere else. A date carries no order, so neither reading is
-        established and there is nothing to pick between them. A cycle is the
-        same thing joined up, and is caught by the same test.
+        What the day itself buys under the name is deliberately not read. A
+        purchase is not a second holding: the day's renames say the names are
+        one security, and the reorganisation planning that ran in the first
+        pass has already placed that purchase either side of the event and
+        restated it if it fell before. Shares held before the day are the
+        ones no rename accounts for, and they are what this asks about.
         """
-        next_name = renames.get(symbol)
-        if next_name is None or next_name not in renames:
-            return None
-        return (symbol, next_name), (next_name, renames[next_name])
+        return symbol in self.run.portfolio and self.run.portfolio[symbol].quantity != 0
 
     @staticmethod
     def _renames_reaching(
@@ -975,7 +954,6 @@ class Matcher:
     def _rename_pooling_with(
         self,
         symbol: str,
-        date_index: datetime.date,
         renames: dict[str, str],
     ) -> tuple[str, tuple[str, str]] | None:
         """Return a second holding the day's renames would pool this one with.
@@ -989,7 +967,7 @@ class Matcher:
         reaches it.
         """
         for other, rename in self._renames_reaching(symbol, renames):
-            if self._holds_units_today(other, date_index):
+            if self._opened_holding_units(other):
                 return other, rename
         return None
 
@@ -1127,14 +1105,6 @@ class Matcher:
         identity_names = frozenset(names)
         if len(names) == 1:
             return DayIdentity(end_name, symbol, symbol, identity_names)
-        for name in sorted(names):
-            chained = self._rename_chain_at(name, renames)
-            if chained is not None:
-                raise CalculationError(
-                    self._rename_chain_message(
-                        "compute the disposal of", symbol, date_index, *chained
-                    )
-                )
         pooled = sorted(n for n in names if self._opened_with(n).quantity != 0)
         if len(pooled) > 1:
             raise CalculationError(
@@ -1297,8 +1267,9 @@ class Matcher:
         A holding renamed today is checked under the name it was renamed to:
         the rename has moved the pool by now. That single hop is the whole
         journey, and the pool arrived alone, because a day that renames the
-        holding onward again or pools it with a second one is refused before
-        any of this (see ``apply_split_openings``).
+        holding onward again is refused by ``plan_renames`` and one that pools
+        it with a second holding by ``apply_split_openings``, both before any
+        of this.
         """
         renames = self.history.rename_list.get(date_index, {})
         for symbol, transformation in sorted(
@@ -1314,26 +1285,6 @@ class Matcher:
                     " Please report this: the two passes over the history "
                     "disagree."
                 )
-
-    @staticmethod
-    def _rename_chain_message(
-        action: str,
-        symbol: str,
-        date_index: datetime.date,
-        first: tuple[str, str],
-        second: tuple[str, str],
-    ) -> str:
-        """Explain why a holding renamed twice in a day cannot be worked out."""
-        return (
-            f"Cannot {action} {symbol} on {date_index}: it "
-            f"is renamed to {first[1]}, and {second[0]} is renamed to "
-            f"{second[1]}, the same day. The renames are applied in the order "
-            "the input lists them, so where the holding ends up, and what it "
-            "is pooled with on the way, depends on which of the two rows "
-            "comes first. A date carries no order, so neither reading is "
-            "established. Put the renames on the days they happened, or work "
-            "this day out by hand (consider professional advice)."
-        )
 
     @staticmethod
     def _rename_and_split_message(

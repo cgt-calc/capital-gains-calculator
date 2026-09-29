@@ -384,7 +384,6 @@ def _decimal_from_str(price_str: str, field: str = "number") -> Decimal:
 def _decimal_from_number_or_str(
     row: JsonRowType,
     field_basename: str,
-    field_float_suffix: str = "SortValue",
 ) -> Decimal:
     """Get a number from a row, preferably from the number field.
 
@@ -392,7 +391,7 @@ def _decimal_from_number_or_str(
     if the fields are not there or both have a value of None or empty string.
     """
     # We prefer native number to strings as more efficient/safer parsing
-    float_name = f"{field_basename}{field_float_suffix}"
+    float_name = f"{field_basename}SortValue"
     if float_name in row and row[float_name] is not None:
         # json.load reads the NaN and Infinity literals Python allows in JSON
         # through parse_constant rather than parse_float, so a number field is

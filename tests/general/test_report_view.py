@@ -516,8 +516,3 @@ def test_the_income_summary_splits_excess_reported_income_by_fund() -> None:
     assert view.income_summary.eri_dividends == Decimal("10.00")
     assert view.income_summary.eri_interest == Decimal("4.00")
     assert view.income_summary.total_dividends == Decimal("10.00")
-
-
-def test_the_view_names_the_period_the_report_covers() -> None:
-    """The title comes straight from the report."""
-    assert build_report_view(_report()).title_period == "2024-25"

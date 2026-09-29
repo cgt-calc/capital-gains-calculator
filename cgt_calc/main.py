@@ -20,7 +20,6 @@ from .logging import style_text
 from .matching import Matcher
 from .model import (
     BrokerTransaction,
-    CalculationLog,
     CapitalGainsReport,
     ExcessReportedIncomeLog,
     HmrcTransactionLog,
@@ -34,7 +33,6 @@ if TYPE_CHECKING:
 
     from .currency_converter import CurrencyConverter
     from .current_price_fetcher import CurrentPriceFetcher
-    from .ingestion import FirstPassTotals
     from .initial_prices import InitialPrices
     from .isin_converter import IsinConverter
     from .spin_off_handler import SpinOffHandler
@@ -144,11 +142,6 @@ class CapitalGainsCalculator:
         """Excess Reported Income by date and symbol."""
         return self.history.eris
 
-    @property
-    def calculation_log_yields(self) -> CalculationLog:
-        """Calculation log for the interest and dividend report sections."""
-        return self.run.calculation_log_yields
-
     def date_in_tax_year(self, date: datetime.date) -> bool:
         """Check if date is within current tax year."""
         assert is_date(date)
@@ -183,14 +176,6 @@ class CapitalGainsCalculator:
         """Run both passes and return the report."""
         self.prepare_history(transactions)
         return self.calculate_capital_gain()
-
-    def first_pass_report(self, totals: FirstPassTotals) -> None:
-        """Print the results of the first pass."""
-        self.ingester.first_pass_report(totals)
-
-    def process_dividends(self) -> None:
-        """Process all dividend events and taxes."""
-        self.income.process_dividends()
 
     def _warn_unmatched_cgt_exempt_tickers(self) -> None:
         """Warn for any exempt ticker with no transactions."""

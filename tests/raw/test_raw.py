@@ -16,8 +16,14 @@ from cgt_calc.args_validators import STDIN_PATH
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.logging import force_utf8_stdio
 from cgt_calc.model import ActionType
-from cgt_calc.parsers.raw import COLUMNS, RawColumn, RawParser, _parse_decimal
-from tests.utils import build_cmd, report_path, stderr_alerts
+from cgt_calc.parsers.raw import COLUMNS, RawParser
+from tests.utils import (
+    assert_stdout_matches,
+    build_cmd,
+    report_path,
+    run_cli,
+    stderr_alerts,
+)
 
 
 def _write_csv(path: Path, rows: list[list[str]]) -> None:
@@ -39,22 +45,10 @@ def test_run_with_raw_files_no_balance_check(request: pytest.FixtureRequest) -> 
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output.txt"
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 def test_run_with_raw_files(request: pytest.FixtureRequest) -> None:
@@ -67,22 +61,10 @@ def test_run_with_raw_files(request: pytest.FixtureRequest) -> None:
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output_2.txt"
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 def test_run_with_raw_files_stdin(request: pytest.FixtureRequest) -> None:
@@ -99,25 +81,10 @@ def test_run_with_raw_files_stdin(request: pytest.FixtureRequest) -> None:
         "--output",
         report_path(request),
     )
-    result = subprocess.run(
-        cmd, input=csv_content, capture_output=True, encoding="utf-8", check=False
-    )
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd, stdin=csv_content)
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output_stdin.txt"
-    expected = expected_file.read_text(encoding="utf-8")
-
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with stdin generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"cat {csv_file} | {cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file, piped_from=csv_file)
 
 
 def test_stdin_decodes_utf8_under_a_legacy_locale(
@@ -157,8 +124,15 @@ def test_run_with_nonexistent_file() -> None:
     assert missing_file in result.stderr
 
 
-def test_read_raw_transactions_with_header(tmp_path: Path) -> None:
-    """Parse a RAW file including a header row."""
+@pytest.mark.parametrize(
+    ("fees", "expected_fees"),
+    [("0.10", Decimal("0.10")), ("", Decimal(0))],
+    ids=["stated", "blank"],
+)
+def test_read_raw_transactions_with_header(
+    tmp_path: Path, fees: str, expected_fees: Decimal
+) -> None:
+    """Parse a RAW file including a header row; a blank fee is no fee."""
 
     raw_file = tmp_path / "raw_with_header.csv"
     rows = [
@@ -169,7 +143,7 @@ def test_read_raw_transactions_with_header(tmp_path: Path) -> None:
             "XYZ",
             "10",
             "2.50",
-            "0.10",
+            fees,
             "USD",
         ],
     ]
@@ -183,8 +157,8 @@ def test_read_raw_transactions_with_header(tmp_path: Path) -> None:
     assert transaction.symbol == "XYZ"
     assert transaction.quantity == Decimal(10)
     assert transaction.price == Decimal("2.50")
-    assert transaction.amount == Decimal("-25.10")
-    assert transaction.fees == Decimal("0.10")
+    assert transaction.amount == -(Decimal("25.00") + expected_fees)
+    assert transaction.fees == expected_fees
 
 
 def test_read_raw_transactions_keep_their_row_and_order(tmp_path: Path) -> None:
@@ -348,15 +322,6 @@ def test_read_raw_transactions_applies_ticker_renames(tmp_path: Path) -> None:
 
     assert len(transactions) == 1
     assert transactions[0].symbol == "META"
-
-
-def test_parse_decimal_missing_value_raises() -> None:
-    """Ensure empty required decimals raise an explicit error."""
-
-    row = dict.fromkeys(RawColumn, "")
-
-    with pytest.raises(ValueError, match="Missing value in column 'quantity'"):
-        _parse_decimal(row, RawColumn.QUANTITY, allow_empty=False)
 
 
 def test_read_raw_transactions_transfer_from_spouse(tmp_path: Path) -> None:

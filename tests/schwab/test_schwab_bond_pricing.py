@@ -80,12 +80,9 @@ class TestBondPricing:
         quantity = Decimal(100)
         fees = Decimal(0)
 
-        # For valid CUSIP: amount should match quantity * (price/100)
-        # For invalid: amount should match quantity * price
-        if expected_is_cusip:
-            amount = -(quantity * (price / 100))  # Buy transaction
-        else:
-            amount = -(quantity * price)
+        # Every case states the amount a bond at this price would have, so the
+        # amount check accepts the division and only detection decides it.
+        amount = -(quantity * (price / 100))  # Buy transaction
 
         adjusted_price, adjusted_fees = adjust_cusip_bond_price(
             symbol, price, quantity, amount, fees

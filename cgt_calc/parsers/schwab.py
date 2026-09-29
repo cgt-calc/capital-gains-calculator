@@ -785,45 +785,19 @@ def _reject_overlapping_exports(exports: list[_Export]) -> None:
             )
 
 
-def _read_schwab_awards(
-    schwab_award_transactions_file: Path | None,
-) -> AwardPrices:
-    """Read initial stock prices from CSV file."""
-    if schwab_award_transactions_file is None:
-        return AwardPrices(award_prices={})
-
-    with schwab_award_transactions_file.open(encoding="utf-8") as csv_file:
-        parsing_msg(schwab_award_transactions_file)
-        lines = list(csv.reader(csv_file))
-    return _award_prices_from_lines(lines, schwab_award_transactions_file)
-
-
 def _award_prices_from_lines(
     lines: list[list[str]],
     schwab_award_transactions_file: Path,
 ) -> AwardPrices:
     """Read initial stock prices from the rows of an award-price CSV.
 
-    The guards below stay with the rows they protect rather than with the
-    reading: ``_read_schwab_awards`` is called directly with a path as well as
-    through the CLI, and an empty file or a wrong header has to name itself
-    either way instead of surfacing as IndexError or KeyError.
+    ``_load_award_file`` calls this only for text ``_is_complete_award_export``
+    classified as the award-price CSV, so the first row holds every
+    ``RequiredAwardColumn``.
     """
     initial_prices: dict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
 
-    if not lines:
-        raise ParsingError(
-            schwab_award_transactions_file, "Charles Schwab Award CSV file is empty"
-        )
     header = lines[0]
-    required_columns = {column.value for column in RequiredAwardColumn}
-    if not required_columns.issubset(header):
-        raise ParsingError(
-            schwab_award_transactions_file,
-            "Missing columns in Schwab Award file: "
-            f"{required_columns.difference(header)}",
-            row_index=1,
-        )
 
     # Remove header
     lines = lines[1:]
@@ -987,7 +961,7 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
     # reads them through cls in load_from_dir.
     glob_dir: ClassVar[str] = "*.csv"
 
-    awards_prices: AwardPrices = _read_schwab_awards(None)
+    awards_prices: AwardPrices = AwardPrices(award_prices={})
 
     @classmethod
     @override

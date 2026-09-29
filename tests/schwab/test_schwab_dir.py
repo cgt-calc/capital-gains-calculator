@@ -14,17 +14,13 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-from typing import TYPE_CHECKING
 
 import pytest
 
-from cgt_calc.args_parser import create_parser
 from cgt_calc.exceptions import CgtError, ParsingError
-from cgt_calc.parsers.schwab import AwardPrices, SchwabParser
+from cgt_calc.parsers.schwab import SchwabParser
+from tests.schwab.helpers import load_via_cli
 from tests.utils import build_cmd
-
-if TYPE_CHECKING:
-    from cgt_calc.model import BrokerTransaction
 
 HEADER = "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
 
@@ -37,26 +33,6 @@ OLDER = (
     "11/20/2023,Buy,AAPL,APPLE INC,$120.00,20,$0.00,-$2400.00\n"
     "06/05/2023,MoneyLink Transfer,,Deposit,,,,$5000.00\n"
 )
-
-
-@pytest.fixture(autouse=True)
-def _reset_awards_prices(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep changes to the class-level award prices out of other test modules."""
-    monkeypatch.setattr(SchwabParser, "awards_prices", AwardPrices(award_prices={}))
-
-
-def _load(**flags: str) -> list[BrokerTransaction]:
-    """Load through the CLI wiring rather than calling the parser directly.
-
-    load_from_args is what registers --schwab-dir and fills in awards_prices,
-    so bypassing it would let the flag be misregistered with every test still
-    passing.
-    """
-    argv = ["--year", "2023"]
-    for flag, value in flags.items():
-        argv += [f"--{flag.replace('_', '-')}", value]
-    args = create_parser().parse_args(argv)
-    return SchwabParser.load_from_args(args)
 
 
 def test_cancel_buy_matches_a_buy_in_another_file(tmp_path: Path) -> None:
@@ -75,7 +51,7 @@ def test_cancel_buy_matches_a_buy_in_another_file(tmp_path: Path) -> None:
         HEADER + "01/10/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
     )
 
-    assert _load(schwab_dir=str(directory)) == []
+    assert load_via_cli(schwab_dir=str(directory)) == []
 
 
 def test_split_export_matches_the_whole_file(tmp_path: Path) -> None:
@@ -94,8 +70,8 @@ def test_split_export_matches_the_whole_file(tmp_path: Path) -> None:
     (directory / "a_2023.csv").write_text(HEADER + OLDER)
     (directory / "z_2024.csv").write_text(HEADER + NEWER)
 
-    from_dir = _load(schwab_dir=str(directory))
-    from_file = _load(schwab_file=str(whole))
+    from_dir = load_via_cli(schwab_dir=str(directory))
+    from_file = load_via_cli(schwab_file=str(whole))
 
     # repr, not str: str names the file each row was read from, which is
     # exactly what differs between a directory and one whole file.
@@ -125,8 +101,8 @@ def test_single_file_directory_matches_the_file_through_the_award_path(
     shutil.copy(fixture / "transactions.csv", directory / "transactions.csv")
     awards = str(fixture / "awards.csv")
 
-    from_dir = _load(schwab_dir=str(directory), schwab_award_file=awards)
-    from_file = _load(
+    from_dir = load_via_cli(schwab_dir=str(directory), schwab_award_file=awards)
+    from_file = load_via_cli(
         schwab_file=str(fixture / "transactions.csv"), schwab_award_file=awards
     )
 
@@ -146,7 +122,7 @@ def test_overlapping_exports_are_refused(tmp_path: Path) -> None:
     (directory / "second.csv").write_text(HEADER + NEWER)
 
     with pytest.raises(ParsingError) as exc_info:
-        _load(schwab_dir=str(directory))
+        load_via_cli(schwab_dir=str(directory))
 
     message = str(exc_info.value)
     assert "second.csv" in message
@@ -155,13 +131,15 @@ def test_overlapping_exports_are_refused(tmp_path: Path) -> None:
 
 
 def test_adjacent_exports_are_not_refused(tmp_path: Path) -> None:
-    """Consecutive ranges that merely touch in time are fine."""
+    """An export that starts the day after the previous one ends is fine."""
     directory = tmp_path / "schwab"
     directory.mkdir()
     (directory / "a_2023.csv").write_text(HEADER + OLDER)
-    (directory / "z_2024.csv").write_text(HEADER + NEWER)
+    (directory / "z_2023.csv").write_text(
+        HEADER + "11/21/2023,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
+    )
 
-    assert len(_load(schwab_dir=str(directory))) == 4
+    assert len(load_via_cli(schwab_dir=str(directory))) == 3
 
 
 def test_empty_directory_warns(
@@ -172,7 +150,7 @@ def test_empty_directory_warns(
     directory.mkdir()
 
     with caplog.at_level(logging.WARNING):
-        assert _load(schwab_dir=str(directory)) == []
+        assert load_via_cli(schwab_dir=str(directory)) == []
 
     assert "No transactions detected in directory" in caplog.text
 
@@ -184,7 +162,7 @@ def test_csv_named_subdirectory_is_refused(tmp_path: Path) -> None:
     (directory / "archive.csv").mkdir()
 
     with pytest.raises(ParsingError) as exc_info:
-        _load(schwab_dir=str(directory))
+        load_via_cli(schwab_dir=str(directory))
 
     message = str(exc_info.value)
     assert "archive.csv" in message
@@ -210,7 +188,7 @@ def test_unreadable_csv_in_directory_is_refused(tmp_path: Path) -> None:
     locked.chmod(0o000)
     try:
         with pytest.raises(ParsingError) as exc_info:
-            _load(schwab_dir=str(directory))
+            load_via_cli(schwab_dir=str(directory))
     finally:
         locked.chmod(0o644)
 
@@ -228,7 +206,7 @@ def test_awards_csv_in_directory_points_to_award_flag(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ParsingError) as exc_info:
-        _load(schwab_dir=str(directory))
+        load_via_cli(schwab_dir=str(directory))
 
     message = str(exc_info.value)
     assert "awards.csv" in message
@@ -244,7 +222,7 @@ def test_foreign_csv_in_directory_says_to_remove_it(tmp_path: Path) -> None:
     (directory / "freetrade.csv").write_text("Title,Type,Timestamp\nTrade,BUY,now\n")
 
     with pytest.raises(ParsingError) as exc_info:
-        _load(schwab_dir=str(directory))
+        load_via_cli(schwab_dir=str(directory))
 
     message = str(exc_info.value)
     assert "freetrade.csv" in message
@@ -259,7 +237,7 @@ def test_empty_csv_in_directory_says_to_remove_it(tmp_path: Path) -> None:
     (directory / "empty.csv").write_text("")
 
     with pytest.raises(ParsingError) as exc_info:
-        _load(schwab_dir=str(directory))
+        load_via_cli(schwab_dir=str(directory))
 
     message = str(exc_info.value)
     assert "empty.csv" in message
@@ -285,7 +263,7 @@ def test_directory_of_only_cancelled_buys_warns(
     )
 
     with caplog.at_level(logging.WARNING):
-        assert _load(schwab_dir=str(directory)) == []
+        assert load_via_cli(schwab_dir=str(directory)) == []
 
     assert "No transactions detected in directory" in caplog.text
 
@@ -305,7 +283,7 @@ def test_identical_trades_are_not_deduplicated(tmp_path: Path) -> None:
         + "02/02/2024,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
     )
 
-    assert len(_load(schwab_dir=str(directory))) == 2
+    assert len(load_via_cli(schwab_dir=str(directory))) == 2
 
 
 def test_file_and_dir_together_are_refused(tmp_path: Path) -> None:
@@ -351,7 +329,7 @@ def test_each_transaction_records_its_own_file(tmp_path: Path) -> None:
     (directory / "a_2023.csv").write_text(HEADER + OLDER)
     (directory / "z_2024.csv").write_text(HEADER + NEWER)
 
-    transactions = _load(schwab_dir=str(directory))
+    transactions = load_via_cli(schwab_dir=str(directory))
     sources = []
     for transaction in transactions:
         assert transaction.source is not None, "every row must record its origin"
@@ -396,7 +374,7 @@ def test_overlap_splitting_a_corporate_action_reports_the_overlap(
     )
 
     with pytest.raises(ParsingError) as exc_info:
-        _load(schwab_dir=str(directory))
+        load_via_cli(schwab_dir=str(directory))
 
     message = str(exc_info.value)
     assert "newer.csv" in message
@@ -417,7 +395,7 @@ def test_corporate_action_pair_inside_one_file_still_combines(
         + "01/12/2024,Cash Merger Adj,FOO,FOO CORP,,-100,,\n"
     )
 
-    (transaction,) = _load(schwab_dir=str(directory))
+    (transaction,) = load_via_cli(schwab_dir=str(directory))
     assert transaction.quantity == Decimal(100)
     assert transaction.price == Decimal("10.00")
 
@@ -441,7 +419,7 @@ def test_unmatched_cancel_buy_names_its_own_file_and_row(tmp_path: Path) -> None
     )
 
     with pytest.raises(ParsingError) as exc_info:
-        _load(schwab_dir=str(directory))
+        load_via_cli(schwab_dir=str(directory))
 
     message = str(exc_info.value)
     assert "z_newer.csv" in message
@@ -465,7 +443,7 @@ def test_load_from_args_refuses_file_and_dir_without_argparse(
     (directory / "transactions.csv").write_text(HEADER + OLDER)
 
     with pytest.raises(CgtError, match="cannot be used together"):
-        _load(schwab_file=str(whole), schwab_dir=str(directory))
+        load_via_cli(schwab_file=str(whole), schwab_dir=str(directory))
 
 
 def test_both_flags_are_refused_before_the_award_file_is_read(
@@ -483,10 +461,10 @@ def test_both_flags_are_refused_before_the_award_file_is_read(
     directory.mkdir()
     (directory / "transactions.csv").write_text(HEADER + OLDER)
     bad_award_file = tmp_path / "bad-award.csv"
-    bad_award_file.write_text("")  # would itself raise "CSV file is empty"
+    bad_award_file.write_text("")  # would itself be refused as an award file
 
     with pytest.raises(CgtError, match="cannot be used together"):
-        _load(
+        load_via_cli(
             schwab_file=str(whole),
             schwab_dir=str(directory),
             schwab_award_file=str(bad_award_file),
@@ -514,7 +492,7 @@ def test_directory_load_honours_the_file_path_filter(
         classmethod(lambda cls, file_path: file_path.name != "z_2024.csv"),
     )
 
-    transactions = _load(schwab_dir=str(directory))
+    transactions = load_via_cli(schwab_dir=str(directory))
     assert {
         transaction.source.file.name
         for transaction in transactions
@@ -533,7 +511,7 @@ def test_export_with_no_rows_is_skipped_not_refused(tmp_path: Path) -> None:
     (directory / "a_empty.csv").write_text(HEADER)
     (directory / "z_2024.csv").write_text(HEADER + NEWER)
 
-    transactions = _load(schwab_dir=str(directory))
+    transactions = load_via_cli(schwab_dir=str(directory))
     assert {
         transaction.source.file.name
         for transaction in transactions

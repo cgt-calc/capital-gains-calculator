@@ -88,7 +88,20 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
     # Read as a fee instead, a component that brings base currency in is
     # refused outright, and one that takes some out opens a pooled cost under
     # the currency pair.
-    if action_type in {"Adjustment", "Forex Trade Component"}:
+    # "Debit Interest" is interest IBKR charges on a borrowed balance, and
+    # "Sales Tax" the VAT on a service such as a market-data subscription.
+    # Both are costs of the account rather than of any one holding, so there
+    # is no symbol to attach them to and FEE, which adds to a holding's pooled
+    # cost, cannot take them. Filing them as an ADJUSTMENT moves the cash
+    # balance and leaves the interest report to the interest actually
+    # received: interest paid on margin is not deductible against it.
+    # Revolut's account-level custody fee is read the same way.
+    if action_type in {
+        "Adjustment",
+        "Forex Trade Component",
+        "Debit Interest",
+        "Sales Tax",
+    }:
         return ActionType.ADJUSTMENT
 
     raise ParsingError(file_path, f"Unknown type: '{action_type}'")
@@ -132,7 +145,7 @@ class InteractiveBrokersTransaction(BrokerTransaction):
         action = _action_from_str(
             row[InteractiveBrokersColumn.TRANSACTION_TYPE], file_path
         )
-        symbol = row[InteractiveBrokersColumn.SYMBOL] or None
+        symbol = _parse_str(row, InteractiveBrokersColumn.SYMBOL)
 
         if symbol is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
@@ -148,6 +161,20 @@ class InteractiveBrokersTransaction(BrokerTransaction):
             if InteractiveBrokersColumn.EXCHANGE_RATE in row
             else None
         )
+
+        # Withholding with no security behind it is tax on the account's cash
+        # interest, not on a dividend, so INTEREST_TAX reports it against the
+        # interest it was taken from. The Schwab parser makes the same switch.
+        if action is ActionType.DIVIDEND_TAX and symbol is None:
+            action = ActionType.INTEREST_TAX
+
+        # "Other Fee" covers both a charge against a holding, such as an ADR
+        # fee, and an account-level charge with no security behind it, such as
+        # a market-data subscription. Only the first can be a FEE, which adds
+        # to a named holding's pooled cost; the second has nowhere to attach
+        # and moves the cash balance alone.
+        if action is ActionType.FEE and symbol is None:
+            action = ActionType.ADJUSTMENT
 
         # An adjustment moves the cash balance and nothing else: the calculator
         # reads its amount and never its symbol, quantity or price. IBKR files a

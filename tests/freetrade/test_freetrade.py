@@ -5,23 +5,19 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 import logging
 from pathlib import Path
-import subprocess
 
 import pytest
 
-from cgt_calc.exceptions import (
-    ParsingError,
-    UnsupportedBrokerActionError,
-    UnsupportedBrokerCurrencyError,
-)
+from cgt_calc.exceptions import ParsingError, UnsupportedBrokerCurrencyError
 from cgt_calc.model import ActionType
-from cgt_calc.parsers.freetrade import (
-    COLUMNS,
-    FreetradeColumn,
-    FreetradeParser,
-    FreetradeTransaction,
+from cgt_calc.parsers.freetrade import COLUMNS, FreetradeColumn, FreetradeParser
+from tests.utils import (
+    assert_stdout_matches,
+    build_cmd,
+    report_path,
+    run_cli,
+    stderr_alerts,
 )
-from tests.utils import build_cmd, report_path, stderr_alerts
 
 # Header of a Freetrade export downloaded after the format change reported in
 # issue #800: two columns were renamed and the "Stock Split" ones are new.
@@ -154,22 +150,10 @@ def test_run_with_freetrade_file(request: pytest.FixtureRequest) -> None:
         "--output",
         report_path(request),
     )
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    if result.returncode:
-        pytest.fail(
-            "Integration test failed\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+    result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], "Run with example files generated errors"
     expected_file = Path("tests") / "freetrade" / "data" / "expected_output.txt"
-    expected = expected_file.read_text(encoding="utf-8")
-    cmd_str = " ".join([param or "''" for param in cmd])
-    assert result.stdout == expected, (
-        "Run with example files generated unexpected outputs, "
-        "if you added new features update the test with:\n"
-        f"{cmd_str} > {expected_file}"
-    )
+    assert_stdout_matches(result, cmd, expected_file)
 
 
 def test_real_export_preserves_transaction_timestamp() -> None:
@@ -193,7 +177,7 @@ def test_read_freetrade_transactions_empty_file(tmp_path: Path) -> None:
     empty_file = tmp_path / "empty.csv"
     empty_file.write_text("")
 
-    with pytest.raises(ParsingError):
+    with pytest.raises(ParsingError, match="Freetrade CSV file is empty"):
         FreetradeParser().load_from_file(empty_file)
 
 
@@ -438,28 +422,6 @@ def test_read_freetrade_transactions_new_header_missing_column(tmp_path: Path) -
 
     with pytest.raises(ParsingError, match="Missing columns: Total Shares Amount"):
         FreetradeParser().load_from_file(path)
-
-
-def test_freetrade_transaction_unsupported_action(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Unsupported action types raise a helpful error."""
-
-    def fake_action_from_str(action_type: str, buy_sell: str, file: Path) -> ActionType:
-        return ActionType.ADJUSTMENT
-
-    monkeypatch.setattr(
-        "cgt_calc.parsers.freetrade._action_from_str", fake_action_from_str
-    )
-    dummy_file = tmp_path / "dummy.csv"
-    dummy_file.write_text("")
-    row = _default_row({FreetradeColumn.TYPE.value: "ADJUSTMENT"})
-
-    with pytest.raises(
-        UnsupportedBrokerActionError,
-        match="Unsupported Freetrade action 'ADJUSTMENT'",
-    ):
-        FreetradeTransaction(dict(zip(COLUMNS, row, strict=True)), dummy_file)
 
 
 def test_description_reads_as_words_not_python(tmp_path: Path) -> None:

@@ -44,7 +44,7 @@ def _dividend_lines(
         interests={},
         interest_taxes={},
     )
-    _calculator().first_pass_report(totals)
+    _calculator().ingester.first_pass_report(totals)
     lines = capsys.readouterr().out.splitlines()
     header = next((i for i, line in enumerate(lines) if "Dividends" in line), None)
     if header is None:

@@ -7,7 +7,7 @@ import datetime
 from decimal import Decimal
 from enum import StrEnum
 import logging
-from typing import TYPE_CHECKING, ClassVar, Final, Literal, TextIO, overload, override
+from typing import TYPE_CHECKING, ClassVar, Final, TextIO, overload, override
 
 from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
@@ -55,7 +55,6 @@ def _parse_decimal(
     row: dict[RawColumn, str],
     column: RawColumn,
     *,
-    allow_empty: Literal[True],
     default: Decimal,
 ) -> Decimal: ...
 
@@ -65,35 +64,21 @@ def _parse_decimal(
     row: dict[RawColumn, str],
     column: RawColumn,
     *,
-    allow_empty: Literal[True],
     default: None = ...,
 ) -> Decimal | None: ...
 
 
-@overload
 def _parse_decimal(
     row: dict[RawColumn, str],
     column: RawColumn,
     *,
-    allow_empty: Literal[False],
-    default: None = ...,
-) -> Decimal: ...
-
-
-def _parse_decimal(
-    row: dict[RawColumn, str],
-    column: RawColumn,
-    *,
-    allow_empty: bool,
     default: Decimal | None = None,
 ) -> Decimal | None:
     """Parse decimal value from the row, raising ValueError with context on failure."""
 
     value = row[column]
     if value == "":
-        if allow_empty:
-            return default
-        raise ValueError(f"Missing value in column '{column.value}'")
+        return default
 
     return parse_decimal(value, f"column '{column.value}'", strip=",")
 
@@ -134,14 +119,9 @@ class RawTransaction(BrokerTransaction):
 
         if symbol is not None:
             symbol = TICKER_RENAMES.get(symbol, symbol)
-        quantity = _parse_decimal(row_values, RawColumn.QUANTITY, allow_empty=True)
-        price = _parse_decimal(row_values, RawColumn.PRICE, allow_empty=True)
-        fees = _parse_decimal(
-            row_values,
-            RawColumn.FEES,
-            allow_empty=True,
-            default=Decimal(0),
-        )
+        quantity = _parse_decimal(row_values, RawColumn.QUANTITY)
+        price = _parse_decimal(row_values, RawColumn.PRICE)
+        fees = _parse_decimal(row_values, RawColumn.FEES, default=Decimal(0))
 
         if price is not None and quantity is not None:
             amount = price * quantity

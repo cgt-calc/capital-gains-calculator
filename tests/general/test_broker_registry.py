@@ -228,7 +228,10 @@ def test_vanguard_symbol_resolved_by_another_broker_does_not_warn() -> None:
         isin=Isin("IE00BK5BQT80"),
     )
 
-    assert _unmapped([vanguard, elsewhere], {}) == []
+    isins, unmapped = _resolve_isins([vanguard, elsewhere], {})
+    # The same pass hands ERI the ISIN the other broker's row supplies.
+    assert isins == {Isin("IE00BK5BQT80")}
+    assert unmapped == []
     assert _unmapped([vanguard], {}) == ["VWRP"]
 
 
@@ -295,38 +298,6 @@ def test_vanguard_symbol_renamed_to_a_mapped_symbol_does_not_warn() -> None:
     assert _unmapped([pre_rename, rename], mapped) == []
     # Without the mapping both names are genuinely unmatchable.
     assert _unmapped([pre_rename, rename], {}) == ["VDXX", "VGER"]
-
-
-def test_resolve_isins_matches_the_eri_filter() -> None:
-    """The resolved set is what the ERI filter consumes, from the same pass."""
-    vanguard = VanguardTransaction.from_fields(
-        date=datetime.date(2022, 3, 9),
-        action=ActionType.BUY,
-        symbol="VWRP",
-        quantity=Decimal(10),
-        price=Decimal(10),
-        amount=Decimal(-100),
-        currency=CurrencyCode("GBP"),
-        is_reversal=False,
-    )
-    elsewhere = BrokerTransaction(
-        date=datetime.date(2022, 3, 9),
-        action=ActionType.BUY,
-        symbol="VWRP",
-        description="",
-        quantity=Decimal(5),
-        price=Decimal(10),
-        fees=Decimal(0),
-        amount=Decimal(-50),
-        currency=CurrencyCode("GBP"),
-        broker="Trading212",
-        isin=Isin("IE00BK5BQT80"),
-    )
-
-    isins, unmapped = _resolve_isins([vanguard, elsewhere], {})
-
-    assert isins == {Isin("IE00BK5BQT80")}
-    assert unmapped == []
 
 
 @pytest.mark.parametrize(
