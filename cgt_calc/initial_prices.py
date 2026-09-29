@@ -13,6 +13,7 @@ from typing import Final, override
 from .const import INITIAL_PRICES_RESOURCE
 from .dates import is_date
 from .exceptions import (
+    InitialPriceCurrencyError,
     InitialPriceMissingError,
     ParsingError,
     UnexpectedColumnCountError,
@@ -71,11 +72,18 @@ class InitialPrices:
         self.initial_prices_file = initial_prices_file
         self.initial_prices = self._read_initial_prices()
 
-    def get(self, date: datetime.date, symbol: str) -> Decimal:
-        """Get initial stock price at given date."""
+    def get(self, date: datetime.date, symbol: str, currency: str) -> Decimal:
+        """Get the price of a share on a date, for a transaction in `currency`.
+
+        A price from a file the user passed is in the transaction's currency.
+        The bundled prices are all USD, so one is refused for a transaction in
+        any other currency rather than read as that currency.
+        """
         assert is_date(date)
         if date not in self.initial_prices or symbol not in self.initial_prices[date]:
             raise InitialPriceMissingError(symbol, date)
+        if self.initial_prices_file is None and currency != "USD":
+            raise InitialPriceCurrencyError(symbol, date, currency)
         return self.initial_prices[date][symbol]
 
     def closing_prices(self) -> dict[str, dict[datetime.date, Decimal]]:

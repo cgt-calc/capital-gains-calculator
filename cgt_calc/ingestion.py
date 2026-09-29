@@ -236,7 +236,9 @@ class TransactionIngester:
         # Add to acquisition_list to apply same day rule
         if transaction.action is ActionType.STOCK_ACTIVITY:
             if price is None:
-                price = self.initial_prices.get(transaction.date, symbol)
+                price = self.initial_prices.get(
+                    transaction.date, symbol, transaction.currency
+                )
             amount = round_decimal(quantity * price, 2)
         elif transaction.action is ActionType.TRANSFER_FROM_SPOUSE:
             # Shares received from a spouse arrive at the base cost they left

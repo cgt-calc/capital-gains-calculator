@@ -42,7 +42,7 @@ ticker for that ISIN on the same row.
 cgt-calc sometimes needs a share's price on a date that your broker files do not give:
 
 - **A vest without a price.** A vest or other stock-plan acquisition needs a price per share to
-    establish its cost. Broker files usually provide it, and cgt-calc includes some historical
+    establish its cost. Broker files usually provide it, and cgt-calc includes some historical USD
     values in
     [`initial_prices.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv).
     If cgt-calc stops with a **No initial price** error, give the missing price in the currency of

@@ -255,6 +255,19 @@ class InitialPriceMissingError(CalculationError):
         super().__init__(self.message)
 
 
+class InitialPriceCurrencyError(CalculationError):
+    """A bundled USD price was asked for a transaction in another currency."""
+
+    def __init__(self, symbol: str, date: datetime.date, currency: str):
+        """Initialise."""
+        super().__init__(
+            f"The bundled price for {symbol} on {date} is in USD, but the "
+            f"transaction is in {currency}. Enter the vest's price in the row, or "
+            "give it in the transaction's currency in a file passed with "
+            "--initial-prices-file."
+        )
+
+
 class LatexRenderError(CgtError):
     """Raised when LaTeX PDF rendering fails."""
 
