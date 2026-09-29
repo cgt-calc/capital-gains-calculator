@@ -46,7 +46,7 @@ cgt-calc sometimes needs a share's price on a date that your broker files do not
     values in
     [`initial_prices.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv).
     If cgt-calc stops with a **No initial price** error, give the missing price in the currency of
-    the transaction it is for, for example USD for a US stock-plan vest recorded in USD.
+    the transaction it is for.
 - **A spin-off.** cgt-calc splits the old holding's cost between the old and the new holding by
     their market values on the date of the spin-off row, using each holding's closing price that day
     from Yahoo Finance, as traded rather than adjusted for later dividends and splits. If it stops
