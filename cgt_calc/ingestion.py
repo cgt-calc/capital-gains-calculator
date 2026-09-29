@@ -412,10 +412,9 @@ class TransactionIngester:
             if known is not None:
                 return known
         for name in (symbol, *aliases):
-            try:
-                return self.initial_prices.get(date_index, name)
-            except InitialPriceMissingError:
-                continue
+            known = self.initial_prices.get_or_none(date_index, name)
+            if known is not None:
+                return known
         return self.price_fetcher.get_closing_price(symbol, date_index)
 
     def _refuse_disagreeing_alias(
