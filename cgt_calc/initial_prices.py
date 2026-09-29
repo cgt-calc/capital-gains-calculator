@@ -78,6 +78,11 @@ class InitialPrices:
             raise InitialPriceMissingError(symbol, date)
         return self.initial_prices[date][symbol]
 
+    def get_or_none(self, date: datetime.date, symbol: str) -> Decimal | None:
+        """Get initial stock price at given date, or None if not supplied."""
+        assert is_date(date)
+        return self.initial_prices.get(date, {}).get(symbol)
+
     def _read_initial_prices(self) -> dict[datetime.date, dict[str, Decimal]]:
         """Read initial stock prices from CSV file."""
         initial_prices: dict[datetime.date, dict[str, Decimal]] = {}
