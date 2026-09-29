@@ -77,16 +77,30 @@ class CurrentPriceFetcher:
         return self.historical_prices_data.get(symbol, {}).get(date)
 
     def get_closing_price(self, symbol: str, date: datetime.date) -> Decimal:
-        """Get the price of the share on closing time."""
+        """Get the price the share closed at on the day, as it traded then.
+
+        Yahoo rewrites past prices: by default it lowers them for every later
+        dividend, and it divides them by every later split whatever is asked.
+        So the dividend adjustment is not requested, and the splits after the
+        day are multiplied back, read from the same history. A split entry on
+        the day itself is not: that day's close is already after it, and
+        Yahoo records some spin-offs as splits on their own day.
+        """
         yf_ticker = yf.Ticker(symbol)
         prices = yf_ticker.history(
             interval="1d",
             start=date.strftime("%Y-%m-%d"),
-            end=(date + datetime.timedelta(days=1)).strftime("%Y-%m-%d"),
+            auto_adjust=False,
+            actions=True,
         )
-        if prices.empty:
+        # With no end, Yahoo starts at the next day it has a price for: after
+        # a day the market was shut, or at today's quote for a ticker it has
+        # no history for.
+        if prices.empty or prices.index[0].date() != date:
             raise MarketDataMissingError(symbol, date)
-        closing_price = prices.iloc[0]["Close"]
-        closing_price_decimal = Decimal(format(closing_price, ".15g"))
+        closing_price = Decimal(format(prices.iloc[0]["Close"], ".15g"))
+        for ratio in prices["Stock Splits"].iloc[1:]:
+            if ratio:
+                closing_price *= Decimal(format(ratio, ".15g"))
         currency = yf_ticker.info.get("currency") if yf_ticker.info else None
-        return self._convert_to_gbp(closing_price_decimal, currency, date)
+        return self._convert_to_gbp(closing_price, currency, date)
