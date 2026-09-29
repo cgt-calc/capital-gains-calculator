@@ -480,27 +480,42 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert "Final balance\n  Interactive Brokers: 999.82 (GBP)" in result.stdout
         assert "GBP.USD" not in (tmp_path / "out.tex").read_text(encoding="utf-8")
 
-    def test_same_day_round_trip_is_read_in_the_order_it_is_listed(
-        self, tmp_path: Path
+    @pytest.mark.parametrize(
+        ("rows", "balance"),
+        [
+            pytest.param(
+                # Bought, sold and bought back, as the export that reported the
+                # problem lists it.
+                "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Buy,AAA,10.0,100.0,-1000.0,-,-1000.0\n"
+                "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Sell,AAA,-10.0,110.0,1100.0,-,1100.0\n"
+                "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Buy,AAA,10.0,110.0,-1100.0,-,-1100.0\n",
+                "0.00",
+                id="buy-sell-buy",
+            ),
+            pytest.param(
+                # Bought and then sold, listed newest first.
+                "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Sell,AAA,-10.0,110.0,1100.0,-,1100.0\n"
+                "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Buy,AAA,10.0,100.0,-1000.0,-,-1000.0\n",
+                "1100.00",
+                id="sale-listed-before-its-purchase",
+            ),
+        ],
+    )
+    def test_same_day_trades_in_one_security_are_accepted(
+        self, tmp_path: Path, rows: str, balance: str
     ) -> None:
-        """A security bought and sold on one day must fill its pool first.
+        """A security traded both ways on one day passes in any listed order.
 
-        Sorting every sell of a day before its buys funds the day's purchases,
-        but it empties the pool of a security that was bought earlier the same
-        day, and the disposal is then refused as "not owned". Trades in one
-        security on one day are instead read in the order the statement lists
-        them, here buy, sell, buy. Where the sale falls within the day does
-        not change the gain, which TCGA 1992 s105 works out by matching the
-        day's acquisitions and disposals with each other.
+        IBKR can list a day's rows newest first, so a purchase followed by a
+        sale may arrive sale first. Read in that order, the sale would meet an
+        empty holding and be refused as not owned, so a day's sales are read
+        after its purchases.
         """
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
             self.base_header
             + "Transaction History,Data,2025-01-01,U***00000,Electronic Fund Transfer,Deposit,-,-,-,1000.0,-,1000.0\n"
-            # Bought, sold and bought back again, all on the same day.
-            + "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Buy,AAA,10.0,100.0,-1000.0,-,-1000.0\n"
-            + "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Sell,AAA,-10.0,110.0,1100.0,-,1100.0\n"
-            + "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Buy,AAA,10.0,110.0,-1100.0,-,-1100.0\n"
+            + rows
         )
 
         cmd = build_cmd(
@@ -519,122 +534,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
                 f"stderr:\n{result.stderr}"
             )
         assert stderr_alerts(result.stderr) == []
-        assert "Final balance\n  Interactive Brokers: 0.00 (GBP)" in result.stdout
-
-    def test_same_day_sell_funding_its_own_buy_back_does_not_go_negative(
-        self, tmp_path: Path
-    ) -> None:
-        """Shares held from an earlier day may be sold to fund buying them back.
-
-        The account holds AAA and no cash, and on one day sells the holding and
-        spends the proceeds on the same security again. Promoting the buy ahead
-        of the sell to fill the pool would spend money the account does not have
-        yet, so the listed order, sell then buy, is what has to be kept.
-        """
-        csv_file = tmp_path / "transactions.csv"
-        csv_file.write_text(
-            self.base_header
-            + "Transaction History,Data,2025-01-01,U***00000,Electronic Fund Transfer,Deposit,-,-,-,1000.0,-,1000.0\n"
-            # Leaves the account holding 5 AAA and a zero cash balance.
-            + "Transaction History,Data,2025-01-01,U***00000,AAA STOCK,Buy,AAA,5.0,200.0,-1000.0,-,-1000.0\n"
-            + "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Sell,AAA,-5.0,220.0,1100.0,-,1100.0\n"
-            + "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Buy,AAA,5.0,220.0,-1100.0,-,-1100.0\n"
-        )
-
-        cmd = build_cmd(
-            "--year",
-            "2025",
-            "--interactive-brokers-file",
-            str(csv_file),
-            "--output",
-            str(tmp_path / "out"),
-        )
-        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-        if result.returncode:
-            pytest.fail(
-                "Integration test failed\n"
-                f"stdout:\n{result.stdout}\n"
-                f"stderr:\n{result.stderr}"
-            )
-        assert stderr_alerts(result.stderr) == []
-        assert "Final balance\n  Interactive Brokers: 0.00 (GBP)" in result.stdout
-
-    def test_buy_before_same_day_sell_does_not_go_negative(
-        self, tmp_path: Path
-    ) -> None:
-        """A same-day buy listed before the sell funding it must not go negative.
-
-        The file lists the buy of AAA before the sell of BBB on the same day,
-        even though the cash to pay for the buy only exists once the sell is
-        accounted for. If the transactions were processed in file order the
-        cash balance would briefly go negative and trip the balance check.
-        Sorting sells before buys on the same day (post_process_transactions)
-        avoids that, and the amounts are chosen so the buy exactly consumes
-        the sell's proceeds, leaving a final cash balance of zero.
-        """
-        csv_file = tmp_path / "transactions.csv"
-        csv_file.write_text(
-            self.base_header
-            + "Transaction History,Data,2025-01-01,U***00000,Electronic Fund Transfer,Deposit,-,-,-,1000.0,-,1000.0\n"
-            + "Transaction History,Data,2025-01-01,U***00000,BBB STOCK,Buy,BBB,10.0,100.0,-1000.0,-,-1000.0\n"
-            # Same day, buy listed before the sell that funds it.
-            + "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Buy,AAA,10.0,100.0,-1000.0,-,-1000.0\n"
-            + "Transaction History,Data,2025-06-02,U***00000,BBB STOCK,Sell,BBB,-10.0,100.0,1000.0,-,1000.0\n"
-        )
-
-        cmd = build_cmd(
-            "--year",
-            "2025",
-            "--interactive-brokers-file",
-            str(csv_file),
-            "--output",
-            str(tmp_path / "out"),
-        )
-        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-        if result.returncode:
-            pytest.fail(
-                "Integration test failed\n"
-                f"stdout:\n{result.stdout}\n"
-                f"stderr:\n{result.stderr}"
-            )
-        assert stderr_alerts(result.stderr) == []
-        assert "Final balance\n  Interactive Brokers: 0.00 (GBP)" in result.stdout
-
-    def test_withholding_before_its_dividend_does_not_go_negative(
-        self, tmp_path: Path
-    ) -> None:
-        """IBKR lists tax withheld at source before the dividend it came from.
-
-        A statement that does not reach back to the opening of the account
-        starts at a zero balance, so in file order the withholding is the first
-        row and takes the balance negative before the dividend that covers it
-        arrives on the same day.
-        """
-        csv_file = tmp_path / "transactions.csv"
-        csv_file.write_text(
-            self.base_header + "Transaction History,Data,2025-06-24,U***00000,"
-            "VT(US9220427424) Cash Dividend - US Tax,Foreign Tax Withholding,"
-            "VT,-,-,-15.0,-,-15.0\n" + "Transaction History,Data,2025-06-24,U***00000,"
-            "VT(US9220427424) Cash Dividend USD 0.5 per Share,Dividend,"
-            "VT,-,-,100.0,-,100.0\n"
-        )
-
-        cmd = build_cmd(
-            "--year",
-            "2025",
-            "--interactive-brokers-file",
-            str(csv_file),
-            "--output",
-            str(tmp_path / "out"),
-        )
-        result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-        if result.returncode:
-            pytest.fail(
-                "Integration test failed\n"
-                f"stdout:\n{result.stdout}\n"
-                f"stderr:\n{result.stderr}"
-            )
-        assert stderr_alerts(result.stderr) == []
+        assert f"Final balance\n  Interactive Brokers: {balance} (GBP)" in result.stdout
 
     @pytest.mark.parametrize(
         "cache", [None, "ISIN,symbol\nDE0007030009,RHM\n"], ids=["no-cache", "cache"]

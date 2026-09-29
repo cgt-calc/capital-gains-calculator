@@ -27,10 +27,6 @@ EXPECTED_COLS_IN_SUMMARY_SECTION: Final[int] = 4
 # Dividend ...". Trade rows carry a plain description, so this is best effort.
 _ISIN_IN_DESCRIPTION_RE: Final = re.compile(r"^[^\s(]+\((?P<isin>[A-Z0-9]{12})\)")
 
-# Actions that move shares in or out of a pool and so have to be read in
-# the statement's own order within a security's trading on one day.
-_TRADE_ACTIONS: Final[set[ActionType]] = {ActionType.BUY, ActionType.SELL}
-
 
 def _isin_from_description(description: str) -> Isin | None:
     """Return the ISIN the description is prefixed with, if it has one."""
@@ -251,63 +247,19 @@ class InteractiveBrokersParser(StandardCSVParser[InteractiveBrokersTransaction])
             "Couldn't find Transaction History header, is this the right file?",
         )
 
-    @staticmethod
-    def _trade_ranks(
-        transactions: list[InteractiveBrokersTransaction],
-    ) -> dict[tuple[datetime.date, str], bool]:
-        """Rank a day's trades in one security by the first of them listed.
-
-        Trades in the same security on the same day are left in the order the
-        statement lists them, so the whole group takes the rank of the first
-        one: a security bought and then sold has its pool filled before the
-        disposal reads it, and one sold and then bought back has the proceeds
-        in hand before they are spent.
-        """
-        ranks: dict[tuple[datetime.date, str], bool] = {}
-        for transaction in transactions:
-            if transaction.symbol is None or transaction.action not in _TRADE_ACTIONS:
-                continue
-            ranks.setdefault(
-                (transaction.date, transaction.symbol),
-                transaction.action is ActionType.BUY,
-            )
-        return ranks
-
-    @staticmethod
-    def _by_date_and_action(
-        transaction: BrokerTransaction,
-        trade_ranks: dict[tuple[datetime.date, str], bool],
-    ) -> tuple[datetime.date, bool]:
-        """Sort by date and action type."""
-
-        # If there's a deposit in the same second as a buy
-        # (happens with the referral award at least)
-        # we want to put the buy last to avoid negative balance errors.
-        # Tax withheld at source goes last for the same reason: IBKR lists it
-        # before the dividend it was taken from.
-        #
-        # Sells lead so that the day's disposals fund its purchases, except
-        # where the same security is traded more than once that day: those
-        # trades keep the order they are listed in, under the rank the first
-        # of them earns. Where the sale falls within the day does not change
-        # the gain, which TCGA 1992 s105 works out by matching the day's
-        # acquisitions and disposals with each other.
-        if transaction.action in _TRADE_ACTIONS and transaction.symbol is not None:
-            return (
-                transaction.date,
-                trade_ranks[transaction.date, transaction.symbol],
-            )
-        return (
-            transaction.date,
-            transaction.action in {ActionType.BUY, ActionType.DIVIDEND_TAX},
-        )
-
     @classmethod
     @override
     def post_process_transactions(
         cls, transactions: list[InteractiveBrokersTransaction]
     ) -> list[InteractiveBrokersTransaction]:
-        """Sort transactions by date, buys and withheld tax last."""
-        trade_ranks = cls._trade_ranks(transactions)
-        transactions.sort(key=lambda t: cls._by_date_and_action(t, trade_ranks))
+        """Sort transactions by date, reading each day's sales last.
+
+        IBKR can list a day's rows newest first, so a security bought and then
+        sold that day may arrive sale first, and the sale would be refused as
+        not owned. With the sales last, a holding never runs short partway
+        through a day that it ends at zero or above. Neither the cash balance,
+        which is checked at the end of each day, nor the gain, which TCGA 1992
+        s105 works out from the day's totals, depends on the order within a day.
+        """
+        transactions.sort(key=lambda t: (t.date, t.action is ActionType.SELL))
         return transactions
