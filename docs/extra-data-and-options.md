@@ -47,18 +47,16 @@ cgt-calc sometimes needs a share's price on a date that your broker files do not
     [`initial_prices.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv).
     If cgt-calc stops with a **No initial price** error, give the missing price in the currency of
     the transaction it is for.
-- **A spin-off.** cgt-calc divides the old holding's pooled cost between the old and the new holding
-    in proportion to their market values on the date of the spin-off row in your broker file. It
-    works them out from each holding's closing price, which it looks up on Yahoo Finance. If
-    cgt-calc stops with a **No market data found** error, for example because Yahoo lists the ticker
-    differently from your broker, give the closing prices of both holdings on the date the error
-    shows, in the same currency. A price you give is used instead of Yahoo's. Give both or neither:
-    cgt-calc stops if you give only one, and any price in your file for either holding on that date
-    counts, including one you added for a vest.
+- **A spin-off.** cgt-calc splits the old holding's cost between the old and the new holding by
+    their market values on the date of the spin-off row, using closing prices from Yahoo Finance. If
+    it stops with a **No market data found** error, for example because Yahoo lists the ticker
+    differently from your broker, give the closing prices of both holdings on that date. Any
+    currency works, as long as both are in the same one. Prices you give are used instead of
+    Yahoo's, and giving only one of the two stops the run.
 
-Put the prices in a CSV file in the same format as `initial_prices.csv`, under the tickers your
-transactions use, and pass it with `--initial-prices-file`. For a spin-off of `NEWCO` from `ACME` on
-1 April 2024:
+Put the prices in a CSV file in the same format as `initial_prices.csv`, under the tickers in your
+broker files, not Yahoo's, and pass it with `--initial-prices-file`. For a spin-off of `NEWCO` from
+`ACME` on 1 April 2024:
 
 ```csv
 date,symbol,price
