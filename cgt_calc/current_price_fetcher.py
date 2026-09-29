@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from contextlib import suppress
 import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -79,9 +78,6 @@ class CurrentPriceFetcher:
 
     def get_closing_price(self, symbol: str, date: datetime.date) -> Decimal:
         """Get the price of the share on closing time."""
-        with suppress(KeyError):
-            return self.historical_prices_data[symbol][date]
-
         yf_ticker = yf.Ticker(symbol)
         prices = yf_ticker.history(
             interval="1d",

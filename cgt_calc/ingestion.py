@@ -378,10 +378,10 @@ class TransactionIngester:
             + f"{symbol} out by hand (consider professional advice)."
         )
 
-    def _end_price(
+    def _given_price(
         self, symbol: str, date_index: datetime.date, *, other_end: str
-    ) -> Decimal:
-        """Return what one end of a reorganisation was worth on the day.
+    ) -> Decimal | None:
+        """Return the price this run was given for one end of a reorganisation.
 
         A day may rename this end, so the price the run was given can sit
         under its other name. The two are one security with one market value,
@@ -401,7 +401,8 @@ class TransactionIngester:
         check measures the end's other names against the price this returns,
         so the end's own name answers first: return another's and the end's
         own price becomes the one nothing reads, and the disagreement passes.
-        A holding none of whose names was priced is looked up as before.
+        A holding none of whose names was priced gets None, and
+        `handle_spin_off` decides whether to look it up.
         """
         renames = self.history.rename_list.get(date_index, {})
         own = connected_names(renames, symbol)
@@ -410,7 +411,7 @@ class TransactionIngester:
             known = self.price_fetcher.known_closing_price(name, date_index)
             if known is not None:
                 return known
-        return self.price_fetcher.get_closing_price(symbol, date_index)
+        return None
 
     def _refuse_disagreeing_alias(
         self,
@@ -680,8 +681,28 @@ class TransactionIngester:
         # holding it creates. Reading a price under a name that depends on
         # where the RENAME row landed would let the export's layout decide
         # how much cost carries across.
-        dst_price = self._end_price(symbol, transaction.date, other_end=recorded)
-        src_price = self._end_price(recorded, transaction.date, other_end=symbol)
+        dst_price = self._given_price(symbol, transaction.date, other_end=recorded)
+        src_price = self._given_price(recorded, transaction.date, other_end=symbol)
+        # Both prices given, or both looked up. The cost is split by what the
+        # two holdings are worth at these prices, and a looked-up price is in
+        # pounds while a given one is in whatever currency it was written in.
+        if dst_price is None and src_price is None:
+            dst_price = self.price_fetcher.get_closing_price(symbol, transaction.date)
+            src_price = self.price_fetcher.get_closing_price(recorded, transaction.date)
+        elif dst_price is None or src_price is None:
+            priced, unpriced = (
+                (recorded, symbol) if dst_price is None else (symbol, recorded)
+            )
+            raise CalculationError(
+                f"Cannot compute the spin-off of {symbol} on {transaction.date}: "
+                f"--initial-prices-file gives a price for {priced} but not for "
+                f"{unpriced}. The cost is divided in proportion to what the two "
+                "holdings were worth at these prices, so both must be in the same "
+                "currency, and a price from Yahoo Finance is converted to pounds "
+                "while one you enter is not. Add "
+                f"{unpriced}'s closing price on {transaction.date} to that file, "
+                f"in the same currency as {priced}'s."
+            )
         # The wider question first, so that a day whose two ends close under
         # one name is refused for that rather than for whichever of its names
         # happened to be compared.

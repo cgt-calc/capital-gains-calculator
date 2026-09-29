@@ -89,7 +89,7 @@ Environment variables:
             "--initial-prices-file",
             type=existing_file_type,
             metavar="PATH",
-            help="stock-plan acquisition prices in CSV format",
+            help="share prices in CSV format, for vests without a price and for spin-offs",
         ),
         shtab.FILE,
     )

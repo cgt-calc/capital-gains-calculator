@@ -128,8 +128,10 @@ def calculate_cgt(args: argparse.Namespace) -> None:
         _save_transaction_dump(args, broker_transactions)
 
     currency_converter = CurrencyConverter.create(args.exchange_rates_file)
-    price_fetcher = CurrentPriceFetcher(currency_converter)
     initial_prices = InitialPrices(args.initial_prices_file)
+    price_fetcher = CurrentPriceFetcher(
+        currency_converter, historical_prices_data=initial_prices.closing_prices()
+    )
     spin_off_handler = SpinOffHandler(args.spin_offs_file)
 
     calculator = CapitalGainsCalculator(

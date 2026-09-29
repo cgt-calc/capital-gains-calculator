@@ -23,7 +23,7 @@ import pytest
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
-from cgt_calc.exceptions import CalculationError, MarketDataMissingError
+from cgt_calc.exceptions import CalculationError
 from cgt_calc.initial_prices import InitialPrices
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.main import CapitalGainsCalculator
@@ -797,14 +797,16 @@ def test_a_destination_priced_under_its_other_name_keeps_that_price(
 
 
 @pytest.mark.usefixtures("unlisted")
-def test_a_holding_priced_under_none_of_its_names_is_still_looked_up() -> None:
+def test_a_holding_priced_under_none_of_its_names_borrows_no_price() -> None:
     """A holding nobody priced is not made up from a name that is.
 
-    `SRC` has two names and neither was priced, so there is nothing to read
-    and the run goes to the market as it always did, saying which ticker it
-    could not price.
+    `SRC` has two names and neither was priced, so there is nothing to read.
+    Only `DST` was, and a spin-off priced at one end is refused, naming the
+    source's own spelling as the one without a price.
     """
-    with pytest.raises(MarketDataMissingError, match="SRCNEW"):
+    with pytest.raises(
+        CalculationError, match="gives a price for DST but not for SRCNEW"
+    ):
         run(
             [
                 transaction(BUY_DAY, ActionType.BUY, "SRC", 10, 10, 0, -100, GBP),
@@ -844,9 +846,12 @@ def test_a_merged_day_takes_no_price_from_the_name_it_shares() -> None:
     `SRCOLD` becomes `SRC` and the new `DST` shares are renamed into `SRC`
     too, so `SRC` is claimed by both ends and its £40 says nothing about
     which. Reading it as the unpriced source's would price that holding at
-    whatever the day's other one was worth.
+    whatever the day's other one was worth. It is left unpriced, and a
+    spin-off priced at one end is refused.
     """
-    with pytest.raises(MarketDataMissingError, match="SRCOLD"):
+    with pytest.raises(
+        CalculationError, match="gives a price for DST but not for SRCOLD"
+    ):
         run(
             [
                 transaction(BUY_DAY, ActionType.BUY, "SRCOLD", 12, 12, 0, -144, GBP),
