@@ -66,7 +66,8 @@ date,symbol,price
 "Apr 01, 2024",NEWCO,17.50
 ```
 
-Your file replaces the bundled prices rather than adding to them.
+Your file replaces the bundled prices rather than adding to them, so copy in any bundled rows you
+still need.
 
 ### Spin-off source mappings
 
