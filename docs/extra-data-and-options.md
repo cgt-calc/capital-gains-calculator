@@ -45,7 +45,7 @@ usually provide it, and cgt-calc includes some historical values in
 
 If cgt-calc stops with a **No initial price** error, create a CSV in the same format with the
 missing price, in the currency of the transaction it is for, and pass it with
-`--initial-prices-file`.
+`--initial-prices-file`. Your file replaces the bundled prices rather than adding to them.
 
 ### Spin-off source mappings
 

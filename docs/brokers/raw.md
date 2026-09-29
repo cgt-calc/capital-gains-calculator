@@ -62,16 +62,12 @@ received and negative for money paid. A £250 deposit and a £40 withdrawal look
 ```
 
 Do not leave `quantity` or `price` blank. On a row that moves cash, such as a trade, dividend,
-deposit or withdrawal, a blank leaves cgt-calc no amount to apply, and it stops with
-`Amount missing`.
+deposit or withdrawal, cgt-calc then has no amount to apply and stops with `Amount missing`.
 
-A `STOCK_ACTIVITY` row is the exception for `price`. If you leave it blank, cgt-calc looks the price
-up by ticker and date in your
-[`--initial-prices-file`](../extra-data-and-options.md#missing-stock-plan-prices) if you pass one,
-or in the few historical prices that come with cgt-calc if you do not. A file you pass replaces
-those prices rather than adding to them. The price found is read in the row's `currency`. If none is
-found, the run stops with `No initial price`: enter the market value per unit in `price`, or add a
-row for it to your `--initial-prices-file`.
+If a `STOCK_ACTIVITY` row has no `price`, cgt-calc looks it up by ticker and date in the
+[initial prices](../extra-data-and-options.md#missing-stock-plan-prices) and reads it in the row's
+`currency`. If there is none, the run stops with `No initial price`: enter the market value per unit
+in `price`.
 
 ## Actions to use
 
