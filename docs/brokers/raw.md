@@ -116,7 +116,7 @@ file passed with [`--prices-file`](../extra-data-and-options.md#missing-share-pr
 Date the `SPIN_OFF` row on the first day both shares trade normally on their own. The company or
 exchange usually announces it as the ex-date, and it can be a day after the distribution or payment
 date. HMRC divides the cost by the two holdings' values on that day
-([CG33900](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg33900)); before it, the
+([CG52002](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg52002)); before it, the
 old shares' price still includes the new ones. For example, GE paid out GE HealthCare shares on 3
 January 2023, but normal trading in them began on 4 January, so the row belongs on 4 January. If you
 also bought or sold the old shares that day, cgt-calc stops, because it cannot tell whether the
