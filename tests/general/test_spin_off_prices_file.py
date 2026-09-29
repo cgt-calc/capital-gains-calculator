@@ -134,7 +134,7 @@ def test_bundled_prices_do_not_price_a_spin_off(
     instead of priced from Yahoo as it was before a prices file could reach it.
     """
     # The premise: without this bundled row the test protects nothing.
-    assert InitialPrices().get(datetime.date(2020, 11, 16), "VTRS")
+    assert InitialPrices().get(datetime.date(2020, 11, 16), "VTRS", "USD")
     out = _run(
         tmp_path,
         monkeypatch,

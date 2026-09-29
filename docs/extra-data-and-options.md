@@ -45,6 +45,7 @@ cgt-calc sometimes needs a share's price on a date that your broker files do not
     establish its cost. Broker files usually provide it, and cgt-calc includes some historical
     values in
     [`initial_prices.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv).
+    Those are USD prices, so a vest recorded in another currency stops the run rather than use them.
     If cgt-calc stops with a **No initial price** error, give the missing price in the currency of
     the transaction it is for.
 - **A spin-off.** cgt-calc splits the old holding's cost between the old and the new holding by

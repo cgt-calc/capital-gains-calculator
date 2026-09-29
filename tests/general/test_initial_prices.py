@@ -8,7 +8,13 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cgt_calc.exceptions import InitialPriceMissingError, ParsingError
+from cgt_calc.args_parser import create_parser
+from cgt_calc.cli import calculate_cgt
+from cgt_calc.exceptions import (
+    InitialPriceCurrencyError,
+    InitialPriceMissingError,
+    ParsingError,
+)
 from cgt_calc.initial_prices import InitialPrices
 
 if TYPE_CHECKING:
@@ -22,7 +28,7 @@ def test_load_custom_file(tmp_path: Path) -> None:
 
     prices = InitialPrices(initial_prices_file=prices_file)
 
-    assert prices.get(datetime.date(2021, 3, 8), "FOO") == Decimal("10.5")
+    assert prices.get(datetime.date(2021, 3, 8), "FOO", "USD") == Decimal("10.5")
 
 
 def test_get_missing_price(tmp_path: Path) -> None:
@@ -33,7 +39,7 @@ def test_get_missing_price(tmp_path: Path) -> None:
     prices = InitialPrices(initial_prices_file=prices_file)
 
     with pytest.raises(InitialPriceMissingError):
-        prices.get(datetime.date(2021, 3, 8), "FOO")
+        prices.get(datetime.date(2021, 3, 8), "FOO", "USD")
 
 
 def test_invalid_row(tmp_path: Path) -> None:
@@ -85,3 +91,56 @@ def test_invalid_numeric_price(tmp_path: Path, price: str) -> None:
         InitialPrices(initial_prices_file=prices_file)
 
     assert excinfo.value.row_index == 2
+
+
+@pytest.mark.parametrize(
+    ("currency", "given", "expected"),
+    [
+        pytest.param("USD", None, "  GOOG: 1.00, £1,061.68\n", id="bundled-usd"),
+        pytest.param("GBP", "1000", "  GOOG: 1.00, £1,000.00\n", id="file-gbp"),
+        pytest.param("GBP", None, None, id="bundled-gbp-refused"),
+    ],
+)
+def test_a_vest_without_a_price_is_priced_in_its_own_currency(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    currency: str,
+    given: str | None,
+    expected: str | None,
+) -> None:
+    """A price from your file is in the vest's currency; a bundled one is USD.
+
+    The bundled GOOG price on 2021-03-25 is $1,491.764, £1,061.68 at that
+    month's rate. Read for a GBP vest it would be taken as £1,491.76.
+    """
+    raw = tmp_path / "raw.csv"
+    raw.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        f"2021-03-25,STOCK_ACTIVITY,GOOG,1,,0,{currency}\n"
+    )
+    args = [
+        "--year",
+        "2020",
+        "--raw-file",
+        str(raw),
+        "--exchange-rates-file",
+        "tests/exchange_rates_data.csv",
+        "--isin-translation-file",
+        "",
+        "--spin-offs-file",
+        "",
+        "--no-report",
+    ]
+    if given is not None:
+        prices = tmp_path / "prices.csv"
+        prices.write_text(f'date,symbol,price\n"Mar 25, 2021",GOOG,{given}\n')
+        args += ["--initial-prices-file", str(prices)]
+
+    if expected is None:
+        with pytest.raises(
+            InitialPriceCurrencyError, match="is in USD, but the transaction is in GBP"
+        ):
+            calculate_cgt(create_parser().parse_args(args))
+        return
+    calculate_cgt(create_parser().parse_args(args))
+    assert expected in capsys.readouterr().out
