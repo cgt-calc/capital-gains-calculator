@@ -605,6 +605,14 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
                 "1100.00",
                 id="sale-listed-before-its-purchase",
             ),
+            pytest.param(
+                # A holding and no cash, sold and bought straight back.
+                "Transaction History,Data,2025-01-01,U***00000,AAA STOCK,Buy,AAA,10.0,100.0,-1000.0,-,-1000.0\n"
+                "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Sell,AAA,-10.0,110.0,1100.0,-,1100.0\n"
+                "Transaction History,Data,2025-06-02,U***00000,AAA STOCK,Buy,AAA,10.0,110.0,-1100.0,-,-1100.0\n",
+                "0.00",
+                id="holding-sold-to-buy-it-back",
+            ),
         ],
     )
     def test_same_day_trades_in_one_security_are_accepted(
@@ -615,7 +623,9 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         IBKR can list a day's rows newest first, so a purchase followed by a
         sale may arrive sale first. Read in that order, the sale would meet an
         empty holding and be refused as not owned, so a day's sales are read
-        after its purchases.
+        after its purchases. Selling a holding from a zero cash balance to buy
+        it straight back passes too, because cash is checked at the end of the
+        day.
         """
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
