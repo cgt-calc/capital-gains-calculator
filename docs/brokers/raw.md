@@ -66,8 +66,9 @@ deposit or withdrawal, cgt-calc then has no amount to apply and stops with `Amou
 
 If a `STOCK_ACTIVITY` row has no `price`, cgt-calc looks it up by ticker and date in the
 [initial prices](../extra-data-and-options.md#missing-share-prices) and reads it in the row's
-`currency`. The bundled prices are in USD, so for a row in another currency the run stops instead.
-If there is none, the run stops with `No initial price`: enter the market value per unit in `price`.
+`currency`. If there is none, the run stops with `No initial price`: enter the market value per unit
+in `price`. The bundled prices are in USD, so a row in another currency also stops unless you enter
+its price or pass `--initial-prices-file`.
 
 ## Actions to use
 
