@@ -113,6 +113,15 @@ closing price for the new and the old ticker on that date to divide the old hold
 between them, so a price for both has to be available: from Yahoo Finance, or given for both in a
 file passed with [`--prices-file`](../extra-data-and-options.md#missing-share-prices).
 
+Date the `SPIN_OFF` row on the first day both shares trade normally on their own. The company or
+exchange usually announces it as the ex-date, and it can be a day after the distribution or payment
+date. HMRC divides the cost by the two holdings' values on that day
+([CG52002](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg52002)); before it, the
+old shares' price still includes the new ones. For example, GE paid out GE HealthCare shares on 3
+January 2023, but normal trading in them began on 4 January, so the row belongs on 4 January. If you
+also bought or sold the old shares that day, cgt-calc stops, because it cannot tell whether the
+trade came before or after the spin-off.
+
 ## Known limitations
 
 - The format has no ISIN or source-country column. For a dividend with withholding tax, when
