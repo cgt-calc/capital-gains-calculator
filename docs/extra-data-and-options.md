@@ -37,15 +37,32 @@ ticker for that ISIN on the same row.
 
 ## When extra information is needed
 
-### Missing stock-plan prices
+### Missing share prices
 
-A vest or other stock-plan acquisition needs a price per share to establish its cost. Broker files
-usually provide it, and cgt-calc includes some historical values in
-[`initial_prices.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv).
+cgt-calc sometimes needs a share's price on a date that your broker files do not give:
 
-If cgt-calc stops with a **No initial price** error, create a CSV in the same format with the
-missing price, in the currency of the transaction it is for, and pass it with
-`--initial-prices-file`. Your file replaces the bundled prices rather than adding to them.
+- **A vest without a price.** A vest or other stock-plan acquisition needs a price per share to
+    establish its cost. Broker files usually provide it, and cgt-calc includes some historical
+    values in
+    [`initial_prices.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv).
+    If cgt-calc stops with a **No initial price** error, give the missing price in the currency of
+    the transaction it is for.
+- **A spin-off.** cgt-calc divides the old holding's pooled cost between the old and the new holding
+    in the ratio of their closing prices on the date of the spin-off, which it looks up on Yahoo
+    Finance. If Yahoo has no price, for example because it lists the ticker differently from your
+    broker, give the closing prices of both holdings on that date, in the same currency. A price you
+    give is used instead of Yahoo's. Give both or neither: cgt-calc stops if you give only one.
+
+Put the prices in a CSV file in the same format, under the tickers your transactions use, and pass
+it with `--initial-prices-file`. For a spin-off of `NEWCO` from `ACME` on 1 April 2024:
+
+```csv
+date,symbol,price
+"Apr 01, 2024",ACME,94.00
+"Apr 01, 2024",NEWCO,17.50
+```
+
+Your file replaces the bundled prices rather than adding to them.
 
 ### Spin-off source mappings
 

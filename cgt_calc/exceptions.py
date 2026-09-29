@@ -327,7 +327,9 @@ class MarketDataMissingError(CgtError):
     def __init__(self, symbol: str, date: datetime.date):
         """Initialise."""
         super().__init__(
-            f"No market data found for {symbol} around {date}. The ticker may "
-            "have been renamed or delisted; check the ticker or work out the "
+            f"No market data found for {symbol} around {date}. Yahoo Finance "
+            "may list it under a different ticker, or it may have been renamed "
+            "or delisted. Give the closing prices of both holdings in the "
+            "spin-off on that day in --initial-prices-file, or work out the "
             "spin-off outside cgt-calc."
         )

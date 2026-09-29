@@ -78,10 +78,20 @@ class InitialPrices:
             raise InitialPriceMissingError(symbol, date)
         return self.initial_prices[date][symbol]
 
-    def get_or_none(self, date: datetime.date, symbol: str) -> Decimal | None:
-        """Get initial stock price at given date, or None if not supplied."""
-        assert is_date(date)
-        return self.initial_prices.get(date, {}).get(symbol)
+    def closing_prices(self) -> dict[str, dict[datetime.date, Decimal]]:
+        """Return the prices of a file the user passed, by symbol then date.
+
+        These price spin-offs as well as vests. The bundled prices do not:
+        they are vest prices for a few symbols and dates, in USD, and a
+        spin-off priced from them would change runs that work today.
+        """
+        prices: dict[str, dict[datetime.date, Decimal]] = {}
+        if self.initial_prices_file is None:
+            return prices
+        for date, by_symbol in self.initial_prices.items():
+            for symbol, price in by_symbol.items():
+                prices.setdefault(symbol, {})[date] = price
+        return prices
 
     def _read_initial_prices(self) -> dict[datetime.date, dict[str, Decimal]]:
         """Read initial stock prices from CSV file."""
