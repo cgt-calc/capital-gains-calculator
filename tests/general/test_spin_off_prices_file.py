@@ -1,4 +1,4 @@
-"""A spin-off's two prices come from `--initial-prices-file` or from Yahoo.
+"""A spin-off's two prices come from `--prices-file` or from Yahoo.
 
 The cost is split in the ratio of the two holdings' prices on the day, so a
 price the user gave and one looked up must not be mixed: a looked-up price is
@@ -17,7 +17,7 @@ import pytest
 from cgt_calc.args_parser import create_parser
 from cgt_calc.cli import calculate_cgt
 from cgt_calc.exceptions import CalculationError
-from cgt_calc.initial_prices import InitialPrices
+from cgt_calc.share_prices import SharePrices
 
 from .test_current_price_fetcher import FakeHistoryTicker
 
@@ -37,7 +37,7 @@ def _run(
 ) -> str:
     """Spin `dest` off £100 of `source` on 2020-11-16 and return the report.
 
-    `given` is written to an initial prices file; with None, no file is passed.
+    `given` is written to a prices file; with None, no file is passed.
     `market` is what Yahoo answers; with None, any lookup fails the test.
     """
     raw = tmp_path / "raw.csv"
@@ -70,7 +70,7 @@ def _run(
                 f'"Nov 16, 2020",{name},{price}\n' for name, price in given.items()
             )
         )
-        args += ["--initial-prices-file", str(prices)]
+        args += ["--prices-file", str(prices)]
 
     def ticker(symbol: str) -> FakeHistoryTicker:
         if market is None:
@@ -134,7 +134,7 @@ def test_bundled_prices_do_not_price_a_spin_off(
     instead of priced from Yahoo as it was before a prices file could reach it.
     """
     # The premise: without this bundled row the test protects nothing.
-    assert InitialPrices().get(datetime.date(2020, 11, 16), "VTRS", "USD")
+    assert SharePrices().get(datetime.date(2020, 11, 16), "VTRS", "USD")
     out = _run(
         tmp_path,
         monkeypatch,

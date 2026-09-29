@@ -155,8 +155,8 @@ PACKAGE_NAME: Final = __package__
 # LaTeX template for calculations report
 LATEX_TEMPLATE_RESOURCE: Final = "template.tex.j2"
 
-# Initial vesting and spin-off prices
-INITIAL_PRICES_RESOURCE: Final = "initial_prices.csv"
+# Bundled USD share prices for a few vests, used when no prices file is passed
+SHARE_PRICES_RESOURCE: Final = "share_prices.csv"
 
 # ISIN initial translation file
 INITIAL_ISIN_TRANSLATION_RESOURCE: Final = "initial_isin_translation.csv"

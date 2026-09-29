@@ -65,8 +65,8 @@ Do not leave `quantity` or `price` blank. On a row that moves cash, such as a tr
 deposit or withdrawal, cgt-calc then has no amount to apply and stops with `Amount missing`.
 
 If a `STOCK_ACTIVITY` row has no `price`, cgt-calc looks it up by ticker and date in the
-[initial prices](../extra-data-and-options.md#missing-share-prices) and reads it in the row's
-`currency`. If there is none, the run stops with `No initial price`: enter the market value per unit
+[share prices](../extra-data-and-options.md#missing-share-prices) and reads it in the row's
+`currency`. If there is none, the run stops with `No share price`: enter the market value per unit
 in `price`.
 
 ## Actions to use
@@ -110,8 +110,8 @@ ticker up in [`--spin-offs-file`](../extra-data-and-options.md#spin-off-source-m
 when it is not there, and saves your answer to that file so it only asks once; a run that cannot
 ask, such as one in a script, stops and tells you how to supply the row yourself. It then looks up a
 closing price for the new and the old ticker on that date to divide the old holding's pooled cost
-between them, so a price for both has to be available: from Yahoo Finance, or given for both in
-[`--initial-prices-file`](../extra-data-and-options.md#missing-share-prices).
+between them, so a price for both has to be available: from Yahoo Finance, or given for both in a
+file passed with [`--prices-file`](../extra-data-and-options.md#missing-share-prices).
 
 ## Known limitations
 

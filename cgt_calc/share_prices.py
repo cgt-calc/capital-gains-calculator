@@ -1,4 +1,4 @@
-"""Initial stock prices."""
+"""Share prices on given dates, for vests without a price and for spin-offs."""
 
 from __future__ import annotations
 
@@ -10,22 +10,22 @@ from importlib import resources
 from pathlib import Path
 from typing import Final, override
 
-from .const import INITIAL_PRICES_RESOURCE
+from .const import SHARE_PRICES_RESOURCE
 from .dates import is_date
 from .exceptions import (
-    InitialPriceCurrencyError,
-    InitialPriceMissingError,
+    BundledPriceCurrencyError,
     ParsingError,
+    SharePriceMissingError,
     UnexpectedColumnCountError,
 )
 from .resources import RESOURCES_PACKAGE
 
-INITIAL_PRICES_COLUMNS_NUM: Final = 3
+SHARE_PRICES_COLUMNS_NUM: Final = 3
 
 
 @dataclass
-class InitialPricesEntry:
-    """Entry from initial stock prices file."""
+class SharePricesEntry:
+    """Entry from a share prices file."""
 
     date: datetime.date
     symbol: str
@@ -33,8 +33,8 @@ class InitialPricesEntry:
 
     def __init__(self, row: list[str], file: Path):
         """Create entry from CSV row."""
-        if len(row) != INITIAL_PRICES_COLUMNS_NUM:
-            raise UnexpectedColumnCountError(row, INITIAL_PRICES_COLUMNS_NUM, file)
+        if len(row) != SHARE_PRICES_COLUMNS_NUM:
+            raise UnexpectedColumnCountError(row, SHARE_PRICES_COLUMNS_NUM, file)
         # date,symbol,price
         self.date = self._parse_date(row[0], file)
         self.symbol = row[1]
@@ -44,7 +44,7 @@ class InitialPricesEntry:
             raise ParsingError(file, f"Invalid decimal price: {row[2]!r}") from err
         if not self.price.is_finite() or self.price < 0:
             raise ParsingError(
-                file, f"Initial price must be finite and non-negative: {row[2]!r}"
+                file, f"Share price must be finite and non-negative: {row[2]!r}"
             )
 
     @staticmethod
@@ -64,13 +64,13 @@ class InitialPricesEntry:
         return f"date: {self.date}, symbol: {self.symbol}, price: {self.price}"
 
 
-class InitialPrices:
-    """Class to store initial stock prices."""
+class SharePrices:
+    """Share prices from a file the user passed, or the bundled ones."""
 
-    def __init__(self, initial_prices_file: Path | None = None) -> None:
-        """Load data from an optional initial prices file or package resources."""
-        self.initial_prices_file = initial_prices_file
-        self.initial_prices = self._read_initial_prices()
+    def __init__(self, prices_file: Path | None = None) -> None:
+        """Load data from an optional prices file or package resources."""
+        self.prices_file = prices_file
+        self.prices = self._read_prices()
 
     def get(self, date: datetime.date, symbol: str, currency: str) -> Decimal:
         """Get the price of a share on a date, for a transaction in `currency`.
@@ -80,11 +80,11 @@ class InitialPrices:
         any other currency rather than read as that currency.
         """
         assert is_date(date)
-        if date not in self.initial_prices or symbol not in self.initial_prices[date]:
-            raise InitialPriceMissingError(symbol, date)
-        if self.initial_prices_file is None and currency != "USD":
-            raise InitialPriceCurrencyError(symbol, date, currency)
-        return self.initial_prices[date][symbol]
+        if date not in self.prices or symbol not in self.prices[date]:
+            raise SharePriceMissingError(symbol, date)
+        if self.prices_file is None and currency != "USD":
+            raise BundledPriceCurrencyError(symbol, date, currency)
+        return self.prices[date][symbol]
 
     def closing_prices(self) -> dict[str, dict[datetime.date, Decimal]]:
         """Return the prices of a file the user passed, by symbol then date.
@@ -95,39 +95,38 @@ class InitialPrices:
         that work today.
         """
         prices: dict[str, dict[datetime.date, Decimal]] = {}
-        if self.initial_prices_file is None:
+        if self.prices_file is None:
             return prices
-        for date, by_symbol in self.initial_prices.items():
+        for date, by_symbol in self.prices.items():
             for symbol, price in by_symbol.items():
                 prices.setdefault(symbol, {})[date] = price
         return prices
 
-    def _read_initial_prices(self) -> dict[datetime.date, dict[str, Decimal]]:
-        """Read initial stock prices from CSV file."""
-        initial_prices: dict[datetime.date, dict[str, Decimal]] = {}
-        if self.initial_prices_file is None:
+    def _read_prices(self) -> dict[datetime.date, dict[str, Decimal]]:
+        """Read share prices from CSV file."""
+        prices: dict[datetime.date, dict[str, Decimal]] = {}
+        if self.prices_file is None:
             with (
                 resources.files(RESOURCES_PACKAGE)
-                .joinpath(INITIAL_PRICES_RESOURCE)
+                .joinpath(SHARE_PRICES_RESOURCE)
                 .open(encoding="utf-8") as csv_file
             ):
                 lines = list(csv.reader(csv_file))
         else:
-            with self.initial_prices_file.open(encoding="utf-8") as csv_file:
+            with self.prices_file.open(encoding="utf-8") as csv_file:
                 lines = list(csv.reader(csv_file))
         lines = lines[1:]
         for index, row in enumerate(lines, start=2):
             try:
-                entry = InitialPricesEntry(
+                entry = SharePricesEntry(
                     row,
-                    self.initial_prices_file
-                    or Path("resources") / INITIAL_PRICES_RESOURCE,
+                    self.prices_file or Path("resources") / SHARE_PRICES_RESOURCE,
                 )
             except ParsingError as err:
                 err.add_row_context(index)
                 raise
             date_index = entry.date
-            if date_index not in initial_prices:
-                initial_prices[date_index] = {}
-            initial_prices[date_index][entry.symbol] = entry.price
-        return initial_prices
+            if date_index not in prices:
+                prices[date_index] = {}
+            prices[date_index][entry.symbol] = entry.price
+        return prices

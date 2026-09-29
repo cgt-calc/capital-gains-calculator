@@ -86,7 +86,7 @@ Environment variables:
     data_group = parser.add_argument_group("Additional data files")
     set_completer(
         data_group.add_argument(
-            "--initial-prices-file",
+            "--prices-file",
             type=existing_file_type,
             metavar="PATH",
             help="share prices in CSV format, for vests without a price and for spin-offs",
@@ -94,9 +94,10 @@ Environment variables:
         shtab.FILE,
     )
     data_group.add_argument(
+        "--initial-prices-file",
         "--initial-prices",
         action=DeprecatedAction,
-        dest="initial_prices_file",
+        dest="prices_file",
         type=existing_file_type,
         help=argparse.SUPPRESS,
     )

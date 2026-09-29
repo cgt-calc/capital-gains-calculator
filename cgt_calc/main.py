@@ -33,8 +33,8 @@ if TYPE_CHECKING:
 
     from .currency_converter import CurrencyConverter
     from .current_price_fetcher import CurrentPriceFetcher
-    from .initial_prices import InitialPrices
     from .isin_converter import IsinConverter
+    from .share_prices import SharePrices
     from .spin_off_handler import SpinOffHandler
     from .stock_splits import SplitTransformation
 
@@ -55,7 +55,7 @@ class CapitalGainsCalculator:
         isin_converter: IsinConverter,
         price_fetcher: CurrentPriceFetcher,
         spin_off_handler: SpinOffHandler,
-        initial_prices: InitialPrices,
+        share_prices: SharePrices,
         interest_fund_tickers: list[str],
         *,
         cgt_exempt_tickers: list[str] | None = None,
@@ -81,7 +81,7 @@ class CapitalGainsCalculator:
         self.isin_converter = isin_converter
         self.price_fetcher = price_fetcher
         self.spin_off_handler = spin_off_handler
-        self.initial_prices = initial_prices
+        self.share_prices = share_prices
         self.balance_check = balance_check
         self.autoconvert_currency = autoconvert_currency
         self.calc_unrealized_gains = calc_unrealized_gains
@@ -107,7 +107,7 @@ class CapitalGainsCalculator:
             isin_converter,
             price_fetcher,
             spin_off_handler,
-            initial_prices,
+            share_prices,
             interest_fund_tickers,
             balance_check=balance_check,
             autoconvert_currency=autoconvert_currency,

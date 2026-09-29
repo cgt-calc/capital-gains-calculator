@@ -64,8 +64,8 @@ if TYPE_CHECKING:
     from .currency_converter import CurrencyConverter
     from .current_price_fetcher import CurrentPriceFetcher
     from .income import IncomeProcessor
-    from .initial_prices import InitialPrices
     from .isin_converter import IsinConverter
+    from .share_prices import SharePrices
     from .spin_off_handler import SpinOffHandler
 
 LOGGER = logging.getLogger(__name__)
@@ -192,7 +192,7 @@ class TransactionIngester:
         isin_converter: IsinConverter,
         price_fetcher: CurrentPriceFetcher,
         spin_off_handler: SpinOffHandler,
-        initial_prices: InitialPrices,
+        share_prices: SharePrices,
         interest_fund_tickers: list[str],
         *,
         balance_check: bool,
@@ -209,7 +209,7 @@ class TransactionIngester:
         self.isin_converter = isin_converter
         self.price_fetcher = price_fetcher
         self.spin_off_handler = spin_off_handler
-        self.initial_prices = initial_prices
+        self.share_prices = share_prices
         self.interest_fund_tickers = interest_fund_tickers
         self.balance_check = balance_check
         self.autoconvert_currency = autoconvert_currency
@@ -236,7 +236,7 @@ class TransactionIngester:
         # Add to acquisition_list to apply same day rule
         if transaction.action is ActionType.STOCK_ACTIVITY:
             if price is None:
-                price = self.initial_prices.get(
+                price = self.share_prices.get(
                     transaction.date, symbol, transaction.currency
                 )
             amount = round_decimal(quantity * price, 2)
@@ -697,7 +697,7 @@ class TransactionIngester:
             )
             raise CalculationError(
                 f"Cannot compute the spin-off of {symbol} on {transaction.date}: "
-                f"--initial-prices-file gives a price for {priced} but not for "
+                f"--prices-file gives a price for {priced} but not for "
                 f"{unpriced}. The cost is divided in proportion to what the two "
                 "holdings were worth at these prices, so both must be in the same "
                 "currency, and a price from Yahoo Finance is converted to pounds "

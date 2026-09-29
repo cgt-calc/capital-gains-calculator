@@ -19,10 +19,10 @@ from .args_parser import (
 from .currency_converter import CurrencyConverter
 from .current_price_fetcher import CurrentPriceFetcher
 from .exceptions import CgtError, TransactionDumpError
-from .initial_prices import InitialPrices
 from .isin_converter import IsinConverter
 from .logging import setup_logging, style_text
 from .parsers.broker_registry import BrokerRegistry
+from .share_prices import SharePrices
 from .spin_off_handler import SpinOffHandler
 from .transaction_dumper import dump_transactions
 
@@ -128,9 +128,9 @@ def calculate_cgt(args: argparse.Namespace) -> None:
         _save_transaction_dump(args, broker_transactions)
 
     currency_converter = CurrencyConverter.create(args.exchange_rates_file)
-    initial_prices = InitialPrices(args.initial_prices_file)
+    share_prices = SharePrices(args.prices_file)
     price_fetcher = CurrentPriceFetcher(
-        currency_converter, historical_prices_data=initial_prices.closing_prices()
+        currency_converter, historical_prices_data=share_prices.closing_prices()
     )
     spin_off_handler = SpinOffHandler(args.spin_offs_file)
 
@@ -140,7 +140,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
         isin_converter,
         price_fetcher,
         spin_off_handler,
-        initial_prices,
+        share_prices,
         args.interest_fund_tickers,
         cgt_exempt_tickers=args.cgt_exempt_tickers,
         balance_check=args.balance_check,
