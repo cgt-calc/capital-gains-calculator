@@ -222,6 +222,11 @@ def test_closing_price_converted_at_historical_rate(
             (0.0, 0.0, 10.0, 0.0), Decimal("481.70"), id="a-later-split-is-undone"
         ),
         pytest.param(
+            (0.0, 10.0, 0.0, 0.8),
+            Decimal("385.36"),
+            id="later-split-and-consolidation-both-undone",
+        ),
+        pytest.param(
             (1.196,), Decimal("48.17"), id="the-day-s-own-entry-is-left-alone"
         ),
     ],
