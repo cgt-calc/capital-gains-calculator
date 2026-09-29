@@ -48,6 +48,33 @@ def test_run_with_vanguard_files(request: pytest.FixtureRequest) -> None:
     assert_stdout_matches(result, cmd, expected_file)
 
 
+def test_fund_bought_and_sold_on_one_day_is_accepted(tmp_path: Path) -> None:
+    """A day's sale is read after the same day's purchase it draws on.
+
+    Reading the purchase last left the sale with no holding, and it was
+    refused as not owned. The sale is matched with that day's purchase.
+    """
+    vanguard_file = tmp_path / "round_trip.csv"
+    rows = [
+        COLUMNS,
+        ["01/03/2022", "Regular Deposit", "100.00", "100.00"],
+        ["09/03/2022", "Bought 10 Foo Fund (FOO)", "-100.00", "0.00"],
+        ["09/03/2022", "Sold 10 Foo Fund (FOO)", "110.00", "110.00"],
+    ]
+    _write_csv(vanguard_file, rows)
+
+    cmd = build_cmd(
+        "--year",
+        "2021",
+        "--vanguard-file",
+        str(vanguard_file),
+        "--output",
+        str(tmp_path / "out"),
+    )
+    result = run_cli(cmd)
+    assert re.search(r"Total gain: +£10\.00\n", result.stdout)
+
+
 def test_read_vanguard_transactions_buy(tmp_path: Path) -> None:
     """Parse a simple BUY transaction and compute derived fields."""
 

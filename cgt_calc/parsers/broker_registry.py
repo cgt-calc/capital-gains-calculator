@@ -105,8 +105,8 @@ def _transaction_sort_key(
     same-day acquisition that makes it possible. No consideration changes
     hands, so ordering them last cannot introduce a negative balance either.
 
-    Everything else keeps its relative order, so the "buys last" ordering that
-    some parsers rely on to avoid negative balances is preserved.
+    Everything else keeps its relative order, so the order each parser gives
+    a day's rows, such as reading its sales after its purchases, is preserved.
     """
     if transaction.action in {
         ActionType.STOCK_ACTIVITY,

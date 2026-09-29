@@ -263,8 +263,8 @@ class FreetradeParser(BaseSingleFileParser[BrokerTransaction]):
         cls._validate_header(header, file_path)
         lines = lines[1:]
         indexed_rows = list(enumerate(lines, start=2))
-        # HACK: reverse transactions to avoid negative balance issues
-        # the proper fix would be to use datetime in BrokerTransaction
+        # Freetrade lists the newest row first. Reversed, a sale is read after
+        # the purchase it draws on.
         indexed_rows.reverse()
         transactions: list[BrokerTransaction] = []
         for index, row_raw in indexed_rows:

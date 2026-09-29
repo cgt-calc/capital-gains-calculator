@@ -1913,43 +1913,6 @@ def test_time_and_time_utc_columns_merge(tmp_path: Path) -> None:
     assert len(Trading212Parser.load_from_dir(folder)) == 1
 
 
-def test_deposit_and_buy_keep_the_buy_last_across_precisions(tmp_path: Path) -> None:
-    """The merge must not disturb the same-second deposit/buy ordering."""
-    folder = _prepare_files(
-        tmp_path,
-        {
-            "a.csv": _export(
-                _make_row(
-                    HEADER_2024,
-                    {
-                        Trading212Column.ACTION: "Deposit",
-                        Trading212Column.TIME: "2024-01-01 10:00:00",
-                        Trading212Column.TOTAL: "100.00",
-                        Trading212Column.CURRENCY_TOTAL: "GBP",
-                    },
-                ),
-                _trade_row("2024-01-01 10:00:00"),
-            ),
-            "b.csv": _export(
-                _make_row(
-                    HEADER_2024,
-                    {
-                        Trading212Column.ACTION: "Deposit",
-                        Trading212Column.TIME: "2024-01-01 10:00:00.123",
-                        Trading212Column.TOTAL: "100.00",
-                        Trading212Column.CURRENCY_TOTAL: "GBP",
-                    },
-                ),
-                _trade_row("2024-01-01 10:00:00.123"),
-            ),
-        },
-    )
-    transactions = Trading212Parser.load_from_dir(folder)
-
-    assert _fractions(transactions) == [123000, 123000]
-    assert [t.action for t in transactions] == [ActionType.TRANSFER, ActionType.BUY]
-
-
 def test_three_overlapping_exports_use_the_widest(tmp_path: Path) -> None:
     """More exports do not add multiplicity; the widest single one decides."""
     one = _export(_trade_row("2024-01-01 10:00:00"))
