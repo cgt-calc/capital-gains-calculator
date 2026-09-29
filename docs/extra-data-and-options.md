@@ -46,13 +46,15 @@ cgt-calc sometimes needs a share's price on a date that your broker files do not
     values in
     [`initial_prices.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_prices.csv).
     If cgt-calc stops with a **No initial price** error, give the missing price in the currency of
-    the transaction it is for.
+    the transaction it is for, for example USD for a US stock-plan vest recorded in USD.
 - **A spin-off.** cgt-calc splits the old holding's cost between the old and the new holding by
-    their market values on the date of the spin-off row, using closing prices from Yahoo Finance. If
-    it stops with a **No market data found** error, for example because Yahoo lists the ticker
-    differently from your broker, give the closing prices of both holdings on that date. Any
-    currency works, as long as both are in the same one. Prices you give are used instead of
-    Yahoo's, and giving only one of the two stops the run.
+    their market values on the date of the spin-off row, using each holding's closing price that day
+    from Yahoo Finance, as traded rather than adjusted for later dividends and splits. If it stops
+    with a **No market data found** error, for example because Yahoo lists the ticker differently
+    from your broker, give the closing prices of both holdings on that date as they traded then, not
+    the split-adjusted figures on Yahoo's history page. The file has no currency column, so write
+    both prices in the same currency; for London shares, do not mix pence and pounds. Prices you
+    give are used instead of Yahoo's, and giving only one of the two stops the run.
 
 Put the prices in a CSV file in the same format as `initial_prices.csv`, under the tickers in your
 broker files, not Yahoo's, and pass it with `--initial-prices-file`. For a spin-off of `NEWCO` from
