@@ -81,9 +81,10 @@ class InitialPrices:
     def closing_prices(self) -> dict[str, dict[datetime.date, Decimal]]:
         """Return the prices of a file the user passed, by symbol then date.
 
-        These price spin-offs as well as vests. The bundled prices do not:
-        they are vest prices for a few symbols and dates, in USD, and a
-        spin-off priced from them would change runs that work today.
+        Empty when no file was passed. These price spin-offs as well as
+        vests. The bundled prices do not: they are USD prices for a few
+        symbols and dates, and a spin-off priced from them would change runs
+        that work today.
         """
         prices: dict[str, dict[datetime.date, Decimal]] = {}
         if self.initial_prices_file is None:

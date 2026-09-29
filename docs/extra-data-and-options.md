@@ -48,13 +48,17 @@ cgt-calc sometimes needs a share's price on a date that your broker files do not
     If cgt-calc stops with a **No initial price** error, give the missing price in the currency of
     the transaction it is for.
 - **A spin-off.** cgt-calc divides the old holding's pooled cost between the old and the new holding
-    in the ratio of their closing prices on the date of the spin-off, which it looks up on Yahoo
-    Finance. If Yahoo has no price, for example because it lists the ticker differently from your
-    broker, give the closing prices of both holdings on that date, in the same currency. A price you
-    give is used instead of Yahoo's. Give both or neither: cgt-calc stops if you give only one.
+    in proportion to their market values on the date of the spin-off row in your broker file. It
+    works them out from each holding's closing price, which it looks up on Yahoo Finance. If
+    cgt-calc stops with a **No market data found** error, for example because Yahoo lists the ticker
+    differently from your broker, give the closing prices of both holdings on the date the error
+    shows, in the same currency. A price you give is used instead of Yahoo's. Give both or neither:
+    cgt-calc stops if you give only one, and any price in your file for either holding on that date
+    counts, including one you added for a vest.
 
-Put the prices in a CSV file in the same format, under the tickers your transactions use, and pass
-it with `--initial-prices-file`. For a spin-off of `NEWCO` from `ACME` on 1 April 2024:
+Put the prices in a CSV file in the same format as `initial_prices.csv`, under the tickers your
+transactions use, and pass it with `--initial-prices-file`. For a spin-off of `NEWCO` from `ACME` on
+1 April 2024:
 
 ```csv
 date,symbol,price

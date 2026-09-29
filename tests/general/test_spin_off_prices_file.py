@@ -9,6 +9,7 @@ a £100 pool when priced at nine times BAR.
 
 from __future__ import annotations
 
+import datetime
 from typing import TYPE_CHECKING
 
 import pytest
@@ -16,6 +17,7 @@ import pytest
 from cgt_calc.args_parser import create_parser
 from cgt_calc.cli import calculate_cgt
 from cgt_calc.exceptions import CalculationError
+from cgt_calc.initial_prices import InitialPrices
 
 from .test_current_price_fetcher import FakeHistoryTicker
 
@@ -126,11 +128,13 @@ def test_bundled_prices_do_not_price_a_spin_off(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The bundled vest prices include VTRS on 2020-11-16, and are not read.
+    """The bundled prices include VTRS on 2020-11-16, and are not read.
 
     Read, they would price VTRS but not PFE, and the spin-off would be refused
     instead of priced from Yahoo as it was before a prices file could reach it.
     """
+    # The premise: without this bundled row the test protects nothing.
+    assert InitialPrices().get(datetime.date(2020, 11, 16), "VTRS")
     out = _run(
         tmp_path,
         monkeypatch,

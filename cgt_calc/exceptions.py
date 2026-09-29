@@ -330,6 +330,6 @@ class MarketDataMissingError(CgtError):
             f"No market data found for {symbol} around {date}. Yahoo Finance "
             "may list it under a different ticker, or it may have been renamed "
             "or delisted. Give the closing prices of both holdings in the "
-            "spin-off on that day in --initial-prices-file, or work out the "
-            "spin-off outside cgt-calc."
+            "spin-off on that day, in the same currency, in "
+            "--initial-prices-file, or work out the spin-off outside cgt-calc."
         )

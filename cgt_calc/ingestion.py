@@ -683,9 +683,9 @@ class TransactionIngester:
         # how much cost carries across.
         dst_price = self._given_price(symbol, transaction.date, other_end=recorded)
         src_price = self._given_price(recorded, transaction.date, other_end=symbol)
-        # Both prices given, or both looked up. The cost is split in their
-        # ratio, and a looked-up price is in pounds while a given one is in
-        # whatever currency it was written in.
+        # Both prices given, or both looked up. The cost is split by what the
+        # two holdings are worth at these prices, and a looked-up price is in
+        # pounds while a given one is in whatever currency it was written in.
         if dst_price is None and src_price is None:
             dst_price = self.price_fetcher.get_closing_price(symbol, transaction.date)
             src_price = self.price_fetcher.get_closing_price(recorded, transaction.date)
@@ -696,9 +696,10 @@ class TransactionIngester:
             raise CalculationError(
                 f"Cannot compute the spin-off of {symbol} on {transaction.date}: "
                 f"--initial-prices-file gives a price for {priced} but not for "
-                f"{unpriced}. The cost is divided in the ratio of the two prices, "
-                "so both must be in the same currency, and a price from Yahoo "
-                "Finance is converted to pounds while one you enter is not. Add "
+                f"{unpriced}. The cost is divided in proportion to what the two "
+                "holdings were worth at these prices, so both must be in the same "
+                "currency, and a price from Yahoo Finance is converted to pounds "
+                "while one you enter is not. Add "
                 f"{unpriced}'s closing price on {transaction.date} to that file, "
                 f"in the same currency as {priced}'s."
             )
