@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{% block title %}cgt-calc{% endblock %}</title>
+  <link rel="icon" href="/static/icon.svg?v={{ version }}" type="image/svg+xml">
+  <script src="/static/theme.js?v={{ version }}"></script>
+  <link rel="stylesheet" href="/static/app.css?v={{ version }}">
+</head>
+<body>
+  <header class="site">
+    <div class="bar">
+      <a class="brand" href="/">cgt-calc</a>
+      <span class="tagline">UK capital gains from broker exports</span>
+      <span class="version">{{ version }}</span>
+      <button type="button" id="theme" class="ghost" hidden>Dark mode</button>
+    </div>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site">
+    Runs on this computer only. Uploaded files are deleted when the server stops.
+  </footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
