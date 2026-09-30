@@ -18,8 +18,20 @@ cgt-calc downloads monthly GBP exchange rates from the
 
 Neither service has rates before February 2015. For an earlier transaction in another currency, add
 a row to the file yourself: the transaction's date in the `month` column, the currency code, and the
-rate as units of that currency per £1, for example `2009-06-01,USD,1.6`. If the file does not exist
-yet, start it with the header line `month,currency,rate`.
+rate as units of that currency per £1. If the file does not exist yet, start it with the header line
+`month,currency,rate`.
+
+HMRC's rates for those months are kept in the UK Government Web Archive:
+
+- **2008 to 2014:** open
+    [HMRC's exchange rates for 2009](https://webarchive.nationalarchives.gov.uk/ukgwa/20130128002603/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2009&columns=1)
+    and choose “Rates of Exchange for Customs and VAT purposes” for the month. For another year,
+    change `EXRATES_2009` in the address to that year.
+- **January 2015:**
+    [HMRC exchange rates for 2015: monthly](https://webarchive.nationalarchives.gov.uk/ukgwa/20231016190054/https://www.gov.uk/government/publications/hmrc-exchange-rates-for-2015-monthly).
+
+One rate covers the whole month, but each transaction needs its own row. For example, June 2009
+lists Dollar (USD) at 1.5649, so a purchase on 15 June 2009 needs the row `2009-06-15,USD,1.5649`.
 
 Use `--exchange-rates-file` to select another file in the same format. An empty value disables the
 cache. Keep the completed file with the report to preserve the exchange rates used. cgt-calc may add
