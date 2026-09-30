@@ -290,8 +290,9 @@ def test_a_gift_of_shares_not_held_is_refused() -> None:
         match=r"^Tried to give away BAR on 2024-06-10, but no BAR is held\."
         r" Check that the history includes the purchase, vest or transfer that"
         r" acquired the shares and any split or rename since, and that no"
-        r" disposal appears twice\. Add anything the exports cannot supply in a"
-        r" file passed with --raw-file\.\n",
+        r" disposal appears twice\. A purchase, vest or split the exports cannot"
+        r" supply can go in a file passed with --raw-file, using an action listed"
+        r" at https://cgt-calc\.uk/brokers/raw/#actions-to-use; a rename cannot\.\n",
     ):
         get_report(
             create_calculator(tax_year=2024, balance_check=False),

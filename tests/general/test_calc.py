@@ -2098,8 +2098,9 @@ def test_one_renamed_holding_cannot_borrow_the_other_s_shares() -> None:
         match=r"^Tried to sell 60 FOO on 2024-05-10, but the holding is 50\."
         r" Check that the history includes the purchase, vest or transfer that"
         r" acquired the shares and any split or rename since, and that no"
-        r" disposal appears twice\. Add anything the exports cannot supply in a"
-        r" file passed with --raw-file\.\n",
+        r" disposal appears twice\. A purchase, vest or split the exports cannot"
+        r" supply can go in a file passed with --raw-file, using an action listed"
+        r" at https://cgt-calc\.uk/brokers/raw/#actions-to-use; a rename cannot\.\n",
     ):
         get_report(calculator, transactions)
 
