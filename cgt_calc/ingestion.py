@@ -11,7 +11,13 @@ from typing import TYPE_CHECKING
 
 from colorama import Fore, Style
 
-from .const import BALANCE_CHECK_CONTEXT_ROWS, ERI_TAX_DATE_DELTA
+from .const import (
+    BALANCE_CHECK_CONTEXT_ROWS,
+    ERI_TAX_DATE_DELTA,
+    POOLING_RULES_START_DATE,
+    PRE_POOLING_REFUSED_ACTIONS,
+    REBASING_DATE,
+)
 from .exceptions import (
     AmountMissingError,
     CalculatedAmountDiscrepancyError,
@@ -139,6 +145,39 @@ def _approx_equal_price_rounding(
         "acceptable range" if accptable_amount else "error",
     )
     return accptable_amount
+
+
+def _refuse_unsupported_history(transaction: BrokerTransaction) -> None:
+    """Refuse a row the share pooling rules from 6 April 2008 cannot price."""
+    if transaction.date < REBASING_DATE:
+        raise CalculationError(
+            f"Cannot use the transaction on {transaction.date}: shares held on "
+            "6 April 1982 are pooled at their 31 March 1982 market value, which "
+            "this calculator cannot know, so a history reaching that far back "
+            f"is not supported.\n{transaction}"
+        )
+    if (
+        transaction.date < POOLING_RULES_START_DATE
+        and transaction.action in PRE_POOLING_REFUSED_ACTIONS
+    ):
+        raise CalculationError(
+            f"Cannot use the {transaction.action} on {transaction.date}: it "
+            "disposes of shares or changes their cost before 6 April 2008, when "
+            "different share matching rules applied, and those rules decide "
+            "which shares were left. This calculator does not implement them. "
+            f"Replace the rows for {transaction.symbol or 'this holding'} before "
+            "that date with one BUY dated 5 April 2008 for the shares you still "
+            f"held, at their total allowable cost.\n{transaction}"
+        )
+
+
+def _first_history_date(
+    transactions: list[BrokerTransaction],
+) -> datetime.date | None:
+    """Return the earliest date, refusing a row the pooling rules cannot price."""
+    for transaction in transactions:
+        _refuse_unsupported_history(transaction)
+    return min((t.date for t in transactions), default=None)
 
 
 def _match_gifts_to_rows(
@@ -1416,6 +1455,7 @@ class TransactionIngester:
         transactions: list[BrokerTransaction],
     ) -> None:
         """Run the first pass over the broker transactions."""
+        self.history.first_date = _first_history_date(transactions)
         # We keep a balance per broker,currency pair
         balance: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(
             lambda: Decimal(0)

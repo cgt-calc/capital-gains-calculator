@@ -13,8 +13,13 @@ a normal calculation.
 
 cgt-calc downloads monthly GBP exchange rates from the
 [UK Trade Tariff API](https://www.trade-tariff.service.gov.uk/exchange_rates) for 2021 onwards and
-[HMRC's legacy service](https://www.hmrc.gov.uk/softwaredevelopers/2020-exrates.html) for earlier
-periods. It saves them to `out/exchange_rates.csv`.
+[HMRC's legacy service](https://www.hmrc.gov.uk/softwaredevelopers/2020-exrates.html) for 2016 to
+2020. It saves them to `out/exchange_rates.csv`.
+
+Neither service has rates before January 2016. For an earlier transaction in another currency, add a
+row to the file yourself: the transaction's date in the `month` column, the currency code, and the
+rate as units of that currency per £1, for example `2009-06-01,USD,1.6`. If the file does not exist
+yet, start it with the header line `month,currency,rate`.
 
 Use `--exchange-rates-file` to select another file in the same format. An empty value disables the
 cache. Keep the completed file with the report to preserve the exchange rates used. cgt-calc may add

@@ -440,3 +440,21 @@ def test_combine_amounts_refuses_two_foreign_currencies_with_opt_in(
     for first, second in ((usd, pln), (pln, usd)):
         with pytest.raises(CalculationError, match="different currencies"):
             converter.combine_amounts(first, second, DATE, autoconvert=True)
+
+
+def test_query_hmrc_api_404_before_2016_says_how_to_add_the_rates(
+    tmp_path: Path,
+) -> None:
+    """HMRC has no files before 2016, so say which date to add and where."""
+    rates_file = tmp_path / "rates.csv"
+    converter = CurrencyConverter(exchange_rates_file=rates_file)
+    response = FakeResponse(ok=False, status_code=404, text="<!DOCTYPE html>")
+    converter.session = FakeSession(response)  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    with pytest.raises(
+        ExternalApiError,
+        match=r"HMRC publishes no exchange rates for June 2009 at this address; "
+        r"its monthly files start in January 2016\. Add the rates for 2009-06-01 "
+        r"to .*rates\.csv: a CSV file with the header 'month,currency,rate'",
+    ):
+        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2009, 6, 1))

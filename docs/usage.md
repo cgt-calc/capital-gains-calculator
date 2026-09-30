@@ -25,6 +25,24 @@ Depending on your investments, you may also need:
 Do not include the same transaction in more than one export. cgt-calc can validate the transactions
 it receives, but it cannot detect every missing or duplicated export.
 
+### Shares held before April 2008
+
+Since 6 April 2008, all your shares in one company are pooled at what they cost, whenever you bought
+them ([CG51550](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51550)). cgt-calc
+applies these rules to your whole history, so purchases from before 2008 count towards the cost of
+shares you sell now. Two kinds of earlier history are refused, with an error naming the transaction:
+
+- **A sale, gift or other disposal before 6 April 2008.** Earlier disposals followed different
+    rules, which decided which shares you still held, and cgt-calc does not implement them. Replace
+    that holding's rows before 6 April 2008 with one `BUY` in a [RAW file](brokers/raw.md) dated 5
+    April 2008, for the shares you still held and their total cost from your records of the time.
+- **Anything before 6 April 1982.** Shares held on that date are pooled at their 31 March 1982
+    market value, which cgt-calc cannot know.
+
+HMRC's published monthly exchange rates start in January 2016. For a transaction in another currency
+before then, cgt-calc stops and asks you to add that date's rate to the
+[exchange rates file](extra-data-and-options.md#exchange-rates).
+
 ## Choose the tax year
 
 Pass the first year of the UK tax year to `--year`. For example, `--year 2024` means the 2024/25 tax

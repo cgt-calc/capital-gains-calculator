@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
-from .const import INTERNAL_START_DATE
+from .const import EARLIEST_TAX_YEAR
 from .version import DISTRIBUTION_NAME, get_version
 
 STDIN_PATH = Path("-")
@@ -27,7 +27,7 @@ def year_type(value: str) -> int:
     except ValueError as err:
         raise argparse.ArgumentTypeError(f"invalid int value: '{value}'") from err
 
-    min_year = INTERNAL_START_DATE.year
+    min_year = EARLIEST_TAX_YEAR
     max_year = datetime.datetime.now().year
 
     if year < min_year or year > max_year:

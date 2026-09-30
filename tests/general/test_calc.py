@@ -15,7 +15,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cgt_calc.const import BALANCE_CHECK_CONTEXT_ROWS, RENAME_DESCRIPTION_PREFIX
+from cgt_calc.const import (
+    BALANCE_CHECK_CONTEXT_ROWS,
+    PRE_POOLING_REFUSED_ACTIONS,
+    RENAME_DESCRIPTION_PREFIX,
+)
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import (
@@ -3042,3 +3046,94 @@ def test_a_gain_of_exactly_half_a_penny_is_reported_not_rejected(
     assert entry.rule_type is RuleType.SECTION_104
     assert entry.gain == proceeds - 1
     assert report.total_gain() == reported
+
+
+def test_acquisitions_before_2010_join_the_pool() -> None:
+    """A purchase from 2009 is part of the pool a 2020 sale draws on (CG51550)."""
+    calculator = create_calculator(tax_year=2020, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2009, 6, 1), ActionType.BUY, "AAA", 100, 100),
+        _gbp_trade(datetime.date(2015, 6, 1), ActionType.BUY, "AAA", 100, 300),
+        _gbp_trade(datetime.date(2020, 6, 1), ActionType.SELL, "AAA", 50, 200),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.allowable_costs == Decimal(100)
+    assert report.total_gain() == Decimal(100)
+
+
+@pytest.mark.parametrize(
+    ("transactions", "message"),
+    [
+        pytest.param(
+            [_gbp_trade(datetime.date(1982, 4, 5), ActionType.BUY, "AAA", 100, 100)],
+            "shares held on 6 April 1982 are pooled at their 31 March 1982 "
+            "market value",
+            id="held on 6 April 1982",
+        ),
+        pytest.param(
+            [
+                _gbp_trade(datetime.date(2005, 1, 3), ActionType.BUY, "AAA", 100, 100),
+                _gbp_trade(datetime.date(2008, 4, 5), ActionType.SELL, "AAA", 50, 200),
+            ],
+            "it disposes of shares or changes their cost before 6 April 2008",
+            id="sold before 6 April 2008",
+        ),
+    ],
+)
+def test_history_the_pooling_rules_cannot_price_is_refused(
+    transactions: list[BrokerTransaction], message: str
+) -> None:
+    """Refuse a pre-1982 holding and a disposal under the pre-2008 rules."""
+    calculator = create_calculator(tax_year=2020, balance_check=False)
+
+    with pytest.raises(CalculationError, match=message):
+        get_report(calculator, transactions)
+
+
+def test_history_from_the_first_day_each_rule_allows_is_used() -> None:
+    """A purchase on 6 April 1982 and a sale on 6 April 2008 are both priced."""
+    calculator = create_calculator(tax_year=2008, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(1982, 4, 6), ActionType.BUY, "AAA", 100, 100),
+        _gbp_trade(datetime.date(2008, 4, 6), ActionType.SELL, "AAA", 50, 200),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(150)
+
+
+def test_every_action_says_whether_it_may_come_before_6_april_2008() -> None:
+    """Every action must be allowed or refused before the pooling rules began.
+
+    Adding an action without classifying it must fail this test.
+    """
+    allowed = {
+        # Acquisitions at cost, pooled at cost from 2008.
+        ActionType.BUY,
+        ActionType.REINVEST_SHARES,
+        ActionType.STOCK_ACTIVITY,
+        # Restate a holding without disposing of it (TCGA 1992 s127).
+        ActionType.STOCK_SPLIT,
+        ActionType.RENAME,
+        # Apportions cost in the same proportion across every part of the
+        # old holding, so the pool comes out the same either way.
+        ActionType.SPIN_OFF,
+        # Cash or income only.
+        ActionType.ADJUSTMENT,
+        ActionType.CAPITAL_GAIN,
+        ActionType.DIVIDEND,
+        ActionType.DIVIDEND_TAX,
+        ActionType.INTEREST,
+        ActionType.INTEREST_TAX,
+        ActionType.TRANSFER,
+        ActionType.WIRE_FUNDS_RECEIVED,
+        ActionType.REINVEST_DIVIDENDS,
+        # Removed with its Buy by the Schwab parser.
+        ActionType.CANCEL_BUY,
+    }
+
+    assert allowed | PRE_POOLING_REFUSED_ACTIONS == set(ActionType)
+    assert not allowed & PRE_POOLING_REFUSED_ACTIONS
