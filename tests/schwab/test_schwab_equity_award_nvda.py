@@ -39,9 +39,7 @@ FIXTURE = Path("tests/schwab/data/equity_award/nvda_synthetic.json")
 @pytest.fixture(name="transactions")
 def transactions_fixture() -> list[SchwabAwardTransaction]:
     """Parse the synthetic NVDA portfolio."""
-    return schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-        FIXTURE
-    )
+    return schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(FIXTURE)
 
 
 def on(
@@ -254,7 +252,7 @@ def mutated(tmp_path: Path, change: Callable[[list[JsonRowType]], None]) -> Path
 
 def parse(path: Path) -> list[SchwabAwardTransaction]:
     """Parse an export, whatever it contains."""
-    return schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(path)
+    return schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(path)
 
 
 def details_of(row: JsonRowType) -> JsonRowType:

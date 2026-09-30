@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cgt_calc.args_parser import create_parser
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers import schwab_equity_award_json
@@ -76,10 +75,8 @@ def test_decimal_from_number_or_str_default() -> None:
 
 def test_schwab_transaction_v1() -> None:
     """Test read_schwab_equity_award_json_transactions() on v1 data."""
-    transactions = (
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            Path("tests/schwab/data/equity_award/schwab_equity_award_v1.json")
-        )
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(
+        Path("tests/schwab/data/equity_award/schwab_equity_award_v1.json")
     )
 
     assert transactions[0].date == datetime.date(2022, 4, 25)
@@ -116,10 +113,8 @@ def test_schwab_transaction_v1() -> None:
 
 def test_schwab_transaction_v2() -> None:
     """Test read_schwab_equity_award_json_transactions() on v2 data."""
-    transactions = (
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            Path("tests/schwab/data/equity_award/schwab_equity_award_v2.json")
-        )
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(
+        Path("tests/schwab/data/equity_award/schwab_equity_award_v2.json")
     )
 
     i = 0
@@ -196,10 +191,8 @@ def test_schwab_transaction_v2_rounding() -> None:
 
     This tests 13 vesting events with 7 shares each, which are then sold.
     """
-    transactions = (
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            Path("tests/schwab/data/equity_award/schwab_equity_award_v2_rounding.json")
-        )
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(
+        Path("tests/schwab/data/equity_award/schwab_equity_award_v2_rounding.json")
     )
 
     assert transactions[0].date == datetime.date(2020, 4, 24)
@@ -308,7 +301,7 @@ def _read_json(
     content: str,
 ) -> list[SchwabAwardTransaction]:
     """Parse Schwab equity award JSON from a string."""
-    parser = schwab_equity_award_json.SchwabEquityAwardsJSONParser
+    parser = schwab_equity_award_json.SchwabEquityAwardsParser
     return parser.read_transactions(io.StringIO(content), Path("awards.json"))
 
 
@@ -500,9 +493,7 @@ def test_schwab_json_invalid_json(tmp_path: Path) -> None:
     json_path.write_text("{invalid json", encoding="utf-8")
 
     with pytest.raises(ParsingError, match="Could not parse content as JSON"):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_missing_top_level_key(tmp_path: Path) -> None:
@@ -514,9 +505,7 @@ def test_schwab_json_missing_top_level_key(tmp_path: Path) -> None:
         ParsingError,
         match=r"Expected top level field \(transactions, Transactions\) not found",
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_transactions_not_a_list(tmp_path: Path) -> None:
@@ -525,9 +514,7 @@ def test_schwab_json_transactions_not_a_list(tmp_path: Path) -> None:
     json_path.write_text(json.dumps({"Transactions": "not-a-list"}), encoding="utf-8")
 
     with pytest.raises(ParsingError, match=r"'Transactions' is not a list"):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_buy_transaction_fails(tmp_path: Path) -> None:
@@ -552,9 +539,7 @@ def test_schwab_json_buy_transaction_fails(tmp_path: Path) -> None:
     with pytest.raises(
         ParsingError, match=r"Parsing for action Buy is not implemented!"
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_unknown_action_fails(tmp_path: Path) -> None:
@@ -577,9 +562,7 @@ def test_schwab_json_unknown_action_fails(tmp_path: Path) -> None:
     json_path.write_text(json.dumps(data), encoding="utf-8")
 
     with pytest.raises(ParsingError, match=r"Unknown action: UnknownAction"):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_deposit_missing_details_fails(tmp_path: Path) -> None:
@@ -605,9 +588,7 @@ def test_schwab_json_deposit_missing_details_fails(tmp_path: Path) -> None:
         ParsingError,
         match=r"Expected a single Transaction Details for a Deposit, but found 0",
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_deposit_multiple_details_fails(tmp_path: Path) -> None:
@@ -641,9 +622,7 @@ def test_schwab_json_deposit_multiple_details_fails(tmp_path: Path) -> None:
         ParsingError,
         match=r"Expected a single Transaction Details for a Deposit, but found 2",
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_deposit_empty_and_null_amount(tmp_path: Path) -> None:
@@ -693,10 +672,8 @@ def test_schwab_json_deposit_empty_and_null_amount(tmp_path: Path) -> None:
     }
     json_path.write_text(json.dumps(data), encoding="utf-8")
 
-    transactions = (
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(
+        json_path
     )
 
     assert len(transactions) == 2
@@ -811,10 +788,8 @@ def test_schwab_json_sale_variations(
     }
     json_path.write_text(json.dumps(data), encoding="utf-8")
 
-    transactions = (
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(
+        json_path
     )
 
     assert len(transactions) == 1
@@ -844,9 +819,7 @@ def test_schwab_json_sale_missing_details_fails(tmp_path: Path) -> None:
     json_path.write_text(json.dumps(data), encoding="utf-8")
 
     with pytest.raises(ParsingError, match=r"Expected transaction details for Sale"):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_deposit_empty_vest_price_raises(tmp_path: Path) -> None:
@@ -881,9 +854,7 @@ def test_schwab_json_deposit_empty_vest_price_raises(tmp_path: Path) -> None:
         ParsingError,
         match=r"Missing or empty VestFairMarketValue for Deposit on 2023-01-01",
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_sale_differing_subtransac_prices_fails(
@@ -922,9 +893,7 @@ def test_schwab_json_sale_differing_subtransac_prices_fails(
         ParsingError,
         match=r"lots sold at different prices \(\$100\.00, \$105\.00\)",
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_sale_differing_prices_with_whole_lot_shares_fails(
@@ -961,9 +930,7 @@ def test_schwab_json_sale_differing_prices_with_whole_lot_shares_fails(
         ParsingError,
         match=r"lots sold at different prices \(\$100\.00, \$105\.00\)",
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_sale_lot_without_sale_price_fails(tmp_path: Path) -> None:
@@ -991,9 +958,7 @@ def test_schwab_json_sale_lot_without_sale_price_fails(tmp_path: Path) -> None:
     with pytest.raises(
         ParsingError, match=r"Missing or empty SalePrice for Sale on 2023-08-31"
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_sale_zero_price_fails(tmp_path: Path) -> None:
@@ -1016,9 +981,7 @@ def test_schwab_json_sale_zero_price_fails(tmp_path: Path) -> None:
     json_path.write_text(json.dumps(data), encoding="utf-8")
 
     with pytest.raises(ParsingError, match=r"states a SalePrice of '\$0\.00'"):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 @pytest.mark.parametrize(
@@ -1061,10 +1024,8 @@ def test_schwab_json_sale_fees_variations(
     }
     json_path.write_text(json.dumps(data), encoding="utf-8")
 
-    transactions = (
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(
+        json_path
     )
 
     assert len(transactions) == 1
@@ -1094,9 +1055,7 @@ def test_schwab_json_dividend_empty_amount_fails(tmp_path: Path) -> None:
         ParsingError,
         match=r"Missing or empty Amount for Dividend on 2024-06-17",
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def _fractional_sale(details: list[dict[str, object]]) -> dict[str, object]:
@@ -1123,9 +1082,7 @@ def test_schwab_json_fractional_sale_without_details_fails(tmp_path: Path) -> No
     json_path.write_text(json.dumps(_fractional_sale([])), encoding="utf-8")
 
     with pytest.raises(ParsingError, match=r"Expected transaction details for Sale"):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_fractional_sale_zero_lot_price_fails(tmp_path: Path) -> None:
@@ -1137,9 +1094,7 @@ def test_schwab_json_fractional_sale_zero_lot_price_fails(tmp_path: Path) -> Non
     )
 
     with pytest.raises(ParsingError, match=r"states a SalePrice of '\$0\.00'"):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_fractional_sale_negative_lot_shares_fails(
@@ -1162,9 +1117,7 @@ def test_schwab_json_fractional_sale_negative_lot_shares_fails(
     with pytest.raises(
         ParsingError, match=r"cannot dispose of a negative number of shares"
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_fractional_sale_keeps_differing_lot_prices(
@@ -1189,10 +1142,8 @@ def test_schwab_json_fractional_sale_keeps_differing_lot_prices(
         encoding="utf-8",
     )
 
-    transactions = (
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(
+        json_path
     )
 
     assert len(transactions) == 1
@@ -1222,10 +1173,8 @@ def test_schwab_json_sale_zero_lot_shares_are_allowed(tmp_path: Path) -> None:
     }
     json_path.write_text(json.dumps(data), encoding="utf-8")
 
-    transactions = (
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(
+        json_path
     )
 
     assert len(transactions) == 1
@@ -1250,9 +1199,7 @@ def test_schwab_json_sale_non_finite_lot_price_fails(
     with pytest.raises(
         ParsingError, match=rf"Invalid SalePrice '{printed}' for Sale on 2023-08-31"
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_sale_non_finite_lot_shares_fails(tmp_path: Path) -> None:
@@ -1268,9 +1215,7 @@ def test_schwab_json_sale_non_finite_lot_shares_fails(tmp_path: Path) -> None:
     with pytest.raises(
         ParsingError, match=r"Invalid Shares 'NaN' for Sale on 2023-08-31"
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 @pytest.mark.parametrize("printed", ["NaN", "Infinity"])
@@ -1306,9 +1251,7 @@ def test_schwab_json_non_finite_vest_price_fails(tmp_path: Path, printed: str) -
         ParsingError,
         match=rf"Invalid VestFairMarketValue '{printed}' for Deposit on 2023-01-01",
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_lot_field_that_is_not_a_number_fails(tmp_path: Path) -> None:
@@ -1324,9 +1267,7 @@ def test_schwab_json_lot_field_that_is_not_a_number_fails(tmp_path: Path) -> Non
     with pytest.raises(
         ParsingError, match=r"Invalid Shares 'abc' for Sale on 2023-08-31"
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_row_field_that_is_not_a_number_names_the_string(
@@ -1344,9 +1285,7 @@ def test_schwab_json_row_field_that_is_not_a_number_names_the_string(
     with pytest.raises(
         ParsingError, match=r"Invalid Quantity 'abc' for Sale on 08/31/2023"
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_non_finite_number_field_fails(tmp_path: Path) -> None:
@@ -1362,9 +1301,7 @@ def test_schwab_json_non_finite_number_field_fails(tmp_path: Path) -> None:
     with pytest.raises(
         ParsingError, match=r"Invalid Quantity 'nan' for Sale on 08/31/2023"
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_deposit_zero_vest_price_fails(tmp_path: Path) -> None:
@@ -1399,9 +1336,7 @@ def test_schwab_json_deposit_zero_vest_price_fails(tmp_path: Path) -> None:
         ParsingError,
         match=r"states a VestFairMarketValue of '\$0\.00'",
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_deposit_negative_vest_price_fails(tmp_path: Path) -> None:
@@ -1436,9 +1371,7 @@ def test_schwab_json_deposit_negative_vest_price_fails(tmp_path: Path) -> None:
         ParsingError,
         match=r"states a VestFairMarketValue of '-\$131\.25'",
     ):
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+        schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
 
 
 def test_schwab_json_dividend_amount_from_number_field(tmp_path: Path) -> None:
@@ -1460,10 +1393,8 @@ def test_schwab_json_dividend_amount_from_number_field(tmp_path: Path) -> None:
     }
     json_path.write_text(json.dumps(data), encoding="utf-8")
 
-    transactions = (
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(
+        json_path
     )
 
     assert len(transactions) == 1
@@ -1518,10 +1449,8 @@ def test_schwab_json_skipped_actions(tmp_path: Path) -> None:
     }
     json_path.write_text(json.dumps(data), encoding="utf-8")
 
-    transactions = (
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(
+        json_path
     )
 
     assert len(transactions) == 1
@@ -1551,10 +1480,8 @@ def test_schwab_json_v1_empty_fees(tmp_path: Path) -> None:
     }
     json_path.write_text(json.dumps(data), encoding="utf-8")
 
-    transactions = (
-        schwab_equity_award_json.SchwabEquityAwardsJSONParser().load_from_file(
-            json_path
-        )
+    transactions = schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(
+        json_path
     )
 
     assert len(transactions) == 1
@@ -1571,7 +1498,7 @@ def test_run_with_schwab_equity_award_json(
     cmd = build_cmd(
         "--year",
         "2023",
-        "--schwab-equity-award-json",
+        "--schwab-award-file",
         f"tests/schwab/data/equity_award/{input_file_base}.{extension}",
         "--output",
         report_path(request),
@@ -1893,21 +1820,3 @@ def test_csv_with_a_byte_order_mark_still_reads() -> None:
     content = "\ufeff\n  " + _csv_text([A_SALE, ITS_LOT])
 
     assert len(_parse(content)) == 1
-
-
-def test_the_option_help_names_both_layouts() -> None:
-    """The option is still --schwab-equity-award-json and says it takes CSV."""
-    help_text = create_parser().format_help()
-
-    assert "--schwab-equity-award-json" in help_text
-    assert "--schwab-equity-award-file" not in help_text
-    assert "JSON or complete CSV" in " ".join(help_text.split())
-
-
-def test_the_option_help_points_at_the_canonical_one() -> None:
-    """It stays registered, and its help says which option to prefer."""
-    help_text = " ".join(create_parser().format_help().split())
-
-    assert "Prefer --schwab-award-file" in help_text
-    # And why it is still here: the combination the canonical option refuses.
-    assert "combine the history with --schwab-file or --schwab-dir" in help_text

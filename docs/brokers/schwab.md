@@ -49,9 +49,9 @@ Two rules to get right:
 
 - **Do not put an Equity Awards CSV in this directory.** It is also a `.csv`, so cgt-calc would read
     it as transaction history and stop with `Missing columns in Schwab transaction file`. Keep it
-    elsewhere. Pass an award-price CSV with `--schwab-award-file`. For a complete transaction
-    export, follow
-    [Combining a main history with a complete export](#combining-a-main-history-with-a-complete-export).
+    elsewhere and pass it with `--schwab-award-file`. For a complete transaction export, read
+    [Combining a main history with a complete export](#combining-a-main-history-with-a-complete-export)
+    first.
 - **Do not put exports from two different Schwab accounts in one directory.** The CSV does not say
     which account a row belongs to, so cgt-calc cannot separate them. Combining several accounts is
     not supported.
@@ -344,8 +344,8 @@ net quantity but different prices both satisfy the lookup, and only one of them 
 
 ### Complete transaction export
 
-The complete export is the award account's own history rather than a price list, so it is imported
-on its own:
+The complete export is the award account's own history rather than a price list, and it imports on
+its own:
 
 ```shell
 cgt-calc --year 2025 --schwab-award-file schwab_awards.json
@@ -361,9 +361,9 @@ blank columns as the marker that a row continues the transaction above it.
 Use either layout only for a transaction history Schwab exported. Open the file first and confirm
 its rows are dated transactions with actions such as `Deposit`, `Sale` or `Dividend`, rather than a
 summary of your holdings or outstanding grants. Do not import the same vest, sale, dividend or cash
-movement again through `--schwab-file`. cgt-calc does not yet reconcile a main history against a
-complete award history, so anything present in both is counted twice. Passing a complete export with
-`--schwab-award-file` alongside `--schwab-file` or `--schwab-dir` is refused for that reason.
+movement again through `--schwab-file`: cgt-calc does not reconcile a main history against a
+complete award history, so anything present in both is counted twice. See
+[Combining a main history with a complete export](#combining-a-main-history-with-a-complete-export).
 
 The complete importer supports restricted-stock vests, ESPP purchases, sales, forced quick sales,
 dividends, dividend tax and forced cash disbursements. It recognises gifts but stops so that you can
@@ -375,18 +375,33 @@ income. Check that assumption against your payroll and award records.
 
 #### Combining a main history with a complete export
 
-If you need a main history and a complete award export in one run, the older
-`--schwab-equity-award-json` still accepts that combination and keeps working:
+You can pass a main history and a complete award export in one run:
 
 ```shell
 cgt-calc --year 2025 --schwab-file schwab_transactions.csv \
-    --schwab-equity-award-json schwab_awards.json
+    --schwab-award-file schwab_awards.json
 ```
 
-Nothing checks the two files against each other, so make sure no transaction appears in both. That
-option only adds transactions; it does not price vests. The main history therefore has to import on
-its own, and a `Stock Plan Activity` it cannot price still needs the award-price CSV passed with
-`--schwab-award-file` as well.
+cgt-calc imports both, but does not check one file against the other, so a vest, sale, dividend or
+cash movement recorded in both is counted twice. The run warns that the award export was imported
+`alongside the main Schwab history`.
+
+Before relying on the report, compare the two files for the same transaction. It will not look
+identical in both: a vest is `Stock Plan Activity` in the main history and `Deposit` in the award
+export, and a sale is `Sell` in one and `Sale` in the other. Look a few days either side of the date
+as well, because one file can date a vest by when it posted and the other by when it vested.
+
+If a transaction appears in both, do not combine the files. Use one of these instead, whichever
+provides the complete history described in [Before you start](../usage.md#before-you-start):
+
+- The complete export on its own, if it holds everything the calculation needs. See
+    [Complete transaction export](#complete-transaction-export).
+- The main history with the price-only export, if the main history holds everything. See
+    [Price-only export](#price-only-export).
+
+The complete export does not price a vest in the main history. A `Stock Plan Activity` with no price
+stops the run with [`Cannot price a vest`](#cannot-price-a-vest), and the award-price CSV cannot be
+passed as well, because cgt-calc reads one award export per run.
 
 #### Share splits in complete exports
 
@@ -424,8 +439,13 @@ use the one with the correct quantity.
     unsupported. Despite its name, `Security Transfer` is supported only as an `ACH`-related cash
     movement: it requires an `Amount` and does not move shares. Follow the RAW transfer or gift
     instructions only after establishing what the transfer was and what cost should move with it.
-- A main history and a complete Equity Awards export are not reconciled against each other. Import
-    one or the other, or make sure no vest, sale, dividend or cash movement appears in both.
+- A main history and a complete Equity Awards export are not reconciled against each other. cgt-calc
+    warns when you combine them, but cannot tell that a transaction appears in both. Import one or
+    the other, or make sure no vest, sale, dividend or cash movement appears in both; see
+    [Combining a main history with a complete export](#combining-a-main-history-with-a-complete-export).
+- cgt-calc reads one Equity Awards export per run, and a complete export does not price the vests in
+    a main history. If your main history needs vest prices and your only award export is the
+    complete one, see [`Cannot price a vest`](#cannot-price-a-vest).
 - A cash merger that gives replacement shares as well as cash is not supported. The cash-only
     importer prints a warning for every merger so you remember to check this.
 - All values in Schwab CSV and JSON files are treated as USD. Changing a currency symbol in the CSV
@@ -454,18 +474,19 @@ If the file instead uses the `VestFairMarketValue` layout, or its JSON holds `De
 `Dividend` rows, it is the complete transaction export, and cgt-calc cannot use it to price a vest
 in your main history. Which way round to work depends on what each file holds:
 
-- If the complete export holds everything you need for the year, including any purchases, sales,
-    dividends and cash movements, pass it with `--schwab-award-file` on its own and leave out
-    `--schwab-file`. Check first: anything that happened only in the main account is not in that
+- If the complete export holds everything you need, including any purchases, sales, dividends and
+    cash movements, pass it with `--schwab-award-file` on its own and leave out `--schwab-file` or
+    `--schwab-dir`. Check first: anything that happened only in the main account is not in that
     export and would be left out of the calculation.
 - If the main history holds everything you need, ask Schwab for the award-price CSV as well and pass
-    the two together: the main history with `--schwab-file`, the award-price CSV with
-    `--schwab-award-file`.
+    the two together: the main history with `--schwab-file` or `--schwab-dir`, the award-price CSV
+    with `--schwab-award-file`.
 
-If neither file holds everything, cgt-calc cannot reconcile the two for you, but
-[Combining a main history with a complete export](#combining-a-main-history-with-a-complete-export)
-describes the one route that still works and what you have to check yourself. Do not rename columns
-or invent a price merely to bypass the error.
+If neither file holds everything, cgt-calc cannot calculate from these exports: the complete export
+does not price the vests in the main history, and cgt-calc reads one award export per run. Open a
+[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) saying which kinds
+of row each file holds, without the figures, so the maintainers can decide whether to support that
+combination. Do not rename columns or invent a price merely to bypass the error.
 
 ### `Missing columns` or a row/column-count error
 
@@ -479,10 +500,10 @@ the complete CSV holds `VestFairMarketValue` and `PurchaseFairMarketValue`; the 
 with `{`. Whichever of the three it is, it goes to `--schwab-award-file` rather than
 `--schwab-file`.
 
-With `--schwab-dir`, this error names the offending file: take it out of the directory. If it is the
-award-price CSV, pass it with `--schwab-award-file` instead. If it is a complete transaction export,
-`--schwab-award-file` will not take it alongside `--schwab-dir`: see
-[Combining a main history with a complete export](#combining-a-main-history-with-a-complete-export).
+With `--schwab-dir`, this error names the offending file: take it out of the directory and pass it
+with `--schwab-award-file` instead. If it is a complete transaction export, read
+[Combining a main history with a complete export](#combining-a-main-history-with-a-complete-export)
+first.
 
 If you combined several history ranges, confirm that there is one header, every data row has the
 same number of fields, and none of the source files used a different export format.

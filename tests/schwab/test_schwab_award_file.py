@@ -16,10 +16,10 @@ import sys
 
 import pytest
 
-from cgt_calc.args_parser import create_parser
 from cgt_calc.exceptions import CgtError, ParsingError
+from cgt_calc.model import ActionType
 from cgt_calc.parsers.schwab import SchwabParser
-from cgt_calc.parsers.schwab_equity_award_json import SchwabEquityAwardsParser
+from cgt_calc.parsers.schwab_equity_award_json import SchwabAwardTransaction
 from tests.schwab.helpers import load_via_cli
 
 EQUITY_AWARD = Path("tests") / "schwab" / "data" / "equity_award"
@@ -30,6 +30,11 @@ COMPLETE_CSV = EQUITY_AWARD / "schwab_equity_award_v2.csv"
 AMBIGUOUS_COMPLETE_CSV = EQUITY_AWARD / "nvda_synthetic.csv"
 PRICE_CSV = RSU / "awards.csv"
 MAIN_HISTORY = RSU / "transactions.csv"
+# A main history whose vests need no award file, so it loads beside any export.
+PRICED_MAIN_HISTORY = Path("tests") / "schwab" / "data" / "schwab_transactions.csv"
+LAPSE_PRICING = Path("tests") / "schwab" / "data" / "lapse_pricing"
+LAPSE_MAIN_HISTORY = LAPSE_PRICING / "transactions.csv"
+LAPSE_ONLY_JSON = LAPSE_PRICING / "awards.json"
 
 PRICE_HEADER = (
     '"Date","Action","Symbol","Description","Quantity","FeesAndCommissions",'
@@ -89,75 +94,102 @@ def test_a_price_csv_supplies_prices_and_imports_nothing(tmp_path: Path) -> None
     assert SchwabParser.awards_prices
 
 
-@pytest.mark.parametrize("fixture", [COMPLETE_JSON, COMPLETE_CSV])
-def test_the_canonical_option_matches_the_old_one(fixture: Path) -> None:
-    """A complete export reaches the same parser through either option."""
-    canonical = load_via_cli(schwab_award_file=str(fixture))
-    args = create_parser().parse_args(
-        ["--year", "2023", "--schwab-equity-award-json", str(fixture)]
-    )
+def test_both_award_options_together_are_refused() -> None:
+    """A price file beside a complete export is no longer a route.
 
-    assert canonical == SchwabEquityAwardsParser.load_from_args(args)
-    assert canonical
-
-
-def test_a_price_csv_may_still_accompany_the_old_option() -> None:
-    """Pricing a vest and importing an award history is not a conflict."""
-    transactions = load_via_cli(
-        schwab_file=str(MAIN_HISTORY),
-        schwab_award_file=str(PRICE_CSV),
-        schwab_equity_award_json=str(COMPLETE_JSON),
-    )
-
-    assert transactions
-
-
-def test_a_complete_export_through_both_award_options_is_refused() -> None:
-    """Two complete exports cannot be told apart from one passed twice."""
-    with pytest.raises(CgtError, match="could duplicate transactions") as exc_info:
+    It was documented for an account with vests both delivered and held, which
+    no export has shown exists. The old option keeps a destination of its own
+    so that this is refused, where sharing one would drop a file in silence.
+    """
+    with pytest.raises(CgtError, match="were both given") as exc_info:
         load_via_cli(
-            schwab_award_file=str(COMPLETE_JSON),
+            schwab_file=str(MAIN_HISTORY),
+            schwab_award_file=str(PRICE_CSV),
             schwab_equity_award_json=str(COMPLETE_JSON),
         )
 
-    assert "Pass the history once" in str(exc_info.value)
+    # Which file to keep depends on what each holds, and the guide says how.
+    assert "#combining-a-main-history-with-a-complete-export" in str(exc_info.value)
 
 
 @pytest.mark.parametrize("main", ["schwab_file", "schwab_dir"])
-def test_a_complete_export_with_a_main_history_is_refused(
-    main: str, tmp_path: Path
+def test_a_complete_export_beside_a_main_history_is_imported_with_a_warning(
+    main: str, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Reconciling the two histories is not supported yet, so it is refused."""
+    """Nothing reconciles the two, so both are imported and the run says so.
+
+    The directory branch once returned only the directory's rows, which was
+    harmless while this combination was refused.
+    """
     directory = tmp_path / "schwab"
     directory.mkdir()
     (directory / "transactions.csv").write_text(
-        MAIN_HISTORY.read_text(encoding="utf-8"), encoding="utf-8"
+        PRICED_MAIN_HISTORY.read_text(encoding="utf-8"), encoding="utf-8"
     )
-    history = str(MAIN_HISTORY) if main == "schwab_file" else str(directory)
+    history = str(PRICED_MAIN_HISTORY) if main == "schwab_file" else str(directory)
 
-    with pytest.raises(CgtError, match="not supported yet") as exc_info:
-        load_via_cli(**{main: history}, schwab_award_file=str(COMPLETE_JSON))
-
-    message = str(exc_info.value)
-    # The way out, and what that option cannot do for the main history.
-    assert "--schwab-equity-award-json" in message
-    assert "it does not price vests" in message
-
-
-def test_the_duplicate_input_is_reported_before_the_main_history() -> None:
-    """Both conditions at once: the unconditional problem is named first.
-
-    The other message offers --schwab-equity-award-json as the way to combine
-    a history, which is no help to someone who has already passed it.
-    """
-    with pytest.raises(CgtError) as exc_info:
-        load_via_cli(
-            schwab_file=str(MAIN_HISTORY),
-            schwab_award_file=str(COMPLETE_JSON),
-            schwab_equity_award_json=str(COMPLETE_JSON),
+    with caplog.at_level(logging.WARNING):
+        transactions = load_via_cli(
+            **{main: history}, schwab_award_file=str(COMPLETE_JSON)
         )
 
-    assert "could duplicate transactions" in str(exc_info.value)
+    award_rows = [t for t in transactions if isinstance(t, SchwabAwardTransaction)]
+    assert len(award_rows) == 8
+    assert len(transactions) > len(award_rows)
+    warnings = [
+        r.getMessage()
+        for r in caplog.records
+        if "alongside the main Schwab history" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    assert warnings[0].startswith(f"{COMPLETE_JSON} was imported")
+    assert "counted twice" in warnings[0]
+
+
+def test_a_vest_beside_a_complete_export_says_that_export_prices_nothing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The award file was given, so the error must not say it was not.
+
+    A complete export states no price for a vest in the main history, and the
+    way out is a different file, not the same option again.
+    """
+    with (
+        caplog.at_level(logging.WARNING),
+        pytest.raises(ParsingError, match="Cannot price a vest") as exc_info,
+    ):
+        load_via_cli(
+            schwab_file=str(MAIN_HISTORY), schwab_award_file=str(COMPLETE_JSON)
+        )
+
+    message = str(exc_info.value)
+    assert "is a complete Equity Awards export, which prices no vest" in message
+    assert "Pass the award-price CSV with --schwab-award-file instead" in message
+    # A run that stops produces no report, so it must not ask for one checked.
+    assert "alongside the main Schwab history" not in caplog.text
+
+
+def test_the_old_option_routes_like_the_canonical_one(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """It warns, then reads its file by content as --schwab-award-file does.
+
+    Before, it only added transactions, so a price-only export given to it
+    beside a main history priced nothing and the run stopped at the first vest.
+    """
+    with caplog.at_level(logging.WARNING):
+        transactions = load_via_cli(
+            schwab_file=str(LAPSE_MAIN_HISTORY),
+            schwab_equity_award_json=str(LAPSE_ONLY_JSON),
+        )
+
+    assert (
+        "Option '--schwab-equity-award-json' is deprecated; use "
+        "'--schwab-award-file' instead." in caplog.text
+    )
+    vests = [t for t in transactions if t.action is ActionType.STOCK_ACTIVITY]
+    assert vests
+    assert all(vest.price is not None for vest in vests)
 
 
 @pytest.mark.parametrize(
