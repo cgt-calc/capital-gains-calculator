@@ -38,7 +38,7 @@ LOGGER = logging.getLogger(__name__)
 EXCHANGE_RATES_HEADER: Final = ["month", "currency", "rate"]
 NEW_ENDPOINT_FROM_YEAR: Final = 2021
 # The legacy HMRC endpoint has no monthly files before this month.
-FIRST_PUBLISHED_RATES_MONTH: Final = datetime.date(2016, 1, 1)
+FIRST_PUBLISHED_RATES_MONTH: Final = datetime.date(2015, 2, 1)
 
 
 class CurrencyConverter:
@@ -239,7 +239,7 @@ class CurrencyConverter:
             raise ExternalApiError(
                 url,
                 f"HMRC publishes no exchange rates for {date:%B %Y} at this "
-                "address; its monthly files start in January 2016. Add the rates "
+                "address; its monthly files start in February 2015. Add the rates "
                 f"for {date} to {where}: a CSV file with the header "
                 f"'month,currency,rate' and rows such as '{date},USD,1.5', each "
                 "rate being units of that currency per £1",

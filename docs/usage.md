@@ -36,10 +36,13 @@ shares you sell now. Two kinds of earlier history are refused, with an error nam
     rules, which decided which shares you still held, and cgt-calc does not implement them. Replace
     that holding's rows before 6 April 2008 with one `BUY` in a [RAW file](brokers/raw.md) dated 5
     April 2008, for the shares you still held and their total cost from your records of the time.
+    Use the cost without indexation: an old pool statement may show an indexed figure beside it. A
+    `BUY` with no deposit to pay for it fails the cash balance check, so add a `TRANSFER` row for
+    the same amount on the same date, or run with `--no-balance-check`.
 - **Anything before 6 April 1982.** Shares held on that date are pooled at their 31 March 1982
     market value, which cgt-calc cannot know.
 
-HMRC's published monthly exchange rates start in January 2016. For a transaction in another currency
+The exchange rates cgt-calc downloads start in February 2015. For a transaction in another currency
 before then, cgt-calc stops and asks you to add that date's rate to the
 [exchange rates file](extra-data-and-options.md#exchange-rates).
 

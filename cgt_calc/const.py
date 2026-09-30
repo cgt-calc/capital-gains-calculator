@@ -120,7 +120,7 @@ PRE_POOLING_REFUSED_ACTIONS: Final = frozenset(
         ActionType.GIFT_UNCONNECTED,
         ActionType.UNCLASSIFIED_GIFT,
         ActionType.TRANSFER_TO_SPOUSE,
-        # The no gain/no loss cost carried the spouse's indexation (CG22210).
+        # The no gain/no loss cost included the spouse's indexation allowance.
         ActionType.TRANSFER_FROM_SPOUSE,
         ActionType.FEE,
         # The reporting fund regime began in 2009, so such a row is a mistake.

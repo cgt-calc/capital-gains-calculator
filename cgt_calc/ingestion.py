@@ -167,7 +167,7 @@ def _refuse_unsupported_history(transaction: BrokerTransaction) -> None:
             "which shares were left. This calculator does not implement them. "
             f"Replace the rows for {transaction.symbol or 'this holding'} before "
             "that date with one BUY dated 5 April 2008 for the shares you still "
-            f"held, at their total allowable cost.\n{transaction}"
+            f"held, at their total allowable cost without indexation.\n{transaction}"
         )
 
 
