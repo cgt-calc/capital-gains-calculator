@@ -475,12 +475,12 @@ If the file instead uses the `VestFairMarketValue` layout, or its JSON holds `De
 in your main history. Which way round to work depends on what each file holds:
 
 - If the complete export holds everything you need, including any purchases, sales, dividends and
-    cash movements, pass it with `--schwab-award-file` on its own and leave out `--schwab-file`.
-    Check first: anything that happened only in the main account is not in that export and would be
-    left out of the calculation.
+    cash movements, pass it with `--schwab-award-file` on its own and leave out `--schwab-file` or
+    `--schwab-dir`. Check first: anything that happened only in the main account is not in that
+    export and would be left out of the calculation.
 - If the main history holds everything you need, ask Schwab for the award-price CSV as well and pass
-    the two together: the main history with `--schwab-file`, the award-price CSV with
-    `--schwab-award-file`.
+    the two together: the main history with `--schwab-file` or `--schwab-dir`, the award-price CSV
+    with `--schwab-award-file`.
 
 If neither file holds everything, cgt-calc cannot calculate from these exports: the complete export
 does not price the vests in the main history, and cgt-calc reads one award export per run. Open a
