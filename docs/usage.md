@@ -11,7 +11,9 @@ Most users need:
     [supported broker](brokers/index.md). Earlier purchases or employer-share awards can establish
     the cost of shares sold later. Purchases in the 30 days after the report ends can be matched to
     a sale or other disposal inside the report. Exporting from the date the account was opened
-    through at least 30 days after the report ends is the safest option.
+    through at least 30 days after the report ends is the safest option. A history reaching back
+    before 6 April 2008 may need one change by hand; see
+    [shares held before April 2008](extra-data-and-options.md#shares-held-before-april-2008).
 
 Depending on your investments, you may also need:
 
@@ -24,30 +26,6 @@ Depending on your investments, you may also need:
 
 Do not include the same transaction in more than one export. cgt-calc can validate the transactions
 it receives, but it cannot detect every missing or duplicated export.
-
-### Shares held before April 2008
-
-Since 6 April 2008, all your shares in one company are pooled at what they cost, whenever you bought
-them ([CG51550](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51550)). cgt-calc
-applies these rules to your whole history, so purchases from before 2008 count towards the cost of
-shares you sell now. Two kinds of earlier history are refused, with an error naming the transaction:
-
-- **A sale, gift or other disposal before 6 April 2008.** Earlier disposals followed different
-    rules, which decided which shares you still held, and cgt-calc does not implement them. Replace
-    that holding's rows before 6 April 2008 with one `BUY` in a [RAW file](brokers/raw.md) dated 5
-    April 2008, for the shares you still held and their total cost from your records of the time.
-    Enter the cost in sterling, with the currency `GBP`: a cost in another currency would be
-    converted at the 5 April 2008 rate, but each purchase's cost converts at the rate on the day it
-    was made ([CG78310](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg78310)). Use
-    the cost without indexation: an old pool statement may show an indexed figure beside it. A `BUY`
-    with no deposit to pay for it fails the cash balance check, so add a `TRANSFER` row for the same
-    amount on the same date, or run with `--no-balance-check`.
-- **Anything before 6 April 1982.** Shares held on that date are pooled at their 31 March 1982
-    market value, which cgt-calc cannot know.
-
-The exchange rates cgt-calc downloads start in February 2015. For a transaction in another currency
-before then, cgt-calc stops and asks you to add that date's rate to the
-[exchange rates file](extra-data-and-options.md#exchange-rates).
 
 ## Choose the tax year
 

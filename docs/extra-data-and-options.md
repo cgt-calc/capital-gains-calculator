@@ -154,6 +154,29 @@ the tax deducted on your broker's tax voucher. If the fallback is wrong or missi
 mapping under [ISIN to ticker translation](#isin-to-ticker-translation); if you cannot, calculate
 the relief outside cgt-calc rather than relying on the treaty figure in the report.
 
+### Shares held before April 2008
+
+Since 6 April 2008, all your shares in one company are pooled at what they cost, whenever you bought
+them ([CG51550](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51550)). cgt-calc
+applies these rules to your whole history, so purchases from before 2008 count towards the cost of
+shares you sell now. Two kinds of earlier history are refused, with an error naming the transaction:
+
+- **A sale, gift or other disposal before 6 April 2008.** Earlier disposals followed different
+    rules, which decided which shares you still held, and cgt-calc does not implement them. Replace
+    that holding's rows before 6 April 2008 with one `BUY` in a [RAW file](brokers/raw.md) dated 5
+    April 2008, for the shares you still held and their total cost from your records of the time.
+    Enter the cost in sterling, with the currency `GBP`: a cost in another currency would be
+    converted at the 5 April 2008 rate, but each purchase's cost converts at the rate on the day it
+    was made ([CG78310](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg78310)). Use
+    the cost without indexation: an old pool statement may show an indexed figure beside it. A `BUY`
+    with no deposit to pay for it fails the cash balance check, so add a `TRANSFER` row for the same
+    amount on the same date, or run with `--no-balance-check`.
+- **Anything before 6 April 1982.** Shares held on that date are pooled at their 31 March 1982
+    market value, which cgt-calc cannot know.
+
+A transaction in another currency before February 2015 also needs its rate added by hand; see
+[Exchange rates](#exchange-rates).
+
 ### CGT-exempt instruments (advanced)
 
 Most users should not use `--cgt-exempt-tickers`. Pass a comma-separated list only when you have
