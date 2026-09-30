@@ -7,6 +7,7 @@ from copy import deepcopy
 import csv
 import datetime
 from decimal import Decimal, InvalidOperation
+from http import HTTPStatus
 import logging
 from typing import TYPE_CHECKING, Final, TextIO, override
 
@@ -36,6 +37,8 @@ LOGGER = logging.getLogger(__name__)
 
 EXCHANGE_RATES_HEADER: Final = ["month", "currency", "rate"]
 NEW_ENDPOINT_FROM_YEAR: Final = 2021
+# The legacy HMRC endpoint has no monthly files before this month.
+FIRST_PUBLISHED_RATES_MONTH: Final = datetime.date(2015, 2, 1)
 
 
 class CurrencyConverter:
@@ -226,6 +229,21 @@ class CurrencyConverter:
             msg += f"Error: {err}"
             raise ExternalApiError(url, msg) from err
 
+        if (
+            response.status_code == HTTPStatus.NOT_FOUND
+            and date < FIRST_PUBLISHED_RATES_MONTH
+        ):
+            where = (
+                self.exchange_rates_file or "a file passed with --exchange-rates-file"
+            )
+            raise ExternalApiError(
+                url,
+                f"HMRC publishes no exchange rates for {date:%B %Y} at this "
+                "address; its monthly files start in February 2015. Add the rates "
+                f"for {date} to {where}: a CSV file with the header "
+                f"'month,currency,rate' and rows such as '{date},USD,1.5', each "
+                "rate being units of that currency per £1",
+            )
         if not response.ok:
             body = response.text.strip()
             extra = ""

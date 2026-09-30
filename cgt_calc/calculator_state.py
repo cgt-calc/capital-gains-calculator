@@ -134,6 +134,8 @@ class PreparedHistory:
     # itself once it is in.
     fee_days: set[tuple[datetime.date, str]] = field(default_factory=set)
     eris: ExcessReportedIncomeLog = field(default_factory=lambda: defaultdict(dict))
+    # The date of the earliest transaction, where the walk starts.
+    first_date: datetime.date | None = None
 
 
 @dataclass

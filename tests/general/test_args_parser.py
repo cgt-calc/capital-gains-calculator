@@ -33,7 +33,7 @@ from cgt_calc.const import (
     DEFAULT_ISIN_TRANSLATION_FILE,
     DEFAULT_REPORT_PATH,
     DEFAULT_SPIN_OFF_FILE,
-    INTERNAL_START_DATE,
+    EARLIEST_TAX_YEAR,
 )
 from cgt_calc.main import main
 
@@ -551,9 +551,9 @@ def test_default_output_when_neither_specified() -> None:
 
 
 def test_year_validation_too_early() -> None:
-    """Test that year before INTERNAL_START_DATE is rejected."""
+    """Test that year before EARLIEST_TAX_YEAR is rejected."""
     parser = create_parser()
-    min_year = INTERNAL_START_DATE.year
+    min_year = EARLIEST_TAX_YEAR
     invalid_year = min_year - 1
 
     with pytest.raises(SystemExit) as exc_info:
@@ -577,7 +577,7 @@ def test_year_validation_too_late() -> None:
 def test_year_validation_min_valid() -> None:
     """Test that minimum valid year is accepted."""
     parser = create_parser()
-    min_year = INTERNAL_START_DATE.year
+    min_year = EARLIEST_TAX_YEAR
 
     args = parser.parse_args(["--year", str(min_year)])
 

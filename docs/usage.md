@@ -11,7 +11,9 @@ Most users need:
     [supported broker](brokers/index.md). Earlier purchases or employer-share awards can establish
     the cost of shares sold later. Purchases in the 30 days after the report ends can be matched to
     a sale or other disposal inside the report. Exporting from the date the account was opened
-    through at least 30 days after the report ends is the safest option.
+    through at least 30 days after the report ends is the safest option. A history reaching back
+    before 6 April 2008 may need one change by hand; see
+    [shares held before April 2008](extra-data-and-options.md#shares-held-before-april-2008).
 
 Depending on your investments, you may also need:
 

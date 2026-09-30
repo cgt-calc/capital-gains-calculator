@@ -13,8 +13,31 @@ a normal calculation.
 
 cgt-calc downloads monthly GBP exchange rates from the
 [UK Trade Tariff API](https://www.trade-tariff.service.gov.uk/exchange_rates) for 2021 onwards and
-[HMRC's legacy service](https://www.hmrc.gov.uk/softwaredevelopers/2020-exrates.html) for earlier
-periods. It saves them to `out/exchange_rates.csv`.
+[HMRC's legacy service](https://www.hmrc.gov.uk/softwaredevelopers/2020-exrates.html) for February
+2015 to 2020. It saves them to `out/exchange_rates.csv`.
+
+Neither service has rates before February 2015. For an earlier transaction in another currency, add
+a row to the file yourself: the transaction's date in the `month` column, the currency code, and the
+rate as units of that currency per £1. If the file does not exist yet, start it with the header line
+`month,currency,rate`.
+
+HMRC's rates for those months are kept in the UK Government Web Archive:
+
+- **April 2002 to 2007:** open
+    [HMRC's exchange rates for 2007](https://webarchive.nationalarchives.gov.uk/ukgwa/20110202145605/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2007&columns=1)
+    and change `EXRATES_2007` in the address to the year you need. Each month's page offers the
+    table as a PDF download.
+- **2008 to 2014:** open
+    [HMRC's exchange rates for 2009](https://webarchive.nationalarchives.gov.uk/ukgwa/20141203171558/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2009&columns=1)
+    and choose “Rates of Exchange for Customs and VAT purposes” for the month. For another year,
+    change `EXRATES_2009` in the address to that year.
+- **January 2015:**
+    [HMRC exchange rates for 2015: monthly](https://webarchive.nationalarchives.gov.uk/ukgwa/20231016190054/https://www.gov.uk/government/publications/hmrc-exchange-rates-for-2015-monthly).
+
+Use the month's rate, unless the table shows a “Date of change” and “New rate” for that currency:
+from that date on, use the new rate. Each transaction needs its own row. For example, June 2009
+lists Dollar (USD) at 1.5649 with no change, so a purchase on 15 June 2009 needs the row
+`2009-06-15,USD,1.5649`.
 
 Use `--exchange-rates-file` to select another file in the same format. An empty value disables the
 cache. Keep the completed file with the report to preserve the exchange rates used. cgt-calc may add
@@ -136,6 +159,29 @@ bases treaty treatment on the residence of the company paying the dividend. Chec
 the tax deducted on your broker's tax voucher. If the fallback is wrong or missing, add a verified
 mapping under [ISIN to ticker translation](#isin-to-ticker-translation); if you cannot, calculate
 the relief outside cgt-calc rather than relying on the treaty figure in the report.
+
+### Shares held before April 2008
+
+Since 6 April 2008, all your shares in one company are pooled at what they cost, whenever you bought
+them ([CG51550](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51550)). cgt-calc
+applies these rules to your whole history, so purchases from before 2008 count towards the cost of
+shares you sell now. Two kinds of earlier history are refused, with an error naming the transaction:
+
+- **A sale, gift or other disposal before 6 April 2008.** Earlier disposals followed different
+    rules, which decided which shares you still held, and cgt-calc does not implement them. Replace
+    that holding's rows before 6 April 2008 with one `BUY` in a [RAW file](brokers/raw.md) dated 5
+    April 2008, for the shares you still held and their total cost from your records of the time.
+    Enter the cost in sterling, with the currency `GBP`: a cost in another currency would be
+    converted at the 5 April 2008 rate, but each purchase's cost converts at the rate on the day it
+    was made ([CG78310](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg78310)). Use
+    the cost without indexation: an old pool statement may show an indexed figure beside it. A `BUY`
+    with no deposit to pay for it fails the cash balance check, so add a `TRANSFER` row for the same
+    amount on the same date, or run with `--no-balance-check`.
+- **Anything before 6 April 1982.** Shares held on that date are pooled at their 31 March 1982
+    market value, which cgt-calc cannot know.
+
+A transaction in another currency before February 2015 also needs its rate added by hand; see
+[Exchange rates](#exchange-rates).
 
 ### CGT-exempt instruments (advanced)
 

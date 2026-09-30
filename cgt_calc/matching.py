@@ -10,12 +10,7 @@ from fractions import Fraction
 import logging
 from typing import TYPE_CHECKING, NamedTuple
 
-from .const import (
-    BED_AND_BREAKFAST_DAYS,
-    ERI_TAX_DATE_DELTA,
-    INTERNAL_START_DATE,
-    MAX_CONTENDED_DATES_SHOWN,
-)
+from .const import BED_AND_BREAKFAST_DAYS, ERI_TAX_DATE_DELTA, MAX_CONTENDED_DATES_SHOWN
 from .exceptions import CalculationError
 from .model import (
     CalculationEntry,
@@ -1953,8 +1948,10 @@ class Matcher:
 
     def walk(self) -> WalkResult:
         """Replay every day from the start of history to the tax year end."""
-        begin_index = INTERNAL_START_DATE
         tax_year_start_index = self.tax_year_start_date
+        begin_index = min(
+            self.history.first_date or tax_year_start_index, tax_year_start_index
+        )
         end_index = self.tax_year_end_date
         disposal_count = 0
         disposal_proceeds = Decimal(0)

@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 from dateutil.relativedelta import relativedelta
 
-from .model import Isin, TaxTreaty
+from .model import ActionType, Isin, TaxTreaty
 
 # =============================================================================
 # Allowances
@@ -98,7 +98,41 @@ CGT_MODE: Final = (
     if os.environ.get("CGT_TEST_MODE", "0") == "1"
     else RuntimeMode.PROD
 )
-INTERNAL_START_DATE: Final = datetime.date(2010, 1, 1)
+# The earliest tax year `--year` accepts. History may reach further back.
+EARLIEST_TAX_YEAR: Final = 2010
+
+# From 6 April 2008 an individual's shares of one class are pooled at cost
+# whenever they were acquired, and shares held on 6 April 1982 enter at their
+# 31 March 1982 value. Disposals before 2008 followed other rules (LIFO,
+# indexation, taper) that decide which shares were left.
+# See: https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51550
+POOLING_RULES_START_DATE: Final = datetime.date(2008, 4, 6)
+REBASING_DATE: Final = datetime.date(1982, 4, 6)
+
+# Actions refused before POOLING_RULES_START_DATE: each disposes of shares or
+# changes a pool's cost in a way the pre-2008 rules could treat differently.
+# Every other action only adds shares at cost, restates a holding, or moves
+# cash or income, which the pool treats the same before and after 2008.
+PRE_POOLING_REFUSED_ACTIONS: Final = frozenset(
+    {
+        ActionType.SELL,
+        ActionType.CASH_MERGER,
+        ActionType.FULL_REDEMPTION,
+        ActionType.GIFT,
+        ActionType.GIFT_UNCONNECTED,
+        ActionType.UNCLASSIFIED_GIFT,
+        ActionType.TRANSFER_TO_SPOUSE,
+        # The no gain/no loss cost included the spouse's indexation allowance.
+        ActionType.TRANSFER_FROM_SPOUSE,
+        ActionType.FEE,
+        # The reporting fund regime began in 2009, so such a row is a mistake.
+        ActionType.EXCESS_REPORTED_INCOME,
+        ActionType.OPTION_GRANT,
+        ActionType.OPTION_CLOSE,
+        ActionType.OPTION_EXPIRY,
+        ActionType.OPTION_ASSIGNMENT,
+    }
+)
 
 # Bed and Breakfast rule: HMRC requires matching disposals with acquisitions
 # within 30 days following the disposal to prevent tax avoidance.
