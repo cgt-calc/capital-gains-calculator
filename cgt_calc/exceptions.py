@@ -204,7 +204,7 @@ class QuantityNotPositiveError(InvalidTransactionError):
 
 
 def _as_csv(row: list[str]) -> str:
-    """Write a row back out as the CSV line a reader can search the file for."""
+    """Print the row as a CSV line, not as a Python list."""
     line = io.StringIO()
     csv.writer(line).writerow(row)
     return line.getvalue().rstrip("\r\n")
@@ -235,13 +235,17 @@ class UnexpectedRowCountError(ParsingError):
 class CalculatedAmountDiscrepancyError(InvalidTransactionError):
     """Calculated amount discrepancy error."""
 
-    def __init__(self, transaction: BrokerTransaction, calculated_amount: Decimal):
+    def __init__(
+        self,
+        transaction: BrokerTransaction,
+        calculated_amount: Decimal,
+        supplied_amount: Decimal,
+    ):
         """Initialise."""
-        supplied = transaction.amount
         super().__init__(
             transaction,
             f"The calculated amount {display_str(calculated_amount)} differs from "
-            f"the supplied amount {'none' if supplied is None else display_str(supplied)}.",
+            f"the supplied amount {display_str(supplied_amount)}.",
         )
 
 

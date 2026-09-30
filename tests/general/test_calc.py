@@ -3153,6 +3153,7 @@ def test_an_action_the_calculation_does_not_process_is_refused_by_name() -> None
 
     with pytest.raises(
         InvalidTransactionError,
-        match=r"^cgt-calc does not process CANCEL_BUY rows\. In a RAW file",
+        match=r"^cgt-calc does not process CANCEL_BUY rows\. In a RAW file, use one of"
+        r" the actions listed at https://cgt-calc\.uk/brokers/raw/#actions-to-use\n",
     ):
         get_report(calculator, [cancel])

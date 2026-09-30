@@ -344,7 +344,9 @@ class TransactionIngester:
                 transaction.fees,
                 CalculationType.ACQUISITION,
             ):
-                raise CalculatedAmountDiscrepancyError(transaction, -calculated_amount)
+                raise CalculatedAmountDiscrepancyError(
+                    transaction, -calculated_amount, amount
+                )
             amount = -amount
 
         capital_adjustment, capital_fee_adjustment = self._capital_adjustments_gbp(
@@ -871,7 +873,9 @@ class TransactionIngester:
             transaction.fees,
             CalculationType.DISPOSAL,
         ):
-            raise CalculatedAmountDiscrepancyError(transaction, calculated_amount)
+            raise CalculatedAmountDiscrepancyError(
+                transaction, calculated_amount, amount
+            )
         capital_adjustment, capital_fee_adjustment = self._capital_adjustments_gbp(
             transaction
         )
@@ -1659,7 +1663,8 @@ class TransactionIngester:
                 raise InvalidTransactionError(
                     transaction,
                     f"cgt-calc does not process {transaction.action.name} rows. "
-                    "In a RAW file, use one of the actions the RAW guide lists.",
+                    "In a RAW file, use one of the actions listed at "
+                    "https://cgt-calc.uk/brokers/raw/#actions-to-use",
                 )
             if not transaction.affects_cash_balance:
                 # The shares are pooled here, but the money moves on a row of
