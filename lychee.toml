@@ -13,7 +13,12 @@ timeout = 20
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
 # Revolut Help uses a Cloudflare browser challenge and rejects link checkers.
-exclude = ["^https://help\\.revolut\\.com/"]
+# The UK Government Web Archive answers 405 to requests from GitHub's runners,
+# although the same pages open in a browser and check fine elsewhere.
+exclude = [
+  "^https://help\\.revolut\\.com/",
+  "^https://webarchive\\.nationalarchives\\.gov\\.uk/",
+]
 
 # Reuse results between runs so unchanged links are not fetched again.
 cache = true
