@@ -33,6 +33,7 @@ CAPITAL_GAIN_ALLOWANCES: Final[dict[int, int]] = {
     2023: 6000,
     2024: 3000,
     2025: 3000,
+    2026: 3000,
 }
 
 # Dividend Tax annual allowance
@@ -45,6 +46,7 @@ DIVIDEND_ALLOWANCES: Final[dict[int, int]] = {
     2023: 1000,
     2024: 500,
     2025: 500,
+    2026: 500,
 }
 
 
