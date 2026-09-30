@@ -107,8 +107,9 @@ class AwardPrices:
     from_complete_export: bool = False
     """Set when the award file was a complete export, which prices nothing.
 
-    A vest the main history cannot price is then answered with that, not with
-    the claim that no award file was given.
+    It decides two things: a vest the main history cannot price is answered
+    with that, not with the claim that no award file was given; and a run
+    that also loads a main history warns that nothing reconciles the two.
     """
 
     def __bool__(self) -> bool:
@@ -1048,9 +1049,6 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 "the directory holding every export, or the single file."
             )
         award_transactions = cls._load_award_file(args)
-        # The registry reports both under this parser's name, "Charles
-        # Schwab". Only that progress line: each transaction still records
-        # the parser that read it.
         if args.schwab_dir:
             main_transactions = list(cls.load_from_dir(args.schwab_dir))
         else:
@@ -1071,6 +1069,9 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 "both before relying on this report.",
                 "stdin" if award_path == STDIN_PATH else award_path,
             )
+        # The registry reports both under this parser's name, "Charles
+        # Schwab". Only that progress line: each transaction still records
+        # the parser that read it.
         return award_transactions + main_transactions
 
     @classmethod
