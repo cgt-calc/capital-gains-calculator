@@ -395,7 +395,7 @@ export, and a sale is `Sell` in one and `Sale` in the other. Look a few days eit
 as well, because one file can date a vest by when it posted and the other by when it vested.
 
 If a transaction appears in both, do not combine the files. Use one of these instead, whichever
-covers the whole year:
+provides the complete history described in [Before you start](../usage.md#before-you-start):
 
 - The complete export on its own, if it holds everything the calculation needs. See
     [Complete transaction export](#complete-transaction-export).
@@ -477,10 +477,10 @@ If the file instead uses the `VestFairMarketValue` layout, or its JSON holds `De
 `Dividend` rows, it is the complete transaction export, and cgt-calc cannot use it to price a vest
 in your main history. Which way round to work depends on what each file holds:
 
-- If the complete export holds everything you need for the year, including any purchases, sales,
-    dividends and cash movements, pass it with `--schwab-award-file` on its own and leave out
-    `--schwab-file`. Check first: anything that happened only in the main account is not in that
-    export and would be left out of the calculation.
+- If the complete export holds everything you need, including any purchases, sales, dividends and
+    cash movements, pass it with `--schwab-award-file` on its own and leave out `--schwab-file`.
+    Check first: anything that happened only in the main account is not in that export and would be
+    left out of the calculation.
 - If the main history holds everything you need, ask Schwab for the award-price CSV as well and pass
     the two together: the main history with `--schwab-file`, the award-price CSV with
     `--schwab-award-file`.
