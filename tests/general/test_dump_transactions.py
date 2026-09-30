@@ -657,7 +657,7 @@ def test_cli_keeps_the_csv_when_the_calculation_fails(tmp_path: Path) -> None:
     )
 
     assert result.returncode != 0
-    assert "Tried to sell not owned symbol" in result.stderr
+    assert "Tried to sell XYZ on 2023-08-31, but no XYZ is held." in result.stderr
     (row,) = _read_rows(destination.read_text(encoding="utf-8"))
     assert row["action"] == "SELL"
     assert row["symbol"] == "XYZ"

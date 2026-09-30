@@ -585,7 +585,7 @@ overlap, or delete the redundant file.
 If the two files are exports from different Schwab accounts, that is the cause: cgt-calc cannot
 combine accounts, because no column says which account a row came from.
 
-### `Reached a negative balance` or `Tried to sell not owned symbol`
+### `Reached a negative balance` or `Tried to sell`
 
 Check that the export reaches the deposits and purchases that funded or created the later activity.
 Also check for a missing award vest, unsupported share transfer, gap between downloaded ranges or a

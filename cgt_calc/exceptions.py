@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import csv
+import io
 from typing import TYPE_CHECKING
 
-from .util import strip_zeros
+from .util import display_str, strip_zeros
 
 if TYPE_CHECKING:
     import datetime
@@ -59,9 +61,15 @@ class InvalidTransactionError(CgtError):
     """Invalid transaction error."""
 
     def __init__(self, transaction: BrokerTransaction, message: str):
-        """Initialise."""
+        """Initialise with a message that is a complete sentence.
+
+        The transaction is printed on the lines beneath it. A fixed connecting
+        phrase used to be appended instead, so every message had to end
+        mid-sentence, and a message of several sentences had the phrase
+        joined onto its last instruction.
+        """
         self.transaction = transaction
-        self.message = f"{message} for the following transaction:\n{transaction}"
+        self.message = f"{message}\n{transaction}"
         super().__init__(self.message)
 
 
@@ -152,7 +160,7 @@ class AmountMissingError(InvalidTransactionError):
 
     def __init__(self, transaction: BrokerTransaction):
         """Initialise."""
-        super().__init__(transaction, "Amount missing")
+        super().__init__(transaction, "Amount missing.")
 
 
 class SymbolMissingError(InvalidTransactionError):
@@ -160,7 +168,7 @@ class SymbolMissingError(InvalidTransactionError):
 
     def __init__(self, transaction: BrokerTransaction):
         """Initialise."""
-        super().__init__(transaction, "Symbol missing")
+        super().__init__(transaction, "Symbol missing.")
 
 
 class PriceMissingError(InvalidTransactionError):
@@ -168,7 +176,7 @@ class PriceMissingError(InvalidTransactionError):
 
     def __init__(self, transaction: BrokerTransaction):
         """Initialise."""
-        super().__init__(transaction, "Price missing")
+        super().__init__(transaction, "Price missing.")
 
 
 class IsinMissingError(InvalidTransactionError):
@@ -176,7 +184,7 @@ class IsinMissingError(InvalidTransactionError):
 
     def __init__(self, transaction: BrokerTransaction):
         """Initialise."""
-        super().__init__(transaction, "ISIN missing")
+        super().__init__(transaction, "ISIN missing.")
 
 
 class QuantityMissingError(InvalidTransactionError):
@@ -184,7 +192,7 @@ class QuantityMissingError(InvalidTransactionError):
 
     def __init__(self, transaction: BrokerTransaction):
         """Initialise."""
-        super().__init__(transaction, "Quantity missing")
+        super().__init__(transaction, "Quantity missing.")
 
 
 class QuantityNotPositiveError(InvalidTransactionError):
@@ -192,7 +200,14 @@ class QuantityNotPositiveError(InvalidTransactionError):
 
     def __init__(self, transaction: BrokerTransaction):
         """Initialise."""
-        super().__init__(transaction, "Positive quantity required")
+        super().__init__(transaction, "Positive quantity required.")
+
+
+def _as_csv(row: list[str]) -> str:
+    """Write a row back out as the CSV line a reader can search the file for."""
+    line = io.StringIO()
+    csv.writer(line).writerow(row)
+    return line.getvalue().rstrip("\r\n")
 
 
 class UnexpectedColumnCountError(ParsingError):
@@ -204,7 +219,7 @@ class UnexpectedColumnCountError(ParsingError):
         """Initialise."""
         super().__init__(
             file,
-            f"The following row doesn't have {count} columns:\n{row}",
+            f"This row has {len(row)} columns, not {count}:\n  {_as_csv(row)}",
             row_index=row_index,
         )
 
@@ -222,12 +237,11 @@ class CalculatedAmountDiscrepancyError(InvalidTransactionError):
 
     def __init__(self, transaction: BrokerTransaction, calculated_amount: Decimal):
         """Initialise."""
+        supplied = transaction.amount
         super().__init__(
             transaction,
-            (
-                f"Calculated amount({calculated_amount}) differs "
-                f"from supplied amount ({transaction.amount})"
-            ),
+            f"The calculated amount {display_str(calculated_amount)} differs from "
+            f"the supplied amount {'none' if supplied is None else display_str(supplied)}.",
         )
 
 

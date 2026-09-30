@@ -158,7 +158,7 @@ def _check_reorganisation_row(transaction: BrokerTransaction) -> None:
                 "TCGA 1992 s128 or a small distribution under s122(2), and "
                 "cgt-calc can represent neither: leave money off this row "
                 "and work the payment and the holding's later figures out "
-                "separately",
+                "separately.",
             )
     if transaction.foreign_fees:
         listed = ", ".join(
@@ -171,7 +171,7 @@ def _check_reorganisation_row(transaction: BrokerTransaction) -> None:
                 transaction,
                 "The fees column of a share reorganisation states "
                 f"{listed}. A reorganisation buys nothing and sells "
-                "nothing (TCGA 1992 s127), so leave all fee columns at 0",
+                "nothing (TCGA 1992 s127), so leave all fee columns at 0.",
             )
 
 

@@ -90,7 +90,7 @@ def _transaction_sort_key(
     A broker export can list the sale of vested shares before the vest itself
     (e.g. Schwab or Morgan Stanley equity awards). A disposal is validated
     against the current holding as soon as it is read, so the unsorted order
-    fails with "Tried to sell not owned symbol". Vesting (``STOCK_ACTIVITY``)
+    fails with "Tried to sell ..., but no ... is held". Vesting (``STOCK_ACTIVITY``)
     does not move the cash balance, so ordering it first cannot introduce a
     negative balance.
 

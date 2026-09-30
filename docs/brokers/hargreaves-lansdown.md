@@ -130,7 +130,7 @@ Use the CSV downloaded from the Tax Centre rather than a statement, tax certific
 created by converting a PDF. Keep its headings unchanged. cgt-calc skips the identifying preamble
 above the `Trade date` row, but requires the exported transaction columns below it.
 
-### `Reached a negative balance` or `Tried to sell not owned symbol`
+### `Reached a negative balance` or `Tried to sell`
 
 Check that the non-overlapping CSVs cover the complete required history, including the cash movement
 that funded every purchase and the earlier purchase behind every sale. Then account for every

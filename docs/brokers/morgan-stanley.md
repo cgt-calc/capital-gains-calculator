@@ -122,7 +122,7 @@ report's header, open a GitHub issue with the header and a sanitised row.
 Do not upload an unredacted report: it contains order identifiers, holdings and other sensitive
 financial information.
 
-### `Reached a negative balance` or `Tried to sell not owned symbol`
+### `Reached a negative balance` or `Tried to sell`
 
 Re-export the complete history and confirm that every sale has its earlier release. Also include the
 `Cash` withdrawal rows when present. Do not use `--no-balance-check` until you have identified why

@@ -283,7 +283,7 @@ def test_assigned_put_without_its_funding_deposit_still_errors() -> None:
     rows = [row for row in _FUNDED_ASSIGNED_PUT if "MoneyLink" not in row]
 
     with pytest.raises(
-        CalculationError, match=r"negative balance\(-4900.65\)"
+        CalculationError, match=r"negative balance of -4900.65 USD"
     ) as error:
         _report(rows, balance_check=True)
 

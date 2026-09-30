@@ -256,7 +256,7 @@ A reversed purchase or disposal no longer imports silently either; see
 unchanged and report an unchanged Vanguard row that behaves unexpectedly in a
 [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new).
 
-### `Reached a negative balance` or `Tried to sell not owned symbol`
+### `Reached a negative balance` or `Tried to sell`
 
 Check that the CSV is from the General Account and covers the complete required history, including
 the deposits that funded purchases and the earlier purchase behind every sale. Also compare the Cash

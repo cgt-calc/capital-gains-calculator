@@ -59,7 +59,7 @@ def validate_and_remove_duplicates(
             raise PriceMissingError(transaction)
         if not price.is_finite() or price < 0:
             raise InvalidTransactionError(
-                transaction, "ERI price must be finite and non-negative"
+                transaction, "ERI price must be finite and non-negative."
             )
         isin = transaction.isin
         if isin is None:
@@ -76,7 +76,7 @@ def validate_and_remove_duplicates(
                 transaction,
                 "Duplicate same day ERI with a different price: an earlier "
                 f"row on this date states {display_str(current_price)} "
-                f"{current_transaction.currency}",
+                f"{current_transaction.currency}.",
             )
         result.append(transaction)
         transaction_index[key] = (transaction, price)

@@ -520,13 +520,18 @@ def test_repr_still_carries_every_field() -> None:
 
 
 def test_an_error_about_a_transaction_prints_the_readable_form() -> None:
-    """Every raise site reaches this one message through the base class."""
+    """Every raise site reaches this one message through the base class.
+
+    The message is a sentence of its own and the row follows it. Nothing is
+    joined onto the message, which used to fall on a longer message's last
+    instruction.
+    """
     transaction = _sale(source=TransactionSource(file=Path("main.csv"), row=8))
 
-    error = InvalidTransactionError(transaction, "Tried to sell more than the balance")
+    error = InvalidTransactionError(transaction, "Check the exports first.")
 
     assert str(error) == (
-        "Tried to sell more than the balance for the following transaction:\n"
+        "Check the exports first.\n"
         "2024-06-27 Sell 10 FOO, price 12.5 USD, amount 124.98, fees 0.02\n"
         '  Charles Schwab "FOO INC", read from row 8 of main.csv'
     )

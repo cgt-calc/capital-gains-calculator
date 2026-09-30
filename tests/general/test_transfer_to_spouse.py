@@ -252,7 +252,9 @@ def test_transfer_to_spouse_more_than_owned_is_rejected() -> None:
     buy_day = datetime.date(2024, 6, 1)
     transfer_day = datetime.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    with pytest.raises(InvalidTransactionError, match="more than the available"):
+    with pytest.raises(
+        InvalidTransactionError, match=r"to a spouse on .*, but the holding is"
+    ):
         get_report(
             calculator,
             [
@@ -267,7 +269,10 @@ def test_transfer_to_spouse_more_than_owned_is_rejected() -> None:
 def test_transfer_to_spouse_of_not_owned_symbol_is_rejected() -> None:
     """Transferring a symbol that was never acquired is refused."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    with pytest.raises(InvalidTransactionError, match="not owned symbol"):
+    with pytest.raises(
+        InvalidTransactionError,
+        match=r"^Tried to transfer FOO to a spouse on 2024-06-10, but no FOO is held\. Check",
+    ):
         get_report(
             calculator,
             [transfer_to_spouse_transaction(datetime.date(2024, 6, 10), "FOO", 1)],
@@ -938,7 +943,7 @@ def test_transfer_to_spouse_sorts_after_a_same_day_acquisition() -> None:
 
     Transfers come from a RAW file while the shares come from a broker export,
     and parsers merge in registry order, so without this the transfer is
-    validated first and fails as "not owned".
+    validated first and fails as nothing held.
     """
     day = datetime.date(2024, 6, 10)
     buy = transaction(day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP))

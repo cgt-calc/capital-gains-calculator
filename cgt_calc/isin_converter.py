@@ -191,7 +191,7 @@ class IsinConverter:
                 f"ISIN {isin}. One security under two tickers would "
                 "be pooled and matched as two holdings. Check the exports; if "
                 "both are listings of the same security, report the ISIN and "
-                "both tickers so the pair can be added",
+                "both tickers so the pair can be added.",
             )
 
         owner = self.transaction_isins.get(symbol) or self._isin_for_symbol(symbol)
@@ -200,7 +200,7 @@ class IsinConverter:
                 transaction,
                 f"Ticker {symbol} is already used for ISIN {owner}, so it "
                 f"cannot also stand for ISIN {isin}. Two securities under one "
-                "ticker would be pooled and matched as one holding",
+                "ticker would be pooled and matched as one holding.",
             )
 
         self.transaction_symbols.setdefault(isin, set()).add(symbol)
@@ -234,7 +234,7 @@ class IsinConverter:
                     "ticker cannot be told apart, and a row naming no ISIN of "
                     "its own would be pooled with whichever listing the export "
                     "stated first. Check the exports and calculate the two "
-                    "securities in separate runs",
+                    "securities in separate runs.",
                 )
         for transaction in transactions:
             self.add_from_transaction(transaction)
