@@ -272,9 +272,6 @@ from your share plan:
 Both go to `--schwab-award-file`, which reads the contents and works out which one it has. What
 changes is what cgt-calc does with the file, described in the two sections below.
 
-`--schwab-equity-award-json` is the older name for `--schwab-award-file`. It still works, and warns
-that it is deprecated. Give one or the other: cgt-calc reads one Equity Awards export per run.
-
 ### Price-only export
 
 Use this method when the main transaction CSV contains `Stock Plan Activity` rows with a blank
