@@ -1052,8 +1052,26 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         # Schwab". Only that progress line: each transaction still records
         # the parser that read it.
         if args.schwab_dir:
-            return award_transactions + list(cls.load_from_dir(args.schwab_dir))
-        return award_transactions + super().load_from_args(args)
+            main_transactions = list(cls.load_from_dir(args.schwab_dir))
+        else:
+            main_transactions = super().load_from_args(args)
+        # Nothing reconciles a complete export with a main history, so the
+        # combination is accepted with a warning rather than refused. Only
+        # once the main history has loaded: a run that stops on it produces no
+        # report to check.
+        if cls.awards_prices.from_complete_export and (
+            args.schwab_file or args.schwab_dir
+        ):
+            award_path = args.schwab_award_file or args.schwab_equity_award_json
+            LOGGER.warning(
+                "%s was imported with --schwab-award-file alongside the main "
+                "Schwab history. cgt-calc does not check one against the "
+                "other, so a vest, sale, dividend or cash movement recorded "
+                "in both files is counted twice. Check that none appears in "
+                "both before relying on this report.",
+                "stdin" if award_path == STDIN_PATH else award_path,
+            )
+        return award_transactions + main_transactions
 
     @classmethod
     def _load_award_file(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
@@ -1075,7 +1093,9 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 "--schwab-award-file and --schwab-equity-award-json were both "
                 "given. cgt-calc reads one Equity Awards export per run: pass "
                 "it with --schwab-award-file. --schwab-equity-award-json is "
-                "the deprecated name for the same option."
+                "the deprecated name for the same option. To choose between "
+                "the files, see https://cgt-calc.uk/brokers/schwab/"
+                "#combining-a-main-history-with-a-complete-export"
             )
         award_path = args.schwab_award_file or args.schwab_equity_award_json
         if award_path is None:
@@ -1122,17 +1142,6 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 io.StringIO(content), award_path, show_parsing_msg=False
             )
         )
-        # Nothing reconciles a complete export with a main history, so the
-        # combination is accepted with a warning rather than refused.
-        if args.schwab_file or args.schwab_dir:
-            LOGGER.warning(
-                "%s was imported with --schwab-award-file alongside the main "
-                "Schwab history. cgt-calc does not check one against the "
-                "other, so a vest, sale, dividend or cash movement recorded "
-                "in both files is counted twice. Check that none appears in "
-                "both before relying on this report.",
-                "stdin" if award_path == STDIN_PATH else award_path,
-            )
         return transactions
 
     @classmethod

@@ -488,8 +488,8 @@ in your main history. Which way round to work depends on what each file holds:
 If neither file holds everything, cgt-calc cannot calculate from these exports: the complete export
 does not price the vests in the main history, and cgt-calc reads one award export per run. Open a
 [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) saying which kinds
-of row each file holds, without the figures, so support can be judged against a real export. Do not
-rename columns or invent a price merely to bypass the error.
+of row each file holds, without the figures, so the maintainers can decide whether to support that
+combination. Do not rename columns or invent a price merely to bypass the error.
 
 ### `Missing columns` or a row/column-count error
 

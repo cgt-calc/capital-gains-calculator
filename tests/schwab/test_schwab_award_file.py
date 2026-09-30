@@ -101,12 +101,15 @@ def test_both_award_options_together_are_refused() -> None:
     no export has shown exists. The old option keeps a destination of its own
     so that this is refused, where sharing one would drop a file in silence.
     """
-    with pytest.raises(CgtError, match="were both given"):
+    with pytest.raises(CgtError, match="were both given") as exc_info:
         load_via_cli(
             schwab_file=str(MAIN_HISTORY),
             schwab_award_file=str(PRICE_CSV),
             schwab_equity_award_json=str(COMPLETE_JSON),
         )
+
+    # Which file to keep depends on what each holds, and the guide says how.
+    assert "#combining-a-main-history-with-a-complete-export" in str(exc_info.value)
 
 
 @pytest.mark.parametrize("main", ["schwab_file", "schwab_dir"])
@@ -143,13 +146,18 @@ def test_a_complete_export_beside_a_main_history_is_imported_with_a_warning(
     assert "counted twice" in warnings[0]
 
 
-def test_a_vest_beside_a_complete_export_says_that_export_prices_nothing() -> None:
+def test_a_vest_beside_a_complete_export_says_that_export_prices_nothing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """The award file was given, so the error must not say it was not.
 
     A complete export states no price for a vest in the main history, and the
     way out is a different file, not the same option again.
     """
-    with pytest.raises(ParsingError, match="Cannot price a vest") as exc_info:
+    with (
+        caplog.at_level(logging.WARNING),
+        pytest.raises(ParsingError, match="Cannot price a vest") as exc_info,
+    ):
         load_via_cli(
             schwab_file=str(MAIN_HISTORY), schwab_award_file=str(COMPLETE_JSON)
         )
@@ -157,6 +165,8 @@ def test_a_vest_beside_a_complete_export_says_that_export_prices_nothing() -> No
     message = str(exc_info.value)
     assert "is a complete Equity Awards export, which prices no vest" in message
     assert "Pass the award-price CSV with --schwab-award-file instead" in message
+    # A run that stops produces no report, so it must not ask for one checked.
+    assert "alongside the main Schwab history" not in caplog.text
 
 
 def test_the_old_option_routes_like_the_canonical_one(
