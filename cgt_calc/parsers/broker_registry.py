@@ -21,7 +21,6 @@ from cgt_calc.parsers.mssb import MSSBParser
 from cgt_calc.parsers.raw import RawParser
 from cgt_calc.parsers.revolut import RevolutParser
 from cgt_calc.parsers.schwab import SchwabParser
-from cgt_calc.parsers.schwab_equity_award_json import SchwabEquityAwardsJSONParser
 from cgt_calc.parsers.sharesight import SharesightParser
 from cgt_calc.parsers.trading212 import Trading212Parser
 from cgt_calc.parsers.vanguard import VanguardParser, VanguardTransaction
@@ -145,7 +144,6 @@ class BrokerRegistry:
     # last. Add new brokers in their sorted place.
     _BROKERS: ClassVar[list[type[BaseParser]]] = [
         SchwabParser,
-        SchwabEquityAwardsJSONParser,
         FreetradeParser,
         HargreavesLansdownParser,
         InteractiveBrokersParser,

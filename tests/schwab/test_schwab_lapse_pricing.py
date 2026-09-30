@@ -17,18 +17,14 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 import json
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 
-from cgt_calc.args_parser import create_parser
 from cgt_calc.exceptions import CgtError, ParsingError
 from cgt_calc.parsers.schwab import AwardPrices, SchwabParser
-from cgt_calc.parsers.schwab_equity_award_json import (
-    JsonRowType,
-    SchwabEquityAwardsParser,
-)
 from tests.schwab.helpers import load_via_cli
 from tests.utils import (
     assert_stdout_matches,
@@ -41,9 +37,13 @@ from tests.utils import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from cgt_calc.parsers.schwab_equity_award_json import JsonRowType
+
 
 LAPSE_PRICING = Path("tests") / "schwab" / "data" / "lapse_pricing"
 MAIN_HISTORY = LAPSE_PRICING / "transactions.csv"
+# A main history whose vests need no award file, so it loads beside any export.
+PRICED_MAIN_HISTORY = Path("tests") / "schwab" / "data" / "schwab_transactions.csv"
 AWARD_JSON = LAPSE_PRICING / "awards.json"
 
 EQUITY_AWARD = Path("tests") / "schwab" / "data" / "equity_award"
@@ -154,7 +154,7 @@ def test_a_cash_row_alongside_the_lapses_is_refused_by_name(tmp_path: Path) -> N
 
 
 def test_a_purchase_that_acquired_nothing_is_not_a_price_only_export(
-    tmp_path: Path,
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """An ESPP purchase whose every share went to tax also yields no transaction.
 
@@ -180,7 +180,7 @@ def test_a_purchase_that_acquired_nothing_is_not_a_price_only_export(
                         "SubscriptionDate": "01/01/2023",
                         "SubscriptionFairMarketValue": "$10.00",
                         "Shares": "10",
-                        "SharesSoldWithheldForTaxes": "10",
+                        "SharesWithheld": "10",
                         "NetSharesDeposited": "0",
                     }
                 }
@@ -188,18 +188,30 @@ def test_a_purchase_that_acquired_nothing_is_not_a_price_only_export(
         },
     )
 
-    with pytest.raises(CgtError, match="not supported yet"):
-        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+    _assert_read_as_a_complete_export(award_file, caplog)
 
 
 def test_an_export_with_no_transactions_is_not_a_price_only_export(
-    tmp_path: Path,
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """It keeps the empty-result handling it had, rather than gaining prices."""
     award_file = _export(tmp_path)
 
-    with pytest.raises(CgtError, match="not supported yet"):
-        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=award_file)
+    _assert_read_as_a_complete_export(award_file, caplog)
+
+
+def _assert_read_as_a_complete_export(
+    award_file: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Only the complete export warns beside a main history; prices do not.
+
+    The main history is one that needs no award prices, so the run succeeds
+    either way and the warning alone says which path the file took.
+    """
+    with caplog.at_level(logging.WARNING):
+        load_via_cli(schwab_file=str(PRICED_MAIN_HISTORY), schwab_award_file=award_file)
+
+    assert "alongside the main Schwab history" in caplog.text
 
 
 def test_an_unknown_action_keeps_its_own_error(tmp_path: Path) -> None:
@@ -662,58 +674,6 @@ def test_a_price_only_export_on_its_own_is_refused() -> None:
         load_via_cli(schwab_award_file=str(AWARD_JSON))
 
     assert "--schwab-file <main history>" in str(exc_info.value)
-
-
-def test_a_price_only_export_on_its_own_is_refused_by_the_old_option() -> None:
-    """The old option cannot price a vest and never will.
-
-    Pointing a user holding this export at it is a dead end, so its message
-    shows the command that does work.
-    """
-    args = create_parser().parse_args(
-        ["--year", "2023", "--schwab-equity-award-json", str(AWARD_JSON)]
-    )
-
-    with pytest.raises(CgtError, match="does not price vests") as exc_info:
-        SchwabEquityAwardsParser.load_from_args(args)
-
-    assert "--schwab-file <main history> --schwab-award-file" in str(exc_info.value)
-
-
-def test_the_old_option_with_a_main_history_keeps_its_existing_error() -> None:
-    """The registry loads the main history first, and that error already works.
-
-    Getting in front of it would replace advice that now succeeds with advice
-    saying the same thing.
-    """
-    args = create_parser().parse_args(
-        [
-            "--year",
-            "2023",
-            "--schwab-file",
-            str(MAIN_HISTORY),
-            "--schwab-equity-award-json",
-            str(AWARD_JSON),
-        ]
-    )
-
-    with pytest.raises(ParsingError, match="Cannot price a vest"):
-        SchwabParser.load_from_args(args)
-
-
-def test_a_price_only_export_may_accompany_the_old_option() -> None:
-    """Pricing a vest and importing an award history is not a conflict.
-
-    The award-price CSV has always been allowed here, and this export does the
-    same job.
-    """
-    transactions = load_via_cli(
-        schwab_file=str(MAIN_HISTORY),
-        schwab_award_file=str(AWARD_JSON),
-        schwab_equity_award_json=str(COMPLETE_JSON),
-    )
-
-    assert transactions
 
 
 # --- The whole calculation --------------------------------------------------

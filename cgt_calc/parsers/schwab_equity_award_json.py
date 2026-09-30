@@ -27,10 +27,10 @@ from enum import Enum, auto
 import io
 import json
 import logging
-from typing import TYPE_CHECKING, Any, ClassVar, Final, TextIO, override
+from typing import TYPE_CHECKING, Any, Final, TextIO, override
 
 from cgt_calc.const import TICKER_RENAMES
-from cgt_calc.exceptions import CgtError, ParsingError, UnexpectedColumnCountError
+from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
@@ -39,10 +39,9 @@ from cgt_calc.model import (
 )
 from cgt_calc.util import round_decimal
 
-from .base_parsers import BaseSingleFileParser, read_input
+from .base_parsers import BaseSingleFileParser
 
 if TYPE_CHECKING:
-    import argparse
     from collections.abc import Iterator, Sequence
     from pathlib import Path
 
@@ -1283,32 +1282,26 @@ def _read_json_transactions(
 # What to offer after refusing to price a vest whose units cannot be settled.
 # Conditional on the file the reader turns out to have rather than on their
 # share plan: which export an awards account produces is an inference from the
-# fields the two layouts carry, not something Schwab documents, and the
-# complete export replaces the main history rather than joining it.
+# fields the two layouts carry, not something Schwab documents. The complete
+# export is offered on its own, because it prices no vest in a main history.
 COMPLETE_EXPORT_CAVEAT: Final = (
     "If you have a complete Equity Awards export, which states each vest's "
     "price and share count together, it imports on its own with "
     "--schwab-award-file. Use it only if it holds everything the calculation "
-    "needs: it replaces the main history rather than joining it, so anything "
-    "that happened only in the brokerage account would be left out."
+    "needs: anything that happened only in the brokerage account would be "
+    "left out."
 )
 
 
-def price_only_alone_message(*, canonical_option: bool) -> str:
+def price_only_alone_message() -> str:
     """Say why an export that only prices vests cannot be used on its own."""
-    message = (
+    return (
         "This Equity Awards export holds vest prices and no transactions: "
         "every row in it is a Lapse. It prices the Stock Plan Activity rows of "
         "a main transaction history rather than importing a history of its "
         "own, so it has to be passed with one:\n"
         "  cgt-calc --schwab-file <main history> --schwab-award-file <this file>"
     )
-    if not canonical_option:
-        message += (
-            "\n--schwab-equity-award-json only adds transactions and does not "
-            "price vests, so it cannot use this file at all."
-        )
-    return message
 
 
 def lapse_only_rows(
@@ -1658,39 +1651,7 @@ class SchwabEquityAwardsParser(BaseSingleFileParser[SchwabAwardTransaction]):
     decoding differs and everything after it is shared.
     """
 
-    arg_name = "schwab-equity-award"
     pretty_name = "Charles Schwab Equity Awards"
-    format_name = "JSON"
-    argument_help: ClassVar[str | None] = (
-        "Charles Schwab Equity Awards transaction history, JSON or complete "
-        "CSV. Prefer --schwab-award-file; this option remains the way to "
-        "combine the history with --schwab-file or --schwab-dir"
-    )
-    deprecated_flags: ClassVar[list[str]] = ["--schwab_equity_award_json"]
-
-    @classmethod
-    @override
-    def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
-        """Load the export, refusing one that can only price vests.
-
-        This option adds transactions and never prices a vest, so an export
-        that holds nothing but prices imports nothing through it and produces
-        a report of zero gains rather than an error. Only checked when there
-        is no main history: with one, `SchwabParser` runs first and an
-        unpriced vest raises `Cannot price a vest`, which already names the
-        route that reads this file.
-        """
-        file_path = args.schwab_equity_award_json
-        if file_path is None or args.schwab_file or args.schwab_dir:
-            return super().load_from_args(args)
-        content = read_input(file_path, cls.encoding)
-        if lapse_only_rows(content, file_path) is not None:
-            raise CgtError(price_only_alone_message(canonical_option=False))
-        # list is invariant, so widen explicitly rather than return list[T].
-        transactions: list[BrokerTransaction] = list(
-            cls.load_from_stream(io.StringIO(content), file_path)
-        )
-        return transactions
 
     @classmethod
     @override
@@ -1743,8 +1704,3 @@ class SchwabEquityAwardsParser(BaseSingleFileParser[SchwabAwardTransaction]):
 
         transactions.reverse()
         return transactions
-
-
-# The class read only JSON when it was named, and the name is on the option,
-# in the registry and in every existing caller.
-SchwabEquityAwardsJSONParser = SchwabEquityAwardsParser

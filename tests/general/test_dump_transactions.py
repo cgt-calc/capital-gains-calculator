@@ -554,7 +554,7 @@ def test_cli_saves_the_csv_and_still_reports(
     """The summary and the report are exactly what a run without the flag gives."""
     destination = tmp_path / "parsed.csv"
     source = (
-        "--schwab-equity-award-json",
+        "--schwab-award-file",
         "tests/schwab/data/equity_award/schwab_equity_award_v2.json",
     )
     output = report_path(request)
@@ -590,7 +590,7 @@ def test_cli_saves_the_csv_without_a_report(tmp_path: Path) -> None:
     result = _run(
         "--year",
         "2023",
-        "--schwab-equity-award-json",
+        "--schwab-award-file",
         "tests/schwab/data/equity_award/schwab_equity_award_v2.json",
         "--dump-transactions",
         str(destination),

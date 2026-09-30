@@ -104,6 +104,13 @@ class AwardPrices:
     that way.
     """
 
+    from_complete_export: bool = False
+    """Set when the award file was a complete export, which prices nothing.
+
+    A vest the main history cannot price is then answered with that, not with
+    the claim that no award file was given.
+    """
+
     def __bool__(self) -> bool:
         """Return True if not empty."""
         return bool(self.award_prices)
@@ -362,16 +369,28 @@ class SchwabTransaction(BrokerTransaction):
                     f"the {symbol} stock activity of {transaction.quantity} "
                     f"on {transaction.date} has no price of its own"
                 )
-                reason = (
-                    "no Schwab Award file was provided"
-                    if not awards_prices
-                    else "the Schwab Award file has no award price for it"
-                )
+                if awards_prices.from_complete_export:
+                    reason = (
+                        "the file given with --schwab-award-file is a complete "
+                        "Equity Awards export, which prices no vest in a main "
+                        "history. Pass the award-price CSV with "
+                        "--schwab-award-file instead, or import the complete "
+                        "export on its own if it holds everything the "
+                        "calculation needs."
+                    )
+                elif not awards_prices:
+                    reason = (
+                        "no Schwab Award file was provided. Pass the Equity "
+                        "Awards transaction history with --schwab-award-file."
+                    )
+                else:
+                    reason = (
+                        "the Schwab Award file has no award price for it. Pass "
+                        "the Equity Awards transaction history with "
+                        "--schwab-award-file."
+                    )
                 raise ParsingError(
-                    file,
-                    f"Cannot price a vest: {context}, and {reason}. "
-                    "Pass the Equity Awards transaction history with "
-                    "--schwab-award-file.",
+                    file, f"Cannot price a vest: {context}, and {reason}"
                 ) from err
         return transaction
 
@@ -987,6 +1006,18 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
             type=existing_file_or_stdin_type,
             help=argparse.SUPPRESS,
         )
+        # Named when it read only JSON, and replaced by --schwab-award-file,
+        # which reads every layout. It keeps a destination of its own rather
+        # than sharing schwab_award_file: a deprecated alias overwrites its
+        # destination, so given both, one file would be dropped in silence.
+        # _load_award_file refuses that instead.
+        arg_group.add_argument(
+            "--schwab-equity-award-json",
+            "--schwab_equity_award_json",
+            action=DeprecatedAction,
+            type=existing_file_or_stdin_type,
+            help=argparse.SUPPRESS,
+        )
         # Schwab keeps both forms: `--schwab-file` predates the directory
         # support, so removing it would break every existing command. The
         # other directory brokers replaced their file flag instead.
@@ -1017,18 +1048,11 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 "the directory holding every export, or the single file."
             )
         award_transactions = cls._load_award_file(args)
+        # The registry reports both under this parser's name, "Charles
+        # Schwab". Only that progress line: each transaction still records
+        # the parser that read it.
         if args.schwab_dir:
-            # list is invariant, so widen explicitly rather than return list[T].
-            transactions: list[BrokerTransaction] = list(
-                cls.load_from_dir(args.schwab_dir)
-            )
-            return transactions
-        # A complete award export cannot be combined with a main history, so
-        # at most one of these two holds anything. The registry then reports
-        # them under this parser's name, so a canonical complete import says
-        # "Charles Schwab" where the old option said "Charles Schwab Equity
-        # Awards". Only that progress line: each transaction still records the
-        # parser that read it.
+            return award_transactions + list(cls.load_from_dir(args.schwab_dir))
         return award_transactions + super().load_from_args(args)
 
     @classmethod
@@ -1040,9 +1064,20 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         imports its own history and prices no vests. Either way
         `awards_prices` is assigned, because it is class-level state and
         leaving it would price this run's vests from the last run's file.
+
+        One export per run. Two would only be needed by an account with some
+        vests delivered to the brokerage account and others held in the award
+        account, and none is known to exist.
         """
         cls.awards_prices = AwardPrices(award_prices={})
-        award_path = args.schwab_award_file
+        if args.schwab_award_file and args.schwab_equity_award_json:
+            raise CgtError(
+                "--schwab-award-file and --schwab-equity-award-json were both "
+                "given. cgt-calc reads one Equity Awards export per run: pass "
+                "it with --schwab-award-file. --schwab-equity-award-json is "
+                "the deprecated name for the same option."
+            )
+        award_path = args.schwab_award_file or args.schwab_equity_award_json
         if award_path is None:
             return []
         # Read once and classify the text: stdin cannot be reopened, and the
@@ -1070,7 +1105,7 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         price_only = lapse_only_rows(content, award_path)
         if price_only is not None:
             if not (args.schwab_file or args.schwab_dir):
-                raise CgtError(price_only_alone_message(canonical_option=True))
+                raise CgtError(price_only_alone_message())
             rows, names = price_only
             lapse_prices = lapse_award_prices(rows, award_path, names)
             first_priced: dict[str, datetime.date] = {}
@@ -1081,30 +1116,24 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 award_prices=lapse_prices, lapse_priced_from=first_priced
             )
             return []
-        if args.schwab_equity_award_json:
-            raise CgtError(
-                "A complete Equity Awards export was given to both "
-                "--schwab-award-file and --schwab-equity-award-json. Accepting "
-                "both could duplicate transactions: cgt-calc cannot tell two "
-                "exports of one history from two exports of different periods. "
-                "Pass the history once, through --schwab-award-file."
-            )
-        if args.schwab_file or args.schwab_dir:
-            raise CgtError(
-                "--schwab-award-file holds a complete Equity Awards history, "
-                "and combining one with a main history is not supported yet. "
-                "Pass the complete export on its own, or pass it with "
-                "--schwab-equity-award-json and make sure no transaction "
-                "appears in both files. That option only adds transactions, it "
-                "does not price vests, so the main history has to import on "
-                "its own: if it holds a vest cgt-calc cannot price, pass the "
-                "award-price CSV with --schwab-award-file as well."
-            )
-        return list(
+        cls.awards_prices = AwardPrices(award_prices={}, from_complete_export=True)
+        transactions: list[BrokerTransaction] = list(
             SchwabEquityAwardsParser.load_from_stream(
                 io.StringIO(content), award_path, show_parsing_msg=False
             )
         )
+        # Nothing reconciles a complete export with a main history, so the
+        # combination is accepted with a warning rather than refused.
+        if args.schwab_file or args.schwab_dir:
+            LOGGER.warning(
+                "%s was imported with --schwab-award-file alongside the main "
+                "Schwab history. cgt-calc does not check one against the "
+                "other, so a vest, sale, dividend or cash movement recorded "
+                "in both files is counted twice. Check that none appears in "
+                "both before relying on this report.",
+                "stdin" if award_path == STDIN_PATH else award_path,
+            )
+        return transactions
 
     @classmethod
     @override
