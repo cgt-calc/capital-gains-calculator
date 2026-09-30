@@ -23,6 +23,10 @@ rate as units of that currency per £1. If the file does not exist yet, start it
 
 HMRC's rates for those months are kept in the UK Government Web Archive:
 
+- **April 2002 to 2007:** open
+    [HMRC's exchange rates for 2007](https://webarchive.nationalarchives.gov.uk/ukgwa/20110202145605/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2007&columns=1)
+    and change `EXRATES_2007` in the address to the year you need. Each month's page offers the
+    table as a PDF download.
 - **2008 to 2014:** open
     [HMRC's exchange rates for 2009](https://webarchive.nationalarchives.gov.uk/ukgwa/20141203171558/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2009&columns=1)
     and choose “Rates of Exchange for Customs and VAT purposes” for the month. For another year,
