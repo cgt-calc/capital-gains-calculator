@@ -166,8 +166,10 @@ def _refuse_unsupported_history(transaction: BrokerTransaction) -> None:
             "different share matching rules applied, and those rules decide "
             "which shares were left. This calculator does not implement them. "
             f"Replace the rows for {transaction.symbol or 'this holding'} before "
-            "that date with one BUY dated 5 April 2008 for the shares you still "
-            f"held, at their total allowable cost without indexation.\n{transaction}"
+            "that date with one GBP BUY dated 5 April 2008 for the shares you "
+            "still held, at their total allowable cost in sterling without "
+            "indexation, each purchase converted at its own date's exchange "
+            f"rate.\n{transaction}"
         )
 
 
