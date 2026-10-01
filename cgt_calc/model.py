@@ -807,8 +807,8 @@ class CapitalGainsReport:
     # asset, so neither its gain nor its loss reaches the calculation.
     exempt_disposal_count: int = 0
     exempt_disposal_proceeds: Decimal = Decimal(0)
-    # Before the dividend allowance began in 2016/17, dividends carried a tax
-    # credit, so the amount received is not the amount taxed.
+    # Before the dividend allowance began in 2016/17, most dividends carried a
+    # tax credit, so the amount received is not the amount taxed.
     dividends_carry_tax_credit: bool = False
 
     def period_label(self) -> str | None:
@@ -900,15 +900,10 @@ class CapitalGainsReport:
     def taxable_dividends(self) -> Decimal | None:
         """Taxable dividends after allowances, or None where the report cannot say.
 
-        Not stated for a year whose dividends carried a tax credit, nor for a
-        year whose allowance is unknown unless a treaty reduces them anyway.
+        Not stated for a year before the dividend allowance, when most dividends
+        carried a tax credit, nor for a year whose allowance is unknown.
         """
-        if self.dividends_carry_tax_credit:
-            return None
-        if (
-            self.dividend_allowance is None
-            and self.total_dividend_taxes_in_tax_treaties_amount() == 0
-        ):
+        if self.dividends_carry_tax_credit or self.dividend_allowance is None:
             return None
         return self.total_dividend_taxable_gain()
 

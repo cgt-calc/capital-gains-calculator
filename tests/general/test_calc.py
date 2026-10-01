@@ -3100,42 +3100,45 @@ def test_a_negative_share_price_is_refused(
         get_report(calculator, transactions)
 
 
-def test_dividends_before_the_allowance_have_no_taxable_figure() -> None:
-    """Before 2016/17 a dividend carried a tax credit, so no taxable amount is stated."""
+TAX_CREDIT_NOTE = (
+    "Most dividends before 6 April 2016 carried a tax credit, so the taxable amount "
+    "is not worked out."
+)
+
+
+@pytest.mark.parametrize(
+    ("tax_year", "taxable_shown", "note_shown"),
+    [
+        pytest.param(2015, False, True, id="last year with a tax credit"),
+        pytest.param(2016, True, False, id="first year with an allowance"),
+        pytest.param(2030, False, False, id="year with no allowance recorded"),
+    ],
+)
+def test_taxable_dividends_are_stated_only_beside_a_known_allowance(
+    tax_year: int, *, taxable_shown: bool, note_shown: bool
+) -> None:
+    """A taxable dividend figure needs that year's allowance.
+
+    Before 2016/17 there was none, and most dividends carried a tax credit, so
+    the report says so instead. A later year whose allowance is not recorded
+    gets no figure either, even with treaty relief to deduct.
+    """
     us_isin = Isin("US9220427424")
-    calculator = create_calculator(tax_year=2012, balance_check=False)
+    day = datetime.date(tax_year, 6, 1)
+    calculator = create_calculator(tax_year=tax_year, balance_check=False)
     transactions = [
         transaction(
-            datetime.date(2012, 6, 1),
-            ActionType.DIVIDEND,
-            "BAR",
-            None,
-            None,
-            0,
-            100,
-            GBP,
-            isin=us_isin,
+            day, ActionType.DIVIDEND, "BAR", None, None, 0, 100, GBP, isin=us_isin
         ),
         transaction(
-            datetime.date(2012, 6, 1),
-            ActionType.DIVIDEND_TAX,
-            "BAR",
-            None,
-            None,
-            0,
-            -15,
-            GBP,
-            isin=us_isin,
+            day, ActionType.DIVIDEND_TAX, "BAR", None, None, 0, -15, GBP, isin=us_isin
         ),
     ]
 
     text = str(get_report(calculator, transactions))
 
-    assert (
-        "Dividends before 6 April 2016 carried a tax credit, so the taxable amount "
-        "is not worked out."
-    ) in text
-    assert "Taxable proceeds" not in text
+    assert ("Taxable proceeds" in text) is taxable_shown
+    assert (TAX_CREDIT_NOTE in text) is note_shown
 
 
 def test_acquisitions_before_2010_join_the_pool() -> None:

@@ -37,8 +37,10 @@ If you omit `--year`, cgt-calc uses the most recently completed UK tax year.
 The earliest tax year cgt-calc reports is 2008/09, the first in which every sale is matched under
 the share pooling rules that still apply
 ([CG51550](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51550)). For years before
-2016/17 the dividend section shows only the dividends you received: dividends then carried a tax
-credit, and cgt-calc does not work out the taxable amount.
+2016/17 the report shows no dividend allowance and no taxable dividend figure: there was no
+allowance then, and most dividends carried a tax credit, so the amount you received is not the
+amount taxed. If you need the taxable amount for those years, work it out from your dividend
+vouchers and HMRC's guidance for that year.
 
 ## Generate the report
 

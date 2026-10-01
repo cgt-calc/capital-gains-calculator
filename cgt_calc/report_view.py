@@ -552,6 +552,7 @@ def build_report_view(report: CapitalGainsReport) -> ReportView:
     )
     eri_dividends = report.total_eri_amount(is_interest=False)
     eri_interest = report.total_eri_amount(is_interest=True)
+    taxable_dividends = report.taxable_dividends()
     return ReportView(
         title_period=report.title_period,
         days=days,
@@ -586,7 +587,7 @@ def build_report_view(report: CapitalGainsReport) -> ReportView:
             ),
             taxable_dividends=(
                 round_decimal(taxable_dividends, 2)
-                if (taxable_dividends := report.taxable_dividends()) is not None
+                if taxable_dividends is not None
                 else None
             ),
             dividends_carry_tax_credit=report.dividends_carry_tax_credit,

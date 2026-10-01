@@ -116,9 +116,9 @@ CGT_MODE: Final = (
 # further back.
 EARLIEST_TAX_YEAR: Final = 2008
 
-# The first tax year with a dividend allowance. Before it dividends carried a
-# tax credit, so the amount received is not the amount taxed, and the report
-# does not work the taxable amount out.
+# The first tax year with a dividend allowance. Before it most dividends
+# carried a tax credit, so the amount received is not the amount taxed, and
+# the report does not work the taxable amount out.
 FIRST_DIVIDEND_ALLOWANCE_YEAR: Final = 2016
 
 # From 6 April 2008 an individual's shares of one class are pooled at cost
