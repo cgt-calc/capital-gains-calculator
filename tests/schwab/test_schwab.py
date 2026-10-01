@@ -348,6 +348,41 @@ def test_a_vest_posted_without_as_of_takes_the_award_date() -> None:
     assert vest.date == datetime.date(2023, 8, 15)
 
 
+@pytest.mark.parametrize(
+    "rows",
+    [
+        pytest.param(
+            "08/18/2023,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n"
+            "08/18/2023,Stock Plan Activity,BAR,Vest,,200,,\n"
+            "08/18/2023,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n",
+            id="same day, buy listed above",
+        ),
+        pytest.param(
+            "08/21/2023,Cancel Buy,AAPL,APPLE INC,$150.00,10,$0.00,$0.00\n"
+            "08/18/2023,Stock Plan Activity,BAR,Vest,,200,,\n"
+            "08/17/2023,Buy,AAPL,APPLE INC,$150.00,10,$0.00,-$1500.00\n",
+            id="earlier buy listed below",
+        ),
+    ],
+)
+def test_a_vest_between_a_buy_and_its_cancellation_does_not_hide_the_buy(
+    rows: str,
+) -> None:
+    """The Cancel Buy search walks the dates the CSV states, not a vest's award date.
+
+    The vest is posted on 18 August but dated by its award, 15 August. Read by
+    that date it would end the search before it reaches the Buy, in either
+    direction the search looks.
+    """
+    SchwabParser.awards_prices = AwardPrices(
+        award_prices={datetime.date(2023, 8, 15): {"BAR": Decimal("140.35")}}
+    )
+
+    (vest,) = _read(SCHWAB_HEADER + rows)
+
+    assert vest.symbol == "BAR"
+
+
 def test_cash_merger_adj_without_cash_merger() -> None:
     """Raise when a Cash Merger Adj has no preceding Cash Merger."""
     content = SCHWAB_HEADER + "01/15/2023,Cash Merger Adj,FOO,Merger,,-10,,\n"
