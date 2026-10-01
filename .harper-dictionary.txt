@@ -112,10 +112,10 @@ GSU
 hashable
 HL
 Hmrc
+HS287
 ICAV
 I/O
 IBKR
-ITEPA
 IBKR's
 idx
 IndexError
@@ -224,7 +224,6 @@ s257
 s272
 s286
 s38
-s421B
 s58
 SA106
 SalePrice

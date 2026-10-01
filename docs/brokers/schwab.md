@@ -154,11 +154,13 @@ Schwab can show a date such as `08/18/2023 as of 08/15/2023`. cgt-calc uses the 
 A vest is the exception. Schwab posts the shares a few days after they vest, and the main CSV may
 show only that posting date. You acquire the shares when you become entitled to them, at the vest,
 not when they are transferred to your brokerage account
-([ERSM20420](https://www.gov.uk/hmrc-internal-manuals/employment-related-securities/ersm20420)). So
-when cgt-calc prices a `Stock Plan Activity` row from your [award file](#price-only-export), it also
-takes the vest date from that award, whichever date the main CSV shows. A vest posted on 18 August
-from shares that vested on 15 August is dated 15 August, and a sale on 18 August is matched to your
-pool rather than to that vest.
+([ERSM20420](https://www.gov.uk/hmrc-internal-manuals/employment-related-securities/ersm20420)), and
+their capital gains cost is their market value on that date
+([HS287](https://www.gov.uk/government/publications/employee-share-and-security-schemes-and-capital-gains-tax-hs287-self-assessment-helpsheet)).
+So when cgt-calc prices a `Stock Plan Activity` row from your [award file](#price-only-export), it
+also takes the vest date from that award, whichever date the main CSV shows. A vest posted on 18
+August from shares that vested on 15 August is dated 15 August, and a sale on 18 August is matched
+to your pool rather than to that vest.
 
 The date affects the tax year, the exchange rate and the same-day and 30-day matching rules. Check
 any such row carefully when the two dates cross 5 April or another purchase or disposal falls
@@ -298,8 +300,9 @@ The award-history export control is behind the Schwab login, so its wording may 
 contents, rather than the button name, determine whether cgt-calc supports it.
 
 This extra file does **not** import a second set of transactions. It supplies a missing market price
-for a vest in the main CSV. cgt-calc looks for the same symbol on the activity date or one of the
-previous six days, which covers awards dated around weekends and holidays.
+for a vest in the main CSV, and the vest date that goes with it. cgt-calc looks for the same symbol
+on the activity date or one of the previous six days, which covers awards dated around weekends and
+holidays.
 
 Always pass it with `--schwab-file` or `--schwab-dir`. On its own it prices nothing: the JSON form
 is refused, and the award-price CSV is accepted but produces an empty calculation.

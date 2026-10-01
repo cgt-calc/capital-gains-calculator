@@ -8,6 +8,7 @@ of the merged result, and the overlap that cannot be deduplicated away.
 
 from __future__ import annotations
 
+import datetime
 from decimal import Decimal
 import logging
 import os
@@ -140,6 +141,37 @@ def test_adjacent_exports_are_not_refused(tmp_path: Path) -> None:
     )
 
     assert len(load_via_cli(schwab_dir=str(directory))) == 3
+
+
+def test_a_vest_dated_inside_the_older_export_is_not_an_overlap(
+    tmp_path: Path,
+) -> None:
+    """Exports are compared by the dates they state, not by vest dates.
+
+    The older export runs from 2 May to 16 August and the newer one from 18
+    August. The vest in the newer one happened on 15 August, inside the older
+    export's dates, but was posted on 18 August. No row is in both files, so
+    they are combined, and the vest still takes its award date.
+    """
+    directory = tmp_path / "schwab"
+    directory.mkdir()
+    (directory / "a_older.csv").write_text(
+        HEADER
+        + "08/16/2023,MoneyLink Transfer,,Deposit,,,,$100.00\n"
+        + "05/02/2023,MoneyLink Transfer,,Deposit,,,,$100.00\n"
+    )
+    (directory / "b_newer.csv").write_text(
+        HEADER
+        + "09/18/2023,MoneyLink Transfer,,Deposit,,,,$100.00\n"
+        + "08/18/2023,Stock Plan Activity,BAR,BAR CORP,,200,,\n"
+    )
+    awards = str(Path("tests") / "schwab" / "data" / "rsu_settlement" / "awards.csv")
+
+    transactions = load_via_cli(schwab_dir=str(directory), schwab_award_file=awards)
+
+    assert [t.date for t in transactions if t.symbol == "BAR"] == [
+        datetime.date(2023, 8, 15)
+    ]
 
 
 def test_empty_directory_warns(
