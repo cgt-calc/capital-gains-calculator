@@ -40,7 +40,9 @@ the share pooling rules that still apply
 2016/17 the report shows no dividend allowance and no taxable dividend figure: there was no
 allowance then, and most dividends carried a tax credit, so the amount you received is not the
 amount taxed. If you need the taxable amount for those years, work it out from your dividend
-vouchers and HMRC's guidance for that year.
+vouchers and HMRC's guidance on the tax credits on
+[UK dividends](https://www.gov.uk/hmrc-internal-manuals/savings-and-investment-manual/saim5100) and
+[foreign dividends](https://www.gov.uk/hmrc-internal-manuals/savings-and-investment-manual/saim5102).
 
 ## Generate the report
 
