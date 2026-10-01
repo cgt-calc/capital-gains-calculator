@@ -9,7 +9,7 @@ import itertools
 import logging
 from pathlib import Path
 import sys
-from typing import ClassVar, TextIO, override
+from typing import TYPE_CHECKING, ClassVar, TextIO, override
 
 import shtab
 
@@ -20,10 +20,13 @@ from cgt_calc.args_validators import (
     existing_file_or_stdin_type,
     set_completer,
 )
-from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.logging import parsing_msg
 from cgt_calc.model import BrokerTransaction, TransactionSource
+from cgt_calc.ticker_renames import ambiguity, current_ticker
+
+if TYPE_CHECKING:
+    import datetime
 
 LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +46,9 @@ def read_input(file_path: Path, encoding: str) -> str:
         return file.read()
 
 
-def use_current_tickers(transactions: Iterable[BrokerTransaction]) -> None:
+def use_current_tickers(
+    transactions: Sequence[BrokerTransaction], file_path: Path
+) -> None:
     """Name each holding by its current ticker, from the built-in rename table.
 
     The shared loader runs this on every file it reads, so that a holding
@@ -51,14 +56,25 @@ def use_current_tickers(transactions: Iterable[BrokerTransaction]) -> None:
     whichever broker exported it, without each parser mapping the ticker
     itself. Schwab also runs it as it reads its rows, because it compares
     tickers before the shared loader gets to them; a second run changes
-    nothing. Parsers still consult the table themselves for a ticker they
-    need while reading, to key a table of their own, and for one held
+    nothing. Parsers still call ``current_ticker`` themselves for a ticker
+    they need while reading, to key a table of their own, and for one held
     outside ``symbol``, such as an option's underlying.
+
+    A file whose rows under one ticker, without an ISIN, fall on both sides
+    of a day that ticker changed hands is refused: nothing says which rows
+    are which security's.
     """
+    dates: dict[str, list[datetime.date]] = {}
+    for transaction in transactions:
+        if transaction.symbol is not None and transaction.isin is None:
+            dates.setdefault(transaction.symbol, []).append(transaction.date)
+    for symbol, symbol_dates in dates.items():
+        if (reason := ambiguity(symbol, symbol_dates)) is not None:
+            raise ParsingError(file_path, reason)
     for transaction in transactions:
         if transaction.symbol is not None:
-            transaction.symbol = TICKER_RENAMES.get(
-                transaction.symbol, transaction.symbol
+            transaction.symbol = current_ticker(
+                transaction.symbol, transaction.date, transaction.isin
             )
 
 
@@ -205,7 +221,7 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
         if show_parsing_msg:
             parsing_msg("stdin" if file_path == STDIN_PATH else file_path)
         transactions = cls.read_transactions(file, file_path)
-        use_current_tickers(transactions)
+        use_current_tickers(transactions, file_path)
         if not transactions and warn_on_empty:
             LOGGER.warning("No transactions detected in file %s", file_path)
         cls.stamp_source(transactions, file_path, boundary)

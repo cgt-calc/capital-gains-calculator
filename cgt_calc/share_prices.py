@@ -10,7 +10,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Final, override
 
-from .const import SHARE_PRICES_RESOURCE, TICKER_RENAMES
+from .const import SHARE_PRICES_RESOURCE
 from .dates import is_date
 from .exceptions import (
     BundledPriceCurrencyError,
@@ -19,6 +19,7 @@ from .exceptions import (
     UnexpectedColumnCountError,
 )
 from .resources import RESOURCES_PACKAGE
+from .ticker_renames import current_ticker
 
 SHARE_PRICES_COLUMNS_NUM: Final = 3
 
@@ -128,7 +129,7 @@ class SharePrices:
             by_symbol = prices.setdefault(entry.date, {})
             # Transactions are read under their current ticker, so a price
             # filed under the old one has to be too, or it is never found.
-            symbol = TICKER_RENAMES.get(entry.symbol, entry.symbol)
+            symbol = current_ticker(entry.symbol, entry.date)
             known = by_symbol.get(symbol)
             if known is not None and known != entry.price:
                 earlier = {stated[entry.date, symbol], entry.symbol} - {symbol}

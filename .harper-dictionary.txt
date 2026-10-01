@@ -1,3 +1,4 @@
+ABG
 ActionType
 ActionTypes
 ADR
@@ -151,6 +152,7 @@ markdown
 matchable
 matchings
 md
+Meta's
 MiKTeX
 MMM
 mojibake
@@ -178,6 +180,7 @@ ParsingError
 pdf
 pdflatex
 PermissionError
+PFG
 pipx
 plc
 PLC0415
@@ -272,6 +275,7 @@ tzinfo
 UCITS
 un
 unattributable
+underlying's
 unmapped
 unpriced
 unprovable

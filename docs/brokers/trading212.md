@@ -145,9 +145,9 @@ both tickers.
     reorganisation from any other input, therefore cannot override this one.
 - The same reorganisation reported by two brokers cannot be told from two separate events, so
     cgt-calc refuses a day with more than one for the same security.
-- A known ticker alias is supported because cgt-calc applies its `TICKER_RENAMES` mapping before
-    pairing. For example, both `FB` and `META` are treated as `META`; an unknown ticker change is
-    refused.
+- A known ticker change is supported because cgt-calc applies its built-in ticker renames before
+    pairing. For example, `FB` on a row carrying Meta's ISIN is treated as `META`; an unknown ticker
+    change is refused.
 - A genuine ISIN change is always refused: if both halves state an ISIN and the values differ,
     cgt-calc will not pair them. Moving a holding between two different securities needs
     relationship data the export does not carry.

@@ -241,20 +241,75 @@ def test_read_freetrade_transactions_success(tmp_path: Path) -> None:
     assert transaction.isin == "US0378331005"
 
 
-def test_a_renamed_ticker_is_read_under_its_current_name(tmp_path: Path) -> None:
-    """A ticker in the built-in rename table is read under its current name.
+@pytest.mark.parametrize(
+    ("ticker", "isin", "date", "expected"),
+    [
+        pytest.param("FB", "US30303M1027", "2025-07-01", "META", id="meta"),
+        pytest.param("FB", "US0378331005", "2021-06-01", "FB", id="another-security"),
+        pytest.param("RMG", "GB00BDVZYZ77", "2021-06-01", "IDS", id="london"),
+    ],
+)
+def test_a_renamed_ticker_is_read_under_its_current_name(
+    tmp_path: Path, ticker: str, isin: str, date: str, expected: str
+) -> None:
+    """A row carrying a renamed security's ISIN takes its current ticker.
 
-    The shared loader applies the table for every parser. Freetrade owns the
-    test because it never applied the table itself, so this fails without the
-    shared step, as RAW, which always did, would not.
+    The ISIN names the security, so the row's date does not matter, and the
+    same letters under another ISIN are left alone. The shared loader applies
+    the table for every parser. Freetrade owns the test because it never
+    applied the table itself, so this fails without the shared step.
     """
     path = _write_csv(
-        tmp_path, COLUMNS, [_default_row({FreetradeColumn.TICKER.value: "FB"})]
+        tmp_path,
+        COLUMNS,
+        [
+            _default_row(
+                {
+                    FreetradeColumn.TICKER.value: ticker,
+                    FreetradeColumn.ISIN.value: isin,
+                    # Meta's FB row is dated after another security took FB,
+                    # and the other row while FB was Meta's: only the ISIN
+                    # can decide either.
+                    FreetradeColumn.TIMESTAMP.value: f"{date}T10:00:00",
+                }
+            )
+        ],
     )
 
     (transaction,) = FreetradeParser().load_from_file(path)
 
-    assert transaction.symbol == "META"
+    assert transaction.symbol == expected
+
+
+def test_an_isin_tells_apart_rows_on_both_sides_of_a_ticker_changing_hands(
+    tmp_path: Path,
+) -> None:
+    """FB was Meta's until a ProShares ETF took it in June 2025.
+
+    Without ISINs these rows would be refused; with them, each row says
+    whose it is, and only Meta's takes its current ticker.
+    """
+    rows = [
+        _default_row(
+            {
+                FreetradeColumn.TICKER.value: "FB",
+                FreetradeColumn.ISIN.value: isin,
+                FreetradeColumn.TIMESTAMP.value: timestamp,
+            }
+        )
+        for isin, timestamp in [
+            ("US30303M1027", "2021-06-01T10:00:00"),
+            ("US74349Y6133", "2025-07-01T10:00:00"),
+        ]
+    ]
+    path = _write_csv(tmp_path, COLUMNS, rows)
+
+    transactions = FreetradeParser().load_from_file(path)
+
+    assert {transaction.isin: transaction.symbol for transaction in transactions} == {
+        "US30303M1027": "META",
+        "US74349Y6133": "FB",
+    }
 
 
 @pytest.mark.parametrize(

@@ -445,9 +445,11 @@ balances are separate; see
 ### `Tried to sell`
 
 Include the earlier acquisition and any split, spin-off or transfer that established the holding.
-Use the same ticker throughout unless the broker-specific history supplies a supported rename. Check
-the final portfolio and every disposal against the broker records rather than adding a made-up
-purchase to make the calculation run.
+Use the same ticker throughout unless the broker-specific history supplies a supported rename, and
+prefer the security's current ticker: an old one that another security has since taken, such as
+`FB`, stops the run when your rows fall on both sides of that day. Check the final portfolio and
+every disposal against the broker records rather than adding a made-up purchase to make the
+calculation run.
 
 ### `also has units from` on a `STOCK_SPLIT` row
 

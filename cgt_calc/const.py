@@ -160,17 +160,13 @@ UK_TIMEZONE: Final = ZoneInfo("Europe/London")
 
 ERI_TAX_DATE_DELTA: Final = relativedelta(months=6)
 
-TICKER_RENAMES: Final[dict[str, str]] = {
-    "FB": "META",
-}
-
 # Exchange-specific tickers for one security, mapped to the ticker the report
 # uses. Trading 212 lists the Xetra line of a US share under its German code,
 # so one holding arrives under two names and pools, matches and prices as two.
-# Keyed by ISIN as well as ticker, and deliberately not in TICKER_RENAMES: a
-# ticker code belongs to an exchange rather than to a security, so `NVD` is
-# NVDA only under US67066G1040, and TICKER_RENAMES is applied at parse time,
-# before any ISIN is known. Add a pair only once both listings are confirmed.
+# Keyed by ISIN as well as ticker: a ticker code belongs to an exchange rather
+# than to a security, so `NVD` is NVDA only under US67066G1040. These are
+# listings that trade side by side, not renames over time, which are in
+# `ticker_renames.csv`. Add a pair only once both listings are confirmed.
 ISIN_TICKER_ALIASES: Final[dict[tuple[Isin, str], str]] = {
     (Isin("US67066G1040"), "NVD"): "NVDA",
     (Isin("US11135F1012"), "1YD"): "AVGO",
@@ -193,6 +189,9 @@ LATEX_TEMPLATE_RESOURCE: Final = "template.tex.j2"
 
 # Bundled USD share prices for a few vests, used when no prices file is passed
 SHARE_PRICES_RESOURCE: Final = "share_prices.csv"
+
+# Package resource listing ticker changes, with dates and ISINs.
+TICKER_RENAMES_RESOURCE: Final = "ticker_renames.csv"
 
 # ISIN initial translation file
 INITIAL_ISIN_TRANSLATION_RESOURCE: Final = "initial_isin_translation.csv"

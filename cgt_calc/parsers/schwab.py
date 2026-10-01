@@ -23,7 +23,6 @@ from cgt_calc.args_validators import (
     existing_file_or_stdin_type,
     set_completer,
 )
-from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import (
     CgtError,
     ParsingError,
@@ -51,6 +50,7 @@ from cgt_calc.parsers.schwab_options import (
     parse_option_contract,
     reconcile_written_options,
 )
+from cgt_calc.ticker_renames import current_ticker
 from cgt_calc.util import parse_decimal
 
 from .base_parsers import (
@@ -126,7 +126,7 @@ class AwardPrices:
         # Award dates may go back a few days, depending on
         # holidays or weekends, so we do a linear search
         # in the past to find the award price
-        symbol = TICKER_RENAMES.get(symbol, symbol)
+        symbol = current_ticker(symbol, date)
         for i in range(7):
             to_search = date - datetime.timedelta(days=i)
 
@@ -309,7 +309,7 @@ class SchwabTransaction(BrokerTransaction):
         }:
             if (
                 symbol is None
-                or (option_contract := parse_option_contract(symbol)) is None
+                or (option_contract := parse_option_contract(symbol, date)) is None
             ):
                 raise ParsingError(
                     file,
@@ -904,7 +904,7 @@ def _award_prices_from_lines(
                 schwab_award_transactions_file, str(err), row_index=row_index + 1
             ) from err
         if symbol is not None and price is not None:
-            symbol = TICKER_RENAMES.get(symbol, symbol)
+            symbol = current_ticker(symbol, date)
             initial_prices[date][symbol] = price
     return AwardPrices(award_prices=dict(initial_prices))
 
@@ -1343,5 +1343,5 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         # Cancel Buy matching compares tickers before the shared loader's
         # rename step runs, and the directory path does not reach that step
         # at all, so the rows take their current ticker here.
-        use_current_tickers(transactions)
+        use_current_tickers(transactions, file_path)
         return transactions
