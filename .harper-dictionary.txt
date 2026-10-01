@@ -39,6 +39,7 @@ CG14561
 CG14650
 CG14710
 CG15250
+CG21000
 CG22200
 CG22420
 CG34
@@ -125,6 +126,7 @@ InvalidOperation
 InvalidTransactionError
 Invesco
 InvestmentName
+ITA
 IsADirectoryError
 iShares
 ISIN
@@ -215,6 +217,7 @@ s122
 s127
 s128
 s129
+s13A
 s144
 s148
 s17
@@ -223,9 +226,13 @@ s19
 s257
 s272
 s286
+s3
+s34
 s38
 s58
+s8
 SA106
+SI
 SalePrice
 Schwab
 schwab

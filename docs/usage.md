@@ -34,6 +34,12 @@ year, from 6 April 2024 to 5 April 2025.
 
 If you omit `--year`, cgt-calc uses the most recently completed UK tax year.
 
+The earliest tax year cgt-calc reports is 2008/09, the first in which every sale is matched under
+the share pooling rules that still apply
+([CG51550](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51550)). For years before
+2016/17 the dividend section shows only the dividends you received: dividends then carried a tax
+credit, and cgt-calc does not work out the taxable amount.
+
 ## Generate the report
 
 Pass the export using the option for your broker. For example, with a Charles Schwab export:
@@ -216,6 +222,10 @@ the following reports sales and other disposals on or after 30 October 2024 for 
 ```shell
 cgt-calc --from 2024-10-30 --to 2025-04-05 --schwab-file schwab_transactions.csv
 ```
+
+2010/11 has a similar split: gains on or after 23 June 2010 could be charged at 28% rather than 18%
+([CG21000](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg21000)). Use
+`--from 2010-04-06 --to 2010-06-22` and `--from 2010-06-23 --to 2011-04-05` to report the two parts.
 
 cgt-calc still reads earlier transactions from the supplied history to establish the cost of the
 holding, but only reports the selected period. A purchase after the end date can still be matched to

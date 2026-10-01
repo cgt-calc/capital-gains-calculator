@@ -20,7 +20,16 @@ from .model import ActionType, Isin, TaxTreaty
 
 # Capital Gains Tax annual exempt amount (tax-free allowance)
 # https://www.gov.uk/guidance/capital-gains-tax-rates-and-allowances#tax-free-allowances-for-capital-gains-tax
+# 2008 to 2013 are from the Treasury's annual orders (SI 2008/708, 2009/824,
+# 2010/923, 2011/899, 2013/662) and, for 2012, TCGA 1992 s3(2) as amended by
+# FA 2012 s34, which froze the amount that SI 2012/881 had raised.
 CAPITAL_GAIN_ALLOWANCES: Final[dict[int, int]] = {
+    2008: 9600,
+    2009: 10100,
+    2010: 10100,
+    2011: 10600,
+    2012: 10600,
+    2013: 10900,
     2014: 11000,
     2015: 11100,
     2016: 11100,
@@ -38,7 +47,11 @@ CAPITAL_GAIN_ALLOWANCES: Final[dict[int, int]] = {
 
 # Dividend Tax annual allowance
 # https://www.gov.uk/tax-on-dividends
+# ITA 2007 s13A: £5,000 from 2016/17, £2,000 from 2018/19 (F(No. 2)A 2017 s8).
 DIVIDEND_ALLOWANCES: Final[dict[int, int]] = {
+    2016: 5000,
+    2017: 5000,
+    2018: 2000,
     2019: 2000,
     2020: 2000,
     2021: 2000,
@@ -98,8 +111,15 @@ CGT_MODE: Final = (
     if os.environ.get("CGT_TEST_MODE", "0") == "1"
     else RuntimeMode.PROD
 )
-# The earliest tax year `--year` accepts. History may reach further back.
-EARLIEST_TAX_YEAR: Final = 2010
+# The earliest tax year `--year` accepts: the first in which every disposal
+# is matched under the share pooling rules (CG51550). History may reach
+# further back.
+EARLIEST_TAX_YEAR: Final = 2008
+
+# The first tax year with a dividend allowance. Before it dividends carried a
+# tax credit, so the amount received is not the amount taxed, and the report
+# does not work the taxable amount out.
+FIRST_DIVIDEND_ALLOWANCE_YEAR: Final = 2016
 
 # From 6 April 2008 an individual's shares of one class are pooled at cost
 # whenever they were acquired, and shares held on 6 April 1982 enter at their

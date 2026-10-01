@@ -12,7 +12,11 @@ from colorama import Fore
 
 from .calculator_state import CalculatorState
 from .cli import calculate_cgt, init, main
-from .const import CAPITAL_GAIN_ALLOWANCES, DIVIDEND_ALLOWANCES
+from .const import (
+    CAPITAL_GAIN_ALLOWANCES,
+    DIVIDEND_ALLOWANCES,
+    FIRST_DIVIDEND_ALLOWANCE_YEAR,
+)
 from .dates import get_tax_year_end, get_tax_year_start, is_date
 from .income import IncomeProcessor
 from .ingestion import TransactionIngester
@@ -247,6 +251,7 @@ class CapitalGainsCalculator:
             period_end=self.period_end,
             exempt_disposal_count=walked.exempt_disposal_count,
             exempt_disposal_proceeds=round_decimal(walked.exempt_disposal_proceeds, 2),
+            dividends_carry_tax_credit=self.tax_year < FIRST_DIVIDEND_ALLOWANCE_YEAR,
         )
 
     def make_portfolio_entry(

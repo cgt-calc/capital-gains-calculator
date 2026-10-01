@@ -186,8 +186,9 @@ class IncomeSummaryView:
     eri_count: int
     total_dividends: Decimal
     treaty_allowance: Decimal
-    dividend_allowance: Decimal
-    taxable_dividends: Decimal
+    dividend_allowance: Decimal | None
+    taxable_dividends: Decimal | None
+    dividends_carry_tax_credit: bool
     uk_interest: Decimal
     foreign_interest: Decimal
     interest_tax: Decimal
@@ -578,8 +579,17 @@ def build_report_view(report: CapitalGainsReport) -> ReportView:
             treaty_allowance=round_decimal(
                 report.total_dividend_taxes_in_tax_treaties_amount(), 2
             ),
-            dividend_allowance=round_decimal(report.dividend_allowance or Decimal(), 2),
-            taxable_dividends=round_decimal(report.total_dividend_taxable_gain(), 2),
+            dividend_allowance=(
+                round_decimal(report.dividend_allowance, 2)
+                if report.dividend_allowance is not None
+                else None
+            ),
+            taxable_dividends=(
+                round_decimal(taxable_dividends, 2)
+                if (taxable_dividends := report.taxable_dividends()) is not None
+                else None
+            ),
+            dividends_carry_tax_credit=report.dividends_carry_tax_credit,
             uk_interest=report.total_uk_interest,
             foreign_interest=report.total_foreign_interest,
             eri_interest=(round_decimal(eri_interest, 2) if eri_interest > 0 else None),

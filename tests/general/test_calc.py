@@ -3100,6 +3100,44 @@ def test_a_negative_share_price_is_refused(
         get_report(calculator, transactions)
 
 
+def test_dividends_before_the_allowance_have_no_taxable_figure() -> None:
+    """Before 2016/17 a dividend carried a tax credit, so no taxable amount is stated."""
+    us_isin = Isin("US9220427424")
+    calculator = create_calculator(tax_year=2012, balance_check=False)
+    transactions = [
+        transaction(
+            datetime.date(2012, 6, 1),
+            ActionType.DIVIDEND,
+            "BAR",
+            None,
+            None,
+            0,
+            100,
+            GBP,
+            isin=us_isin,
+        ),
+        transaction(
+            datetime.date(2012, 6, 1),
+            ActionType.DIVIDEND_TAX,
+            "BAR",
+            None,
+            None,
+            0,
+            -15,
+            GBP,
+            isin=us_isin,
+        ),
+    ]
+
+    text = str(get_report(calculator, transactions))
+
+    assert (
+        "Dividends before 6 April 2016 carried a tax credit, so the taxable amount "
+        "is not worked out."
+    ) in text
+    assert "Taxable proceeds" not in text
+
+
 def test_acquisitions_before_2010_join_the_pool() -> None:
     """A purchase from 2009 is part of the pool a 2020 sale draws on (CG51550)."""
     calculator = create_calculator(tax_year=2020, balance_check=False)

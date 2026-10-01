@@ -137,15 +137,16 @@ def _summary_rows(
                 f"£{round_decimal(report.dividend_allowance, 2):,}",
             )
         )
-    if (
-        report.dividend_allowance is not None
-        or report.total_dividend_taxes_in_tax_treaties_amount() > 0
-    ):
+    taxable_dividends = report.taxable_dividends()
+    if taxable_dividends is not None:
         dividends.append(
-            (
-                "Taxable proceeds",
-                f"£{round_decimal(report.total_dividend_taxable_gain(), 2):,}",
-            )
+            ("Taxable proceeds", f"£{round_decimal(taxable_dividends, 2):,}")
+        )
+    dividend_notes: list[str] = []
+    if report.dividends_carry_tax_credit:
+        dividend_notes.append(
+            "Dividends before 6 April 2016 carried a tax credit, so the taxable "
+            "amount is not worked out."
         )
 
     interest: list[tuple[str, str]] = [
@@ -156,7 +157,7 @@ def _summary_rows(
 
     return [
         ("Capital gains", capital, capital_notes),
-        ("Dividends", dividends, []),
+        ("Dividends", dividends, dividend_notes),
         ("Interest", interest, []),
     ]
 
