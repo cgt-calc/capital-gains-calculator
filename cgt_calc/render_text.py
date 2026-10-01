@@ -145,9 +145,9 @@ def _summary_rows(
     dividend_notes: list[str] = []
     if report.explains_dividend_tax_credit():
         dividend_notes.append(
-            "Most dividends before 6 April 2016 carried a tax credit, so the "
-            "taxable amount is not worked out. Work it out from your dividend "
-            "vouchers and HMRC's guidance on tax credits."
+            "Most dividends before 6 April 2016 carried a tax credit, so cgt-calc "
+            "does not work out the taxable amount. Use your dividend vouchers and "
+            "HMRC's guidance on tax credits."
         )
 
     interest: list[tuple[str, str]] = [

@@ -267,7 +267,7 @@ Amounts are rounded to the nearest penny individually, so a line may differ from
 \subsection*{Total amount of taxable dividends proceeds: £\VAR{ view.income_summary.taxable_dividends|money }}
 \BLOCK{ endif }
 \BLOCK{ if view.income_summary.explains_dividend_tax_credit }
-Most dividends before 6 April 2016 carried a tax credit, so the taxable amount is not worked out. Work it out from your dividend vouchers and HMRC's guidance on tax credits.
+Most dividends before 6 April 2016 carried a tax credit, so cgt-calc does not work out the taxable amount. Use your dividend vouchers and HMRC's guidance on tax credits.
 \BLOCK{ endif }
 \subsection*{Total amount of UK interests proceeds: £\VAR{ view.income_summary.uk_interest|money }}
 \subsection*{Total amount of foreign interests proceeds: £\VAR{ view.income_summary.foreign_interest|money }}
