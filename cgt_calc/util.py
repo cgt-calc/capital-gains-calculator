@@ -60,9 +60,11 @@ def round_gain(gain: Decimal) -> Decimal:
     A gain is added up from the parts of a disposal each identification rule
     matched. A part's share of the proceeds and fees need not divide evenly,
     so the sum can be out in its last digits, and on a gain of exactly half a
-    penny that would decide which way it rounds. Amounts are held to ten
-    decimal places (see `normalize_amount`), far coarser than that error, so
-    rounding to those first takes it off.
+    penny that would decide which way it rounds. Costs are held to ten decimal
+    places (see `normalize_amount`), far coarser than that error, so rounding
+    to those first takes it off. A sale converted from another currency
+    carries more digits than ten, and its gain is rounded twice: harmless,
+    since the cost it is set against is no finer than that.
     """
     return round_decimal(normalize_amount(gain), 2)
 

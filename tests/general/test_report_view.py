@@ -355,7 +355,7 @@ def test_a_disposal_line_keeps_the_sign_the_report_prints() -> None:
     assert line.bnb_date is None
 
 
-def test_a_loss_a_hair_short_of_half_a_penny_is_stated_as_the_half_penny() -> None:
+def test_a_loss_a_hair_short_of_half_a_penny_rounds_as_the_half_penny_would() -> None:
     """Shares that do not divide evenly leave such a figure, and it rounds up.
 
     Both the disposal and the line under it state the loss, each rounding it

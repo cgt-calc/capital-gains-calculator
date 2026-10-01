@@ -1924,7 +1924,7 @@ class Matcher:
             date_index, {}
         ).items():
             raw_gain = option.proceeds - option.allowable_cost
-            gain = round_decimal(raw_gain, 2)
+            gain = round_gain(raw_gain)
             count += 1
             proceeds += option.proceeds
             costs += option.proceeds - gain
