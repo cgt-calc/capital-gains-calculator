@@ -10,7 +10,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Final, override
 
-from .const import SHARE_PRICES_RESOURCE
+from .const import SHARE_PRICES_RESOURCE, TICKER_RENAMES
 from .dates import is_date
 from .exceptions import (
     BundledPriceCurrencyError,
@@ -116,17 +116,26 @@ class SharePrices:
             with self.prices_file.open(encoding="utf-8") as csv_file:
                 lines = list(csv.reader(csv_file))
         lines = lines[1:]
+        file = self.prices_file or Path("resources") / SHARE_PRICES_RESOURCE
         for index, row in enumerate(lines, start=2):
             try:
-                entry = SharePricesEntry(
-                    row,
-                    self.prices_file or Path("resources") / SHARE_PRICES_RESOURCE,
-                )
+                entry = SharePricesEntry(row, file)
             except ParsingError as err:
                 err.add_row_context(index)
                 raise
-            date_index = entry.date
-            if date_index not in prices:
-                prices[date_index] = {}
-            prices[date_index][entry.symbol] = entry.price
+            by_symbol = prices.setdefault(entry.date, {})
+            # Transactions are read under their current ticker, so a price
+            # filed under the old one has to be too, or it is never found.
+            symbol = TICKER_RENAMES.get(entry.symbol, entry.symbol)
+            known = by_symbol.get(symbol)
+            if known is not None and known != entry.price:
+                raise ParsingError(
+                    file,
+                    f"Two rows price {symbol} on {entry.date}, at {known} and "
+                    f"{entry.price}. A price under an earlier ticker, such as FB "
+                    "for META, is the same security's. Keep the right price and "
+                    "remove the other row.",
+                    row_index=index,
+                )
+            by_symbol[symbol] = entry.price
         return prices
