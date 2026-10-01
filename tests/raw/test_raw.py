@@ -7,6 +7,7 @@ from decimal import Decimal
 import io
 import logging
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -317,6 +318,94 @@ def test_read_raw_transactions_empty_file(tmp_path: Path) -> None:
         RawParser().load_from_file(raw_file)
 
     assert "CSV file is empty" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    ("date", "expected"),
+    [
+        pytest.param("2012-05-18", "META", id="listing-day"),
+        pytest.param("2023-09-01", "META", id="kept-after-the-change"),
+        pytest.param("2025-06-25", "META", id="last-day-unused"),
+        pytest.param("2025-06-26", "FB", id="reused"),
+        pytest.param("2002-06-03", "FB", id="used-before"),
+    ],
+)
+def test_a_renamed_ticker_without_an_isin_is_renamed_by_its_date(
+    tmp_path: Path, date: str, expected: str
+) -> None:
+    """A row without an ISIN is renamed only while nobody else had the ticker.
+
+    FB was Meta's from its 2012 listing, kept by some histories after Meta's
+    2022 rename, and a ProShares ETF's from 26 June 2025; FBR Asset
+    Investment used it in 2002-2003.
+    """
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(raw_file, [COLUMNS, [date, "BUY", "FB", "1", "10.00", "0.00", "USD"]])
+
+    (transaction,) = RawParser().load_from_file(raw_file)
+
+    assert transaction.symbol == expected
+
+
+@pytest.mark.parametrize(
+    ("dates", "message"),
+    [
+        pytest.param(
+            ("2021-06-01", "2025-06-26"),
+            "Rows under FB fall on both sides of 2025-06-26, when another security "
+            "started trading as FB, so cgt-calc cannot tell which rows belong to "
+            "Meta Platforms. Write META on every Meta Platforms row.",
+            id="reused",
+        ),
+        pytest.param(
+            ("2002-06-03", "2021-06-01"),
+            "Rows under FB fall on both sides of 2012-05-18, when Meta Platforms "
+            "started trading as FB, so cgt-calc cannot tell which rows belong to "
+            "Meta Platforms. Write META on every Meta Platforms row.",
+            id="used-before",
+        ),
+    ],
+)
+def test_rows_on_both_sides_of_a_ticker_changing_hands_are_refused(
+    tmp_path: Path, dates: tuple[str, str], message: str
+) -> None:
+    """Without an ISIN, nothing says which of the rows are which security's.
+
+    FB rows from 2021 and 2025 may be Meta and the ProShares ETF, or Meta
+    throughout.
+    """
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(
+        raw_file,
+        [
+            COLUMNS,
+            *([date, "BUY", "FB", "1", "10.00", "0.00", "USD"] for date in dates),
+        ],
+    )
+
+    with pytest.raises(ParsingError, match=re.escape(message)):
+        RawParser().load_from_file(raw_file)
+
+
+def test_rows_that_are_all_another_security_s_are_left_alone(tmp_path: Path) -> None:
+    """FB rows from 2002 and July 2025 are none of them Meta's.
+
+    They fall on both sides of both days FB changed hands, but no row would
+    be renamed, so there is nothing to tell apart.
+    """
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(
+        raw_file,
+        [
+            COLUMNS,
+            ["2002-06-03", "BUY", "FB", "1", "10.00", "0.00", "USD"],
+            ["2025-07-01", "BUY", "FB", "1", "10.00", "0.00", "USD"],
+        ],
+    )
+
+    transactions = RawParser().load_from_file(raw_file)
+
+    assert [transaction.symbol for transaction in transactions] == ["FB", "FB"]
 
 
 def test_read_raw_transactions_transfer_from_spouse(tmp_path: Path) -> None:

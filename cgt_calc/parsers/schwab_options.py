@@ -17,7 +17,6 @@ from decimal import Decimal
 import re
 from typing import TYPE_CHECKING, Final
 
-from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import (
     ActionType,
@@ -28,6 +27,7 @@ from cgt_calc.model import (
     OptionType,
     WrittenOptionTaxData,
 )
+from cgt_calc.ticker_renames import current_ticker
 from cgt_calc.util import approx_equal, strip_zeros
 
 if TYPE_CHECKING:
@@ -87,8 +87,11 @@ _OCC_OPTION_SYMBOL: Final = re.compile(
 )
 
 
-def parse_option_contract(symbol: str) -> OptionContract | None:
-    """Parse Schwab's human-readable or OCC equity-option symbol."""
+def parse_option_contract(symbol: str, date: datetime.date) -> OptionContract | None:
+    """Parse Schwab's human-readable or OCC equity-option symbol.
+
+    `date` is the row's, which says what the underlying's ticker names.
+    """
     human_match = _HUMAN_OPTION_SYMBOL.fullmatch(symbol)
     if human_match:
         expiry = datetime.datetime.strptime(
@@ -118,7 +121,7 @@ def parse_option_contract(symbol: str) -> OptionContract | None:
         return None
 
     return OptionContract(
-        underlying=TICKER_RENAMES.get(underlying, underlying),
+        underlying=current_ticker(underlying, date),
         expiry=expiry,
         strike=strike,
         option_type=option_type,

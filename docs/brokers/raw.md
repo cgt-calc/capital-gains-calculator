@@ -445,7 +445,10 @@ balances are separate; see
 ### `Tried to sell`
 
 Include the earlier acquisition and any split, spin-off or transfer that established the holding.
-Use the same ticker throughout unless the broker-specific history supplies a supported rename. Check
+Use the same ticker throughout unless the broker-specific history supplies a supported rename, and
+prefer the security's current ticker: an old one that another security has since taken, such as
+`FB`, stops the run when one file's rows fall on both sides of that day. The check covers one file
+at a time, so `FB` rows in separate files are each read by their own date without an error. Check
 the final portfolio and every disposal against the broker records rather than adding a made-up
 purchase to make the calculation run.
 

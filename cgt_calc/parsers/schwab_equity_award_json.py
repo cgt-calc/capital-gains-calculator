@@ -29,7 +29,6 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, Final, TextIO, override
 
-from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import (
     ActionType,
@@ -37,6 +36,7 @@ from cgt_calc.model import (
     CurrencyCode,
     TransactionSource,
 )
+from cgt_calc.ticker_renames import current_ticker
 from cgt_calc.util import round_decimal
 
 from .base_parsers import BaseSingleFileParser
@@ -660,7 +660,6 @@ def _check_lapse_units(
 def _check_one_lapse(row: JsonRowType, file_path: Path, names: FieldNames) -> None:
     """Check one Lapse row's stated units against the split table."""
     symbol = row.get(names.symbol)
-    symbol = TICKER_RENAMES.get(symbol, symbol)
     if not _restates_acquisitions_only(symbol):
         return
 
@@ -1015,7 +1014,6 @@ class SchwabAwardTransaction(BrokerTransaction):
         self.acquired_nothing = False
         action = action_from_str(self.raw_action, file)
         symbol = row.get(names.symbol)
-        symbol = TICKER_RENAMES.get(symbol, symbol)
         if symbol not in SPLITS:
             LOGGER.warning(
                 "The Schwab Equity Awards parser was only tested for the "
@@ -1401,11 +1399,10 @@ def _lapse_price(
             f"{where}.{names.symbol} names no symbol, so the vest this row "
             "prices cannot be matched to a holding in the main history.",
         )
+    date = _row_date(row, names.date, where, file_path)
     # AwardPrices.get renames the symbol it is asked for, so an entry filed
     # under the old spelling would never be found.
-    symbol = TICKER_RENAMES.get(symbol, symbol)
-
-    date = _row_date(row, names.date, where, file_path)
+    symbol = current_ticker(symbol, date)
 
     detail_rows = row.get(names.transac_details) or []
     if not isinstance(detail_rows, list):

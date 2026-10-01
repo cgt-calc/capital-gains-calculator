@@ -385,13 +385,16 @@ def test_a_lapse_stating_its_details_without_a_wrapper_is_read(
 def test_a_renamed_ticker_is_filed_under_the_name_it_is_looked_up_by(
     tmp_path: Path,
 ) -> None:
-    """AwardPrices.get renames the symbol it is asked for before searching."""
-    award_file = _export(tmp_path, _lapse(symbol="FB"))
+    """AwardPrices.get renames the symbol it is asked for before searching.
+
+    The lapse is dated while Meta still traded as FB.
+    """
+    award_file = _export(tmp_path, _lapse(symbol="FB", date="06/14/2021"))
 
     prices = _prices(tmp_path, award_file)
 
-    assert prices.get(datetime.date(2023, 6, 12), "FB")[1] == 10
-    assert "META" in prices.award_prices[datetime.date(2023, 6, 12)]
+    assert prices.get(datetime.date(2021, 6, 14), "FB")[1] == 10
+    assert "META" in prices.award_prices[datetime.date(2021, 6, 14)]
 
 
 # --- Several grants on one day ----------------------------------------------

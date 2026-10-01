@@ -49,13 +49,15 @@ def _read(*rows: str) -> list[BrokerTransaction]:
         return SchwabParser.load_from_file(path)
 
 
-def _report(rows: list[str], *, balance_check: bool = False) -> CapitalGainsReport:
+def _report(
+    rows: list[str], *, balance_check: bool = False, tax_year: int = 2024
+) -> CapitalGainsReport:
     """Calculate a report with one USD equal to one GBP."""
     transactions = _read(*rows)
     dates = {transaction.date for transaction in transactions}
     converter = CurrencyConverter(None, {date: {USD: Decimal(1)} for date in dates})
     calculator = CapitalGainsCalculator(
-        2024,
+        tax_year,
         converter,
         IsinConverter(),
         CurrentPriceFetcher(converter, {}, {}),
@@ -95,7 +97,7 @@ def test_parse_option_contract_formats(
     option_type: OptionType,
 ) -> None:
     """Parse both Schwab's readable and canonical OCC option symbols."""
-    contract = parse_option_contract(symbol)
+    contract = parse_option_contract(symbol, datetime.date(2024, 5, 1))
 
     assert contract is not None
     assert contract.underlying == underlying
@@ -188,15 +190,30 @@ def test_expired_written_call_keeps_grant_gain() -> None:
     assert report.portfolio == []
 
 
-def test_assigned_written_call_premium_joins_share_disposal() -> None:
+@pytest.mark.parametrize(
+    ("ticker", "year"),
+    [
+        pytest.param("META", 2024, id="current-ticker"),
+        # Before Meta's rename: the option's underlying and the shares are both
+        # read as META, so the assignment still finds the sale it settles.
+        pytest.param("FB", 2021, id="renamed-ticker"),
+    ],
+)
+def test_assigned_written_call_premium_joins_share_disposal(
+    ticker: str, year: int
+) -> None:
     """A covered-call assignment adds its premium to the share proceeds."""
     report = _report(
         [
-            "05/17/2024,Assigned,META 05/17/2024 350.00 C,Assignment,,1,,",
-            "05/17/2024,Sell,META,META PLATFORMS INC,$350.00,100,,$35000.00",
-            "05/02/2024,Sell to Open,META 05/17/2024 350.00 C,Open,$2.00,1,$0.65,$199.35",
-            "05/01/2024,Buy,META,META PLATFORMS INC,$300.00,100,,-$30000.00",
-        ]
+            f"05/17/{year},Assigned,{ticker} 05/17/{year} 350.00 C,Assignment,,1,,",
+            f"05/17/{year},Sell,{ticker},META PLATFORMS INC,$350.00,100,,$35000.00",
+            (
+                f"05/02/{year},Sell to Open,{ticker} 05/17/{year} 350.00 C,Open,"
+                "$2.00,1,$0.65,$199.35"
+            ),
+            f"05/01/{year},Buy,{ticker},META PLATFORMS INC,$300.00,100,,-$30000.00",
+        ],
+        tax_year=year,
     )
 
     assert report.disposal_count == 1
@@ -496,7 +513,7 @@ def test_option_opened_and_closed_in_different_export_files() -> None:
 )
 def test_contract_not_delivering_100_shares_is_refused(symbol: str) -> None:
     """An adjusted or cash-settled contract is not 100 shares of anything."""
-    assert parse_option_contract(symbol) is None
+    assert parse_option_contract(symbol, datetime.date(2024, 5, 1)) is None
 
     with pytest.raises(ParsingError, match="Cannot parse the option contract"):
         _read(f"05/01/2024,Sell to Open,{symbol},Open,$1.00,1,$0.65,$99.35")

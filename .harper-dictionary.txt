@@ -153,6 +153,7 @@ markdown
 matchable
 matchings
 md
+Meta's
 MiKTeX
 MMM
 mojibake
@@ -279,6 +280,7 @@ tzinfo
 UCITS
 un
 unattributable
+underlying's
 unmapped
 unpriced
 unprovable
