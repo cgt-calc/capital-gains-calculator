@@ -118,6 +118,14 @@ class RawTransaction(BrokerTransaction):
         quantity = _parse_decimal(row_values, RawColumn.QUANTITY)
         price = _parse_decimal(row_values, RawColumn.PRICE)
         fees = _parse_decimal(row_values, RawColumn.FEES, default=Decimal(0))
+        # No action takes negative fees: deductions and withdrawals go in the
+        # price. Other parsers can produce them legitimately (a commission
+        # rebate, or rounding in a derived fee), so this is checked only where
+        # a person types the value.
+        if fees < 0:
+            raise ValueError(
+                "Fees cannot be negative: enter the fees you paid as a positive number."
+            )
 
         if price is not None and quantity is not None:
             amount = price * quantity

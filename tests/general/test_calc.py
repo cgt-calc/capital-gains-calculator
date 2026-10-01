@@ -3053,6 +3053,23 @@ def test_a_gain_of_exactly_half_a_penny_is_reported_not_rejected(
     assert report.total_gain() == reported
 
 
+@pytest.mark.parametrize("action", [ActionType.BUY, ActionType.SELL])
+def test_a_negative_share_price_is_refused(action: ActionType) -> None:
+    """A purchase or sale priced below zero is a sign mistake, not a figure."""
+    calculator = create_calculator(tax_year=2020, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2020, 6, 1), ActionType.BUY, "AAA", 100, 1000),
+        _gbp_trade(datetime.date(2020, 7, 1), action, "AAA", 100, -1200),
+    ]
+
+    with pytest.raises(
+        InvalidTransactionError,
+        match=r"A share price cannot be negative\. Enter the price per share as a "
+        r"positive number\.",
+    ):
+        get_report(calculator, transactions)
+
+
 def test_acquisitions_before_2010_join_the_pool() -> None:
     """A purchase from 2009 is part of the pool a 2020 sale draws on (CG51550)."""
     calculator = create_calculator(tax_year=2020, balance_check=False)

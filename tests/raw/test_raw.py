@@ -288,6 +288,25 @@ def test_read_raw_transactions_invalid_decimal(tmp_path: Path) -> None:
     assert "Invalid decimal in column 'quantity'" in message
 
 
+def test_read_raw_transactions_negative_fees(tmp_path: Path) -> None:
+    """Refuse negative fees, a sign typed the wrong way round."""
+    raw_file = tmp_path / "raw_negative_fees.csv"
+    rows = [
+        COLUMNS,
+        ["2024-01-04", "BUY", "XYZ", "100", "10.00", "-50.00", "GBP"],
+    ]
+    _write_csv(raw_file, rows)
+
+    with pytest.raises(ParsingError) as exc:
+        RawParser().load_from_file(raw_file)
+
+    message = str(exc.value)
+    assert "row 2" in message
+    assert "Fees cannot be negative: enter the fees you paid as a positive number." in (
+        message
+    )
+
+
 def test_read_raw_transactions_empty_file(tmp_path: Path) -> None:
     """Error when RAW CSV is empty."""
 
