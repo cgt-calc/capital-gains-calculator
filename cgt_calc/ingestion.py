@@ -231,8 +231,8 @@ def _refuse_negative_price(transaction: BrokerTransaction) -> None:
     """Refuse a purchase or sale whose price per share is below zero.
 
     No export can mean one; it is a sign typed the wrong way round, and it
-    would turn proceeds or a cost negative. Zero stays allowed for gifts and
-    some vests.
+    would turn proceeds or a cost negative. Zero stays allowed for free
+    shares, spin-off rows and some vests.
     """
     if transaction.price is not None and transaction.price < 0:
         raise InvalidTransactionError(
