@@ -48,10 +48,12 @@ def use_current_tickers(transactions: Iterable[BrokerTransaction]) -> None:
 
     The shared loader runs this on every file it reads, so that a holding
     bought under an old ticker and sold under the new one is one holding
-    whichever broker exported it, and no parser repeats the lookup. Parsers
-    still consult the table themselves for a ticker they need while reading,
-    to key a table of their own, and for one held outside ``symbol``, such
-    as an option's underlying.
+    whichever broker exported it, without each parser mapping the ticker
+    itself. Schwab also runs it as it reads its rows, because it compares
+    tickers before the shared loader gets to them; a second run changes
+    nothing. Parsers still consult the table themselves for a ticker they
+    need while reading, to key a table of their own, and for one held
+    outside ``symbol``, such as an option's underlying.
     """
     for transaction in transactions:
         if transaction.symbol is not None:

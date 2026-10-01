@@ -241,6 +241,22 @@ def test_read_freetrade_transactions_success(tmp_path: Path) -> None:
     assert transaction.isin == "US0378331005"
 
 
+def test_a_renamed_ticker_is_read_under_its_current_name(tmp_path: Path) -> None:
+    """A ticker in the built-in rename table is read under its current name.
+
+    The shared loader applies the table for every parser. Freetrade owns the
+    test because it never applied the table itself, so this fails without the
+    shared step, as RAW, which always did, would not.
+    """
+    path = _write_csv(
+        tmp_path, COLUMNS, [_default_row({FreetradeColumn.TICKER.value: "FB"})]
+    )
+
+    (transaction,) = FreetradeParser().load_from_file(path)
+
+    assert transaction.symbol == "META"
+
+
 @pytest.mark.parametrize(
     ("timestamp", "expected"),
     [
