@@ -53,6 +53,10 @@ quantities, positive unit prices and positive fees for ordinary purchases and di
 therefore records the total cost of a purchase as negative and the net proceeds of a disposal as
 positive.
 
+cgt-calc refuses a negative price on a row that acquires or sells shares, and negative fees on any
+row. A negative price turns a cost or proceeds the wrong way round, and negative fees move them the
+wrong way. The error names the row.
+
 For a cash-only row, use `quantity` `1` and put the full amount in `price`: positive for money
 received and negative for money paid. A £250 deposit and a £40 withdrawal look like this:
 

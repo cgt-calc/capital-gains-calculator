@@ -3053,6 +3053,53 @@ def test_a_gain_of_exactly_half_a_penny_is_reported_not_rejected(
     assert report.total_gain() == reported
 
 
+@pytest.mark.parametrize(
+    "transactions",
+    [
+        pytest.param(
+            [
+                _gbp_trade(datetime.date(2020, 6, 1), ActionType.BUY, "AAA", 100, 1000),
+                _gbp_trade(
+                    datetime.date(2020, 7, 1), ActionType.SELL, "AAA", 100, -1200
+                ),
+            ],
+            id="sale",
+        ),
+        # Beside a purchase the negative cost was absorbed into the pool, and
+        # the later sale reported a gain of 150 instead of 50.
+        pytest.param(
+            [
+                _gbp_trade(datetime.date(2020, 6, 1), ActionType.BUY, "AAA", 100, 1000),
+                transaction(
+                    datetime.date(2020, 6, 1),
+                    ActionType.TRANSFER_FROM_SPOUSE,
+                    "AAA",
+                    10,
+                    price=-5,
+                    currency=GBP,
+                ),
+                _gbp_trade(
+                    datetime.date(2020, 7, 1), ActionType.SELL, "AAA", 110, 1100
+                ),
+            ],
+            id="spouse transfer beside a purchase",
+        ),
+    ],
+)
+def test_a_negative_share_price_is_refused(
+    transactions: list[BrokerTransaction],
+) -> None:
+    """An acquisition or sale priced below zero is a sign mistake, not a figure."""
+    calculator = create_calculator(tax_year=2020, balance_check=False)
+
+    with pytest.raises(
+        InvalidTransactionError,
+        match=r"A share price cannot be negative\. Enter the price per share as a "
+        r"positive number\.",
+    ):
+        get_report(calculator, transactions)
+
+
 def test_acquisitions_before_2010_join_the_pool() -> None:
     """A purchase from 2009 is part of the pool a 2020 sale draws on (CG51550)."""
     calculator = create_calculator(tax_year=2020, balance_check=False)

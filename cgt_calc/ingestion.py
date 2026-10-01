@@ -227,6 +227,21 @@ def _first_history_date(
     return min((t.date for t in transactions), default=None)
 
 
+def _refuse_negative_price(transaction: BrokerTransaction) -> None:
+    """Refuse a purchase or sale whose price per share is below zero.
+
+    No export can mean one; it is a sign typed the wrong way round, and it
+    would turn proceeds or a cost negative. Zero stays allowed for free
+    shares, spin-off rows and some vests.
+    """
+    if transaction.price is not None and transaction.price < 0:
+        raise InvalidTransactionError(
+            transaction,
+            "A share price cannot be negative. Enter the price per share as a "
+            "positive number.",
+        )
+
+
 def _match_gifts_to_rows(
     gifts: list[tuple[int, list[Decimal]]],
     available: Counter[Decimal],
@@ -318,6 +333,7 @@ class TransactionIngester:
 
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
+        _refuse_negative_price(transaction)
 
         # Add to acquisition_list to apply same day rule
         if transaction.action is ActionType.STOCK_ACTIVITY:
@@ -847,6 +863,7 @@ class TransactionIngester:
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
+        _refuse_negative_price(transaction)
         pooled_quantity = self._pooled_quantity(transaction)
         if available < pooled_quantity:
             raise InvalidTransactionError(
