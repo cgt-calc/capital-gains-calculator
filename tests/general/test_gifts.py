@@ -292,7 +292,8 @@ def test_a_gift_of_shares_not_held_is_refused() -> None:
         r" acquired the shares and any split or rename since, and that no"
         r" disposal appears twice\. A purchase, vest or split the exports cannot"
         r" supply can go in a file passed with --raw-file, using an action listed"
-        r" at https://cgt-calc\.uk/brokers/raw/#actions-to-use; a rename cannot\.\n",
+        r" at https://cgt-calc\.uk/brokers/raw/#actions-to-use; a rename cannot:"
+        r" report the old and new tickers so the pair can be added\.\n",
     ):
         get_report(
             create_calculator(tax_year=2024, balance_check=False),

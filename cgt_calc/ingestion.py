@@ -82,14 +82,15 @@ LOGGER = logging.getLogger(__name__)
 # troubleshooting sections of the broker guides already say. A missing
 # acquisition is the commonest, not the only one: a duplicated disposal or a
 # missing split or rename fails the same way, and adding a purchase would hide
-# it. Only what a RAW row can state is offered as something to add: a rename
-# has no RAW action.
+# it. Only what a RAW row can state is offered as something to add. A rename
+# has no RAW action, so it is reported instead, for the built-in rename table.
 _SHORTFALL_CAUSE = (
     "Check that the history includes the purchase, vest or transfer that "
     "acquired the shares and any split or rename since, and that no disposal "
     "appears twice. A purchase, vest or split the exports cannot supply can go "
     "in a file passed with --raw-file, using an action listed at "
-    "https://cgt-calc.uk/brokers/raw/#actions-to-use; a rename cannot."
+    "https://cgt-calc.uk/brokers/raw/#actions-to-use; a rename cannot: report "
+    "the old and new tickers so the pair can be added."
 )
 
 
