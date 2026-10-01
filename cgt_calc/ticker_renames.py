@@ -60,22 +60,23 @@ def current_ticker(symbol: str, date: datetime.date, isin: Isin | None = None) -
 def ambiguity(symbol: str, dates: Collection[datetime.date]) -> str | None:
     """Explain why rows without an ISIN under `symbol` cannot be told apart.
 
-    Rows on both sides of a day `symbol` changed hands may belong to two
-    securities, or be one security's history written under one ticker, and
-    nothing in the rows says which.
+    When some of the rows fall while `symbol` was a renamed security's and
+    some do not, they may belong to two securities, or be one security's
+    history written under one ticker, and nothing in the rows says which.
     """
     for rename in ticker_renames().get(symbol, ()):
-        for boundary, event in (
-            (rename.since, f"when {rename.company} started trading as"),
-            (rename.reused, "when another security started trading as"),
-        ):
-            if boundary is not None and min(dates) < boundary <= max(dates):
-                return (
-                    f"Rows under {symbol} fall on both sides of {boundary}, "
-                    f"{event} {symbol}, so cgt-calc cannot tell which rows belong "
-                    f"to {rename.company}. Write {rename.new} on "
-                    f"every {rename.company} row."
-                )
+        covered = [rename.covers(date) for date in dates]
+        if all(covered) or not any(covered):
+            continue
+        if rename.since is not None and min(dates) < rename.since:
+            crossed = f"{rename.since}, when {rename.company} started trading as"
+        else:
+            crossed = f"{rename.reused}, when another security started trading as"
+        return (
+            f"Rows under {symbol} fall on both sides of {crossed} {symbol}, so "
+            f"cgt-calc cannot tell which rows belong to {rename.company}. Write "
+            f"{rename.new} on every {rename.company} row."
+        )
     return None
 
 

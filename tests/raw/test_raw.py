@@ -387,6 +387,27 @@ def test_rows_on_both_sides_of_a_ticker_changing_hands_are_refused(
         RawParser().load_from_file(raw_file)
 
 
+def test_rows_that_are_all_another_security_s_are_left_alone(tmp_path: Path) -> None:
+    """FB rows from 2002 and July 2025 are none of them Meta's.
+
+    They fall on both sides of both days FB changed hands, but no row would
+    be renamed, so there is nothing to tell apart.
+    """
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(
+        raw_file,
+        [
+            COLUMNS,
+            ["2002-06-03", "BUY", "FB", "1", "10.00", "0.00", "USD"],
+            ["2025-07-01", "BUY", "FB", "1", "10.00", "0.00", "USD"],
+        ],
+    )
+
+    transactions = RawParser().load_from_file(raw_file)
+
+    assert [transaction.symbol for transaction in transactions] == ["FB", "FB"]
+
+
 def test_read_raw_transactions_transfer_from_spouse(tmp_path: Path) -> None:
     """Parse a RAW TRANSFER_FROM_SPOUSE row: shares arriving at a stated cost."""
 

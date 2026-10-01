@@ -60,9 +60,9 @@ def use_current_tickers(
     they need while reading, to key a table of their own, and for one held
     outside ``symbol``, such as an option's underlying.
 
-    A file whose rows under one ticker, without an ISIN, fall on both sides
-    of a day that ticker changed hands is refused: nothing says which rows
-    are which security's.
+    A file is refused when only some of its rows under one ticker, without
+    an ISIN, fall while that ticker was a renamed security's: nothing says
+    which rows are which security's.
     """
     dates: dict[str, list[datetime.date]] = {}
     for transaction in transactions:
