@@ -355,6 +355,18 @@ def test_a_disposal_line_keeps_the_sign_the_report_prints() -> None:
     assert line.bnb_date is None
 
 
+def test_a_loss_a_hair_short_of_half_a_penny_is_stated_as_the_half_penny() -> None:
+    """Shares that do not divide evenly leave such a figure, and it rounds up.
+
+    Both the disposal and the line under it state the loss, each rounding it
+    for itself.
+    """
+    (event,) = _events({"sell$FOO": [_disposal("-52.91499999999999999999999999")]})
+    (line,) = event.lines
+    assert event.gain == Decimal("-52.92")
+    assert line.gain == Decimal("-52.92")
+
+
 def test_a_bed_and_breakfast_line_carries_the_day_it_matched() -> None:
     """The date only reaches the report on the rule that used it."""
     (event,) = _events(

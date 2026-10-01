@@ -31,7 +31,7 @@ from .stock_splits import (
     unscale_quantity,
 )
 from .transaction_log import add_to_list, has_key
-from .util import normalize_amount, round_decimal, strip_zeros
+from .util import normalize_amount, round_decimal, round_gain, strip_zeros
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -364,7 +364,7 @@ class Matcher:
         self.run.portfolio[ctx.identity.pool_name] = Position(
             ctx.current_quantity, normalize_amount(ctx.current_amount)
         )
-        ctx.chargeable_gain = round_decimal(ctx.chargeable_gain, 2)
+        ctx.chargeable_gain = round_gain(ctx.chargeable_gain)
         return ctx.chargeable_gain, ctx.calculation_entries
 
     def _pool_todays_reorganisations(
@@ -2060,9 +2060,7 @@ class Matcher:
                         # the distance instead would refuse a gain of exactly
                         # half a penny, which rounds up to a penny and so sits
                         # half a penny away from what is reported.
-                        assert transaction_capital_gain == round_decimal(
-                            calculated_gain, 2
-                        )
+                        assert transaction_capital_gain == round_gain(calculated_gain)
                         prefix = self._disposal_log_prefix(date_index, symbol)
                         calculation_log[date_index][f"{prefix}${symbol}"] = (
                             calculation_entries

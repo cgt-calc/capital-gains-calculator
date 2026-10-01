@@ -3094,6 +3094,33 @@ def test_a_gain_of_exactly_half_a_penny_is_reported_not_rejected(
     assert report.total_gain() == reported
 
 
+def test_a_loss_of_exactly_half_a_penny_rounds_up() -> None:
+    """The parts of a sale that do not divide evenly cannot round its loss down.
+
+    A sale of 3 for £60.19 takes the 1 bought that day for £10 and 2 of the 4
+    in the pool, which cost half of £300.05. It loses 60.19 - 10 - 150.025,
+    which is £99.835 and rounds half up to £99.84. A third and two thirds of
+    £60.19 are both repeating decimals, so the two parts' losses add up to a
+    hair less than that, which was reported as £99.83.
+    """
+    transactions = [
+        _gbp_trade(BUY_DAY, ActionType.BUY, "ABC", 4, Decimal("300.05")),
+        _gbp_trade(SELL_DAY, ActionType.BUY, "ABC", 1, 10),
+        _gbp_trade(SELL_DAY, ActionType.SELL, "ABC", 3, Decimal("60.19")),
+    ]
+
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False), transactions
+    )
+
+    entries = report.calculation_log[SELL_DAY]["sell$ABC"]
+    assert [entry.rule_type for entry in entries] == [
+        RuleType.SAME_DAY,
+        RuleType.SECTION_104,
+    ]
+    assert report.total_gain() == Decimal("-99.84")
+
+
 @pytest.mark.parametrize(
     "transactions",
     [

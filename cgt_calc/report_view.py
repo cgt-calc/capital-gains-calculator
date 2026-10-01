@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Final
 
 from .exceptions import CalculationError
 from .model import RuleType
-from .util import round_decimal
+from .util import round_decimal, round_gain
 
 if TYPE_CHECKING:
     import datetime
@@ -304,7 +304,7 @@ def _build_line(
             if entry.rule_type is RuleType.BED_AND_BREAKFAST
             else None
         ),
-        gain=round_decimal(entry.gain, 2),
+        gain=round_gain(entry.gain),
         amount=round_decimal(-entry.amount, 2),
         new_pool_cost=round_decimal(entry.new_pool_cost, 2),
         pool_per_unit=_per_unit(entry.new_pool_cost, entry.new_quantity),
@@ -346,7 +346,7 @@ def _with_disposal(
     asset is neither a chargeable disposal nor part of any total.
     """
     proceeds = round_decimal(_total(entries, "amount") + _total(entries, "fees"), 2)
-    gain = round_decimal(_total(entries, "gain"), 2)
+    gain = round_gain(_total(entries, "gain"))
     event = replace(
         event,
         proceeds=proceeds,
