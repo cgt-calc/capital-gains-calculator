@@ -90,7 +90,9 @@ date,symbol,price
 ```
 
 Your file replaces the bundled prices rather than adding to them, so copy in any bundled rows you
-still need.
+still need. A row under a ticker the company has since changed, such as `FB`, counts for its current
+ticker, `META`. If two rows give the same share different prices on one day, cgt-calc stops and asks
+you to remove one.
 
 ### Spin-off source mappings
 
