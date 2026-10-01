@@ -9,7 +9,6 @@ from enum import StrEnum
 import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, overload, override
 
-from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import (
     ActionType,
@@ -116,9 +115,6 @@ class RawTransaction(BrokerTransaction):
 
         action = _action_from_str(row_values[RawColumn.ACTION], file)
         symbol = row_values[RawColumn.SYMBOL] or None
-
-        if symbol is not None:
-            symbol = TICKER_RENAMES.get(symbol, symbol)
         quantity = _parse_decimal(row_values, RawColumn.QUANTITY)
         price = _parse_decimal(row_values, RawColumn.PRICE)
         fees = _parse_decimal(row_values, RawColumn.FEES, default=Decimal(0))

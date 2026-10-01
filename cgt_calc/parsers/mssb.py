@@ -13,7 +13,6 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
-from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 from cgt_calc.util import parse_decimal
@@ -165,7 +164,6 @@ class MSSBParser(
         price = _parse_decimal(row, ReleaseColumn.PRICE)
         amount = quantity * price
         symbol = KNOWN_SYMBOL_DICT[plan]
-        symbol = TICKER_RENAMES.get(symbol, symbol)
 
         return BrokerTransaction(
             date=datetime.datetime.strptime(
@@ -235,7 +233,7 @@ class MSSBParser(
                 row[WithdrawalColumn.EXECUTION_DATE], "%d-%b-%Y"
             ).date(),
             action=action,
-            symbol=TICKER_RENAMES.get(symbol, symbol),
+            symbol=symbol,
             description=plan,
             quantity=quantity,
             price=price,
@@ -245,20 +243,14 @@ class MSSBParser(
             broker=BROKER_NAME,
         )
 
-        return MSSBParser._handle_stock_split(transaction, report_symbol=symbol)
+        return MSSBParser._handle_stock_split(transaction)
 
     @staticmethod
-    def _handle_stock_split(
-        transaction: BrokerTransaction, report_symbol: str
-    ) -> BrokerTransaction:
-        """Adjust pre-split sales, keyed by the symbol the report uses.
-
-        Splits are matched on ``report_symbol`` rather than the transaction's,
-        which a ``TICKER_RENAMES`` entry may have renamed.
-        """
+    def _handle_stock_split(transaction: BrokerTransaction) -> BrokerTransaction:
+        """Adjust pre-split sales."""
         for split in STOCK_SPLIT_INFO:
             if (
-                report_symbol == split.symbol
+                transaction.symbol == split.symbol
                 and transaction.action == ActionType.SELL
                 and transaction.date <= split.date
             ):

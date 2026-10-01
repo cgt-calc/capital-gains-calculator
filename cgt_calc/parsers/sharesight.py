@@ -11,7 +11,6 @@ from enum import StrEnum
 import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
-from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import (
     InvalidTransactionError,
     ParsingError,
@@ -316,7 +315,6 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
 
             dividend_date = cls._parse_date(row_dict[DividendColumn.DATE_PAID])
             symbol = row_dict[DividendColumn.CODE]
-            symbol = TICKER_RENAMES.get(symbol, symbol)
             description = row_dict[DividendColumn.COMMENTS]
             broker = "Sharesight"
 

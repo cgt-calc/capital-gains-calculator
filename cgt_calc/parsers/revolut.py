@@ -11,7 +11,7 @@ import logging
 import re
 from typing import TYPE_CHECKING, ClassVar, Final, Literal, TextIO, overload, override
 
-from cgt_calc.const import TICKER_RENAMES, UK_TIMEZONE
+from cgt_calc.const import UK_TIMEZONE
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import (
     ActionType,
@@ -163,8 +163,6 @@ class RevolutTransaction(BrokerTransaction):
         description = row[RevolutColumn.ACTION]
         action = _action_from_str(description, file)
         symbol = row[RevolutColumn.TICKER] or None
-        if symbol is not None:
-            symbol = TICKER_RENAMES.get(symbol, symbol)
         quantity = _parse_decimal(row, RevolutColumn.QUANTITY, allow_empty=True)
         price = _parse_decimal(
             row,

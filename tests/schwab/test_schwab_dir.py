@@ -517,3 +517,21 @@ def test_export_with_no_rows_is_skipped_not_refused(tmp_path: Path) -> None:
         for transaction in transactions
         if transaction.source and transaction.source.file
     } == {"z_2024.csv"}
+
+
+def test_a_directory_reads_a_renamed_ticker_under_its_current_name(
+    tmp_path: Path,
+) -> None:
+    """The directory loader reads its files itself, not through the shared one.
+
+    So the rename step has to reach it another way.
+    """
+    directory = tmp_path / "schwab"
+    directory.mkdir()
+    (directory / "transactions.csv").write_text(
+        HEADER + "02/02/2022,Buy,FB,META PLATFORMS,$300.00,1,$0.00,-$300.00\n"
+    )
+
+    (transaction,) = load_via_cli(schwab_dir=str(directory))
+
+    assert transaction.symbol == "META"
