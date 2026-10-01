@@ -86,6 +86,7 @@ dprint
 DWS
 env
 ERI
+ERSM20420
 ESPP
 etc
 ETCs
@@ -111,6 +112,7 @@ GSU
 hashable
 HL
 Hmrc
+HS287
 ICAV
 I/O
 IBKR

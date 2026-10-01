@@ -122,7 +122,7 @@ class AwardPrices:
         return bool(self.award_prices)
 
     def get(self, date: datetime.date, symbol: str) -> tuple[datetime.date, Decimal]:
-        """Get initial stock price at given date."""
+        """Return the award's own date and price for a vest posted on `date`."""
         # Award dates may go back a few days, depending on
         # holidays or weekends, so we do a linear search
         # in the past to find the award price
@@ -291,6 +291,10 @@ class SchwabTransaction(BrokerTransaction):
             raise ParsingError(
                 file, f"Invalid date format: {date_str} from row: {row_dict}"
             ) from exc
+        # The date the export states. A vest priced from the award file is
+        # re-dated to its vest, but the file's own date range and its row
+        # order are in these dates.
+        self.posted_on = date
         action_header = RequiredTransactionsColumn.ACTION.value
         self.raw_action = row_dict[action_header]
         action = action_from_str(self.raw_action, file)
@@ -360,12 +364,14 @@ class SchwabTransaction(BrokerTransaction):
             symbol = transaction.symbol
             if symbol is None:
                 raise SymbolMissingError(transaction)
-            # The Schwab transaction list sometimes contains an incorrect date
-            # for awards which doesn't match the PDF statements.
-            # We want to make sure to match date and price from the awards
-            # spreadsheet.
+            # The transaction list dates a vest by when Schwab posted it, a few
+            # days after the vest itself. The shares are acquired at the vest,
+            # when the employee becomes beneficially entitled to them, not when
+            # they are transferred (ERSM20420), and the award file's price is
+            # the market value on that day, so the date is taken from the award
+            # file along with the price.
             try:
-                _vest_date, transaction.price = awards_prices.get(
+                transaction.date, transaction.price = awards_prices.get(
                     transaction.date, symbol
                 )
             except KeyError as err:
@@ -650,7 +656,10 @@ def _find_matching_buy(
     # Older rows, out to the edge of the search window.
     for buy_idx in range(cancel_idx + 1, len(transactions)):
         buy_txn = transactions[buy_idx]
-        if abs((buy_txn.date - cancel_txn.date).days) > CANCEL_BUY_SEARCH_DAYS:
+        if (
+            abs((buy_txn.posted_on - cancel_txn.posted_on).days)
+            > CANCEL_BUY_SEARCH_DAYS
+        ):
             break
         if buy_idx not in consumed and _is_matching_buy(buy_txn, cancel_txn):
             return buy_idx
@@ -658,7 +667,7 @@ def _find_matching_buy(
     # Newer rows, but only the ones sharing the cancellation's own date.
     for buy_idx in range(cancel_idx - 1, -1, -1):
         buy_txn = transactions[buy_idx]
-        if buy_txn.date != cancel_txn.date:
+        if buy_txn.posted_on != cancel_txn.posted_on:
             break
         if buy_idx not in consumed and _is_matching_buy(buy_txn, cancel_txn):
             return buy_idx
@@ -768,13 +777,13 @@ class _Export:
 
     @property
     def oldest(self) -> datetime.date:
-        """Earliest transaction date in the file."""
-        return min(row.date for row in self.rows)
+        """Earliest date the file states."""
+        return min(row.posted_on for row in self.rows)
 
     @property
     def newest(self) -> datetime.date:
-        """Latest transaction date in the file."""
-        return max(row.date for row in self.rows)
+        """Latest date the file states."""
+        return max(row.posted_on for row in self.rows)
 
 
 def _reject_overlapping_exports(exports: list[_Export]) -> None:
