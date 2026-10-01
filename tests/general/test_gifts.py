@@ -285,7 +285,16 @@ def test_a_gift_needs_the_market_value(
 
 def test_a_gift_of_shares_not_held_is_refused() -> None:
     """The row names a symbol the holding never had."""
-    with pytest.raises(InvalidTransactionError, match="not owned"):
+    with pytest.raises(
+        InvalidTransactionError,
+        match=r"^Tried to give away BAR on 2024-06-10, but no BAR is held\."
+        r" Check that the history includes the purchase, vest or transfer that"
+        r" acquired the shares and any split or rename since, and that no"
+        r" disposal appears twice\. A purchase, vest or split the exports cannot"
+        r" supply can go in a file passed with --raw-file, using an action listed"
+        r" at https://cgt-calc\.uk/brokers/raw/#actions-to-use; a rename cannot:"
+        r" report the old and new tickers so the pair can be added\.\n",
+    ):
         get_report(
             create_calculator(tax_year=2024, balance_check=False),
             [
@@ -310,7 +319,10 @@ def test_a_gift_needs_a_positive_quantity(quantity: int) -> None:
 
 def test_a_gift_of_more_than_held_is_refused() -> None:
     """Ten held, eleven given away: the history is wrong somewhere."""
-    with pytest.raises(InvalidTransactionError, match="more than the available"):
+    with pytest.raises(
+        InvalidTransactionError,
+        match=r"^Tried to give away 11 FOO on 2024-06-10, but the holding is 10\. Check",
+    ):
         get_report(
             create_calculator(tax_year=2024, balance_check=False),
             [
@@ -590,7 +602,7 @@ def test_a_gift_sorts_after_a_same_day_acquisition(action: ActionType) -> None:
 
     Gift rows come from a RAW file while the shares come from a broker
     export, and parsers merge in registry order, so without this the gift
-    is validated first and fails as "not owned".
+    is validated first and fails as nothing held.
     """
     gift = _gift(4, 30, action=action)
     buy = transaction(GIFT_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP)

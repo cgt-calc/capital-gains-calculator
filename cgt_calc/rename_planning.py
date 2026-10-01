@@ -137,7 +137,7 @@ def rename_pair(transaction: BrokerTransaction) -> tuple[str, str]:
     ):
         raise InvalidTransactionError(
             transaction,
-            "Rename transaction does not identify the old symbol",
+            "Rename transaction does not identify the old symbol.",
         )
     return old_symbol, transaction.symbol
 

@@ -110,7 +110,10 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
     (QuantityMissingError(TRANSACTION), ["FOO", "2023"]),
     (QuantityNotPositiveError(TRANSACTION), ["FOO", "2023"]),
     # Both the calculated and the supplied amount are needed to see the gap.
-    (CalculatedAmountDiscrepancyError(TRANSACTION, Decimal(-42)), ["-42", "-1", "FOO"]),
+    (
+        CalculatedAmountDiscrepancyError(TRANSACTION, Decimal(-42), Decimal(-1)),
+        ["-42", "-1", "FOO"],
+    ),
     (
         UnsupportedBrokerCurrencyError(Path("f.csv"), "TestBroker", "XXX"),
         ["f.csv", "TestBroker", "XXX"],

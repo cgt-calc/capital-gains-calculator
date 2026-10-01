@@ -938,7 +938,7 @@ def test_read_vanguard_ragged_cash_row_is_rejected(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    with pytest.raises(UnexpectedColumnCountError, match="doesn't have 4 columns"):
+    with pytest.raises(UnexpectedColumnCountError, match="columns, not 4:"):
         VanguardParser().load_from_file(vanguard_file)
 
 
@@ -956,9 +956,7 @@ def test_read_vanguard_ragged_investment_row_is_rejected(tmp_path: Path) -> None
         encoding="utf-8",
     )
 
-    with pytest.raises(
-        UnexpectedColumnCountError, match=r"row 7:.*doesn't have 6 columns"
-    ):
+    with pytest.raises(UnexpectedColumnCountError, match=r"row 7:.*columns, not 6:"):
         VanguardParser().load_from_file(vanguard_file)
 
 

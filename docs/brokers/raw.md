@@ -438,7 +438,7 @@ purchases or withdrawals. If this RAW file supplements a named broker export, re
 balances are separate; see
 [Combining RAW with a broker export](#combining-raw-with-a-broker-export).
 
-### `Tried to sell not owned symbol`
+### `Tried to sell`
 
 Include the earlier acquisition and any split, spin-off or transfer that established the holding.
 Use the same ticker throughout unless the broker-specific history supplies a supported rename. Check

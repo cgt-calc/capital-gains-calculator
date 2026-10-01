@@ -106,6 +106,26 @@ def test_read_revolut_transactions_unexpected_column(tmp_path: Path) -> None:
         RevolutParser().load_from_file(path)
 
 
+def test_a_row_with_extra_fields_is_counted_and_printed_as_stated(
+    tmp_path: Path,
+) -> None:
+    """The fields past the header are the row's own, not one extra list.
+
+    Parsers built on the shared CSV reader get them grouped under a single
+    key, which would count two extra fields as one and print a Python list.
+    """
+    row = [*_default_row(), "extra1", "extra2"]
+    path = _write_csv(tmp_path, [row])
+
+    with pytest.raises(ParsingError) as exc_info:
+        RevolutParser().load_from_file(path)
+
+    message = str(exc_info.value)
+    assert f"This row has 10 columns, not {len(COLUMNS)}:" in message
+    stated = path.read_text(encoding="utf-8").splitlines()[1]
+    assert message.endswith(f"\n  {stated}")
+
+
 def test_read_revolut_transactions_reordered_columns(tmp_path: Path) -> None:
     """Columns are read by name, so the export may state them in any order."""
     header = list(reversed(COLUMNS))

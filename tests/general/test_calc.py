@@ -1902,9 +1902,7 @@ def test_a_rename_day_refuses_more_units_than_the_whole_holding_has(
         *([rename, *sales] if rename_first else [*sales, rename]),
     ]
 
-    with pytest.raises(
-        InvalidTransactionError, match=r"more than the available balance\(40\)"
-    ):
+    with pytest.raises(InvalidTransactionError, match=r"the holding is 40\."):
         get_report(calculator, transactions)
 
 
@@ -2096,7 +2094,14 @@ def test_one_renamed_holding_cannot_borrow_the_other_s_shares() -> None:
     ]
 
     with pytest.raises(
-        InvalidTransactionError, match=r"more than the available balance\(50\)"
+        InvalidTransactionError,
+        match=r"^Tried to sell 60 FOO on 2024-05-10, but the holding is 50\."
+        r" Check that the history includes the purchase, vest or transfer that"
+        r" acquired the shares and any split or rename since, and that no"
+        r" disposal appears twice\. A purchase, vest or split the exports cannot"
+        r" supply can go in a file passed with --raw-file, using an action listed"
+        r" at https://cgt-calc\.uk/brokers/raw/#actions-to-use; a rename cannot:"
+        r" report the old and new tickers so the pair can be added\.\n",
     ):
         get_report(calculator, transactions)
 
@@ -2179,7 +2184,7 @@ def test_a_rename_day_carrying_excess_reported_income_is_read_row_by_row() -> No
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
     ]
 
-    with pytest.raises(InvalidTransactionError, match="not owned symbol"):
+    with pytest.raises(InvalidTransactionError, match=r"but no NEW is held"):
         get_report(calculator, transactions)
 
 
@@ -2417,7 +2422,7 @@ def test_negative_balance_error_shows_short_history_in_full() -> None:
         calculator.prepare_history(transactions)
 
     message = str(excinfo.value)
-    assert "Reached a negative balance(-1.000000)" in message
+    assert "Reached a negative balance of -1.000000 USD" in message
     assert "omitted" not in message
     assert message.count("Balance after transaction=") == 1
     assert "use --no-balance-check" in message
@@ -2488,7 +2493,7 @@ def test_balance_check_reports_an_overdraft_left_at_the_end_of_the_day() -> None
         calculator.prepare_history(transactions)
 
     message = str(excinfo.value)
-    assert "Reached a negative balance(-1000.000000)" in message
+    assert "Reached a negative balance of -1000.000000 USD" in message
     assert "at the end of 2024-05-01 after processing" in message
 
 
@@ -2523,7 +2528,7 @@ def test_balance_check_is_not_funded_by_a_later_day_or_another_pool(
     )
     calculator = create_calculator(tax_year=2024)
 
-    with pytest.raises(CalculationError, match=r"negative balance\(-5000"):
+    with pytest.raises(CalculationError, match=r"negative balance of -5000"):
         calculator.prepare_history(
             sorted([deposit, purchase], key=lambda row: row.date)
         )
@@ -2542,7 +2547,7 @@ def test_balance_check_is_not_silenced_by_a_trailing_eri_row() -> None:
     ]
     calculator = create_calculator(tax_year=2024)
 
-    with pytest.raises(CalculationError, match=r"negative balance\(-1"):
+    with pytest.raises(CalculationError, match=r"negative balance of -1"):
         calculator.prepare_history(transactions)
 
 
@@ -3137,3 +3142,20 @@ def test_every_action_says_whether_it_may_come_before_6_april_2008() -> None:
 
     assert allowed | PRE_POOLING_REFUSED_ACTIONS == set(ActionType)
     assert not allowed & PRE_POOLING_REFUSED_ACTIONS
+
+
+def test_an_action_the_calculation_does_not_process_is_refused_by_name() -> None:
+    """A RAW file can name any action, including ones only a broker parser uses.
+
+    `CANCEL_BUY` is paired off by the Schwab parser and never reaches the
+    calculation from there; written by hand, it does.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    cancel = _gbp_trade(datetime.date(2024, 5, 1), ActionType.CANCEL_BUY, "FOO", 1, 10)
+
+    with pytest.raises(
+        InvalidTransactionError,
+        match=r"^cgt-calc does not process CANCEL_BUY rows\. In a RAW file, use one of"
+        r" the actions listed at https://cgt-calc\.uk/brokers/raw/#actions-to-use\n",
+    ):
+        get_report(calculator, [cancel])

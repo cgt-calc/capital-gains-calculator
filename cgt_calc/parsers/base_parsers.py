@@ -309,8 +309,12 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                 # trying to parse a `None` field, and reported with row
                 # context rather than as an unhandled traceback.
                 if len(row) != expected_col_count:
+                    # The fields past the header arrive as one list under the
+                    # restkey. Spread them back out so the row is counted and
+                    # printed as the file states it.
+                    stated = [value for key, value in row.items() if key is not None]
                     raise UnexpectedColumnCountError(
-                        list(row.values()), expected_col_count, file_path
+                        [*stated, *row.get(None, [])], expected_col_count, file_path
                     )
                 transaction = cls.read_row(row, file_path)
                 if transaction:

@@ -56,6 +56,7 @@ from .stock_splits import quantity_sign
 from .transaction_log import add_to_list, day_acquisitions
 from .util import (
     approx_equal,
+    display_str,
     indent_entry,
     normalize_amount,
     round_decimal,
@@ -75,6 +76,50 @@ if TYPE_CHECKING:
     from .spin_off_handler import SpinOffHandler
 
 LOGGER = logging.getLogger(__name__)
+
+
+# Where a history that fails a share-count check usually goes wrong, as the
+# troubleshooting sections of the broker guides already say. A missing
+# acquisition is the commonest, not the only one: a duplicated disposal or a
+# missing split or rename fails the same way, and adding a purchase would hide
+# it. Only what a RAW row can state is offered as something to add. A rename
+# has no RAW action, so it is reported instead, for the built-in rename table.
+_SHORTFALL_CAUSE = (
+    "Check that the history includes the purchase, vest or transfer that "
+    "acquired the shares and any split or rename since, and that no disposal "
+    "appears twice. A purchase, vest or split the exports cannot supply can go "
+    "in a file passed with --raw-file, using an action listed at "
+    "https://cgt-calc.uk/brokers/raw/#actions-to-use; a rename cannot: report "
+    "the old and new tickers so the pair can be added."
+)
+
+
+def _nothing_held(action: str, symbol: str, transaction: BrokerTransaction) -> str:
+    """Say that a disposal found no holding, and the usual cause.
+
+    ``action`` places the shares in its verb phrase, as in
+    ``"transfer {} to a spouse"``. No count is stated: the check runs before
+    the quantity is validated.
+    """
+    return (
+        f"Tried to {action.format(symbol)} on {transaction.date}, but no "
+        f"{symbol} is held. {_SHORTFALL_CAUSE}"
+    )
+
+
+def _shortfall(
+    action: str,
+    symbol: str,
+    transaction: BrokerTransaction,
+    wanted: Decimal,
+    held: Decimal,
+) -> str:
+    """Say what a disposal asked for, what was held, and the usual cause."""
+    shares = f"{display_str(wanted)} {symbol}"
+    return (
+        f"Tried to {action.format(shares)} on {transaction.date}, but the "
+        f"holding is {display_str(held)}. {_SHORTFALL_CAUSE}"
+    )
 
 
 def get_amount_or_fail(transaction: BrokerTransaction) -> Decimal:
@@ -303,7 +348,9 @@ class TransactionIngester:
                 transaction.fees,
                 CalculationType.ACQUISITION,
             ):
-                raise CalculatedAmountDiscrepancyError(transaction, -calculated_amount)
+                raise CalculatedAmountDiscrepancyError(
+                    transaction, -calculated_amount, amount
+                )
             amount = -amount
 
         capital_adjustment, capital_fee_adjustment = self._capital_adjustments_gbp(
@@ -796,7 +843,7 @@ class TransactionIngester:
         available = self._available_units(symbol, transaction.date)
         if available is None:
             raise InvalidTransactionError(
-                transaction, "Tried to sell not owned symbol, reversed order?"
+                transaction, _nothing_held("sell {}", symbol, transaction)
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
@@ -804,7 +851,7 @@ class TransactionIngester:
         if available < pooled_quantity:
             raise InvalidTransactionError(
                 transaction,
-                f"Tried to sell more than the available balance({available})",
+                _shortfall("sell {}", symbol, transaction, pooled_quantity, available),
             )
 
         amount = get_amount_or_fail(transaction)
@@ -830,7 +877,9 @@ class TransactionIngester:
             transaction.fees,
             CalculationType.DISPOSAL,
         ):
-            raise CalculatedAmountDiscrepancyError(transaction, calculated_amount)
+            raise CalculatedAmountDiscrepancyError(
+                transaction, calculated_amount, amount
+            )
         capital_adjustment, capital_fee_adjustment = self._capital_adjustments_gbp(
             transaction
         )
@@ -876,7 +925,7 @@ class TransactionIngester:
         ):
             raise InvalidTransactionError(
                 transaction,
-                "Assigned option and underlying share use different currencies",
+                "Assigned option and underlying share use different currencies.",
             )
         return sum(
             (adjustment.net_amount for adjustment in transaction.capital_adjustments),
@@ -891,7 +940,7 @@ class TransactionIngester:
         amount = get_amount_or_fail(transaction)
         if contract is None or tax_data is None:
             raise InvalidTransactionError(
-                transaction, "Written option is missing its reconciled tax details"
+                transaction, "Written option is missing its reconciled tax details."
             )
         if quantity <= 0 or tax_data.taxable_quantity < 0:
             raise QuantityNotPositiveError(transaction)
@@ -956,7 +1005,8 @@ class TransactionIngester:
         available = self._available_units(symbol, transaction.date)
         if available is None:
             raise InvalidTransactionError(
-                transaction, "Tried to transfer to spouse a not owned symbol"
+                transaction,
+                _nothing_held("transfer {} to a spouse", symbol, transaction),
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
@@ -964,8 +1014,9 @@ class TransactionIngester:
         if available < quantity:
             raise InvalidTransactionError(
                 transaction,
-                "Tried to transfer to spouse more than the available "
-                f"balance({available})",
+                _shortfall(
+                    "transfer {} to a spouse", symbol, transaction, quantity, available
+                ),
             )
         # A gift has no consideration, so whatever is in the price column
         # cannot affect the result. Say so rather than dropping it silently.
@@ -1016,7 +1067,7 @@ class TransactionIngester:
         available = self._available_units(symbol, transaction.date)
         if available is None:
             raise InvalidTransactionError(
-                transaction, "Tried to give away a not owned symbol"
+                transaction, _nothing_held("give away {}", symbol, transaction)
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
@@ -1027,7 +1078,7 @@ class TransactionIngester:
         # loss. Only a negative value is nonsense.
         if transaction.price < 0:
             raise InvalidTransactionError(
-                transaction, "A gift cannot have a negative market value"
+                transaction, "A gift cannot have a negative market value."
             )
         # The market value is what the row states, for the count it states.
         # Only the count leaving the pool follows a same-day reorganisation.
@@ -1036,7 +1087,7 @@ class TransactionIngester:
         if available < quantity:
             raise InvalidTransactionError(
                 transaction,
-                f"Tried to give away more than the available balance({available})",
+                _shortfall("give away {}", symbol, transaction, quantity, available),
             )
         connected = transaction.action is ActionType.GIFT
         key = (transaction.date, symbol)
@@ -1266,7 +1317,7 @@ class TransactionIngester:
         if not transaction.price.is_finite() or transaction.price < 0:
             raise InvalidTransactionError(
                 transaction,
-                "Excess reported income price must be finite and non-negative",
+                "Excess reported income price must be finite and non-negative.",
             )
 
         if transaction.price == Decimal(0):
@@ -1295,7 +1346,7 @@ class TransactionIngester:
                         transaction,
                         f"A conflicting ERI report at {report_date} for "
                         f"{symbol} of £{price} has been found at "
-                        f"{report_date} of £{previous_price}",
+                        f"{report_date} of £{previous_price}.",
                     )
 
             self.history.eris[transaction.date][symbol] = ExcessReportedIncome(
@@ -1334,13 +1385,13 @@ class TransactionIngester:
         if not amount.is_finite():
             raise InvalidTransactionError(
                 transaction,
-                "Fee amount must be a finite number",
+                "Fee amount must be a finite number.",
             )
         if amount > 0:
             raise InvalidTransactionError(
                 transaction,
                 "Fee amount must not be positive: a positive fee would reduce "
-                "the pooled cost",
+                "the pooled cost.",
             )
         transaction.fees = -amount
         transaction.quantity = Decimal(0)
@@ -1614,7 +1665,10 @@ class TransactionIngester:
                 LOGGER.warning("Ignoring unsupported action: %s", transaction.action)
             else:
                 raise InvalidTransactionError(
-                    transaction, f"Action not processed({transaction.action})"
+                    transaction,
+                    f"cgt-calc does not process {transaction.action.name} rows. "
+                    "In a RAW file, use one of the actions listed at "
+                    "https://cgt-calc.uk/brokers/raw/#actions-to-use",
                 )
             if not transaction.affects_cash_balance:
                 # The shares are pooled here, but the money moves on a row of
@@ -1643,8 +1697,10 @@ class TransactionIngester:
                         f"... {omitted} earlier transaction(s) omitted ...",
                         *entries[-BALANCE_CHECK_CONTEXT_ROWS:],
                     ]
-                msg = f"Reached a negative balance({new_balance})"
-                msg += f" for broker {transaction.broker} ({transaction.currency})"
+                msg = (
+                    f"Reached a negative balance of {new_balance} "
+                    f"{transaction.currency} for broker {transaction.broker}"
+                )
                 # The row that raises is the day's last, which is often not the
                 # row that spent the money, so the day is what to name here.
                 msg += f" at the end of {transaction.date}"

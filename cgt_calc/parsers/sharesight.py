@@ -512,7 +512,7 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
                 # Stock activity that is not a grant is weird and unsupported
                 if action != ActionType.BUY:
                     raise InvalidTransactionError(
-                        transaction, "Stock activity must have Type=Buy"
+                        transaction, "Stock activity must have Type=Buy."
                     )
 
                 transaction.action = ActionType.STOCK_ACTIVITY

@@ -2531,7 +2531,7 @@ def test_a_reorganised_holding_s_rename_day_is_still_read_row_by_row() -> None:
     The later purchase stays under OLD, so selling 25 NEW exceeds the 20
     shares carried across by the rename.
     """
-    with pytest.raises(InvalidTransactionError, match=r"available balance\(20\.0*\)"):
+    with pytest.raises(InvalidTransactionError, match=r"the holding is 20\."):
         run(
             [
                 trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
