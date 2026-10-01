@@ -18,6 +18,7 @@ import pytest
 
 from cgt_calc.const import (
     BALANCE_CHECK_CONTEXT_ROWS,
+    DIVIDEND_ALLOWANCES,
     PRE_POOLING_REFUSED_ACTIONS,
     RENAME_DESCRIPTION_PREFIX,
 )
@@ -565,7 +566,9 @@ def test_basic(
     assert round_decimal(report.total_dividends_amount(), 2) == round_decimal(
         Decimal(expected_dividend), 2
     )
-    assert round_decimal(report.total_dividend_taxable_gain(), 2) == round_decimal(
+    taxable_dividends = report.taxable_dividends()
+    assert taxable_dividends is not None
+    assert round_decimal(taxable_dividends, 2) == round_decimal(
         Decimal(expected_dividend_gain), 2
     )
     if calculation_log is not None:
@@ -3136,6 +3139,61 @@ def test_a_negative_share_price_is_refused(
         r"positive number\.",
     ):
         get_report(calculator, transactions)
+
+
+TAX_CREDIT_NOTE = (
+    "Most dividends before 6 April 2016 carried a tax credit, so cgt-calc does not "
+    "work out the taxable amount. Use your dividend vouchers and HMRC's guidance on "
+    "tax credits."
+)
+
+
+@pytest.mark.parametrize(
+    ("tax_year", "with_dividends", "taxable_shown", "note_shown"),
+    [
+        pytest.param(2015, True, False, True, id="last year with a tax credit"),
+        pytest.param(2015, False, False, False, id="tax credit year, no dividends"),
+        pytest.param(2016, True, True, False, id="first year with an allowance"),
+        pytest.param(
+            max(DIVIDEND_ALLOWANCES) + 1,
+            True,
+            False,
+            False,
+            id="new year before its allowance is added",
+        ),
+    ],
+)
+def test_taxable_dividends_are_stated_only_beside_a_known_allowance(
+    tax_year: int, *, with_dividends: bool, taxable_shown: bool, note_shown: bool
+) -> None:
+    """A taxable dividend figure needs that year's allowance.
+
+    Before 2016/17 there was none, and most dividends carried a tax credit, so
+    the report says so instead, when it has dividends to say it about. A new
+    year whose allowance is not recorded yet gets no figure either, even with
+    treaty relief to deduct.
+    """
+    us_isin = Isin("US9220427424")
+    day = datetime.date(tax_year, 6, 1)
+    calculator = create_calculator(tax_year=tax_year, balance_check=False)
+    dividend = [
+        transaction(
+            day, ActionType.DIVIDEND, "BAR", None, None, 0, 100, GBP, isin=us_isin
+        ),
+        transaction(
+            day, ActionType.DIVIDEND_TAX, "BAR", None, None, 0, -15, GBP, isin=us_isin
+        ),
+    ]
+    sale = [
+        _gbp_trade(day, ActionType.BUY, "FOO", 10, 100),
+        _gbp_trade(day + datetime.timedelta(days=1), ActionType.SELL, "FOO", 10, 120),
+    ]
+    transactions = dividend if with_dividends else sale
+
+    text = str(get_report(calculator, transactions))
+
+    assert ("Taxable proceeds" in text) is taxable_shown
+    assert (TAX_CREDIT_NOTE in text) is note_shown
 
 
 def test_acquisitions_before_2010_join_the_pool() -> None:

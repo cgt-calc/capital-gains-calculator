@@ -25,6 +25,7 @@ from .const import (
     DEFAULT_ISIN_TRANSLATION_FILE,
     DEFAULT_REPORT_PATH,
     DEFAULT_SPIN_OFF_FILE,
+    EARLIEST_TAX_YEAR,
 )
 from .dates import get_tax_year_end, get_tax_year_for_date, get_tax_year_start
 from .parsers.broker_registry import BrokerRegistry
@@ -317,6 +318,11 @@ def resolve_reporting_period(
     if args.period_from > args.period_to:
         parser.error("--from must not be after --to")
     tax_year = get_tax_year_for_date(args.period_from)
+    if tax_year < EARLIEST_TAX_YEAR:
+        parser.error(
+            f"--from must not be before {get_tax_year_start(EARLIEST_TAX_YEAR)}, "
+            "the start of the earliest tax year cgt-calc supports"
+        )
     if tax_year != get_tax_year_for_date(args.period_to):
         parser.error(
             "--from and --to must be within the same UK tax year, "

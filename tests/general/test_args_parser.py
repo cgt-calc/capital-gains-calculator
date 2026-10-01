@@ -834,6 +834,22 @@ def test_resolve_period_rejects_invalid_combinations(argv: list[str]) -> None:
     assert exc_info.value.code == 2
 
 
+def test_resolve_period_rejects_a_period_before_the_earliest_tax_year(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A period before 2008/09 is refused, like --year before it."""
+    parser = create_parser()
+    args = parser.parse_args(["--from", "2007-04-06", "--to", "2008-04-05"])
+
+    with pytest.raises(SystemExit):
+        resolve_reporting_period(parser, args)
+
+    assert (
+        "--from must not be before 2008-04-06, the start of the earliest tax year "
+        "cgt-calc supports"
+    ) in capsys.readouterr().err
+
+
 def test_from_rejects_invalid_date() -> None:
     """Test that malformed dates are rejected at parse time."""
     parser = create_parser()

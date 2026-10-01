@@ -260,8 +260,15 @@ Amounts are rounded to the nearest penny individually, so a line may differ from
 \subsubsection*{   (including £\VAR{ view.income_summary.eri_dividends|money } from excess reported income distributions)}
 \BLOCK{ endif }
 \subsection*{Total amount of dividends tax allowance due to double taxation treaties: £\VAR{ view.income_summary.treaty_allowance|money }}
+\BLOCK{ if view.income_summary.dividend_allowance is not none }
 \subsection*{Total amount of dividends tax yearly allowance: £\VAR{ view.income_summary.dividend_allowance|money }}
+\BLOCK{ endif }
+\BLOCK{ if view.income_summary.taxable_dividends is not none }
 \subsection*{Total amount of taxable dividends proceeds: £\VAR{ view.income_summary.taxable_dividends|money }}
+\BLOCK{ endif }
+\BLOCK{ if view.income_summary.explains_dividend_tax_credit }
+Most dividends before 6 April 2016 carried a tax credit, so cgt-calc does not work out the taxable amount. Use your dividend vouchers and HMRC's guidance on tax credits.
+\BLOCK{ endif }
 \subsection*{Total amount of UK interests proceeds: £\VAR{ view.income_summary.uk_interest|money }}
 \subsection*{Total amount of foreign interests proceeds: £\VAR{ view.income_summary.foreign_interest|money }}
 \BLOCK{ if view.income_summary.eri_interest is not none }

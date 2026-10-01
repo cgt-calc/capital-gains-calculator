@@ -197,6 +197,30 @@ def _fee_and_income() -> CapitalGainsReport:
     )
 
 
+def _dividend_before_the_allowance() -> CapitalGainsReport:
+    """Receive a dividend with treaty relief in 2012/13, before the dividend allowance."""
+    day = datetime.date(2012, 6, 1)
+    return get_report(
+        create_calculator(tax_year=2012, balance_check=False),
+        [
+            transaction(
+                day, ActionType.DIVIDEND, "BAR", None, None, 0, 100, GBP, isin=US_ISIN
+            ),
+            transaction(
+                day,
+                ActionType.DIVIDEND_TAX,
+                "BAR",
+                None,
+                None,
+                0,
+                -15,
+                GBP,
+                isin=US_ISIN,
+            ),
+        ],
+    )
+
+
 # Each scenario with the template branches it is there to pin: a phrase per
 # branch, so a scenario that stops reaching one fails loudly rather than
 # pinning a page that no longer says it.
@@ -251,6 +275,10 @@ SCENARIOS: dict[str, tuple[Callable[[], CapitalGainsReport], list[str]]] = {
             "Interest tax UK 1",
             "tax treaty amount",
         ],
+    ),
+    "dividend_before_the_allowance": (
+        _dividend_before_the_allowance,
+        ["carried a tax credit"],
     ),
 }
 
