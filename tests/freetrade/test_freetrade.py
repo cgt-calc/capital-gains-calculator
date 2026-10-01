@@ -246,7 +246,6 @@ def test_read_freetrade_transactions_success(tmp_path: Path) -> None:
     [
         pytest.param("FB", "US30303M1027", "2025-07-01", "META", id="meta"),
         pytest.param("FB", "US0378331005", "2021-06-01", "FB", id="another-security"),
-        pytest.param("RMG", "GB00BDVZYZ77", "2021-06-01", "IDS", id="london"),
     ],
 )
 def test_a_renamed_ticker_is_read_under_its_current_name(

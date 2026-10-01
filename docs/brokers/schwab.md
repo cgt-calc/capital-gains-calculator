@@ -133,8 +133,9 @@ For `Reinvest Dividend`, check the Schwab statement and the finished report. Con
 dividend income and reinvested purchase were recorded by other rows; do not assume the ignored row
 duplicates them.
 
-cgt-calc changes Schwab's old `FB` ticker to `META`, so transactions under both names share one
-holding in the report.
+cgt-calc reads Meta's old `FB` ticker as `META`, so transactions under both names share one holding
+in the report. A row under `FB` dated from 26 June 2025 is left as `FB`: another security has traded
+under that ticker since then.
 
 An unknown action stops the import. Do not delete a financial transaction simply to make the run
 finish; identify what happened and check [Known limitations](#known-limitations) first.
