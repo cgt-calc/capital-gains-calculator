@@ -117,6 +117,8 @@ class SharePrices:
                 lines = list(csv.reader(csv_file))
         lines = lines[1:]
         file = self.prices_file or Path("resources") / SHARE_PRICES_RESOURCE
+        # The ticker each price was written under, to name an earlier one.
+        stated: dict[tuple[datetime.date, str], str] = {}
         for index, row in enumerate(lines, start=2):
             try:
                 entry = SharePricesEntry(row, file)
@@ -129,13 +131,20 @@ class SharePrices:
             symbol = TICKER_RENAMES.get(entry.symbol, entry.symbol)
             known = by_symbol.get(symbol)
             if known is not None and known != entry.price:
+                earlier = {stated[entry.date, symbol], entry.symbol} - {symbol}
+                why = (
+                    f" {earlier.pop()} is an earlier ticker of {symbol}, so both "
+                    "rows price the same security."
+                    if earlier
+                    else ""
+                )
                 raise ParsingError(
                     file,
                     f"Two rows price {symbol} on {entry.date}, at {known} and "
-                    f"{entry.price}. A price under an earlier ticker, such as FB "
-                    "for META, is the same security's. Keep the right price and "
-                    "remove the other row.",
+                    f"{entry.price}.{why} Keep the right price and remove the "
+                    "other row.",
                     row_index=index,
                 )
             by_symbol[symbol] = entry.price
+            stated[entry.date, symbol] = entry.symbol
         return prices
