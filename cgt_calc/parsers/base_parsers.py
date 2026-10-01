@@ -20,6 +20,7 @@ from cgt_calc.args_validators import (
     existing_file_or_stdin_type,
     set_completer,
 )
+from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.logging import parsing_msg
 from cgt_calc.model import BrokerTransaction, TransactionSource
@@ -40,6 +41,25 @@ def read_input(file_path: Path, encoding: str) -> str:
         return sys.stdin.read()
     with file_path.open(encoding=encoding) as file:
         return file.read()
+
+
+def use_current_tickers(transactions: Iterable[BrokerTransaction]) -> None:
+    """Name each holding by its current ticker, from the built-in rename table.
+
+    The shared loader runs this on every file it reads, so that a holding
+    bought under an old ticker and sold under the new one is one holding
+    whichever broker exported it, without each parser mapping the ticker
+    itself. Schwab also runs it as it reads its rows, because it compares
+    tickers before the shared loader gets to them; a second run changes
+    nothing. Parsers still consult the table themselves for a ticker they
+    need while reading, to key a table of their own, and for one held
+    outside ``symbol``, such as an option's underlying.
+    """
+    for transaction in transactions:
+        if transaction.symbol is not None:
+            transaction.symbol = TICKER_RENAMES.get(
+                transaction.symbol, transaction.symbol
+            )
 
 
 def next_account_token(name: str) -> str:
@@ -185,6 +205,7 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
         if show_parsing_msg:
             parsing_msg("stdin" if file_path == STDIN_PATH else file_path)
         transactions = cls.read_transactions(file, file_path)
+        use_current_tickers(transactions)
         if not transactions and warn_on_empty:
             LOGGER.warning("No transactions detected in file %s", file_path)
         cls.stamp_source(transactions, file_path, boundary)

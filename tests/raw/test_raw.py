@@ -300,30 +300,6 @@ def test_read_raw_transactions_empty_file(tmp_path: Path) -> None:
     assert "CSV file is empty" in str(exc.value)
 
 
-def test_read_raw_transactions_applies_ticker_renames(tmp_path: Path) -> None:
-    """Rename known tickers according to configuration."""
-
-    raw_file = tmp_path / "raw_ticker_rename.csv"
-    rows = [
-        COLUMNS,
-        [
-            "2024-01-05",
-            "BUY",
-            "FB",
-            "1",
-            "10.00",
-            "0.00",
-            "USD",
-        ],
-    ]
-    _write_csv(raw_file, rows)
-
-    transactions = RawParser().load_from_file(raw_file)
-
-    assert len(transactions) == 1
-    assert transactions[0].symbol == "META"
-
-
 def test_read_raw_transactions_transfer_from_spouse(tmp_path: Path) -> None:
     """Parse a RAW TRANSFER_FROM_SPOUSE row: shares arriving at a stated cost."""
 

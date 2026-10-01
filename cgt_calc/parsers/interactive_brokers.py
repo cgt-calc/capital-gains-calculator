@@ -9,7 +9,6 @@ from itertools import chain
 import re
 from typing import TYPE_CHECKING, ClassVar, Final, override
 
-from cgt_calc.const import TICKER_RENAMES
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
 from cgt_calc.util import parse_decimal
@@ -146,9 +145,6 @@ class InteractiveBrokersTransaction(BrokerTransaction):
             row[InteractiveBrokersColumn.TRANSACTION_TYPE], file_path
         )
         symbol = _parse_str(row, InteractiveBrokersColumn.SYMBOL)
-
-        if symbol is not None:
-            symbol = TICKER_RENAMES.get(symbol, symbol)
         quantity = _parse_decimal(row, InteractiveBrokersColumn.QUANTITY)
         price = _parse_decimal(row, InteractiveBrokersColumn.PRICE)
         amount = _parse_decimal(row, InteractiveBrokersColumn.NET_AMOUNT)

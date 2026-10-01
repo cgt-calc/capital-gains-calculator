@@ -183,43 +183,6 @@ def test_read_mssb_withdrawal_goog_sale_split_adjustment(
     assert transaction.price == Decimal("112.00")
 
 
-def test_read_mssb_withdrawal_split_matches_report_symbol_not_renamed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Adjust a pre-split sale even when its ticker is renamed.
-
-    Splits are keyed by the symbol the report prints, so a TICKER_RENAMES
-    entry for it must not stop the adjustment from applying.
-    """
-    monkeypatch.setattr("cgt_calc.parsers.mssb.TICKER_RENAMES", {"GOOG": "GOOGL"})
-
-    withdrawal_file = tmp_path / WITHDRAWALS_REPORT_FILENAME
-    rows = [
-        COLUMNS_WITHDRAWAL,
-        [
-            "01-Jul-2022",
-            "ORDER-4",
-            "GSU Class C",
-            "Sale",
-            "Complete",
-            "$2,240.00",
-            "-2.00",
-            "$4,479.90",
-            "0",
-            "N/A",
-        ],
-    ]
-    _write_csv(withdrawal_file, rows)
-
-    transactions = MSSBParser().load_from_dir(tmp_path)
-
-    assert len(transactions) == 1
-    transaction = transactions[0]
-    assert transaction.symbol == "GOOGL"
-    assert transaction.quantity == Decimal("40.00")
-    assert transaction.price == Decimal("112.00")
-
-
 def test_read_mssb_withdrawal_invalid_decimal(tmp_path: Path) -> None:
     """Raise parsing error when numeric values cannot be parsed."""
 

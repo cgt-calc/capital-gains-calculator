@@ -53,7 +53,12 @@ from cgt_calc.parsers.schwab_options import (
 )
 from cgt_calc.util import parse_decimal
 
-from .base_parsers import BaseSingleFileParser, next_account_token, read_input
+from .base_parsers import (
+    BaseSingleFileParser,
+    next_account_token,
+    read_input,
+    use_current_tickers,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -308,8 +313,6 @@ class SchwabTransaction(BrokerTransaction):
                     f"Schwab action '{self.raw_action}'",
                 )
             symbol = str(option_contract)
-        elif symbol is not None:
-            symbol = TICKER_RENAMES.get(symbol, symbol)
         description = row_dict[RequiredTransactionsColumn.DESCRIPTION.value]
         if (
             action == ActionType.DIVIDEND_TAX
@@ -920,7 +923,8 @@ def _reject_split_of_a_lapse_priced_symbol(
     for transaction in transactions:
         if transaction.action is not ActionType.STOCK_SPLIT or not transaction.symbol:
             continue
-        symbol = TICKER_RENAMES.get(transaction.symbol, transaction.symbol)
+        # Already the current ticker: the shared rename step has run.
+        symbol = transaction.symbol
         first_priced = awards_prices.lapse_priced_from.get(symbol)
         if first_priced is None or transaction.date < first_priced:
             continue
@@ -1327,4 +1331,8 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
 
             transaction.source = TransactionSource(row=index)
             transactions.append(transaction)
+        # Cancel Buy matching compares tickers before the shared loader's
+        # rename step runs, and the directory path does not reach that step
+        # at all, so the rows take their current ticker here.
+        use_current_tickers(transactions)
         return transactions

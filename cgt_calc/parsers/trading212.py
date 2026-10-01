@@ -14,7 +14,7 @@ import math
 from pathlib import Path
 from typing import ClassVar, Final, NoReturn, TextIO, override
 
-from cgt_calc.const import TICKER_RENAMES, UK_TIMEZONE
+from cgt_calc.const import UK_TIMEZONE
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import (
     ActionType,
@@ -345,8 +345,6 @@ class Trading212Transaction(BrokerTransaction):
         action = action_from_str(self.raw_action, file)
 
         symbol = row[Trading212Column.TICKER] or None
-        if symbol is not None:
-            symbol = TICKER_RENAMES.get(symbol, symbol)
         description = row[Trading212Column.NAME]
 
         quantity = decimal_or_none(row, Trading212Column.NO_OF_SHARES)
