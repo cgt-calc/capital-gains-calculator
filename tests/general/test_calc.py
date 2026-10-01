@@ -9,6 +9,7 @@ from enum import Enum
 import itertools
 import logging
 from pathlib import Path
+import re
 import subprocess
 import sys
 from typing import TYPE_CHECKING
@@ -451,6 +452,41 @@ def test_zero_management_fee_is_accepted() -> None:
     )
 
     create_calculator(tax_year=2024, balance_check=False).prepare_history([fee])
+
+
+@pytest.mark.parametrize(
+    ("action", "amount", "message"),
+    [
+        (
+            ActionType.BUY,
+            -60,
+            "The calculated amount -51 differs from the supplied amount -60.",
+        ),
+        (
+            ActionType.SELL,
+            60,
+            "The calculated amount 49 differs from the supplied amount 60.",
+        ),
+    ],
+)
+def test_an_amount_that_disagrees_with_quantity_and_price_is_refused(
+    action: ActionType, amount: int, message: str
+) -> None:
+    """A trade's amount has to agree with its quantity, price and fees.
+
+    To within rounding, a purchase costs quantity times price plus fees and a
+    sale receives quantity times price minus fees. Ten shares at 5 with a fee
+    of 1 come to 51 paid or 49 received, so an amount of 60 means one of the
+    figures is wrong, and the calculator cannot tell which.
+    """
+    date = datetime.date(2024, 5, 10)
+    history = [transaction(date, action, "FOO", 10, 5, 1, amount, currency=GBP)]
+    if action is ActionType.SELL:
+        # A sale needs shares to sell, or selling shares not held is refused first.
+        history.insert(0, transaction(date, ActionType.BUY, "FOO", 10, 5, 0, -50, GBP))
+
+    with pytest.raises(InvalidTransactionError, match=re.escape(message)):
+        create_calculator(tax_year=2024, balance_check=False).prepare_history(history)
 
 
 @pytest.mark.parametrize(
