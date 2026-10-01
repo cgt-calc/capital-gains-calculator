@@ -108,8 +108,10 @@ def test_a_price_csv_whose_rows_do_not_pair_is_refused(tmp_path: Path) -> None:
     with pytest.raises(
         ParsingError,
         match=r"This file has 1 row after its header, an odd number\. The "
-        r"award-price CSV states each activity on two rows, the second continuing "
-        r"the first, so a row is missing or one is extra\.",
+        r"award-price CSV layout cgt-calc supports stores each activity across "
+        r"two rows, the second continuing the first, so a row is missing or "
+        r"extra, or the file is in a layout cgt-calc does not support\. Export "
+        r"the file from Schwab again and pass it unchanged\.",
     ):
         load_via_cli(schwab_award_file=str(award_file))
 

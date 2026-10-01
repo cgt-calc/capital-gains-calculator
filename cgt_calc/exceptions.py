@@ -233,8 +233,10 @@ class UnexpectedRowCountError(ParsingError):
         super().__init__(
             file,
             f"This file has {count} {rows} after its header, an odd number. The "
-            "award-price CSV states each activity on two rows, the second "
-            "continuing the first, so a row is missing or one is extra.",
+            "award-price CSV layout cgt-calc supports stores each activity across "
+            "two rows, the second continuing the first, so a row is missing or "
+            "extra, or the file is in a layout cgt-calc does not support. Export "
+            "the file from Schwab again and pass it unchanged.",
         )
 
 
