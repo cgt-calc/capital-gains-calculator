@@ -225,11 +225,17 @@ class UnexpectedColumnCountError(ParsingError):
 
 
 class UnexpectedRowCountError(ParsingError):
-    """Unexpected row error."""
+    """An award-price CSV whose rows do not come in pairs."""
 
     def __init__(self, count: int, file: Path):
-        """Initialise."""
-        super().__init__(file, f"The following file doesn't have {count} rows:")
+        """Initialise with the number of rows found after the header."""
+        rows = "row" if count == 1 else "rows"
+        super().__init__(
+            file,
+            f"This file has {count} {rows} after its header, an odd number. The "
+            "award-price CSV states each activity on two rows, the second "
+            "continuing the first, so a row is missing or one is extra.",
+        )
 
 
 class CalculatedAmountDiscrepancyError(InvalidTransactionError):

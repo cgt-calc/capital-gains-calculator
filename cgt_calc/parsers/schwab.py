@@ -822,11 +822,8 @@ def _award_prices_from_lines(
     # Remove header
     lines = lines[1:]
 
-    modulo = len(lines) % 2
-    if modulo != 0:
-        raise UnexpectedRowCountError(
-            len(lines) - modulo + 2, schwab_award_transactions_file
-        )
+    if len(lines) % 2:
+        raise UnexpectedRowCountError(len(lines), schwab_award_transactions_file)
 
     for offset in range(0, len(lines), 2):
         upper_row = lines[offset]

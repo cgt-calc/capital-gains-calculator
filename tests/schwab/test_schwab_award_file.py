@@ -94,6 +94,26 @@ def test_a_price_csv_supplies_prices_and_imports_nothing(tmp_path: Path) -> None
     assert SchwabParser.awards_prices
 
 
+def test_a_price_csv_whose_rows_do_not_pair_is_refused(tmp_path: Path) -> None:
+    """Each activity takes two rows, so an odd count leaves one without its other half.
+
+    The message states the count found: it used to state one more and end on a
+    colon with nothing after it. The fixture is one vest, so dropping its last
+    line leaves a single row.
+    """
+    lines = PRICE_CSV.read_text(encoding="utf-8").splitlines(keepends=True)
+    award_file = tmp_path / "awards.csv"
+    award_file.write_text("".join(lines[:-1]), encoding="utf-8")
+
+    with pytest.raises(
+        ParsingError,
+        match=r"This file has 1 row after its header, an odd number\. The "
+        r"award-price CSV states each activity on two rows, the second continuing "
+        r"the first, so a row is missing or one is extra\.",
+    ):
+        load_via_cli(schwab_award_file=str(award_file))
+
+
 def test_both_award_options_together_are_refused() -> None:
     """A price file beside a complete export is no longer a route.
 
