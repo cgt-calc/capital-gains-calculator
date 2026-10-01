@@ -457,15 +457,17 @@ def test_zero_management_fee_is_accepted() -> None:
 @pytest.mark.parametrize(
     ("action", "amount", "message"),
     [
-        (
+        pytest.param(
             ActionType.BUY,
             -60,
             "The calculated amount -51 differs from the supplied amount -60.",
+            id="purchase",
         ),
-        (
+        pytest.param(
             ActionType.SELL,
             60,
             "The calculated amount 49 differs from the supplied amount 60.",
+            id="sale",
         ),
     ],
 )
