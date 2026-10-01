@@ -149,11 +149,20 @@ calculation could create a purchase that never happened.
 ### Dates containing `as of`
 
 Schwab can show a date such as `08/18/2023 as of 08/15/2023`. cgt-calc uses the first date,
-`08/18/2023`, for the transaction. An Equity Awards export, CSV or JSON, can supply a market price
-from the earlier date, but it does not change the transaction date.
+`08/18/2023`, for the transaction.
 
-That choice affects the tax year and the same-day and 30-day matching rules. Check any such row
-carefully when the two dates cross 5 April or another purchase or disposal falls between them.
+A vest is the exception. Schwab posts the shares a few days after they vest, and the main CSV may
+show only that posting date. You acquire the shares when you become entitled to them, at the vest,
+not when they are transferred to your brokerage account
+([ERSM20420](https://www.gov.uk/hmrc-internal-manuals/employment-related-securities/ersm20420)). So
+when cgt-calc prices a `Stock Plan Activity` row from your [award file](#price-only-export), it also
+takes the vest date from that award, whichever date the main CSV shows. A vest posted on 18 August
+from shares that vested on 15 August is dated 15 August, and a sale on 18 August is matched to your
+pool rather than to that vest.
+
+The date affects the tax year, the exchange rate and the same-day and 30-day matching rules. Check
+any such row carefully when the two dates cross 5 April or another purchase or disposal falls
+between them.
 
 ### Bonds and Treasury securities
 
@@ -318,8 +327,9 @@ and ignores the cash rows.
 #### What cgt-calc does not check
 
 Nothing verifies that the two files come from linked accounts, that either is complete, or that the
-quantities agree. The price lookup takes the nearest award date at or before the activity date,
-within six days. Finding a price that way is not evidence that the two rows describe the same vest.
+quantities agree. The lookup takes the nearest award date at or before the activity date, within six
+days, and uses that award's price and date for the vest. Finding an award that way is not evidence
+that the two rows describe the same vest.
 
 A split cgt-calc has not been told about, and that your main history does not record, cannot be
 detected at all. A price and a quantity in different units produce a wrong acquisition cost rather

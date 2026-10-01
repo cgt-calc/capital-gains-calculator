@@ -86,6 +86,7 @@ dprint
 DWS
 env
 ERI
+ERSM20420
 ESPP
 etc
 ETCs
@@ -114,6 +115,7 @@ Hmrc
 ICAV
 I/O
 IBKR
+ITEPA
 IBKR's
 idx
 IndexError
@@ -222,6 +224,7 @@ s257
 s272
 s286
 s38
+s421B
 s58
 SA106
 SalePrice

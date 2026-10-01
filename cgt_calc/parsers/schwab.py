@@ -117,7 +117,7 @@ class AwardPrices:
         return bool(self.award_prices)
 
     def get(self, date: datetime.date, symbol: str) -> tuple[datetime.date, Decimal]:
-        """Get initial stock price at given date."""
+        """Return the award's own date and price for a vest posted on `date`."""
         # Award dates may go back a few days, depending on
         # holidays or weekends, so we do a linear search
         # in the past to find the award price
@@ -357,12 +357,14 @@ class SchwabTransaction(BrokerTransaction):
             symbol = transaction.symbol
             if symbol is None:
                 raise SymbolMissingError(transaction)
-            # The Schwab transaction list sometimes contains an incorrect date
-            # for awards which doesn't match the PDF statements.
-            # We want to make sure to match date and price from the awards
-            # spreadsheet.
+            # The transaction list dates a vest by when Schwab posted it, a few
+            # days after the vest itself. The shares are acquired at the vest,
+            # when the employee becomes entitled to them (ITEPA 2003
+            # s421B(2)(a)), and the award file's price is the market value on
+            # that day, so the date is taken from the award file along with
+            # the price.
             try:
-                _vest_date, transaction.price = awards_prices.get(
+                transaction.date, transaction.price = awards_prices.get(
                     transaction.date, symbol
                 )
             except KeyError as err:
