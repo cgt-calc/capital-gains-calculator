@@ -188,7 +188,7 @@ class IncomeSummaryView:
     treaty_allowance: Decimal
     dividend_allowance: Decimal | None
     taxable_dividends: Decimal | None
-    dividends_carry_tax_credit: bool
+    explains_dividend_tax_credit: bool
     uk_interest: Decimal
     foreign_interest: Decimal
     interest_tax: Decimal
@@ -590,7 +590,7 @@ def build_report_view(report: CapitalGainsReport) -> ReportView:
                 if taxable_dividends is not None
                 else None
             ),
-            dividends_carry_tax_credit=report.dividends_carry_tax_credit,
+            explains_dividend_tax_credit=report.explains_dividend_tax_credit(),
             uk_interest=report.total_uk_interest,
             foreign_interest=report.total_foreign_interest,
             eri_interest=(round_decimal(eri_interest, 2) if eri_interest > 0 else None),

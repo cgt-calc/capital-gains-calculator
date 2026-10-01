@@ -905,16 +905,16 @@ class CapitalGainsReport:
         """
         if self.dividends_carry_tax_credit or self.dividend_allowance is None:
             return None
-        return self.total_dividend_taxable_gain()
-
-    def total_dividend_taxable_gain(self) -> Decimal:
-        """Total taxable gain after all allowances."""
         return max(
             Decimal(0),
             self.total_dividends_amount()
-            - (self.dividend_allowance or Decimal(0))
+            - self.dividend_allowance
             - self.total_dividend_taxes_in_tax_treaties_amount(),
         )
+
+    def explains_dividend_tax_credit(self) -> bool:
+        """Whether the report has dividends from a year when they carried a credit."""
+        return self.dividends_carry_tax_credit and self.total_dividends_amount() != 0
 
     @override
     def __repr__(self) -> str:
