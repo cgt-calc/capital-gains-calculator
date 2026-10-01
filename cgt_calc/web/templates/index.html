@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% macro reused(field) %}
+  {% if field.dest in reuse %}
+  <div class="reuse">
+    <span>Reusing <strong>{{ reuse[field.dest] | join(", ") }}</strong>. Choose a file to replace it.</span>
+    <label class="check small">
+      <input type="checkbox" name="drop.{{ field.dest }}" {% if field.dest in dropped %}checked{% endif %}>
+      Don't use
+    </label>
+  </div>
+  {% endif %}
+{% endmacro %}
+
+{% macro control(field) %}
+  {% if field.kind == kinds.FILE %}
+  <input id="f-{{ field.dest }}" type="file" name="{{ field.dest }}">
+  {% elif field.kind == kinds.FILES %}
+  <input id="f-{{ field.dest }}" type="file" name="{{ field.dest }}" multiple>
+  {% elif field.kind == kinds.DATE %}
+  <input id="f-{{ field.dest }}" type="date" name="{{ field.dest }}" value="{{ text.get(field.dest, '') }}">
+  {% elif field.kind == kinds.YEAR %}
+  <input id="f-{{ field.dest }}" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4"
+         name="{{ field.dest }}" placeholder="{{ field.metavar }}" value="{{ text.get(field.dest, '') }}">
+  {% else %}
+  <input id="f-{{ field.dest }}" type="text" name="{{ field.dest }}"
+         placeholder="{{ field.metavar or '' }}" value="{{ text.get(field.dest, '') }}">
+  {% endif %}
+{% endmacro %}
+
+{% block content %}
+{% if source %}
+<h1>Run again</h1>
+<p class="lede">
+  The files from <a href="/runs/{{ source.id }}">the earlier run</a> are reused, so change the
+  options and press Calculate. To use a different file for an input, choose it in that field.
+</p>
+{% else %}
+<h1>Calculate capital gains</h1>
+<p class="lede">
+  Upload your broker exports, choose options and get the report. The calculation is the same as
+  running <code>cgt-calc</code> in a terminal. Finished runs are kept for {{ ttl_minutes }} minutes
+  so you can download them, or delete them earlier from their page.
+</p>
+{% endif %}
+
+{% if error %}
+<p class="notice error" role="alert">{{ error }}</p>
+{% endif %}
+
+<form id="options" method="post" action="/runs" enctype="multipart/form-data">
+  {% if source %}<input type="hidden" name="from_run" value="{{ source.id }}">{% endif %}
+  {% for section in sections %}
+  <fieldset class="card">
+    <legend>{{ section.title }}</legend>
+    <div class="fields">
+      {% for field in section.fields %}
+      {% if field.kind == kinds.FLAG or field.kind == kinds.OUTPUT_FILE %}
+      <div class="field flag">
+        <label class="check">
+          <input type="checkbox" name="{{ field.dest }}" {% if field.dest in checked %}checked{% endif %}>
+          <code>{{ field.flag }}</code>
+        </label>
+        <p class="help">{{ field.help }}</p>
+      </div>
+      {% else %}
+      <div class="field{% if field.dest in reuse and field.dest not in dropped %} has-file{% endif %}"
+           {% if field.dest in reuse %}data-reused="true"{% endif %}>
+        <label for="f-{{ field.dest }}"><code>{{ field.flag }}</code> <span class="count"></span></label>
+        {{ reused(field) }}
+        {{ control(field) }}
+        <p class="help">{{ field.help }}</p>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </fieldset>
+  {% endfor %}
+  <div class="actions">
+    <button type="submit">Calculate</button>
+  </div>
+</form>
+
+{% if runs %}
+<h2>Earlier runs</h2>
+<ul class="runs">
+  {% for run in runs %}
+  <li>
+    <span class="status {{ run.status.value }}">{{ run.status.value }}</span>
+    <a href="/runs/{{ run.id }}"><code>{{ run.command.display }}</code></a>
+    <a class="again" href="/runs/{{ run.id }}/rerun">run again</a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/form.js?v={{ version }}"></script>{% endblock %}

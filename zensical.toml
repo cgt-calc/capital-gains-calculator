@@ -15,6 +15,7 @@ nav = [
       { "Installation" = "installation.md" },
       { "Generate a report" = "usage.md" },
       { "Docker" = "docker.md" },
+      { "Web interface" = "web-ui.md" },
     ] },
     { "Privacy & disclaimer" = "privacy.md" },
   ] },
