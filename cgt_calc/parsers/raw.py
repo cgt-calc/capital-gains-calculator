@@ -124,7 +124,7 @@ class RawTransaction(BrokerTransaction):
         # a person types the value.
         if fees < 0:
             raise ValueError(
-                "Fees cannot be negative: enter the fees you paid as a positive number."
+                "Fees cannot be negative. Enter the fees you paid as a positive number."
             )
 
         if price is not None and quantity is not None:

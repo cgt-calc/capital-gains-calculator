@@ -302,7 +302,7 @@ def test_read_raw_transactions_negative_fees(tmp_path: Path) -> None:
 
     message = str(exc.value)
     assert "row 2" in message
-    assert "Fees cannot be negative: enter the fees you paid as a positive number." in (
+    assert "Fees cannot be negative. Enter the fees you paid as a positive number." in (
         message
     )
 
