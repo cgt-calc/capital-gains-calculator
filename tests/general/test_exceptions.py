@@ -122,7 +122,7 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
         UnexpectedColumnCountError(["only", "two"], 3, Path("f.csv")),
         ["f.csv", "3", "only", "two"],
     ),
-    (UnexpectedRowCountError(6, Path("f.csv")), ["f.csv", "6"]),
+    (UnexpectedRowCountError(5, Path("f.csv")), ["f.csv", "5"]),
     (ExchangeRateMissingError("USD", DATE), ["USD", "2023-01-01"]),
     (SharePriceMissingError("FOO", DATE), ["FOO", "2023-01-01"]),
     (BundledPriceCurrencyError("FOO", DATE, "GBP"), ["FOO", "2023-01-01", "GBP"]),
