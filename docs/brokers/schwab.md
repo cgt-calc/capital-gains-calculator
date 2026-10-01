@@ -159,8 +159,10 @@ their capital gains cost is their market value on that date
 ([HS287](https://www.gov.uk/government/publications/employee-share-and-security-schemes-and-capital-gains-tax-hs287-self-assessment-helpsheet)).
 So when cgt-calc prices a `Stock Plan Activity` row from your [award file](#price-only-export), it
 also takes the vest date from that award, whichever date the main CSV shows. A vest posted on 18
-August from shares that vested on 15 August is dated 15 August, so a sale on 18 August is matched to
-your pool, which includes those shares, instead of to the vest under the same-day rule.
+August from shares that vested on 15 August is dated 15 August, so a sale on 18 August is no longer
+matched to that vest under the same-day rule. It is matched in the usual order: other acquisitions
+on 18 August first, then those in the following 30 days, then your pool
+([CG51560](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51560)).
 
 For other rows, the date affects the tax year, the exchange rate and the same-day and 30-day
 matching rules. Check any such row carefully when the two dates cross 5 April or another purchase or
