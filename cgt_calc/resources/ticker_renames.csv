@@ -1,2 +1,7 @@
 old,new,since,until,reused,isin,company,source
 FB,META,2012-05-18,2022-06-09,2025-06-26,US30303M1027,Meta Platforms,https://www.sec.gov/Archives/edgar/data/1326801/000132680122000070/may312022-exhibit991.htm https://www.cboe.com/us/equities/notices/new_listings/details/?early_trading_ipo=false&etf=true&firm_name=ProShares&first_trade_dt=2025-06-26&ipo=true&symbols=FB%2CRB
+ZMH,ZBH,,2015-06-29,,US98956P1021,Zimmer Biomet,https://www.sec.gov/Archives/edgar/data/1136869/000119312515237276/d948441d8k.htm
+VIACA,PARAA,,2022-02-17,,US92556H1077,Paramount Global Class A,https://www.sec.gov/Archives/edgar/data/813828/000081382822000011/viac-20220216.htm
+BLL,BALL,,2022-05-10,,US0584981064,Ball Corporation,https://www.sec.gov/Archives/edgar/data/9389/000000938922000010/bll-20220427x8k.htm https://investors.ball.com/news-presentations/press-releases/detail/82/ball-board-declares-quarterly-dividend-stock-ticker-symbol-changing-to-ball
+SQ,XYZ,,2025-01-21,,US8522341036,Block,https://investors.block.xyz/investor-news/news-details/2025/Block-Announces-Ticker-Symbol-Change-to-XYZ-To-Report-Fourth-Quarter-Results/default.aspx https://www.miaxglobal.com/alert/2025/01/17/miax-exchange-group-options-markets-corporate-action-alert-block-inc-sq-1
+MMC,MRSH,,2026-01-14,,US5717481023,Marsh McLennan,https://www.marsh.com/en/corp/about/news/marsh-mclennan-to-change-nyse-symbol-to-mrsh.html https://www.miaxglobal.com/alert/2026/01/13/miax-exchange-group-options-markets-corporate-action-alert-marsh-mclennan-1

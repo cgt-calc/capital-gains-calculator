@@ -7,9 +7,24 @@ import re
 
 import pytest
 
+from cgt_calc.currency_converter import CurrencyConverter
+from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import ParsingError
+from cgt_calc.isin_converter import IsinConverter
+from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
+from cgt_calc.parsers.freetrade import (
+    COLUMNS as FREETRADE_COLUMNS,
+    FreetradeColumn,
+    FreetradeParser,
+)
 from cgt_calc.parsers.interactive_brokers import InteractiveBrokersParser
+from cgt_calc.share_prices import SharePrices
+from cgt_calc.spin_off_handler import SpinOffHandler
+from tests.freetrade.test_freetrade import (
+    _default_row as _freetrade_row,
+    _write_csv as _write_freetrade_csv,
+)
 from tests.utils import (
     assert_stdout_matches,
     build_cmd,
@@ -106,6 +121,74 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
 
         assert dividend.isin == "US9220427424"
         assert trade.isin is None
+
+    def test_a_renamed_holding_with_an_isin_on_only_some_rows_stays_one_holding(
+        self, tmp_path: Path
+    ) -> None:
+        """A rename has to reach the rows with an ISIN and those without alike.
+
+        Trades here carry no ISIN and dividends do, so a rename that reached
+        only one kind would split the holding: the purchase would stay FB,
+        the dividend and another broker's rows become META, and the sale be
+        costed without the purchase. Ten shares bought at 100 and ten at 200
+        average 150, so selling 5 for 1,500 costs 750 and gains 750.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header + "Transaction History,Data,2021-01-04,U***00000,"
+            "FACEBOOK INC,Buy,FB,10.0,100.0,-1000.0,-,-1000.0\n"
+            "Transaction History,Data,2021-03-01,U***00000,"
+            "FB(US30303M1027) Cash Dividend GBP 1.00 per Share,Dividend,FB,-,-,10.0,-,"
+            "10.0\n"
+        )
+        freetrade_file = _write_freetrade_csv(
+            tmp_path,
+            FREETRADE_COLUMNS,
+            [
+                _freetrade_row(
+                    {
+                        FreetradeColumn.TIMESTAMP.value: f"{day}T10:00:00",
+                        FreetradeColumn.TICKER.value: "FB",
+                        FreetradeColumn.ISIN.value: "US30303M1027",
+                        FreetradeColumn.BUY_SELL.value: side,
+                        FreetradeColumn.QUANTITY.value: quantity,
+                        FreetradeColumn.PRICE_PER_SHARE_ACCOUNT.value: price,
+                        FreetradeColumn.PRICE_PER_SHARE.value: price,
+                        FreetradeColumn.TOTAL_AMOUNT.value: total,
+                        FreetradeColumn.TOTAL_SHARES_AMOUNT.value: total,
+                    }
+                )
+                for day, side, quantity, price, total in [
+                    ("2021-02-01", "BUY", "10", "200", "2000"),
+                    ("2021-06-01", "SELL", "5", "300", "1500"),
+                ]
+            ],
+        )
+        transactions = sorted(
+            InteractiveBrokersParser().load_from_file(csv_file)
+            + FreetradeParser().load_from_file(freetrade_file),
+            key=lambda transaction: transaction.date,
+        )
+        converter = CurrencyConverter(None, {})
+        calculator = CapitalGainsCalculator(
+            2021,
+            converter,
+            IsinConverter(),
+            CurrentPriceFetcher(converter, {}, {}),
+            SpinOffHandler(),
+            SharePrices(),
+            interest_fund_tickers=[],
+            balance_check=False,
+        )
+
+        calculator.prepare_history(transactions)
+        report = calculator.calculate_capital_gain()
+
+        assert report.allowable_costs == Decimal(750)
+        assert report.capital_gain == Decimal(750)
+        assert [(entry.symbol, entry.quantity) for entry in report.portfolio] == [
+            ("META", Decimal(15))
+        ]
 
     def test_invalid_isin_in_the_description_is_ignored(self, tmp_path: Path) -> None:
         """A malformed code must not be passed off as an ISIN."""
