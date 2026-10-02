@@ -7,9 +7,12 @@ from copy import deepcopy
 import csv
 import datetime
 from decimal import Decimal, InvalidOperation
+from functools import cache
 from http import HTTPStatus
+from importlib import resources
 import logging
-from typing import TYPE_CHECKING, Final, TextIO, override
+from pathlib import Path
+from typing import TYPE_CHECKING, Final, override
 
 from defusedxml import ElementTree as ET
 from pyrate_limiter import limiter_factory
@@ -26,10 +29,11 @@ from .exceptions import (
     ParsingError,
 )
 from .model import CurrencyCode, ForeignCurrencyAmount
+from .resources import RESOURCES_PACKAGE
 from .util import exclusive_lock, open_with_parents
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from collections.abc import Iterable
 
     from .model import BrokerTransaction
 
@@ -39,6 +43,38 @@ EXCHANGE_RATES_HEADER: Final = ["month", "currency", "rate"]
 NEW_ENDPOINT_FROM_YEAR: Final = 2021
 # The legacy HMRC endpoint has no monthly files before this month.
 FIRST_PUBLISHED_RATES_MONTH: Final = datetime.date(2015, 2, 1)
+# HMRC's rates for the months when it also changed them during the month, which
+# no file it serves month by month shows. Each row starts on its date.
+SHIPPED_RATES_RESOURCE: Final = "hmrc_exchange_rates.csv"
+
+
+@cache
+def _shipped_rates() -> dict[CurrencyCode, dict[datetime.date, Decimal]]:
+    """Read the rates that ship with cgt-calc: for each currency, by start date."""
+    with (
+        resources.files(RESOURCES_PACKAGE)
+        .joinpath(SHIPPED_RATES_RESOURCE)
+        .open(encoding="utf8") as fin
+    ):
+        by_date = CurrencyConverter._read_exchange_rates_data(  # noqa: SLF001
+            Path("resources") / SHIPPED_RATES_RESOURCE, fin
+        )
+    rates: dict[CurrencyCode, dict[datetime.date, Decimal]] = {}
+    for start, by_currency in by_date.items():
+        for currency, rate in by_currency.items():
+            rates.setdefault(currency, {})[start] = rate
+    return rates
+
+
+def _shipped_rate(currency: CurrencyCode, date: datetime.date) -> Decimal | None:
+    """Return the shipped rate in force on `date`, if the table has the month.
+
+    That is the latest rate starting on or before the date. One from an
+    earlier month is not in force: a month the table lacks has no rate here.
+    """
+    starts = _shipped_rates().get(currency, {})
+    in_force = [start for start in starts if date.replace(day=1) <= start <= date]
+    return starts[max(in_force)] if in_force else None
 
 
 class CurrencyConverter:
@@ -56,6 +92,7 @@ class CurrencyConverter:
             **read_data,
             **(initial_data or {}),
         }
+        self._overruled: set[tuple[datetime.date, CurrencyCode]] = set()
 
         # Limit borrowed from the Companies House API guidance:
         # https://developer-specs.company-information.service.gov.uk/guides/rateLimiting
@@ -82,7 +119,7 @@ class CurrencyConverter:
 
     @staticmethod
     def _read_exchange_rates_data(
-        exchange_rates_file: Path, fin: TextIO
+        exchange_rates_file: Path, fin: Iterable[str]
     ) -> defaultdict[datetime.date, dict[CurrencyCode, Decimal]]:
         cache: defaultdict[datetime.date, dict[CurrencyCode, Decimal]] = defaultdict(
             dict
@@ -305,6 +342,33 @@ class CurrencyConverter:
         # offshore (Hong Kong) Chinese Yuan handling
         if currency == "CNH":
             currency = CurrencyCode("CNY")
+        shipped = _shipped_rate(currency, date)
+        if shipped is None:
+            return self._recorded_rate(currency, date)
+        # The rates file is also the cache of what was downloaded, and the
+        # download never showed a change HMRC made during a month. So for a
+        # date the shipped table covers, a different rate on file is stale or
+        # mistyped, and saying so beats using it or dropping it unnoticed.
+        on_file = self.cache.get(date, {}).get(currency)
+        if (
+            on_file is not None
+            and on_file != shipped
+            and (date, currency) not in self._overruled
+        ):
+            self._overruled.add((date, currency))
+            LOGGER.warning(
+                "%s gives %s %s per £1 for %s, but HMRC's rate for that date is "
+                "%s, which is used instead. Remove that row to stop this warning.",
+                self.exchange_rates_file or "The exchange rates supplied",
+                on_file,
+                currency,
+                date,
+                shipped,
+            )
+        return shipped
+
+    def _recorded_rate(self, currency: CurrencyCode, date: datetime.date) -> Decimal:
+        """Get a rate from the rates file, downloading the month if it is new."""
         if date not in self.cache:
             self._query_hmrc_api(date)
         if currency not in self.cache[date]:
@@ -387,16 +451,14 @@ class TestCurrencyConverter(CurrencyConverter):
         self._test_file_cache = deepcopy(self.cache)
 
     @override
-    def currency_to_gbp_rate(
-        self, currency: CurrencyCode, date: datetime.date
-    ) -> Decimal:
-        """Get the number of currency units per GBP at the given date.
+    def _recorded_rate(self, currency: CurrencyCode, date: datetime.date) -> Decimal:
+        """Get a rate from the rates file, downloading the month if it is new.
 
         When the value is missing from the view of the test_file_cache, append it
         to the exchange rate CSV file.
         This allows us to record the rates that are being used in tests.
         """
-        result = super().currency_to_gbp_rate(currency, date)
+        result = super()._recorded_rate(currency, date)
         if date not in self._test_file_cache:
             self._test_file_cache[date] = {}
         if currency not in self._test_file_cache[date] and self.exchange_rates_file:
