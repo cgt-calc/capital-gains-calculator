@@ -471,30 +471,28 @@ def _monthly_usd(rate: str) -> FakeSession:
 
 
 @pytest.mark.parametrize(
-    ("day", "rate"), [(26, Decimal("1.5003")), (27, Decimal("1.4144"))]
+    ("currency", "date", "rate"),
+    [
+        (USD, datetime.date(2016, 1, 26), Decimal("1.5003")),
+        (USD, datetime.date(2016, 1, 27), Decimal("1.4144")),
+        # Offshore yuan is priced as the yuan, whose rate changed that day.
+        (CurrencyCode("CNH"), datetime.date(2015, 5, 27), Decimal("9.8007")),
+    ],
 )
 def test_a_rate_hmrc_changed_during_the_month_applies_from_its_date(
-    day: int, rate: Decimal
+    currency: CurrencyCode, date: datetime.date, rate: Decimal
 ) -> None:
     """HMRC's monthly file shows one rate; the change it made later does not.
 
     January 2016 opened at 1.5003 dollars to the pound and HMRC changed it to
-    1.4144 from the 27th. The download gives 1.5003 for the whole month.
+    1.4144 from the 27th. The download gives 1.5003 for the whole month, so it
+    is not asked: it would also leave that rate on file.
     """
     converter = CurrencyConverter()
     converter.session = _monthly_usd("1.5003")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
-    assert converter.currency_to_gbp_rate(USD, datetime.date(2016, 1, day)) == rate
-
-
-def test_a_month_the_shipped_rates_lack_does_not_borrow_the_one_before() -> None:
-    """April 2016 is the last month shipped, so May is downloaded, not 1.411."""
-    converter = CurrencyConverter()
-    converter.session = _monthly_usd("1.45")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
-
-    assert converter.currency_to_gbp_rate(USD, datetime.date(2016, 5, 10)) == Decimal(
-        "1.45"
-    )
+    assert converter.currency_to_gbp_rate(currency, date) == rate
+    assert converter.cache == {}
 
 
 def test_a_currency_the_shipped_rates_lack_comes_from_the_rates_given() -> None:
@@ -506,36 +504,60 @@ def test_a_currency_the_shipped_rates_lack_comes_from_the_rates_given() -> None:
     assert converter.currency_to_gbp_rate(gold, date) == Decimal("0.001")
 
 
+def test_a_month_that_ships_is_never_downloaded() -> None:
+    """The download has no currency the shipped month lacks, only stale rates.
+
+    Asking for it would put the rates the month opened with on file, and the
+    next run would overrule the rows this one wrote.
+    """
+    converter = CurrencyConverter()
+    converter.session = OfflineSession()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    with pytest.raises(ExchangeRateMissingError):
+        converter.currency_to_gbp_rate(CurrencyCode("XAU"), datetime.date(2016, 1, 27))
+
+
 def test_a_different_rate_on_file_is_overruled_and_reported_once(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """The rates file is also the cache, and the cache never saw HMRC's change.
 
     A row that agrees with HMRC says nothing. One that differs is not used,
-    and is named so it can be removed: once, however many times it is read.
+    and is named so it can be removed: once for each row, however many times
+    it is read.
     """
     rates_file = tmp_path / "rates.csv"
     rates_file.write_text(
-        "month,currency,rate\n2016-01-26,USD,1.5003\n2016-01-28,USD,1.5003\n",
+        "month,currency,rate\n"
+        "2016-01-26,USD,1.5003\n"
+        "2016-01-28,USD,1.5003\n"
+        "2016-01-29,USD,1.5003\n"
+        "2016-01-29,EUR,1.371\n",
         encoding="utf8",
     )
     converter = CurrencyConverter(exchange_rates_file=rates_file)
+    eur = CurrencyCode("EUR")
+
+    def rate(currency: CurrencyCode, day: int) -> Decimal:
+        return converter.currency_to_gbp_rate(currency, datetime.date(2016, 1, day))
 
     with caplog.at_level(logging.WARNING):
-        assert converter.currency_to_gbp_rate(
-            USD, datetime.date(2016, 1, 26)
-        ) == Decimal("1.5003")
-        for _ in range(2):
-            assert converter.currency_to_gbp_rate(
-                USD, datetime.date(2016, 1, 28)
-            ) == Decimal("1.4144")
+        assert rate(USD, 26) == Decimal("1.5003")
+        assert rate(USD, 28) == rate(USD, 28) == Decimal("1.4144")
+        assert rate(USD, 29) == Decimal("1.4144")
+        assert rate(eur, 29) == Decimal("1.2978")
 
-    (message,) = (record.getMessage() for record in caplog.records)
-    assert message == (
-        f"{rates_file} gives 1.5003 USD per £1 for 2016-01-28, but HMRC's rate "
-        "for that date is 1.4144, which is used instead. Remove that row to stop "
-        "this warning."
-    )
+    def overruled(row: str, hmrc: str) -> str:
+        return (
+            f"{rates_file} gives {row}, but HMRC's rate for that date is {hmrc}, "
+            "which is used instead. Remove that row to stop this warning."
+        )
+
+    assert [record.getMessage() for record in caplog.records] == [
+        overruled("1.5003 USD per £1 for 2016-01-28", "1.4144"),
+        overruled("1.5003 USD per £1 for 2016-01-29", "1.4144"),
+        overruled("1.371 EUR per £1 for 2016-01-29", "1.2978"),
+    ]
 
 
 def test_test_converter_does_not_record_a_shipped_rate(tmp_path: Path) -> None:

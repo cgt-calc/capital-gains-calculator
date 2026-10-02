@@ -24,7 +24,9 @@ cgt-calc converts other currencies to pounds at HMRC's monthly exchange rates.
 
 For February 2015 to April 2016, a row in that file is used only for a currency HMRC did not list.
 If the file gives a different rate from HMRC's for one of those dates, cgt-calc uses HMRC's rate and
-prints a warning naming the row. Remove the row to stop the warning.
+prints a warning naming the row. A file written by an earlier version of cgt-calc can hold such
+rows, because it saved the rate from before HMRC's change. The warning is repeated on every run
+until you remove the row.
 
 No rates before February 2015 come with cgt-calc or can be downloaded. For an earlier transaction in
 another currency, add a row to the file yourself: the transaction's date in the `month` column, the

@@ -44,13 +44,19 @@ NEW_ENDPOINT_FROM_YEAR: Final = 2021
 # The legacy HMRC endpoint has no monthly files before this month.
 FIRST_PUBLISHED_RATES_MONTH: Final = datetime.date(2015, 2, 1)
 # HMRC's rates for the months when it also changed them during the month, which
-# no file it serves month by month shows. Each row starts on its date.
+# its monthly files do not show. Each row starts on its date.
 SHIPPED_RATES_RESOURCE: Final = "hmrc_exchange_rates.csv"
+
+type _StartingRates = dict[datetime.date, Decimal]
 
 
 @cache
-def _shipped_rates() -> dict[CurrencyCode, dict[datetime.date, Decimal]]:
-    """Read the rates that ship with cgt-calc: for each currency, by start date."""
+def _shipped_rates() -> dict[datetime.date, dict[CurrencyCode, _StartingRates]]:
+    """Read the rates that ship with cgt-calc.
+
+    They are kept by month, named by its first day, then by currency, then by
+    the day each rate starts.
+    """
     with (
         resources.files(RESOURCES_PACKAGE)
         .joinpath(SHIPPED_RATES_RESOURCE)
@@ -59,21 +65,21 @@ def _shipped_rates() -> dict[CurrencyCode, dict[datetime.date, Decimal]]:
         by_date = CurrencyConverter._read_exchange_rates_data(  # noqa: SLF001
             Path("resources") / SHIPPED_RATES_RESOURCE, fin
         )
-    rates: dict[CurrencyCode, dict[datetime.date, Decimal]] = {}
+    rates: dict[datetime.date, dict[CurrencyCode, _StartingRates]] = {}
     for start, by_currency in by_date.items():
+        month = rates.setdefault(start.replace(day=1), {})
         for currency, rate in by_currency.items():
-            rates.setdefault(currency, {})[start] = rate
+            month.setdefault(currency, {})[start] = rate
     return rates
 
 
 def _shipped_rate(currency: CurrencyCode, date: datetime.date) -> Decimal | None:
-    """Return the shipped rate in force on `date`, if the table has the month.
+    """Return the shipped rate in force on `date`, if the table has one.
 
-    That is the latest rate starting on or before the date. One from an
-    earlier month is not in force: a month the table lacks has no rate here.
+    That is the latest of the month's rates starting on or before the date.
     """
-    starts = _shipped_rates().get(currency, {})
-    in_force = [start for start in starts if date.replace(day=1) <= start <= date]
+    starts = _shipped_rates().get(date.replace(day=1), {}).get(currency, {})
+    in_force = [start for start in starts if start <= date]
     return starts[max(in_force)] if in_force else None
 
 
@@ -359,7 +365,7 @@ class CurrencyConverter:
             LOGGER.warning(
                 "%s gives %s %s per £1 for %s, but HMRC's rate for that date is "
                 "%s, which is used instead. Remove that row to stop this warning.",
-                self.exchange_rates_file or "The exchange rates supplied",
+                self.exchange_rates_file,
                 on_file,
                 currency,
                 date,
@@ -369,9 +375,12 @@ class CurrencyConverter:
 
     def _recorded_rate(self, currency: CurrencyCode, date: datetime.date) -> Decimal:
         """Get a rate from the rates file, downloading the month if it is new."""
-        if date not in self.cache:
+        # A month that ships has every rate HMRC published for it. Downloading
+        # it could add no currency: it would only put the rates the month opened
+        # with on file, to be overruled the next time they are read.
+        if date not in self.cache and date.replace(day=1) not in _shipped_rates():
             self._query_hmrc_api(date)
-        if currency not in self.cache[date]:
+        if currency not in self.cache.get(date, {}):
             raise ExchangeRateMissingError(currency, date)
 
         return self.cache[date][currency]
