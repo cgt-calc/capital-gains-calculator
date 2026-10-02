@@ -18,6 +18,8 @@ import pytest
 
 from cgt_calc.const import (
     BALANCE_CHECK_CONTEXT_ROWS,
+    BASIC_RATE_LIMITS,
+    CAPITAL_GAIN_ALLOWANCES,
     DIVIDEND_ALLOWANCES,
     PRE_POOLING_REFUSED_ACTIONS,
     RENAME_DESCRIPTION_PREFIX,
@@ -2621,7 +2623,7 @@ def test_report_labels_custom_period() -> None:
         0,
         Decimal(0),
         Decimal(0),
-        Decimal(0),
+        {},
         Decimal(0),
         None,
         None,
@@ -2647,7 +2649,7 @@ def test_report_labels_full_tax_year() -> None:
         0,
         Decimal(0),
         Decimal(0),
-        Decimal(0),
+        {},
         Decimal(0),
         None,
         None,
@@ -2671,7 +2673,7 @@ def test_taxable_gain_requires_an_allowance() -> None:
         0,
         Decimal(0),
         Decimal(0),
-        Decimal(0),
+        {},
         Decimal(0),
         None,
         None,
@@ -3282,6 +3284,210 @@ def test_taxable_dividends_are_stated_only_beside_a_known_allowance(
 
     assert ("Taxable proceeds" in text) is taxable_shown
     assert (TAX_CREDIT_NOTE in text) is note_shown
+
+
+def _sold_at_a_gain_or_loss(
+    sales: list[tuple[datetime.date, int, int]],
+) -> list[BrokerTransaction]:
+    """Buy each holding at its cost on 6 April 2008, and sell it on its own day."""
+    return [
+        trade
+        for index, (day, cost, proceeds) in enumerate(sales)
+        for trade in (
+            _gbp_trade(
+                datetime.date(2008, 4, 6), ActionType.BUY, f"S{index}", 10, cost
+            ),
+            _gbp_trade(day, ActionType.SELL, f"S{index}", 10, proceeds),
+        )
+    ]
+
+
+def _lines_after_taxable_gain(text: str) -> list[str]:
+    """Return what the terminal's capital gains summary says below its taxable gain."""
+    section = text.split("\nCapital gains\n")[1].split("\n\n", maxsplit=1)[0]
+    lines = [re.sub(r"\s+", " ", line.strip()) for line in section.splitlines()]
+    return lines[
+        next(i for i, line in enumerate(lines) if line.startswith("Taxable gain:"))
+        + 1 :
+    ]
+
+
+def _who_pays_each_rate(
+    year: str,
+    basic: str,
+    higher: str,
+    limit: str,
+    *,
+    gain: str = "the taxable gain",
+    that: str = "the taxable gain",
+) -> list[str]:
+    """Return the notes saying who pays which rate, as the terminal words them."""
+    return [
+        (
+            f"Basic rate ({basic}): your taxable income for {year} plus {gain} is "
+            f"{limit} or less."
+        ),
+        f"Higher rate ({higher}): your taxable income for {year} is {limit} or more.",
+        (
+            f"If your taxable income is under {limit} but {that} takes you over it, "
+            f"you pay the basic rate on the part of it that fits under {limit} and "
+            "the higher rate on the rest. Your tax is then between the two figures."
+        ),
+        (
+            "Taxable income is your income after the Personal Allowance and other "
+            "Income Tax reliefs."
+        ),
+    ]
+
+
+HIGHEST_RATE_FIRST_NOTE = (
+    "Losses and the annual exempt amount are deducted from the gains taxed at the "
+    "highest rate first."
+)
+ESTIMATE_NOTE = (
+    "The tax is an estimate: it leaves out gains that are not in the files you "
+    "supplied, losses brought forward and reliefs. See "
+    "https://cgt-calc.uk/usage/#tax-at-the-basic-and-higher-rate"
+)
+NOTES_FOR_2024 = [
+    *_who_pays_each_rate(
+        "2024/2025",
+        "10%, or 18% from 30 October 2024",
+        "20%, or 24% from 30 October 2024",
+        "£37,700",
+    ),
+    HIGHEST_RATE_FIRST_NOTE,
+    ESTIMATE_NOTE,
+]
+
+
+@pytest.mark.parametrize(
+    ("tax_year", "sales", "lines"),
+    [
+        pytest.param(
+            2024,
+            [
+                (datetime.date(2024, 10, 29), 1000, 11000),
+                (datetime.date(2024, 10, 30), 1000, 9000),
+                (datetime.date(2024, 6, 3), 3000, 1000),
+            ],
+            [
+                "Tax at basic rate: £1,540.00",
+                "Tax at higher rate: £2,720.00",
+                *NOTES_FOR_2024,
+            ],
+            id="an earlier loss and the exempt amount come off the later gains",
+        ),
+        pytest.param(
+            2024,
+            [
+                (datetime.date(2024, 10, 29), 1000, 11000),
+                (datetime.date(2024, 10, 30), 1000, 3000),
+            ],
+            [
+                "Tax at basic rate: £900.00",
+                "Tax at higher rate: £1,800.00",
+                *NOTES_FOR_2024,
+            ],
+            id="what the later gains cannot absorb comes off the earlier ones",
+        ),
+        pytest.param(
+            2010,
+            [
+                (datetime.date(2010, 6, 22), 1000, 6000),
+                (datetime.date(2010, 6, 23), 1000, 21000),
+            ],
+            [
+                "Tax at basic rate: £2,682.00",
+                "Tax at higher rate: £3,672.00",
+                *_who_pays_each_rate(
+                    "2010/2011",
+                    "18%",
+                    "18%, or 28% from 23 June 2010",
+                    "£37,400",
+                    gain="the £9,900.00 of taxable gain made from 23 June 2010",
+                    that="that £9,900.00",
+                ),
+                HIGHEST_RATE_FIRST_NOTE,
+                (
+                    "Gains before 23 June 2010 are taxed at 18% whatever your income "
+                    "and do not count towards the £37,400."
+                ),
+                ESTIMATE_NOTE,
+            ],
+            id="only gains from 23 June 2010 count towards the limit",
+        ),
+        pytest.param(
+            2010,
+            [
+                (datetime.date(2010, 6, 22), 1000, 16000),
+                (datetime.date(2010, 6, 23), 1000, 6000),
+            ],
+            ["Tax at 18%: £1,782.00", ESTIMATE_NOTE],
+            id="one rate when the exempt amount covers the gains from 23 June 2010",
+        ),
+        pytest.param(
+            2009,
+            [(datetime.date(2009, 6, 1), 1000, 21100)],
+            ["Tax at 18%: £1,800.00", ESTIMATE_NOTE],
+            id="one rate for everyone all year",
+        ),
+        pytest.param(
+            2025,
+            [(datetime.date(2025, 6, 2), 1000, 4000)],
+            [],
+            id="a gain the exempt amount covers",
+        ),
+    ],
+)
+def test_tax_is_shown_at_the_basic_and_the_higher_rate(
+    tax_year: int, sales: list[tuple[datetime.date, int, int]], lines: list[str]
+) -> None:
+    """The terminal shows the tax on the taxable gain at each rate, and who pays it.
+
+    The rate depends on taxable income the calculation never sees, so both
+    figures are given. Where the rates changed during the year, losses and the
+    annual exempt amount come off the gains taxed at the highest rate first,
+    whenever the loss arose (TCGA 1992 s1F and s1K(5), s4B before 2019/20). A
+    year with one pair of rates is owned by the command-line golden outputs.
+    """
+    calculator = create_calculator(tax_year=tax_year, balance_check=False)
+
+    text = str(get_report(calculator, _sold_at_a_gain_or_loss(sales)))
+
+    assert _lines_after_taxable_gain(text) == lines
+
+
+def test_a_report_of_part_of_a_tax_year_shows_no_tax() -> None:
+    """The taxable gain of a custom period is not the year's, so it is not taxed."""
+    currency_converter = CurrencyConverter(None, {})
+    calculator = CapitalGainsCalculator(
+        2025,
+        currency_converter,
+        IsinConverter(),
+        CurrentPriceFetcher(currency_converter, {}, {}),
+        SpinOffHandler(),
+        SharePrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+        period_start=datetime.date(2025, 4, 6),
+        period_end=datetime.date(2025, 12, 31),
+    )
+    sales = [(datetime.date(2025, 6, 2), 1000, 16000)]
+
+    text = str(get_report(calculator, _sold_at_a_gain_or_loss(sales)))
+
+    assert _lines_after_taxable_gain(text) == []
+
+
+def test_every_year_with_two_rates_has_a_basic_rate_limit() -> None:
+    """Adding a year's exempt amount without its basic rate limit must fail here.
+
+    The limit decides the rate from 2010/11, the first year with a higher rate.
+    """
+    assert set(BASIC_RATE_LIMITS) == {
+        year for year in CAPITAL_GAIN_ALLOWANCES if year >= 2010
+    }
 
 
 def test_acquisitions_before_2010_join_the_pool() -> None:

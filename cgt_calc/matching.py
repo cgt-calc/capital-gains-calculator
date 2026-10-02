@@ -47,7 +47,8 @@ class WalkResult(NamedTuple):
     disposal_count: int
     disposal_proceeds: Decimal
     allowable_costs: Decimal
-    capital_gain: Decimal
+    gains_by_date: dict[datetime.date, Decimal]
+    """Each day's gains: the rate a gain is taxed at depends on its date."""
     capital_loss: Decimal
     gift_loss: Decimal
     exempt_disposal_count: int
@@ -1925,12 +1926,12 @@ class Matcher:
         self,
         date_index: datetime.date,
         calculation_log: CalculationLog,
-    ) -> tuple[int, Decimal, Decimal, Decimal, Decimal]:
+        gains_by_date: dict[datetime.date, Decimal],
+    ) -> tuple[int, Decimal, Decimal, Decimal]:
         """Add one day's written-option grants to the report totals and log."""
         count = 0
         proceeds = Decimal(0)
         costs = Decimal(0)
-        gains = Decimal(0)
         losses = Decimal(0)
         for option_name, option in self.history.option_disposal_list.get(
             date_index, {}
@@ -1953,10 +1954,10 @@ class Matcher:
                 )
             ]
             if gain > 0:
-                gains += gain
+                gains_by_date[date_index] += gain
             else:
                 losses += gain
-        return count, proceeds, costs, gains, losses
+        return count, proceeds, costs, losses
 
     def walk(self) -> WalkResult:
         """Replay every day from the start of history to the tax year end."""
@@ -1968,7 +1969,7 @@ class Matcher:
         disposal_count = 0
         disposal_proceeds = Decimal(0)
         allowable_costs = Decimal(0)
-        capital_gain = Decimal(0)
+        gains_by_date: dict[datetime.date, Decimal] = defaultdict(Decimal)
         capital_loss = Decimal(0)
         gift_loss = Decimal(0)
         exempt_disposal_count = 0
@@ -2106,7 +2107,7 @@ class Matcher:
                                 round_decimal(transaction_capital_gain, 2),
                             )
                             if transaction_capital_gain > 0:
-                                capital_gain += transaction_capital_gain
+                                gains_by_date[date_index] += transaction_capital_gain
                             elif prefix == "gift":
                                 # A clogged loss: usable only against gains on
                                 # disposals to the same connected person while
@@ -2121,13 +2122,13 @@ class Matcher:
                     option_count,
                     option_proceeds,
                     option_costs,
-                    option_gains,
                     option_losses,
-                ) = self._record_option_disposals(date_index, calculation_log)
+                ) = self._record_option_disposals(
+                    date_index, calculation_log, gains_by_date
+                )
                 disposal_count += option_count
                 disposal_proceeds += option_proceeds
                 allowable_costs += option_costs
-                capital_gain += option_gains
                 capital_loss += option_losses
 
             if date_index in self.history.rename_list:
@@ -2193,7 +2194,7 @@ class Matcher:
             disposal_count,
             disposal_proceeds,
             allowable_costs,
-            capital_gain,
+            dict(gains_by_date),
             capital_loss,
             gift_loss,
             exempt_disposal_count,

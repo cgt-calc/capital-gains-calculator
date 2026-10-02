@@ -28,9 +28,10 @@ terminal and writes the full calculation to a **PDF report**.
 
 cgt-calc reports the net gain from the transactions you supply and, for supported tax years,
 estimates the amount left after the annual tax-free allowance for capital gains (the **annual exempt
-amount**). It does **not** include gains or losses outside those inputs, apply tax rates, work out
-your final tax bill, or submit a tax return. Some investment scenarios are not supported; check the
-relevant [broker guide](brokers/index.md) and the
+amount**) and the Capital Gains Tax on it at the basic and the higher rate. It does **not** include
+gains or losses outside those inputs, decide which rate applies to you, work out your final tax
+bill, or submit a tax return. Some investment scenarios are not supported; check the relevant
+[broker guide](brokers/index.md) and the
 [offshore funds limitations](offshore-funds.md#unsupported-functionality) before relying on the
 result.
 

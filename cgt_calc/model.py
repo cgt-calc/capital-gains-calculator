@@ -786,7 +786,8 @@ class CapitalGainsReport:
     disposal_count: int
     disposal_proceeds: Decimal
     allowable_costs: Decimal
-    capital_gain: Decimal
+    # Each day's gains: the rate a gain is taxed at depends on its date.
+    gains_by_date: dict[datetime.date, Decimal]
     capital_loss: Decimal
     capital_gain_allowance: Decimal | None
     dividend_allowance: Decimal | None
@@ -843,6 +844,11 @@ class CapitalGainsReport:
             ),
             Decimal(0),
         )
+
+    @property
+    def capital_gain(self) -> Decimal:
+        """Total of the gains, before any loss."""
+        return round_decimal(sum(self.gains_by_date.values(), Decimal(0)), 2)
 
     def total_gain(self) -> Decimal:
         """Total capital gain."""

@@ -236,7 +236,7 @@ class CapitalGainsCalculator:
             walked.disposal_count,
             round_decimal(walked.disposal_proceeds, 2),
             round_decimal(walked.allowable_costs, 2),
-            round_decimal(walked.capital_gain, 2),
+            walked.gains_by_date,
             round_decimal(walked.capital_loss, 2),
             Decimal(allowance) if allowance is not None else None,
             Decimal(dividend_allowance) if dividend_allowance is not None else None,

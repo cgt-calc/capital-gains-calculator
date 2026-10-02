@@ -45,6 +45,44 @@ CAPITAL_GAIN_ALLOWANCES: Final[dict[int, int]] = {
     2026: 3000,
 }
 
+# Capital Gains Tax rates on an individual's shares, as (first disposal date,
+# basic rate %, higher rate %). Each pair applies until the next one starts.
+# One rate for everyone from 6 April 2008, a second above the basic rate band
+# from 23 June 2010, both cut from 6 April 2016 and raised from 30 October 2024.
+# https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg10246
+# https://www.gov.uk/guidance/capital-gains-tax-rates-and-allowances
+CAPITAL_GAINS_TAX_RATES: Final[tuple[tuple[datetime.date, int, int], ...]] = (
+    (datetime.date(2008, 4, 6), 18, 18),
+    (datetime.date(2010, 6, 23), 18, 28),
+    (datetime.date(2016, 4, 6), 10, 20),
+    (datetime.date(2024, 10, 30), 18, 24),
+)
+
+# Income Tax basic rate limit: the taxable income below which a gain is taxed
+# at the basic rate, from 2010/11, the first year with a higher rate. Scottish
+# and Welsh taxpayers use the same limit (CG21204).
+# From HMRC's Rates of Income Tax table:
+# https://www.gov.uk/government/statistics/rates-of-income-statistics
+BASIC_RATE_LIMITS: Final[dict[int, int]] = {
+    2010: 37400,
+    2011: 35000,
+    2012: 34370,
+    2013: 32010,
+    2014: 31865,
+    2015: 31785,
+    2016: 32000,
+    2017: 33500,
+    2018: 34500,
+    2019: 37500,
+    2020: 37500,
+    2021: 37700,
+    2022: 37700,
+    2023: 37700,
+    2024: 37700,
+    2025: 37700,
+    2026: 37700,
+}
+
 # Dividend Tax annual allowance
 # https://www.gov.uk/tax-on-dividends
 # ITA 2007 s13A: £5,000 from 2016/17, £2,000 from 2018/19 (F(No. 2)A 2017 s8).
