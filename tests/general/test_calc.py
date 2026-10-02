@@ -3224,39 +3224,53 @@ def _lines_after_taxable_gain(text: str) -> list[str]:
     ]
 
 
-def _notes_when_the_rates_changed(
-    year: str, basic: str, higher: str, limit: str
+def _who_pays_each_rate(
+    year: str,
+    basic: str,
+    higher: str,
+    limit: str,
+    *,
+    gain: str = "the taxable gain",
+    that: str = "the taxable gain",
 ) -> list[str]:
-    """Return the notes under the two tax figures in a year the rates changed."""
+    """Return the notes saying who pays which rate, as the terminal words them."""
     return [
         (
-            f"Basic rate ({basic}): your taxable income for {year} plus the taxable "
-            f"gain is {limit} or less."
+            f"Basic rate ({basic}): your taxable income for {year} plus {gain} is "
+            f"{limit} or less."
         ),
         f"Higher rate ({higher}): your taxable income for {year} is {limit} or more.",
         (
-            f"If your taxable income is under {limit} but the gain takes you over "
-            f"it, you pay the basic rate on the part of the gain that fits under "
-            f"{limit} and the higher rate on the rest. Your tax is then between the "
-            "two figures."
+            f"If your taxable income is under {limit} but {that} takes you over it, "
+            f"you pay the basic rate on the part of it that fits under {limit} and "
+            "the higher rate on the rest. Your tax is then between the two figures."
         ),
         (
             "Taxable income is your income after the Personal Allowance and other "
             "Income Tax reliefs."
         ),
-        (
-            "Losses and the annual exempt amount are deducted from the gains taxed "
-            "at the highest rate first."
-        ),
     ]
 
 
-RATES_IN_2024 = _notes_when_the_rates_changed(
-    "2024/2025",
-    "10%, or 18% from 30 October 2024",
-    "20%, or 24% from 30 October 2024",
-    "£37,700",
+HIGHEST_RATE_FIRST_NOTE = (
+    "Losses and the annual exempt amount are deducted from the gains taxed at the "
+    "highest rate first."
 )
+ESTIMATE_NOTE = (
+    "The tax is an estimate: it leaves out gains that are not in the files you "
+    "supplied, losses brought forward and reliefs. See "
+    "https://cgt-calc.uk/usage/#tax-at-the-basic-and-higher-rate"
+)
+NOTES_FOR_2024 = [
+    *_who_pays_each_rate(
+        "2024/2025",
+        "10%, or 18% from 30 October 2024",
+        "20%, or 24% from 30 October 2024",
+        "£37,700",
+    ),
+    HIGHEST_RATE_FIRST_NOTE,
+    ESTIMATE_NOTE,
+]
 
 
 @pytest.mark.parametrize(
@@ -3272,7 +3286,7 @@ RATES_IN_2024 = _notes_when_the_rates_changed(
             [
                 "Tax at basic rate: £1,540.00",
                 "Tax at higher rate: £2,720.00",
-                *RATES_IN_2024,
+                *NOTES_FOR_2024,
             ],
             id="an earlier loss and the exempt amount come off the later gains",
         ),
@@ -3285,7 +3299,7 @@ RATES_IN_2024 = _notes_when_the_rates_changed(
             [
                 "Tax at basic rate: £900.00",
                 "Tax at higher rate: £1,800.00",
-                *RATES_IN_2024,
+                *NOTES_FOR_2024,
             ],
             id="what the later gains cannot absorb comes off the earlier ones",
         ),
@@ -3298,16 +3312,36 @@ RATES_IN_2024 = _notes_when_the_rates_changed(
             [
                 "Tax at basic rate: £2,682.00",
                 "Tax at higher rate: £3,672.00",
-                *_notes_when_the_rates_changed(
-                    "2010/2011", "18%", "18%, or 28% from 23 June 2010", "£37,400"
+                *_who_pays_each_rate(
+                    "2010/2011",
+                    "18%",
+                    "18%, or 28% from 23 June 2010",
+                    "£37,400",
+                    gain="the £9,900.00 of taxable gain made from 23 June 2010",
+                    that="that £9,900.00",
                 ),
+                HIGHEST_RATE_FIRST_NOTE,
+                (
+                    "Gains before 23 June 2010 are taxed at 18% whatever your income "
+                    "and do not count towards the £37,400."
+                ),
+                ESTIMATE_NOTE,
             ],
-            id="one rate for everyone until 23 June 2010",
+            id="only gains from 23 June 2010 count towards the limit",
+        ),
+        pytest.param(
+            2010,
+            [
+                (datetime.date(2010, 6, 22), 1000, 16000),
+                (datetime.date(2010, 6, 23), 1000, 6000),
+            ],
+            ["Tax at 18%: £1,782.00", ESTIMATE_NOTE],
+            id="one rate when the exempt amount covers the gains from 23 June 2010",
         ),
         pytest.param(
             2009,
             [(datetime.date(2009, 6, 1), 1000, 21100)],
-            ["Tax at 18%: £1,800.00"],
+            ["Tax at 18%: £1,800.00", ESTIMATE_NOTE],
             id="one rate for everyone all year",
         ),
         pytest.param(

@@ -230,8 +230,8 @@ figures give the rates and the Income Tax basic rate limit for that tax year, wh
     £37,700 or less.
 - **Tax at higher rate** is your tax if your taxable income for that year is £37,700 or more. This
     includes additional rate taxpayers.
-- If your taxable income is under £37,700 but the gain takes you over it, you pay the basic rate on
-    the part of the gain that fits under £37,700 and the higher rate on the rest. Your tax is then
+- If your taxable income is under £37,700 but the taxable gain takes you over it, you pay the basic
+    rate on the part of it that fits under £37,700 and the higher rate on the rest. Your tax is then
     between the two figures.
 
 For example, in 2025/26 the rates are 18% and 24%. With a taxable gain of £12,000 the terminal shows
@@ -257,12 +257,19 @@ The rates changed during two tax years: on 23 June 2010 and on 30 October 2024. 
 the year's losses and the annual exempt amount from the gains taxed at the highest rate first,
 whenever in the year the loss arose. This gives the lowest tax, and you may set them against your
 gains in whichever way benefits you most
-([CG10246](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg10246)). In 2010/11,
-gains before 23 June 2010 are taxed at 18% whatever your income and do not count towards the limit.
-For 2008/09 and 2009/10 everyone paid 18%, so the terminal shows one figure, **Tax at 18%**.
+([CG10246](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg10246)).
 
-The figures are estimates to help you plan, not your final tax bill. They cover only the **Taxable
-gain** in the report, at the rates for shares, so they leave out:
+In 2010/11, gains before 23 June 2010 are taxed at 18% whatever your income and do not count towards
+the limit
+([Finance (No. 2) Act 2010, Schedule 1, paragraph 18](https://www.legislation.gov.uk/ukpga/2010/31/schedule/1)).
+When part of your taxable gain was made before that date, the notes say how much of it was made from
+23 June 2010; compare only that amount with the limit. If none of it was made from that date, the
+terminal shows one figure, **Tax at 18%**. It shows the same for 2008/09 and 2009/10, when everyone
+paid 18%.
+
+The figures are estimates to help you plan, not your final tax bill, and the last note in the
+terminal says so. They cover only the **Taxable gain** in the report, at the rates for shares, so
+they leave out:
 
 - gains and losses that are not in the files you supplied, including those on other assets such as
     property, which can be taxed at different rates
