@@ -3013,11 +3013,13 @@ def test_proceeds_sitting_on_a_rounding_step_reconcile() -> None:
     """The recorded proceeds and the rebuilt ones are compared as one figure.
 
     A disposal's proceeds are checked against the sum rebuilt from its
-    calculation entries. One side is the amount as recorded, the other comes
-    from a unit price, so they can differ far below the calculator's
+    calculation entries. One side is the amount as recorded, the other adds
+    the parts back up, so they can differ far below the calculator's
     precision. Rounding each on its own used to send a recorded amount sitting
     exactly on a rounding step to a different grid point from the rebuilt one,
-    and the run stopped.
+    and the run stopped. A part that takes the whole disposal has to take the
+    amount as it stands for the same reason: this one has more than ten
+    decimal places, and a ten-place copy of it is half a unit away.
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     quantity = Decimal("0.6245225058")
@@ -3092,6 +3094,92 @@ def test_a_gain_of_exactly_half_a_penny_is_reported_not_rejected(
     assert entry.rule_type is RuleType.SECTION_104
     assert entry.gain == proceeds - 1
     assert report.total_gain() == reported
+
+
+@pytest.mark.parametrize(
+    ("purchases", "price", "fees", "rules", "gain"),
+    [
+        pytest.param(
+            [_gbp_trade(SELL_DAY, ActionType.BUY, "ABC", 4, Decimal("119.86"))],
+            Decimal("12.66"),
+            Decimal(1),
+            [RuleType.SAME_DAY],
+            Decimal("-52.92"),
+            id="same day",
+        ),
+        pytest.param(
+            [
+                _gbp_trade(BUY_DAY, ActionType.BUY, "ABC", 3, 30),
+                _gbp_trade(REBUY_DAY, ActionType.BUY, "ABC", 4, Decimal("119.86")),
+            ],
+            Decimal("12.66"),
+            Decimal(1),
+            [RuleType.BED_AND_BREAKFAST],
+            Decimal("-52.92"),
+            id="30-day rule",
+        ),
+        pytest.param(
+            [_gbp_trade(BUY_DAY, ActionType.BUY, "ABC", 4, Decimal("119.86"))],
+            Decimal("12.66"),
+            Decimal(1),
+            [RuleType.SECTION_104],
+            Decimal("-52.92"),
+            id="Section 104",
+        ),
+        pytest.param(
+            [
+                _gbp_trade(BUY_DAY, ActionType.BUY, "ABC", 2, Decimal("20.01")),
+                _gbp_trade(SELL_DAY, ActionType.BUY, "ABC", 1, 10),
+                _gbp_trade(REBUY_DAY, ActionType.BUY, "ABC", 1, 10),
+            ],
+            Decimal("20.73"),
+            Decimal(2),
+            [RuleType.SAME_DAY, RuleType.BED_AND_BREAKFAST, RuleType.SECTION_104],
+            Decimal("30.19"),
+            id="three parts",
+        ),
+    ],
+)
+def test_a_gain_of_exactly_half_a_penny_rounds_up(
+    purchases: list[BrokerTransaction],
+    price: Decimal,
+    fees: Decimal,
+    rules: list[RuleType],
+    gain: Decimal,
+) -> None:
+    """Proceeds and fees that do not divide by the shares sold lose nothing.
+
+    3 of 4 shares bought for £119.86 cost £89.895, and sold at £12.66 with a
+    £1 fee they bring in £36.98, a loss of £52.915. £36.98 does not divide by
+    three, and a price per share multiplied back by the three came to a hair
+    more, which rounded the loss down to £52.91.
+
+    The sale in three parts brings in £60.19 against costs of £10, £10 and half
+    of £20.01, a gain of £30.185. A third of £60.19 taken three times is a
+    hair short of it, so the part that finishes the sale takes what is left.
+    """
+    sale = BrokerTransaction(
+        date=SELL_DAY,
+        action=ActionType.SELL,
+        symbol="ABC",
+        description="sell ABC",
+        quantity=Decimal(3),
+        price=price,
+        fees=fees,
+        amount=3 * price - fees,
+        currency=CurrencyCode("GBP"),
+        broker="Test",
+    )
+
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False), [*purchases, sale]
+    )
+
+    entries = report.calculation_log[SELL_DAY]["sell$ABC"]
+    assert [entry.rule_type for entry in entries] == rules
+    assert report.total_gain() == gain
+    # What the parts brought in is what the report states as the proceeds.
+    assert sum(entry.amount + entry.fees for entry in entries) == 3 * price
 
 
 @pytest.mark.parametrize(
