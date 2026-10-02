@@ -328,7 +328,7 @@ def test_read_raw_transactions_empty_file(tmp_path: Path) -> None:
         pytest.param("FB", "2025-06-25", "META", id="last-day-unused"),
         pytest.param("FB", "2025-06-26", "FB", id="reused"),
         pytest.param("FB", "2002-06-03", "FB", id="used-before"),
-        pytest.param("SQ", "2021-06-01", "XYZ", id="no-dates-stated"),
+        pytest.param("BLL", "2021-06-01", "BALL", id="no-dates-stated"),
     ],
 )
 def test_a_renamed_ticker_without_an_isin_is_renamed_by_its_date(
@@ -338,8 +338,8 @@ def test_a_renamed_ticker_without_an_isin_is_renamed_by_its_date(
 
     FB was Meta's from its 2012 listing, kept by some histories after Meta's
     2022 rename, and a ProShares ETF's from 26 June 2025; FBR Asset
-    Investment used it in 2002-2003. Block's rename states neither date,
-    since nobody else is known to have used SQ, so it applies on any.
+    Investment used it in 2002-2003. Ball's rename states neither date,
+    since nobody else is known to have used BLL, so it applies on any.
     """
     raw_file = tmp_path / "raw.csv"
     _write_csv(raw_file, [COLUMNS, [date, "BUY", symbol, "1", "10.00", "0.00", "USD"]])
