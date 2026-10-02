@@ -819,7 +819,6 @@ class Matcher:
                     new_pool_cost=ctx.current_amount,
                 )
             )
-            ctx.disposal_quantity = Decimal(0)
 
     def process_rename(self, old: str, new: str) -> CalculationEntry:
         """Transfer pool from old ticker to new ticker (no disposal)."""
@@ -2054,13 +2053,16 @@ class Matcher:
                             calculated_proceeds += entry.amount + entry.fees
                             calculated_gain += entry.gain
                         assert transaction_quantity == calculated_quantity
-                        # One side is the amount as recorded, the other is
-                        # rebuilt from the entries' unit prices, so the two
-                        # differ far below the calculator's precision. Rounded
-                        # separately they can land either side of a step, so
-                        # what is measured is the distance between them: less
-                        # than half a ten-decimal-place unit apart and they
-                        # are the same amount.
+                        # One side is the amount as recorded, the other adds
+                        # the parts back up. The parts are shared out to come
+                        # to the same figure (see `take_share`), but an amount
+                        # converted from another currency carries 28 digits,
+                        # and adding it up part by part can round in the last
+                        # of them. Rounded separately the two can then land
+                        # either side of a step, so what is measured is the
+                        # distance between them: less than half a
+                        # ten-decimal-place unit apart and they are the same
+                        # amount.
                         assert (
                             round_decimal(
                                 transaction_disposal_proceeds - calculated_proceeds, 10

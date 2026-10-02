@@ -3013,11 +3013,13 @@ def test_proceeds_sitting_on_a_rounding_step_reconcile() -> None:
     """The recorded proceeds and the rebuilt ones are compared as one figure.
 
     A disposal's proceeds are checked against the sum rebuilt from its
-    calculation entries. One side is the amount as recorded, the other comes
-    from a unit price, so they can differ far below the calculator's
+    calculation entries. One side is the amount as recorded, the other adds
+    the parts back up, so they can differ far below the calculator's
     precision. Rounding each on its own used to send a recorded amount sitting
     exactly on a rounding step to a different grid point from the rebuilt one,
-    and the run stopped.
+    and the run stopped. A part that takes the whole disposal has to take the
+    amount as it stands for the same reason: this one has more than ten
+    decimal places, and a ten-place copy of it is half a unit away.
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     quantity = Decimal("0.6245225058")
