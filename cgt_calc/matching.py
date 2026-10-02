@@ -31,7 +31,7 @@ from .stock_splits import (
     unscale_quantity,
 )
 from .transaction_log import add_to_list, has_key
-from .util import normalize_amount, round_decimal, round_gain, strip_zeros
+from .util import normalize_amount, round_decimal, strip_zeros
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -82,11 +82,34 @@ class DisposalContext:
     no_gain_no_loss: bool
     disposal: HmrcTransactionData
     disposal_quantity: Decimal
-    disposal_price: Decimal
+    amount_left: Decimal
+    fees_left: Decimal
     current_quantity: Decimal
     current_amount: Decimal
     chargeable_gain: Decimal
     calculation_entries: list[CalculationEntry]
+
+    def take_share(self, units: Decimal) -> tuple[Decimal, Decimal]:
+        """Take the proceeds and fees of `units` out of what is left to match.
+
+        A disposal's proceeds and fees are shared out between the acquisitions
+        it is identified with, and a share need not divide evenly. Left as long
+        decimals, the shares add back up to a hair more or less than the whole,
+        which is enough to round a gain of exactly half a penny the wrong way.
+        So a share is rounded to ten decimal places, as costs are, and the
+        part that finishes the disposal takes whatever is left: the parts then
+        add up to the disposal's own figures exactly.
+        """
+        if units == self.disposal_quantity:
+            amount, fees = self.amount_left, self.fees_left
+        else:
+            amount = normalize_amount(
+                units * self.disposal.amount / self.disposal.quantity
+            )
+            fees = normalize_amount(units * self.disposal.fees / self.disposal.quantity)
+        self.amount_left -= amount
+        self.fees_left -= fees
+        return amount, fees
 
 
 def _share_of_cost(units: Decimal, quantity: Decimal, amount: Decimal) -> Decimal:
@@ -341,7 +364,8 @@ class Matcher:
             no_gain_no_loss=no_gain_no_loss,
             disposal=disposal,
             disposal_quantity=disposal.quantity,
-            disposal_price=disposal.amount / disposal.quantity,
+            amount_left=disposal.amount,
+            fees_left=disposal.fees,
             current_quantity=pool.quantity,
             current_amount=pool.amount,
             chargeable_gain=Decimal(0),
@@ -364,7 +388,7 @@ class Matcher:
         self.run.portfolio[ctx.identity.pool_name] = Position(
             ctx.current_quantity, normalize_amount(ctx.current_amount)
         )
-        ctx.chargeable_gain = round_gain(ctx.chargeable_gain)
+        ctx.chargeable_gain = round_decimal(ctx.chargeable_gain, 2)
         return ctx.chargeable_gain, ctx.calculation_entries
 
     def _pool_todays_reorganisations(
@@ -416,7 +440,7 @@ class Matcher:
                 ctx.disposal_quantity, same_day_acquisition.quantity
             )
             if available_quantity > 0:
-                fees = ctx.disposal.fees * available_quantity / ctx.disposal.quantity
+                amount, fees = ctx.take_share(available_quantity)
 
                 # Multiply by available_quantity before divide to avoid rounding errors from division
                 acquisition_cost = normalize_amount(
@@ -426,11 +450,7 @@ class Matcher:
 
                 acquisition_price = acquisition_cost / available_quantity
                 # No gain/no loss: deemed proceeds equal the allowable cost.
-                same_day_amount = (
-                    acquisition_cost
-                    if ctx.no_gain_no_loss
-                    else available_quantity * ctx.disposal_price
-                )
+                same_day_amount = acquisition_cost if ctx.no_gain_no_loss else amount
                 same_day_proceeds = same_day_amount + fees
                 same_day_allowable_cost = acquisition_cost + fees
                 same_day_gain = same_day_proceeds - same_day_allowable_cost
@@ -440,7 +460,7 @@ class Matcher:
                     "acquisition price %s",
                     available_quantity,
                     same_day_gain,
-                    ctx.disposal_price,
+                    ctx.disposal.amount / ctx.disposal.quantity,
                     acquisition_price,
                 )
                 ctx.disposal_quantity -= available_quantity
@@ -661,9 +681,7 @@ class Matcher:
                             search_index=search_index,
                         )
                     )
-                    fees = (
-                        ctx.disposal.fees * available_quantity / ctx.disposal.quantity
-                    )
+                    amount, fees = ctx.take_share(available_quantity)
                     # Both counts here are in the acquisition's own units.
                     bnb_acquisition_cost = _share_of_cost(
                         consumed_acquisition_units,
@@ -673,9 +691,7 @@ class Matcher:
                     acquisition_price = bnb_acquisition_cost / available_quantity
                     # No gain/no loss: deemed proceeds equal the allowable cost.
                     bed_and_breakfast_amount = (
-                        bnb_acquisition_cost
-                        if ctx.no_gain_no_loss
-                        else available_quantity * ctx.disposal_price
+                        bnb_acquisition_cost if ctx.no_gain_no_loss else amount
                     )
                     bed_and_breakfast_proceeds = bed_and_breakfast_amount + fees
                     bed_and_breakfast_allowable_cost = bnb_acquisition_cost + fees
@@ -704,7 +720,7 @@ class Matcher:
                         "acquisition price %s%s",
                         available_quantity,
                         bed_and_breakfast_gain,
-                        ctx.disposal_price,
+                        ctx.disposal.amount / ctx.disposal.quantity,
                         acquisition_price,
                         f", added_excess_income: {total_dist_amount}"
                         if total_dist_amount > 0
@@ -758,7 +774,7 @@ class Matcher:
         """Identify what is left of the disposal against the Section 104 pool."""
         if ctx.disposal_quantity > 0:
             available_quantity = ctx.disposal_quantity
-            fees = ctx.disposal.fees * available_quantity / ctx.disposal.quantity
+            amount, fees = ctx.take_share(available_quantity)
 
             # Multiply by available_quantity before divide to avoid rounding errors from division
             amount_delta = normalize_amount(
@@ -766,11 +782,7 @@ class Matcher:
             )
 
             # No gain/no loss: deemed proceeds equal the allowable cost.
-            r104_amount = (
-                amount_delta
-                if ctx.no_gain_no_loss
-                else available_quantity * ctx.disposal_price
-            )
+            r104_amount = amount_delta if ctx.no_gain_no_loss else amount
             r104_proceeds = r104_amount + fees
             r104_allowable_cost = amount_delta + fees
             r104_gain = r104_proceeds - r104_allowable_cost
@@ -1924,7 +1936,7 @@ class Matcher:
             date_index, {}
         ).items():
             raw_gain = option.proceeds - option.allowable_cost
-            gain = round_gain(raw_gain)
+            gain = round_decimal(raw_gain, 2)
             count += 1
             proceeds += option.proceeds
             costs += option.proceeds - gain
@@ -2060,7 +2072,9 @@ class Matcher:
                         # the distance instead would refuse a gain of exactly
                         # half a penny, which rounds up to a penny and so sits
                         # half a penny away from what is reported.
-                        assert transaction_capital_gain == round_gain(calculated_gain)
+                        assert transaction_capital_gain == round_decimal(
+                            calculated_gain, 2
+                        )
                         prefix = self._disposal_log_prefix(date_index, symbol)
                         calculation_log[date_index][f"{prefix}${symbol}"] = (
                             calculation_entries

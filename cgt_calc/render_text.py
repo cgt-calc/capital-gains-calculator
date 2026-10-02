@@ -10,7 +10,7 @@ from colorama import Style
 
 from .logging import bullet, style_text
 from .model import RuleType
-from .util import exact_str, round_decimal, round_gain, strip_zeros
+from .util import exact_str, round_decimal, strip_zeros
 
 if TYPE_CHECKING:
     from .model import CapitalGainsReport
@@ -253,11 +253,11 @@ def _render_gifts(report: CapitalGainsReport) -> str:
         market_value = sum((e.amount + e.fees for e in entry_list), Decimal(0))
         gain = sum((e.gain for e in entry_list), Decimal(0))
         if gain < 0:
-            outcome = f"loss £{round_gain(-gain):,}"
+            outcome = f"loss £{round_decimal(-gain, 2):,}"
             if clogged:
                 outcome += " (clogged)"
         else:
-            outcome = f"gain £{round_gain(gain):,}"
+            outcome = f"gain £{round_decimal(gain, 2):,}"
         out += (
             f"{bul}{date_index}: {symbol} {strip_zeros(quantity)} units, "
             f"market value £{round_decimal(market_value, 2):,}, {outcome}\n"

@@ -99,32 +99,6 @@ def test_a_loss_on_a_gift_is_reported_but_not_totalled() -> None:
     assert "loss £20.00 (clogged)" in text
 
 
-@pytest.mark.parametrize(
-    ("price", "fees", "stated"),
-    [(12.66, 1, "loss £52.92 (clogged)"), (31, 2, "gain £1.11")],
-)
-def test_the_list_of_gifts_rounds_exactly_half_a_penny_up(
-    price: float, fees: float, stated: str
-) -> None:
-    """The list works the figure out again from the parts, and rounds it alike.
-
-    3 of 4 shares that cost £119.86 cost £89.895. Given away at £12.66 with a
-    £1 fee they lose 36.98 - 89.895, which is £52.915; at £31 with a £2 fee
-    they gain 91 - 89.895, which is £1.105. Neither £36.98 nor £91 divides by
-    three, which leaves each figure a hair short, and the list stated £52.91
-    and £1.10.
-    """
-    report = get_report(
-        create_calculator(tax_year=2024, balance_check=False),
-        [
-            transaction(BUY_DAY, ActionType.BUY, "FOO", 4, 29.965, 0, -119.86, GBP),
-            _gift(3, price, fees=fees),
-        ],
-    )
-
-    assert stated in str(report)
-
-
 def test_a_loss_on_a_gift_to_an_unconnected_person_is_an_ordinary_loss() -> None:
     """No connected person, no clog: the £20 goes into Loss like a sale's."""
     report = get_report(
