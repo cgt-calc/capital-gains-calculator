@@ -9,12 +9,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from .const import EARLIEST_TAX_YEAR
+from .util import parse_decimal
 from .version import DISTRIBUTION_NAME, get_version
 
 STDIN_PATH = Path("-")
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from decimal import Decimal
     from typing import Any
 
 LOGGER = logging.getLogger(__name__)
@@ -36,6 +38,19 @@ def year_type(value: str) -> int:
         )
 
     return year
+
+
+def income_type(value: str) -> Decimal:
+    """Validate and convert an income in pounds."""
+    try:
+        income = parse_decimal(value, "--income")
+    except ValueError:
+        income = None
+    if income is None or income.is_signed():
+        raise argparse.ArgumentTypeError(
+            f"invalid income: '{value}', expected an amount in pounds such as 45000"
+        )
+    return income
 
 
 def date_type(value: str) -> datetime.date:
