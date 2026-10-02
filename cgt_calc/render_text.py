@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from decimal import Decimal
 import sys
 from typing import TYPE_CHECKING
 
 from colorama import Style
 
+from .const import BASIC_RATE_LIMITS, CAPITAL_GAINS_TAX_RATES
+from .dates import get_tax_year_end, get_tax_year_start
 from .logging import bullet, style_text
 from .model import RuleType
 from .util import exact_str, round_decimal, strip_zeros
 
 if TYPE_CHECKING:
+    import datetime
+
     from .model import CapitalGainsReport
 
 
@@ -111,6 +116,9 @@ def _summary_rows(
         capital.append(
             ("Taxable gain", f"£{round_decimal(report.taxable_gain(), 2):,}")
         )
+        tax_rows, tax_notes = _capital_gains_tax(report, report.capital_gain_allowance)
+        capital += tax_rows
+        capital_notes += tax_notes
     else:
         capital_notes.append("WARNING: Missing allowance for this tax year")
     if report.show_unrealized_gains:
@@ -161,6 +169,82 @@ def _summary_rows(
         ("Dividends", dividends, dividend_notes),
         ("Interest", interest, []),
     ]
+
+
+def _rates_on(date: datetime.date) -> tuple[int, int]:
+    """Return the basic and higher Capital Gains Tax rates on a day's disposals."""
+    return next(
+        (basic, higher)
+        for start, basic, higher in reversed(CAPITAL_GAINS_TAX_RATES)
+        if start <= date
+    )
+
+
+def _capital_gains_tax(
+    report: CapitalGainsReport, allowance: Decimal
+) -> tuple[list[tuple[str, str]], list[str]]:
+    """Return the rows and notes for the tax on a full year's taxable gain.
+
+    The rate depends on taxable income, which the calculation never sees, so
+    the tax is given at the basic and at the higher rate, with who pays each.
+    The tax due lies between the two.
+    """
+    if report.period_start is not None or report.taxable_gain() == 0:
+        return [], []
+    gains: dict[tuple[int, int], Decimal] = defaultdict(Decimal)
+    for date, gain in report.gains_by_date.items():
+        gains[_rates_on(date)] += gain
+    taxes = []
+    for band in (0, 1):
+        # Losses and the annual exempt amount may be deducted in whichever way
+        # is most beneficial (TCGA 1992 s1F and s1K(5), s4B before 2019/20):
+        # from the gains taxed at the highest rate first.
+        deductions = allowance - report.capital_loss
+        tax = Decimal(0)
+        for rates, gain in sorted(
+            gains.items(), key=lambda item: item[0][band], reverse=True
+        ):
+            deducted = min(gain, deductions)
+            deductions -= deducted
+            tax += (gain - deducted) * rates[band] / 100
+        taxes.append(f"£{round_decimal(tax, 2):,}")
+
+    opening = _rates_on(get_tax_year_start(report.tax_year))
+    closing = _rates_on(get_tax_year_end(report.tax_year))
+    if opening == closing and opening[0] == opening[1]:
+        return [(f"Tax at {opening[0]}%", taxes[0])], []
+    # No tax year has had more than one change of rates.
+    change = next(
+        f"{start.day} {start:%B %Y}"
+        for start, _, _ in reversed(CAPITAL_GAINS_TAX_RATES)
+        if start <= get_tax_year_end(report.tax_year)
+    )
+    basic, higher = (
+        f"{before}%" if before == after else f"{before}%, or {after}% from {change}"
+        for before, after in zip(opening, closing, strict=True)
+    )
+    limit = f"£{BASIC_RATE_LIMITS[report.tax_year]:,}"
+    income = f"your taxable income for {report.tax_year}/{report.tax_year + 1}"
+    notes = [
+        f"Basic rate ({basic}): {income} plus the taxable gain is {limit} or less.",
+        f"Higher rate ({higher}): {income} is {limit} or more.",
+        (
+            f"If your taxable income is under {limit} but the gain takes you over "
+            f"it, you pay the basic rate on the part of the gain that fits under "
+            f"{limit} and the higher rate on the rest. Your tax is then between the "
+            "two figures."
+        ),
+        (
+            "Taxable income is your income after the Personal Allowance and other "
+            "Income Tax reliefs."
+        ),
+    ]
+    if opening != closing:
+        notes.append(
+            "Losses and the annual exempt amount are deducted from the gains taxed "
+            "at the highest rate first."
+        )
+    return [("Tax at basic rate", taxes[0]), ("Tax at higher rate", taxes[1])], notes
 
 
 def _render_excess_reported_income(report: CapitalGainsReport) -> str:

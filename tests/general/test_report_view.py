@@ -91,7 +91,7 @@ def _report(
         disposal_count=0,
         disposal_proceeds=Decimal(0),
         allowable_costs=Decimal(0),
-        capital_gain=Decimal(0),
+        gains_by_date={},
         capital_loss=Decimal(0),
         capital_gain_allowance=Decimal(3000),
         dividend_allowance=Decimal(500),

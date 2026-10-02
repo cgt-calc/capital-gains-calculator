@@ -65,3 +65,5 @@
 ^legal_and_general\.py:.*`(ucits|etf|ukrfs)`
 # "a layout change" is a compound noun; Harper reads it as the verb "lay out".
 ^legal_and_general\.py:.*PhrasalVerbAsCompoundNoun
+# "Your tax is" - Harper joins "tax is" into the noun "taxis".
+^usage\.md:.*CompoundNouns.*taxis

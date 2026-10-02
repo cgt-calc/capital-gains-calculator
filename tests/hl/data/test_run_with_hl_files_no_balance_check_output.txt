@@ -20,6 +20,12 @@ Capital gains
   Loss:                    £0.00
   Total gain:         £12,113.44
   Taxable gain:        £9,113.44
+  Tax at basic rate:   £1,640.42
+  Tax at higher rate:  £2,187.23
+Basic rate (18%): your taxable income for 2025/2026 plus the taxable gain is £37,700 or less.
+Higher rate (24%): your taxable income for 2025/2026 is £37,700 or more.
+If your taxable income is under £37,700 but the gain takes you over it, you pay the basic rate on the part of the gain that fits under £37,700 and the higher rate on the rest. Your tax is then between the two figures.
+Taxable income is your income after the Personal Allowance and other Income Tax reliefs.
 
 Dividends
   Proceeds:                £0.00

@@ -204,7 +204,7 @@ Use HMRC's guidance to
 [check whether the gains must be reported](https://www.gov.uk/capital-gains-tax/work-out-need-to-pay).
 If completing Self Assessment, use the
 [Capital gains summary form and notes](https://www.gov.uk/government/publications/self-assessment-capital-gains-summary-sa108)
-for the relevant tax year. cgt-calc does not calculate the tax payable, map its output to return
+for the relevant tax year. cgt-calc does not work out your final tax bill, map its output to return
 boxes or submit a return.
 
 Keep the original exports, supporting statements, command used, warnings and generated report with
@@ -216,6 +216,67 @@ Run `cgt-calc --help` for the complete list of available options. Use `--verbose
 detail while investigating a warning or error, and
 [`--dump-transactions`](#inspect-parsed-transactions) to see the transactions the calculation
 started from.
+
+## Tax at the basic and higher rate
+
+When a full tax year has a **Taxable gain**, the terminal shows the Capital Gains Tax on it twice,
+as **Tax at basic rate** and **Tax at higher rate**. The PDF report does not include these figures.
+
+cgt-calc does not know your income, so it cannot tell which rate you pay. The notes under the two
+figures give the rates and the Income Tax basic rate limit for that tax year, which is £37,700 for
+2025/26:
+
+- **Tax at basic rate** is your tax if your taxable income for that year plus the taxable gain is
+    £37,700 or less.
+- **Tax at higher rate** is your tax if your taxable income for that year is £37,700 or more. This
+    includes additional rate taxpayers.
+- If your taxable income is under £37,700 but the gain takes you over it, you pay the basic rate on
+    the part of the gain that fits under £37,700 and the higher rate on the rest. Your tax is then
+    between the two figures.
+
+For example, in 2025/26 the rates are 18% and 24%. With a taxable gain of £12,000 the terminal shows
+£2,160 and £2,880. If your taxable income is £30,000:
+
+1. £7,700 of the £37,700 is still unused.
+2. The first £7,700 of the gain is taxed at 18%, which is £1,386.
+3. The other £4,300 is taxed at 24%, which is £1,032.
+4. Your tax is £2,418.
+
+Taxable income is your income after the Personal Allowance and other Income Tax reliefs. Follow
+HMRC's steps to [work out which rate you pay](https://www.gov.uk/capital-gains-tax/rates). Two
+things to know about the limit
+([CG21204](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg21204)):
+
+- Gift Aid donations and pension contributions that get tax relief at source raise your limit, so
+    more of your gain is taxed at the basic rate. cgt-calc does not know about them.
+- If you pay Scottish or Welsh Income Tax, the limit for Capital Gains Tax is still the UK one shown
+    in the notes.
+
+The rates changed during two tax years: on 23 June 2010 and on 30 October 2024. For 2010/11 and
+2024/25, cgt-calc taxes each gain at the rates for the day of the sale or other disposal. It deducts
+the year's losses and the annual exempt amount from the gains taxed at the highest rate first,
+whenever in the year the loss arose. This gives the lowest tax, and you may set them against your
+gains in whichever way benefits you most
+([CG10246](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg10246)). In 2010/11,
+gains before 23 June 2010 are taxed at 18% whatever your income and do not count towards the limit.
+For 2008/09 and 2009/10 everyone paid 18%, so the terminal shows one figure, **Tax at 18%**.
+
+The figures are estimates to help you plan, not your final tax bill. They cover only the **Taxable
+gain** in the report, at the rates for shares, so they leave out:
+
+- gains and losses that are not in the files you supplied, including those on other assets such as
+    property, which can be taxed at different rates
+- losses brought forward from earlier years
+- Business Asset Disposal Relief (formerly Entrepreneurs' Relief) and Investors' Relief
+- losses on gifts to connected people, shown as **Losses on gifts**, which can only reduce gains on
+    disposals to the [same person](brokers/raw.md#gifts-to-anyone-else)
+
+The figures also tax a gain on an
+[offshore fund that was ever non-reporting](offshore-funds.md#unsupported-functionality) as a
+capital gain, although it can be taxed as income. Work out that disposal outside cgt-calc.
+
+No tax figures are shown when the taxable gain is zero or when you use `--from` and `--to`, even for
+a period that covers the whole tax year.
 
 ## Report part of a tax year (advanced)
 
@@ -237,9 +298,10 @@ a sale or other disposal in the report under the 30-day rule if it is in the sup
 
 A period report does not calculate the HMRC adjustment or divide the year's tax-free allowance for
 capital gains between periods. Use the **Gain** and **Loss** figures with the full-year report and
-HMRC guidance; do not treat its **Taxable gain** as your annual figure. Its dividend and interest
-figures are not annual totals either: they include only income received inside the period, and the
-dividend section still deducts the full-year dividend allowance.
+HMRC guidance; do not treat its **Taxable gain** as your annual figure. It shows no tax figures; the
+full-year report's [tax figures](#tax-at-the-basic-and-higher-rate) already apply both sets of
+rates. Its dividend and interest figures are not annual totals either: they include only income
+received inside the period, and the dividend section still deducts the full-year dividend allowance.
 
 ## Terminal appearance
 
