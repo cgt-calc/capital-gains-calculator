@@ -90,7 +90,7 @@ class DisposalContext:
     calculation_entries: list[CalculationEntry]
 
     def take_share(self, units: Decimal) -> tuple[Decimal, Decimal]:
-        """Take the proceeds and fees of `units` out of what is left to match.
+        """Take `units` out of what is left to match, with their proceeds and fees.
 
         A disposal's proceeds and fees are shared out between the acquisitions
         it is identified with, and a share need not divide evenly. Left as long
@@ -99,6 +99,9 @@ class DisposalContext:
         So a share is rounded to ten decimal places, as costs are, and the
         part that finishes the disposal takes whatever is left: the parts then
         add up to the disposal's own figures exactly.
+
+        The units come off the count here too, because which part finishes
+        the disposal is read from it.
         """
         if units == self.disposal_quantity:
             amount, fees = self.amount_left, self.fees_left
@@ -107,6 +110,7 @@ class DisposalContext:
                 units * self.disposal.amount / self.disposal.quantity
             )
             fees = normalize_amount(units * self.disposal.fees / self.disposal.quantity)
+        self.disposal_quantity -= units
         self.amount_left -= amount
         self.fees_left -= fees
         return amount, fees
@@ -463,7 +467,6 @@ class Matcher:
                     ctx.disposal.amount / ctx.disposal.quantity,
                     acquisition_price,
                 )
-                ctx.disposal_quantity -= available_quantity
                 # These shares shouldn't be added to Section 104 holding. They
                 # went into the pool of the name they were bought under, which
                 # a rename today need not have been the name being disposed of,
@@ -726,7 +729,6 @@ class Matcher:
                         if total_dist_amount > 0
                         else "",
                     )
-                    ctx.disposal_quantity -= available_quantity
 
                     # Multiply by available_quantity before divide to avoid rounding errors from division
                     amount_delta = normalize_amount(
@@ -795,7 +797,6 @@ class Matcher:
                 r104_proceeds,
                 r104_allowable_cost,
             )
-            ctx.disposal_quantity -= available_quantity
             ctx.current_quantity -= available_quantity
             ctx.current_amount -= amount_delta
             if ctx.current_quantity == 0:
