@@ -475,6 +475,9 @@ def _monthly_usd(rate: str) -> FakeSession:
     [
         (USD, datetime.date(2016, 1, 26), Decimal("1.5003")),
         (USD, datetime.date(2016, 1, 27), Decimal("1.4144")),
+        # The Swiss franc changed twice in February 2015, on the 4th and 11th.
+        (CurrencyCode("CHF"), datetime.date(2015, 2, 10), Decimal("1.3692")),
+        (CurrencyCode("CHF"), datetime.date(2015, 2, 11), Decimal("1.3995")),
         # Offshore yuan is priced as the yuan, whose rate changed that day.
         (CurrencyCode("CNH"), datetime.date(2015, 5, 27), Decimal("9.8007")),
     ],
