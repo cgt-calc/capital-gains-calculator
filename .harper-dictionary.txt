@@ -169,6 +169,7 @@ MiKTeX
 MMM
 mojibake
 msg
+MXN
 MXV
 mypy
 NameChange
@@ -221,6 +222,7 @@ Revolut's
 Rheinmetall
 RKT
 ROL
+RON
 roundings
 RowIterator
 RunState

@@ -282,10 +282,10 @@ INITIAL_ISIN_TRANSLATION_RESOURCE: Final = "initial_isin_translation.csv"
 # ERI data folder
 ERI_RESOURCE_FOLDER: Final = "eri"
 
-# HMRC exchange rates from April 2002 to April 2016, one file per year: the
-# download has no files before February 2015, and its monthly files never show
-# the changes HMRC made during a month, which it did until April 2016. Each row
-# starts on its date.
+# HMRC exchange rates from April 2002 to April 2016, one file per year: at the
+# address cgt-calc uses, HMRC serves no files before February 2015, and its
+# monthly files never show the changes HMRC made during a month, which it did
+# until April 2016. Each row starts on its date.
 SHIPPED_RATES_FOLDER: Final = "hmrc_exchange_rates"
 
 # Most recent transactions shown when the balance check fails

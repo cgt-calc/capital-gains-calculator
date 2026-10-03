@@ -31,13 +31,14 @@ cgt-calc stops and names the currency and date when it has no rate for a transac
 
 - **A date before April 2002.** HMRC's archived rates start in April 2002.
 - **A currency HMRC did not list that month, or listed under another code.** HMRC's tables give the
-    Russian rouble as RUR, the Turkish lira as TRL and the Mexican peso as MXV until late 2009, and
-    the Romanian leu as ROL until February 2009. A few rows have no code at all, such as the
+    Russian rouble as RUR, the Turkish lira as TRL and the Mexican peso as MXV until December 2009,
+    and the Romanian leu as ROL until February 2009. A few rows have no code at all, such as the
     Romanian leu in January 2010.
 - **A currency and month for which HMRC's documents disagree or cannot be read**, so the rate HMRC
-    applied cannot be told. There are 40, including the Mexican peso in December 2009. The others
-    are minor currencies, mostly the UAE dirham (AED), the East Caribbean dollar (XCD) and the CFA
-    and CFP francs (XOF, XPF) in some months from 2006 to 2013. The top of each
+    applied cannot be told. There are 38, including the Mexican peso in December 2009 under both of
+    HMRC's codes (MXV, MXN). The others are minor currencies, mostly the UAE dirham (AED), the East
+    Caribbean dollar (XCD) and the CFA and CFP francs (XOF, XPF) in some months from 2006 to 2013.
+    The top of each
     [year's file](https://github.com/cgt-calc/capital-gains-calculator/tree/main/cgt_calc/resources/hmrc_exchange_rates)
     lists them.
 
@@ -49,8 +50,9 @@ HMRC does not prescribe which exchange rate to use, only that the method is reas
 consistent ([CG78310](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg78310)).
 HMRC's own figure for the date keeps the transaction in line with the rest of the report:
 
-- For a currency listed under an older code, use HMRC's rate for that code. HMRC's TRL rates up to
-    January 2005 are in old lira, a million of which make one new lira (TRY).
+- For a currency listed under an older code or without one, use HMRC's rate in that row. HMRC's TRL
+    rates until 18 January 2005 are in old lira, a million of which make one new lira (TRY), and its
+    ROL rates until 12 July 2005 are in old lei, 10,000 of which make one new leu (RON).
 - Where HMRC's documents disagree, look up the month in the archive below, use the figure you can
     best justify, and note why.
 - Before April 2002, the Bank of England publishes
