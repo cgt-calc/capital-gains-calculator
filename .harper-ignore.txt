@@ -71,3 +71,5 @@
 ^(usage\.md|render_text\.py):.*CondenseAllThe
 # "reminds you when the report has such dividends" is complete as it stands.
 ^usage\.md:.*MissingPreposition
+# "a wrong guess changes the income a thousandfold" is complete as it stands.
+^args_validators\.py:.*MissingPreposition

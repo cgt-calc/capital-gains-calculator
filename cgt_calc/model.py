@@ -921,15 +921,3 @@ class CapitalGainsReport:
     def explains_dividend_tax_credit(self) -> bool:
         """Whether the report has dividends from a year when they carried a credit."""
         return self.dividends_carry_tax_credit and self.total_dividends_amount() != 0
-
-    @override
-    def __repr__(self) -> str:
-        """Return print representation."""
-        return f"<CapitalGainsReport: {self!s}>"
-
-    @override
-    def __str__(self) -> str:
-        """Return string representation."""
-        from .render_text import render_text  # noqa: PLC0415
-
-        return render_text(self)

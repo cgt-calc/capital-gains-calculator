@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from cgt_calc.model import ActionType, RuleType
 from cgt_calc.render_latex import render_pdf
+from cgt_calc.render_text import render_text
 from tests.utils import build_cmd, report_path, run_cli, stderr_alerts
 
 from .calc_test_data import GBP, transaction
@@ -49,7 +50,7 @@ def test_exempt_disposal_at_gain_excluded_from_capital_gain() -> None:
     assert "exempt$T26" in report.calculation_log[SELL_DATE]
     assert "sell$T26" not in report.calculation_log[SELL_DATE]
 
-    report_str = str(report)
+    report_str = render_text(report)
     assert "Exempt disposals:                  1" in report_str
     assert "Exempt disposal proceeds: £12,000.00" in report_str
     assert "Gain:                          £0.00" in report_str
@@ -74,7 +75,7 @@ def test_exempt_disposal_at_loss_excluded_from_capital_loss() -> None:
     assert report1.exempt_disposal_count == 1
     assert report1.exempt_disposal_proceeds == Decimal(8000)
 
-    report_str = str(report1)
+    report_str = render_text(report1)
     assert "Loss:                         £0.00" in report_str
     assert "Exempt disposals:                 1" in report_str
     assert "Exempt disposal proceeds: £8,000.00" in report_str
@@ -122,7 +123,7 @@ def test_mixed_portfolio_chargeable_and_exempt() -> None:
     assert report.exempt_disposal_count == 1
     assert report.exempt_disposal_proceeds == Decimal(12000)
 
-    report_str = str(report)
+    report_str = render_text(report)
     assert "Disposals:                         1" in report_str
     assert "Disposal proceeds:         £1,500.00" in report_str
     assert "Allowable costs:           £1,000.00" in report_str
@@ -150,7 +151,7 @@ def test_exempt_holding_still_present_in_year_end_portfolio() -> None:
     assert positions["T26"].quantity == Decimal(60)
     assert positions["T26"].amount == Decimal(6000)
 
-    report_str = str(report)
+    report_str = render_text(report)
     assert "T26: 60.00, £6,000.00" in report_str
 
 
@@ -270,7 +271,7 @@ def test_zero_exempt_disposals_hidden_in_terminal_summary() -> None:
     report = get_report(calc_no_exempt, transactions)
 
     assert report.exempt_disposal_proceeds == Decimal(0)
-    assert "Exempt disposals" not in str(report)
+    assert "Exempt disposals" not in render_text(report)
 
 
 def test_pdf_report_rendering_exempt_disposal(tmp_path: Path) -> None:
@@ -343,7 +344,7 @@ def test_pdf_reports_exempt_gift_with_neutral_valuation_wording(
     )
 
     assert "exempt$T26" in report.calculation_log[gift_date]
-    assert "Gifts at market value" not in str(report)
+    assert "Gifts at market value" not in render_text(report)
     render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
     source_flat = re.sub(
         r"\s+", " ", (tmp_path / "report.tex").read_text(encoding="utf-8")

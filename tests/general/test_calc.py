@@ -20,6 +20,7 @@ from cgt_calc.const import (
     BALANCE_CHECK_CONTEXT_ROWS,
     BASIC_RATE_LIMITS,
     CAPITAL_GAIN_ALLOWANCES,
+    CAPITAL_GAINS_TAX_RATES,
     DIVIDEND_ALLOWANCES,
     PERSONAL_ALLOWANCES,
     PRE_POOLING_REFUSED_ACTIONS,
@@ -557,7 +558,7 @@ def test_basic(
     )
     report = get_report(calculator, broker_transactions)
     assert report.total_gain() == round_decimal(Decimal(expected), 2)
-    print(str(report))
+    print(render_text(report))
     if expected_unrealized is not None:
         assert report.total_unrealized_gains() == round_decimal(
             Decimal(expected_unrealized), 2
@@ -2641,7 +2642,7 @@ def test_report_labels_custom_period() -> None:
     )
 
     assert report.title_period == "2024-04-06 to 2024-10-29"
-    assert "period 2024-04-06 to 2024-10-29" in str(report)
+    assert "period 2024-04-06 to 2024-10-29" in render_text(report)
 
 
 def test_report_labels_full_tax_year() -> None:
@@ -2665,7 +2666,7 @@ def test_report_labels_full_tax_year() -> None:
     )
 
     assert report.title_period == "2024-25"
-    assert "Tax summary for 2024/2025" in str(report)
+    assert "Tax summary for 2024/2025" in render_text(report)
 
 
 def test_taxable_gain_requires_an_allowance() -> None:
@@ -3283,7 +3284,7 @@ def test_taxable_dividends_are_stated_only_beside_a_known_allowance(
     ]
     transactions = dividend if with_dividends else sale
 
-    text = str(get_report(calculator, transactions))
+    text = render_text(get_report(calculator, transactions))
 
     assert ("Taxable proceeds" in text) is taxable_shown
     assert (TAX_CREDIT_NOTE in text) is note_shown
@@ -3425,8 +3426,7 @@ NOTES_FOR_2024 = [
                 (
                     "To get a single figure, add --income with your income for "
                     "2010/2011 before the Personal Allowance, such as the pay on "
-                    "your P60. cgt-calc adds the dividends and interest in these "
-                    "files."
+                    "your P60. cgt-calc adds the interest in these files."
                 ),
                 ESTIMATE_NOTE,
             ],
@@ -3468,7 +3468,7 @@ def test_tax_is_shown_at_the_basic_and_the_higher_rate(
     """
     calculator = create_calculator(tax_year=tax_year, balance_check=False)
 
-    text = str(get_report(calculator, _sold_at_a_gain_or_loss(sales)))
+    text = render_text(get_report(calculator, _sold_at_a_gain_or_loss(sales)))
 
     assert _lines_after_taxable_gain(text) == lines
 
@@ -3563,6 +3563,39 @@ WITH_A_DIVIDEND_IN_2015 = [
                 LEFT_OUT_NOTE,
             ],
             id="the report's dividends and UK and foreign interest are income too",
+        ),
+        pytest.param(
+            2025,
+            45000,
+            [
+                *_sold_at_a_gain_or_loss([(datetime.date(2025, 6, 2), 1000, 16000)]),
+                interest_transaction(datetime.date(2025, 6, 2), -500, GBP),
+                transaction(
+                    datetime.date(2025, 6, 2),
+                    ActionType.DIVIDEND,
+                    "BAR",
+                    None,
+                    None,
+                    0,
+                    -200,
+                    GBP,
+                    isin=US_FUND,
+                ),
+            ],
+            [
+                "Estimated tax: £2,563.80",
+                (
+                    "Income £45,000.00, less the £12,570 Personal Allowance: taxable "
+                    "income £32,430.00, which leaves £5,270.00 of the £37,700 basic "
+                    "rate limit unused."
+                ),
+                (
+                    "Of the taxable gain, £5,270.00 is taxed at 18% and £6,730.00 "
+                    "at 24%."
+                ),
+                LEFT_OUT_NOTE,
+            ],
+            id="reversals in the year do not reduce the income",
         ),
         pytest.param(
             2015,
@@ -3712,7 +3745,7 @@ def test_a_report_of_part_of_a_tax_year_shows_no_tax() -> None:
     )
     sales = [(datetime.date(2025, 6, 2), 1000, 16000)]
 
-    text = str(get_report(calculator, _sold_at_a_gain_or_loss(sales)))
+    text = render_text(get_report(calculator, _sold_at_a_gain_or_loss(sales)))
 
     assert _lines_after_taxable_gain(text) == []
 
@@ -3725,6 +3758,20 @@ def test_every_year_with_two_rates_has_a_basic_rate_limit() -> None:
     assert set(BASIC_RATE_LIMITS) == {
         year for year in CAPITAL_GAIN_ALLOWANCES if year >= 2010
     }
+
+
+def test_each_change_of_rates_keeps_the_deduction_rule() -> None:
+    """Adding rates the deductions cannot follow must fail here.
+
+    Losses and the annual exempt amount are deducted from the gains with the
+    highest higher rate first. That gives the lowest tax while one pair of
+    rates is at least the other in both its rates.
+    """
+    rates = [(basic, higher) for _, basic, higher in CAPITAL_GAINS_TAX_RATES]
+    for before, after in itertools.pairwise(rates):
+        assert all(a >= b for a, b in zip(before, after, strict=True)) or all(
+            a <= b for a, b in zip(before, after, strict=True)
+        ), (before, after)
 
 
 def test_every_year_with_a_basic_rate_limit_has_a_personal_allowance() -> None:

@@ -349,10 +349,10 @@ tax. HMRC confirms you may use them
 The estimate is the tax for the whole year. It is not the adjustment figure that the 2024/25 Self
 Assessment return asks for.
 
-`--income` needs a full tax year, so it cannot be combined with `--from` and `--to`. Write it as a
-plain number, such as `45000` or `45000.50`. It makes no difference when the terminal shows **Tax at
-18%**, because that rate does not depend on income. The estimate leaves out the same things as the
-two figures: see [Tax at the basic and higher rate](#tax-at-the-basic-and-higher-rate).
+`--income` needs a full tax year, so it cannot be combined with `--from` and `--to`. Write it in
+whole pounds, such as `45000`. It makes no difference when the terminal shows **Tax at 18%**,
+because that rate does not depend on income. The estimate leaves out the same things as the two
+figures: see [Tax at the basic and higher rate](#tax-at-the-basic-and-higher-rate).
 
 ## Report part of a tax year (advanced)
 

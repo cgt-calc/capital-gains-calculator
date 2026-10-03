@@ -229,12 +229,15 @@ def _taxable_by_rates(
     """Return what is left to tax of the gains under each pair of rates.
 
     Losses and the annual exempt amount may be deducted in whichever way is
-    most beneficial (TCGA 1992 s1F and s1K(5), s4B before 2019/20). Under
-    every pair of rates there has been, that is from the gains with the
-    highest higher rate first, whatever the unused basic rate band.
+    most beneficial (TCGA 1992 s1F and s1K(5), s4B before 2019/20). While one
+    pair of rates is at least the other in both rates, which a test holds the
+    rate table to, that is from the gains with the highest higher rate, then
+    the highest basic rate, first, whatever the unused basic rate band.
     """
     taxable = {}
-    for rates, gain in sorted(gains.items(), key=lambda item: item[0][1], reverse=True):
+    for rates, gain in sorted(
+        gains.items(), key=lambda item: (item[0][1], item[0][0]), reverse=True
+    ):
         deducted = min(gain, deductions)
         deductions -= deducted
         taxable[rates] = gain - deducted
@@ -252,12 +255,13 @@ def _estimated_tax(
     allowance = PERSONAL_ALLOWANCES[report.tax_year]
     limit = BASIC_RATE_LIMITS[report.tax_year]
     # Dividends that carried a tax credit are not taxed as the amount received.
+    # A total below zero is a reversal of an earlier year's payment.
     dividends = (
         Decimal(0)
         if report.dividends_carry_tax_credit
-        else report.total_dividends_amount()
+        else max(Decimal(0), round_decimal(report.total_dividends_amount(), 2))
     )
-    interest = report.total_uk_interest + report.total_foreign_interest
+    interest = max(Decimal(0), report.total_uk_interest + report.total_foreign_interest)
     taxable_income = max(Decimal(0), income + dividends + interest - allowance)
     band = max(Decimal(0), limit - taxable_income)
     charged = _charged_by_rate(taxable, band)
@@ -401,11 +405,16 @@ def _capital_gains_tax(
         notes.append(_HIGHEST_RATE_FIRST)
     if single_rate:
         notes.append(before_change)
+    added = (
+        "the interest"
+        if report.dividends_carry_tax_credit
+        else "the dividends and interest"
+    )
     notes += [
         (
             f"To get a single figure, add --income with your income for {tax_year} "
             "before the Personal Allowance, such as the pay on your P60. cgt-calc "
-            "adds the dividends and interest in these files."
+            f"adds {added} in these files."
         ),
         estimate,
     ]

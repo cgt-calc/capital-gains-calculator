@@ -28,6 +28,7 @@ from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, RuleType
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.parsers.raw import RawParser
+from cgt_calc.render_text import render_text
 from cgt_calc.share_prices import SharePrices
 from cgt_calc.spin_off_handler import SpinOffHandler
 
@@ -369,7 +370,7 @@ def test_transfer_to_spouse_shown_in_report() -> None:
         ],
     )
 
-    output = str(report)
+    output = render_text(report)
     assert "Transferred to spouse" in output
     # Quantities are shown as entered, like the PDF, so fractions survive.
     assert f"{transfer_day}: FOO 400 units, base cost £4,000.00" in output
@@ -1004,7 +1005,7 @@ def test_fractional_transfer_keeps_its_units_in_the_report() -> None:
         ],
     )
 
-    assert "FOO 0.001 units" in str(report)
+    assert "FOO 0.001 units" in render_text(report)
 
 
 def test_split_shares_do_not_dilute_a_same_day_purchase() -> None:
@@ -1408,7 +1409,7 @@ def test_hand_over_row_round_trips_through_the_raw_parser(tmp_path: Path) -> Non
     )
     row = next(
         line.strip()
-        for line in str(sender).splitlines()
+        for line in render_text(sender).splitlines()
         if "TRANSFER_FROM_SPOUSE" in line
     )
     raw_file = tmp_path / "transfers.csv"

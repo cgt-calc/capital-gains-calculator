@@ -26,6 +26,7 @@ from cgt_calc.exceptions import (
 from cgt_calc.model import ActionType, BrokerTransaction, RuleType
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.render_latex import render_pdf
+from cgt_calc.render_text import render_text
 
 from .calc_test_data import (
     GBP,
@@ -93,7 +94,7 @@ def test_a_loss_on_a_gift_is_reported_but_not_totalled() -> None:
     assert report.total_gain() == Decimal(0)
     # It is reported as its own total instead.
     assert report.gift_loss == Decimal(-20)
-    text = str(report)
+    text = render_text(report)
     assert "Losses on gifts" in text
     assert "Gifts at market value" in text
     assert "loss £20.00 (clogged)" in text
@@ -113,7 +114,7 @@ def test_a_loss_on_a_gift_to_an_unconnected_person_is_an_ordinary_loss() -> None
     assert report.gift_loss == Decimal(0)
     assert report.total_gain() == Decimal(-20)
     assert "gift-unconnected$FOO" in report.calculation_log[GIFT_DAY]
-    text = str(report)
+    text = render_text(report)
     assert "loss £20.00" in text
     assert "clogged)" not in text
     assert "Losses on gifts" not in text

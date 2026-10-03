@@ -4,19 +4,19 @@ from __future__ import annotations
 
 import argparse
 import datetime
+from decimal import Decimal
 import logging
 from pathlib import Path
+import re
 from typing import TYPE_CHECKING, override
 
 from .const import EARLIEST_TAX_YEAR
-from .util import parse_decimal
 from .version import DISTRIBUTION_NAME, get_version
 
 STDIN_PATH = Path("-")
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from decimal import Decimal
     from typing import Any
 
 LOGGER = logging.getLogger(__name__)
@@ -41,16 +41,17 @@ def year_type(value: str) -> int:
 
 
 def income_type(value: str) -> Decimal:
-    """Validate and convert an income in pounds."""
-    try:
-        income = parse_decimal(value, "--income")
-    except ValueError:
-        income = None
-    if income is None or income.is_signed():
+    """Validate and convert an income in whole pounds.
+
+    Only digits: a comma or a dot could separate thousands or pence, and a
+    wrong guess changes the income a thousandfold. Twelve digits are more than
+    any income needs.
+    """
+    if not re.fullmatch(r"\d{1,12}", value):
         raise argparse.ArgumentTypeError(
-            f"invalid income: '{value}', expected an amount in pounds such as 45000"
+            f"invalid income: '{value}', expected whole pounds such as 45000"
         )
-    return income
+    return Decimal(value)
 
 
 def date_type(value: str) -> datetime.date:

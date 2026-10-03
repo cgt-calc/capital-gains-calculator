@@ -852,20 +852,21 @@ def test_income_is_refused_with_a_custom_period(
     )
 
 
-@pytest.mark.parametrize("value", ["-0", "45,000"])
-def test_an_income_that_is_not_a_plain_amount_is_refused(
+@pytest.mark.parametrize("value", ["45,000", "45.000", "45000.50", "1234567890123"])
+def test_an_income_that_is_not_whole_pounds_is_refused(
     value: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A signed income is refused, and so is one with a comma.
+    """Only whole pounds, written as up to twelve digits, are read as an income.
 
-    A comma could be a thousands separator or a decimal point, and guessing
-    wrong turns 45000,50 into four and a half million.
+    A comma or a dot could separate thousands or pence, and guessing wrong
+    turns 45.000 into £45 or 45000,50 into four and a half million. Twelve
+    digits are more than any income needs; more would overflow the rounding.
     """
     with pytest.raises(SystemExit):
         create_parser().parse_args([f"--income={value}"])
 
     assert (
-        f"invalid income: '{value}', expected an amount in pounds such as 45000"
+        f"invalid income: '{value}', expected whole pounds such as 45000"
         in capsys.readouterr().err
     )
 

@@ -84,9 +84,9 @@ Environment variables:
         type=income_type,
         metavar="POUNDS",
         help="your income for the tax year before the Personal Allowance, such as "
-        "the pay on your P60, without the dividends and interest in the files you "
-        "supply; the summary then shows one estimate of the Capital Gains Tax "
-        "instead of two (needs a full tax year)",
+        "the pay on your P60, without the interest and, from 2016/17, the dividends "
+        "in the files you supply; the summary then shows one estimate of the "
+        "Capital Gains Tax instead of two (needs a full tax year)",
     )
 
     # Broker Inputs
