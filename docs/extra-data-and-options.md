@@ -106,9 +106,9 @@ date,symbol,price
 
 Your file replaces the bundled prices rather than adding to them, so copy in any bundled rows you
 still need. A row under a ticker the company has since changed, such as `FB`, counts for its current
-ticker, `META`, while the old ticker was still the company's: an `FB` row dated from 26 June 2025
-prices the security that has traded as `FB` since then, not Meta. If two rows give the same share
-different prices on one day, cgt-calc stops and asks you to remove one.
+ticker, `META`, over the dates given under [Ticker renames](#ticker-renames): an `FB` row dated from
+26 June 2025 prices the security that has traded as `FB` since then, not Meta. If two rows give the
+same share different prices on one day, cgt-calc stops and asks you to remove one.
 
 ### Spin-off source mappings
 
@@ -119,6 +119,55 @@ the old ticker and saves the answer to `out/spin_offs.csv`.
 If the run cannot ask you for the old ticker, add the required `dst,src` row to a mapping file, pass
 that file with `--spin-offs-file`, and rerun. An empty value disables the cache, so cgt-calc does
 not read or save spin-off mappings.
+
+### Ticker renames
+
+When a company changes its ticker, your history can show the same shares under both: bought as `FB`,
+for example, and sold as `META`. cgt-calc reads a known old ticker as the current one, so
+transactions under both names are one holding, shown under the current ticker in the report. The
+renames it knows are listed in
+[`ticker_renames.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/ticker_renames.csv),
+with each company's ISIN, the 12-character code that identifies a security.
+
+Another security can take a ticker after a company gives it up, so cgt-calc checks that a row is the
+renamed company's:
+
+- **A row with an ISIN** is renamed when the ISIN is the company's, whatever the row's date.
+- **A row without an ISIN**, such as a Schwab or RAW row, is renamed from the table's `since` date
+    up to the day before its `reused` date, when another security started trading under the old
+    ticker. A blank column sets no limit on that side. The `until` column, the day the company
+    changed ticker, does not limit it, because a broker can keep the old ticker on later rows. `FB`
+    rows are renamed from 18 May 2012 to 25 June 2025, so an `FB` row from 26 June 2025 is left as
+    `FB`.
+
+If one file has rows without an ISIN under an old ticker on both sides of one of those dates (for
+`FB`, 18 May 2012 or 26 June 2025), cgt-calc stops with
+`Rows under <ticker> fall on both sides of <date>`: nothing in the rows says whether they belong to
+one company or two. In a RAW file, write the current ticker on every row of the renamed company, as
+the message says. cgt-calc checks each file on its own, so rows in separate files are each read by
+their own date without an error.
+
+Two limitations remain:
+
+- A row without an ISIN is matched by its ticker and date alone. The table includes a rename only
+    when no other security is known to have used the old ticker in that period on an exchange a
+    supported broker offers. If you held another security under the old ticker in that period,
+    cgt-calc cannot detect it: it is reported under the new ticker, and pooled with the company's
+    shares if you also held them. Check each holding and disposal in the report against your
+    records.
+- Vanguard's `NameChange` rows record a ticker change in the export itself, and
+    [Trading 212](brokers/trading212.md#known-limitations) stops on a ticker change it cannot pair.
+    Otherwise, a rename missing from the table leaves the old and new tickers as two holdings.
+    cgt-calc may stop with `Tried to sell`, or with `does not match` when rows give one ISIN under
+    both tickers, but a sale can also take its cost from the new ticker's purchases alone without an
+    error. Check the portfolio section of the report: a holding left under a ticker the company no
+    longer uses can mean a rename is missing.
+
+If a rename is missing or wrong, or a broker export stops with the `Rows under <ticker>` message,
+first upgrade cgt-calc using the same method you used to install it. If the problem remains, open a
+[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the old and new
+tickers, the ISIN and the dates involved. Do not edit a broker export to get past it. In a RAW file
+you write yourself, you can use the current ticker throughout instead.
 
 ### Estimate unrealized gains
 

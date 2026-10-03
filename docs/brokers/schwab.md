@@ -134,9 +134,11 @@ For `Reinvest Dividend`, check the Schwab statement and the finished report. Con
 dividend income and reinvested purchase were recorded by other rows; do not assume the ignored row
 duplicates them.
 
-cgt-calc reads Meta's old `FB` ticker as `META`, so transactions under both names share one holding
-in the report. A row under `FB` dated from 26 June 2025 is left as `FB`: another security has traded
-under that ticker since then.
+cgt-calc reads a known old ticker, such as Meta's `FB`, as the company's current ticker, so
+transactions under both names share one holding in the report. Schwab rows carry no ISIN, so some
+renames go by date: a row under `FB` dated from 26 June 2025 is left as `FB`, because another
+security has traded under that ticker since then. See
+[Ticker renames](../extra-data-and-options.md#ticker-renames).
 
 An unknown action stops the import. Do not delete a financial transaction simply to make the run
 finish; identify what happened and check [Known limitations](#known-limitations) first.
@@ -605,8 +607,9 @@ combine accounts, because no column says which account a row came from.
 ### `Reached a negative balance` or `Tried to sell`
 
 Check that the export reaches the deposits and purchases that funded or created the later activity.
-Also check for a missing award vest, unsupported share transfer, gap between downloaded ranges or a
-transaction imported twice.
+Also check for a missing award vest, unsupported share transfer, gap between downloaded ranges, a
+transaction imported twice or a [ticker change](../extra-data-and-options.md#ticker-renames)
+cgt-calc does not know.
 
 Do not add made-up cash or use `--no-balance-check` simply to silence the error. Use that option
 only after you understand why the Schwab history cannot reconcile and have checked its completeness
