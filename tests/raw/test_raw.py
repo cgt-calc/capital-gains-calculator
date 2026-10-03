@@ -339,7 +339,8 @@ def test_a_renamed_ticker_without_an_isin_is_renamed_by_its_date(
     FB was Meta's from its 2012 listing, kept by some histories after Meta's
     2022 rename, and a ProShares ETF's from 26 June 2025; FBR Asset
     Investment used it in 2002-2003. Ball's rename states neither date,
-    since nobody else is known to have used BLL, so it applies on any.
+    since no other security is known to have used BLL on an exchange a
+    supported broker offers, so it applies on any.
     """
     raw_file = tmp_path / "raw.csv"
     _write_csv(raw_file, [COLUMNS, [date, "BUY", symbol, "1", "10.00", "0.00", "USD"]])
