@@ -34,6 +34,7 @@ calc's
 CalculationEntry
 Center
 CFA
+CFP
 CG10246
 CG12313
 CG12920
@@ -151,6 +152,7 @@ jsonable
 Lansdown
 latex
 len
+leu
 LF
 LGIM
 lifecycle
@@ -167,6 +169,7 @@ MiKTeX
 MMM
 mojibake
 msg
+MXV
 mypy
 NameChange
 nav
@@ -217,11 +220,13 @@ Revolut
 Revolut's
 Rheinmetall
 RKT
+ROL
 roundings
 RowIterator
 RunState
 RuntimeError
 RuntimeMode
+RUR
 s105
 s106A
 s115
@@ -290,6 +295,7 @@ tranche's
 TransactionDetails
 transferor
 transferor's
+TRL
 txn
 ty
 tzinfo
@@ -316,6 +322,7 @@ worktree
 XCD
 Xetra
 XOF
+XPF
 xtrackers
 yfinance
 YYYY

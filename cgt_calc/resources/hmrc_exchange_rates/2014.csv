@@ -1,6 +1,7 @@
 # HMRC exchange rates for January 2014 to December 2014: units of the currency per GBP 1.
 # A row is in force from its date until the next row for that currency, or the end
-# of the month. A date other than the 1st is a change HMRC made during the month.
+# of the month. A date other than the 1st is a change HMRC made during the month; a
+# change HMRC made from the 1st replaces the month's published rate.
 # Source: HMRC's monthly pages and change lists for the year, archived at
 # https://webarchive.nationalarchives.gov.uk/ukgwa/20141203171558/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2014&columns=1
 # December's changes: the Wayback Machine's copy of
@@ -644,9 +645,9 @@ month,currency,rate
 2014-04-23,COP,3219.1
 2014-04-23,MWK,656.321
 2014-04-23,UAH,21.2531
-2014-04-28,GMD,66.5841
-2014-04-28,UAH,18.988
-2014-04-28,VEF,16.8035
+2014-04-30,GMD,66.5841
+2014-04-30,UAH,18.988
+2014-04-30,VEF,16.8035
 2014-05-01,AED,6.172
 2014-05-01,AFN,92.6545
 2014-05-01,ALL,170.304
@@ -802,7 +803,6 @@ month,currency,rate
 2014-05-28,HNL,34.6856
 2014-05-28,UAH,20.1281
 2014-05-28,ZMK,11.2253
-2014-05-28,ZMW,11.2253
 2014-06-01,AED,6.1815
 2014-06-01,AFN,93.875
 2014-06-01,ALL,172.343
@@ -958,7 +958,6 @@ month,currency,rate
 2014-06-25,AFN,99.4394
 2014-06-25,GHS,5.2747
 2014-06-25,ZMK,10.6427
-2014-06-25,ZMW,10.6427
 2014-07-01,AED,6.2297
 2014-07-01,AFN,99.4394
 2014-07-01,ALL,175.448

@@ -521,8 +521,6 @@ def _monthly_usd(rate: str) -> FakeSession:
     [
         (USD, datetime.date(2016, 1, 26), Decimal("1.5003")),
         (USD, datetime.date(2016, 1, 27), Decimal("1.4144")),
-        (USD, datetime.date(2008, 11, 18), Decimal("1.6336")),
-        (USD, datetime.date(2008, 11, 19), Decimal("1.5047")),
         # The Swiss franc changed twice in February 2015, on the 4th and 11th.
         (CurrencyCode("CHF"), datetime.date(2015, 2, 10), Decimal("1.3692")),
         (CurrencyCode("CHF"), datetime.date(2015, 2, 11), Decimal("1.3995")),
@@ -560,6 +558,13 @@ def test_a_rate_hmrc_changed_during_the_month_applies_from_its_date(
             id="Word",
         ),
         pytest.param(USD, datetime.date(2015, 1, 15), Decimal("1.5562"), id="XML"),
+        # November 2008 opened at 1.6336 and HMRC changed it from the 19th.
+        pytest.param(
+            USD, datetime.date(2008, 11, 18), Decimal("1.6336"), id="before a change"
+        ),
+        pytest.param(
+            USD, datetime.date(2008, 11, 19), Decimal("1.5047"), id="from a change"
+        ),
     ],
 )
 def test_rates_from_april_2002_come_with_cgt_calc(

@@ -1,9 +1,10 @@
 # HMRC exchange rates for April 2002 to December 2002: units of the currency per GBP 1.
 # A row is in force from its date until the next row for that currency, or the end
-# of the month. A date other than the 1st is a change HMRC made during the month.
+# of the month. A date other than the 1st is a change HMRC made during the month; a
+# change HMRC made from the 1st replaces the month's published rate.
 # Source: HMRC's monthly pages and change lists for the year, archived at
 # https://webarchive.nationalarchives.gov.uk/ukgwa/20110202145605/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2002&columns=1
-# Left out where HMRC's own figures disagree: 2002-07 BOB, 2002-07 JOD, 2002-07 PYG, 2002-07 SYP, 2002-07 VND
+# Left out, as HMRC's documents disagree or cannot be read: 2002-07 BOB, 2002-07 JOD, 2002-07 PYG, 2002-07 SYP, 2002-07 VND
 month,currency,rate
 2002-04-01,AED,5.2343
 2002-04-01,AFA,6769.23
@@ -769,7 +770,6 @@ month,currency,rate
 2002-07-31,MVR,18.5672
 2002-07-31,NGN,197.188
 2002-07-31,NPR,122.025
-2002-07-31,OMF,0.6074
 2002-07-31,OMR,0.6074
 2002-07-31,PAB,1.5775
 2002-07-31,PKR,94.0585

@@ -1,6 +1,7 @@
 # HMRC exchange rates for January 2003 to December 2003: units of the currency per GBP 1.
 # A row is in force from its date until the next row for that currency, or the end
-# of the month. A date other than the 1st is a change HMRC made during the month.
+# of the month. A date other than the 1st is a change HMRC made during the month; a
+# change HMRC made from the 1st replaces the month's published rate.
 # Source: HMRC's monthly pages and change lists for the year, archived at
 # https://webarchive.nationalarchives.gov.uk/ukgwa/20110202145605/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2003&columns=1
 month,currency,rate
@@ -1254,7 +1255,6 @@ month,currency,rate
 2003-07-30,MZM,36958.3
 2003-07-30,NGN,205.518
 2003-07-30,NOK,11.6471
-2003-07-30,NOR,11.6471
 2003-07-30,PAB,1.5840
 2003-07-30,PEN,5.4939
 2003-07-30,PGK,5.4623

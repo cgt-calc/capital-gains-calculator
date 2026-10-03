@@ -1,6 +1,7 @@
 # HMRC exchange rates for January 2015 to December 2015: units of the currency per GBP 1.
 # A row is in force from its date until the next row for that currency, or the end
-# of the month. A date other than the 1st is a change HMRC made during the month.
+# of the month. A date other than the 1st is a change HMRC made during the month; a
+# change HMRC made from the 1st replaces the month's published rate.
 # January: https://www.hmrc.gov.uk/softwaredevelopers/rates/exrates_monthly_0115.xml
 # Monthly rates: https://www.hmrc.gov.uk/softwaredevelopers/rates/exrates-monthly-MMYY.xml
 # Changes: https://www.hmrc.gov.uk/softwaredevelopers/rates/exrates-weekly-MMYY.xml

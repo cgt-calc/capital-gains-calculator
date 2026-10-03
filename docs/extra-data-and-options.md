@@ -21,20 +21,23 @@ cgt-calc converts other currencies to pounds at HMRC's monthly exchange rates.
     and from the [UK Trade Tariff API](https://www.trade-tariff.service.gov.uk/exchange_rates) for
     2021 onwards. It saves them to `out/exchange_rates.csv`.
 
-For April 2002 to April 2016, a row in that file is used only for a currency the rates that come
-with cgt-calc lack. If the file gives a different rate from HMRC's for one of those dates, cgt-calc
-uses HMRC's rate and prints a warning naming the row. A file written by an earlier version of
-cgt-calc can hold such rows, because it saved the rate from before HMRC's change. The warning is
+For April 2002 to April 2016, a row in that file is used only for a currency and date the rates that
+come with cgt-calc lack. If the file gives a different rate from HMRC's for one of those dates,
+cgt-calc uses HMRC's rate and prints a warning naming the row. A file written by an earlier version
+of cgt-calc can hold such rows, because it saved the rate from before HMRC's change. The warning is
 repeated on every run until you remove the row.
 
 cgt-calc stops and names the currency and date when it has no rate for a transaction:
 
-- a date before April 2002;
-- a currency HMRC did not list that month;
-- a currency and month for which HMRC's own pages give conflicting rates, so the rate HMRC applied
-    cannot be told: the UAE dirham (AED) and East Caribbean dollar (XCD) in some months from 2006 to
-    2013, the West African CFA franc (XOF) in January and November 2008 and January 2009, and eight
-    other currencies in July 2002, May 2008 and September 2010. The top of each
+- **A date before April 2002.** HMRC's archived rates start in April 2002.
+- **A currency HMRC did not list that month, or listed under another code.** HMRC's tables give the
+    Russian rouble as RUR, the Turkish lira as TRL and the Mexican peso as MXV until late 2009, and
+    the Romanian leu as ROL until February 2009. A few rows have no code at all, such as the
+    Romanian leu in January 2010.
+- **A currency and month for which HMRC's documents disagree or cannot be read**, so the rate HMRC
+    applied cannot be told. There are 40, including the Mexican peso in December 2009. The others
+    are minor currencies, mostly the UAE dirham (AED), the East Caribbean dollar (XCD) and the CFA
+    and CFP francs (XOF, XPF) in some months from 2006 to 2013. The top of each
     [year's file](https://github.com/cgt-calc/capital-gains-calculator/tree/main/cgt_calc/resources/hmrc_exchange_rates)
     lists them.
 
@@ -42,12 +45,23 @@ To continue, add a row to the file yourself: the transaction's date in the `mont
 currency code, and the rate as units of that currency per £1. Each transaction needs its own row. If
 the file does not exist yet, start it with the header line `month,currency,rate`.
 
+HMRC does not prescribe which exchange rate to use, only that the method is reasonable and
+consistent ([CG78310](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg78310)).
+HMRC's own figure for the date keeps the transaction in line with the rest of the report:
+
+- For a currency listed under an older code, use HMRC's rate for that code. HMRC's TRL rates up to
+    January 2005 are in old lira, a million of which make one new lira (TRY).
+- Where HMRC's documents disagree, look up the month in the archive below, use the figure you can
+    best justify, and note why.
+- Before April 2002, the Bank of England publishes
+    [daily spot exchange rates against sterling](https://www.bankofengland.co.uk/boeapps/database/Rates.asp?into=GBP).
+
 HMRC's rates up to 2014 are kept in the UK Government Web Archive:
 
 - **April 2002 to 2007:** open
     [HMRC's exchange rates for 2007](https://webarchive.nationalarchives.gov.uk/ukgwa/20110202145605/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2007&columns=1)
-    and change `EXRATES_2007` in the address to the year you need. Each month's page offers the
-    table as a PDF download.
+    and change `EXRATES_2007` in the address to the year you need. Until August 2006 each month's
+    table is a PDF or Word download from its page.
 - **2008 to 2014:** open
     [HMRC's exchange rates for 2009](https://webarchive.nationalarchives.gov.uk/ukgwa/20141203171558/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2009&columns=1)
     and choose “Rates of Exchange for Customs and VAT purposes” for the month. For another year,

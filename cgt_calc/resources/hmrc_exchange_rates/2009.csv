@@ -1,9 +1,10 @@
 # HMRC exchange rates for January 2009 to December 2009: units of the currency per GBP 1.
 # A row is in force from its date until the next row for that currency, or the end
-# of the month. A date other than the 1st is a change HMRC made during the month.
+# of the month. A date other than the 1st is a change HMRC made during the month; a
+# change HMRC made from the 1st replaces the month's published rate.
 # Source: HMRC's monthly pages and change lists for the year, archived at
 # https://webarchive.nationalarchives.gov.uk/ukgwa/20141203171558/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2009&columns=1
-# Left out where HMRC's own figures disagree: 2009-01 XOF, 2009-02 AED, 2009-02 XCD, 2009-04 AED, 2009-04 XCD, 2009-06 AED, 2009-06 XCD
+# Left out, as HMRC's documents disagree or cannot be read: 2009-01 XOF, 2009-01 XPF, 2009-02 AED, 2009-02 XCD, 2009-04 AED, 2009-04 XCD, 2009-06 AED, 2009-06 XCD, 2009-12 MXN, 2009-12 MXV
 month,currency,rate
 2009-01-01,AED,5.4816
 2009-01-01,AFA,70.1279
@@ -151,7 +152,6 @@ month,currency,rate
 2009-01-01,WST,4.4632
 2009-01-01,XAF,732.144
 2009-01-01,XCD,4.0295
-2009-01-01,XPF,133.101
 2009-01-01,YER,298.562
 2009-01-01,ZAR,15.1951
 2009-01-01,ZMK,7782.87
@@ -185,7 +185,6 @@ month,currency,rate
 2009-01-07,TWD,47.1841
 2009-01-07,UAH,11.2366
 2009-01-07,USD,1.4378
-2009-01-07,XPF,124.795
 2009-01-07,ZAR,13.2920
 2009-01-14,ARS,5.2391
 2009-01-14,BND,2.1053
@@ -243,7 +242,6 @@ month,currency,rate
 2009-01-21,UAH,12.1139
 2009-01-21,UGX,2976.31
 2009-01-21,VND,26612.50
-2009-01-21,XPF,134.424
 2009-01-21,ZMK,7583.55
 2009-01-21,ZRN,1031.19
 2009-01-28,ARS,4.7636
@@ -2401,7 +2399,6 @@ month,currency,rate
 2009-12-01,MUR,49.7734
 2009-12-01,MVR,21.3434
 2009-12-01,MWK,237.927
-2009-12-01,MXV,21.7279
 2009-12-01,MYR,5.6416
 2009-12-01,MZM,49.1899
 2009-12-01,NGN,253.736
@@ -2475,7 +2472,6 @@ month,currency,rate
 2009-12-23,ZWD,571.141
 2009-12-30,AMD,597.428
 2009-12-30,ARS,6.0594
-2009-12-30,MXN,20.6010
 2009-12-30,NGN,240.209
 2009-12-30,PHP,74.2812
 2009-12-30,PYG,7212.56

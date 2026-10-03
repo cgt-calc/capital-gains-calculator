@@ -1,9 +1,10 @@
 # HMRC exchange rates for January 2006 to December 2006: units of the currency per GBP 1.
 # A row is in force from its date until the next row for that currency, or the end
-# of the month. A date other than the 1st is a change HMRC made during the month.
+# of the month. A date other than the 1st is a change HMRC made during the month; a
+# change HMRC made from the 1st replaces the month's published rate.
 # Source: HMRC's monthly pages and change lists for the year, archived at
 # https://webarchive.nationalarchives.gov.uk/ukgwa/20110202145605/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2006&columns=1
-# Left out where HMRC's own figures disagree: 2006-05 AED, 2006-05 XCD
+# Left out, as HMRC's documents disagree or cannot be read: 2006-05 AED, 2006-05 XCD, 2006-08 GNF, 2006-08 ZMK
 month,currency,rate
 2006-01-01,AED,6.5096
 2006-01-01,AFA,76.2068
@@ -1409,8 +1410,6 @@ month,currency,rate
 2006-08-01,ZAR,13.0869
 2006-08-01,ZRN,808.032
 2006-08-01,ZWD,185628
-2006-08-02,ZMK,6739.61
-2006-08-09,GNF,9980.71
 2006-08-09,ZRN,848.827
 2006-08-16,KHR,7844.04
 2006-08-16,KZT,230.764
@@ -1418,9 +1417,7 @@ month,currency,rate
 2006-08-16,SBD,14.2800
 2006-08-16,TZS,2460.22
 2006-08-16,UYU,45.9273
-2006-08-16,ZMK,7356.79
 2006-08-16,ZWD,477.713
-2006-08-23,GNF,10535.3
 2006-08-23,MUR,60.3103
 2006-08-23,TRL,2.7490
 2006-09-01,AED,6.9039

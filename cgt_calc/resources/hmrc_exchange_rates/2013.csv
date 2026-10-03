@@ -1,9 +1,10 @@
 # HMRC exchange rates for January 2013 to December 2013: units of the currency per GBP 1.
 # A row is in force from its date until the next row for that currency, or the end
-# of the month. A date other than the 1st is a change HMRC made during the month.
+# of the month. A date other than the 1st is a change HMRC made during the month; a
+# change HMRC made from the 1st replaces the month's published rate.
 # Source: HMRC's monthly pages and change lists for the year, archived at
 # https://webarchive.nationalarchives.gov.uk/ukgwa/20141203171558/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2013&columns=1
-# Left out where HMRC's own figures disagree: 2013-07 XCD
+# Left out, as HMRC's documents disagree or cannot be read: 2013-07 XCD
 month,currency,rate
 2013-01-01,AED,5.921
 2013-01-01,AFN,82.0186

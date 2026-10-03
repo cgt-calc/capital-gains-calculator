@@ -1,8 +1,10 @@
 # HMRC exchange rates for January 2007 to December 2007: units of the currency per GBP 1.
 # A row is in force from its date until the next row for that currency, or the end
-# of the month. A date other than the 1st is a change HMRC made during the month.
+# of the month. A date other than the 1st is a change HMRC made during the month; a
+# change HMRC made from the 1st replaces the month's published rate.
 # Source: HMRC's monthly pages and change lists for the year, archived at
 # https://webarchive.nationalarchives.gov.uk/ukgwa/20110202145605/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2007&columns=1
+# Left out, as HMRC's documents disagree or cannot be read: 2007-01 SIT
 month,currency,rate
 2007-01-01,AED,7.1694
 2007-01-01,AFA,95.9823
@@ -125,7 +127,6 @@ month,currency,rate
 2007-01-01,SDD,395.495
 2007-01-01,SEK,13.4268
 2007-01-01,SGD,3.0265
-2007-01-01,SIT,357.392
 2007-01-01,SKK,51.9349
 2007-01-01,SLL,5827.56
 2007-01-01,SOS,2684.07
@@ -164,7 +165,6 @@ month,currency,rate
 2007-01-10,IQD,2591.27
 2007-01-10,VEB,6543.72
 2007-01-10,ZMK,8665.29
-2007-01-17,SIT,1.4947
 2007-01-17,ZMK,8047.75
 2007-01-24,GYD,395.323
 2007-01-24,SCR,11.6504
