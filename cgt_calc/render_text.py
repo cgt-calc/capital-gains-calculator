@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from colorama import Style
 
-from .const import BASIC_RATE_LIMITS, CAPITAL_GAINS_TAX_RATES
+from .const import BASIC_RATE_LIMITS, CAPITAL_GAINS_TAX_RATES, PERSONAL_ALLOWANCES
 from .dates import get_tax_year_end, get_tax_year_start
 from .logging import bullet, style_text
 from .model import RuleType
@@ -21,12 +21,16 @@ if TYPE_CHECKING:
     from .model import CapitalGainsReport
 
 
-def render_text(report: CapitalGainsReport) -> str:
-    """Return the report as printed to the terminal."""
+def render_text(report: CapitalGainsReport, income: Decimal | None = None) -> str:
+    """Return the report as printed to the terminal.
+
+    `income` is the year's income before the Personal Allowance, without the
+    dividends and interest in the report, when the user gave it.
+    """
     return (
         _render_portfolio(report)
         + "\n"
-        + _render_tax_summary(report)
+        + _render_tax_summary(report, income)
         + _render_excess_reported_income(report)
         + _render_spouse_transfers(report)
         + _render_gifts(report)
@@ -58,7 +62,7 @@ def _render_portfolio(report: CapitalGainsReport) -> str:
     return out
 
 
-def _render_tax_summary(report: CapitalGainsReport) -> str:
+def _render_tax_summary(report: CapitalGainsReport, income: Decimal | None) -> str:
     """Render the capital gains, dividends and interest summary."""
     out = (
         style_text(
@@ -69,7 +73,7 @@ def _render_tax_summary(report: CapitalGainsReport) -> str:
         )
         + "\n"
     )
-    groups = _summary_rows(report)
+    groups = _summary_rows(report, income)
     # Right-align values on one shared column across the whole summary so
     # the decimal points line up.
     label_width = max(len(label) for _, rows, _ in groups for label, _ in rows) + 1
@@ -88,7 +92,7 @@ def _render_tax_summary(report: CapitalGainsReport) -> str:
 
 
 def _summary_rows(
-    report: CapitalGainsReport,
+    report: CapitalGainsReport, income: Decimal | None
 ) -> list[tuple[str, list[tuple[str, str]], list[str]]]:
     """Return the tax summary as (title, label/value rows, notes) groups."""
     capital: list[tuple[str, str]] = [
@@ -116,7 +120,9 @@ def _summary_rows(
         capital.append(
             ("Taxable gain", f"£{round_decimal(report.taxable_gain(), 2):,}")
         )
-        tax_rows, tax_notes = _capital_gains_tax(report, report.capital_gain_allowance)
+        tax_rows, tax_notes = _capital_gains_tax(
+            report, report.capital_gain_allowance, income
+        )
         capital += tax_rows
         capital_notes += tax_notes
     else:
@@ -180,90 +186,207 @@ def _rates_on(date: datetime.date) -> tuple[int, int]:
     )
 
 
+_HIGHEST_RATE_FIRST = (
+    "Losses and the annual exempt amount are deducted from the gains taxed at the "
+    "highest rate first."
+)
+
+
+def _pounds(amount: Decimal) -> str:
+    """Return an amount as the summary prints it."""
+    return f"£{round_decimal(amount, 2):,}"
+
+
+def _charged_by_rate(
+    taxable: dict[tuple[int, int], Decimal], band: Decimal
+) -> dict[int, Decimal]:
+    """Return how much of what is left to tax is charged at each rate.
+
+    `band` is the unused part of the basic rate band. The individual chooses
+    which gains it goes to (TCGA 1992 s1I(7)), so it goes where the two rates
+    are furthest apart. Gains taxed at one rate whatever the income come last
+    and so leave it to the others (F(No. 2)A 2010 Sch 1 para 18).
+    """
+    charged: dict[int, Decimal] = defaultdict(Decimal)
+    for (basic, higher), amount in sorted(
+        taxable.items(), key=lambda item: item[0][1] - item[0][0], reverse=True
+    ):
+        in_band = min(amount, band)
+        band -= in_band
+        charged[basic] += in_band
+        charged[higher] += amount - in_band
+    return {rate: amount for rate, amount in charged.items() if amount}
+
+
+def _tax(charged: dict[int, Decimal]) -> Decimal:
+    """Return the tax on amounts charged at each rate."""
+    return sum((amount * rate for rate, amount in charged.items()), Decimal(0)) / 100
+
+
 def _taxable_by_rates(
-    gains: dict[tuple[int, int], Decimal], deductions: Decimal, band: int
+    gains: dict[tuple[int, int], Decimal], deductions: Decimal
 ) -> dict[tuple[int, int], Decimal]:
     """Return what is left to tax of the gains under each pair of rates.
 
     Losses and the annual exempt amount may be deducted in whichever way is
-    most beneficial (TCGA 1992 s1F and s1K(5), s4B before 2019/20): from the
-    gains taxed at the highest rate first.
+    most beneficial (TCGA 1992 s1F and s1K(5), s4B before 2019/20). Under
+    every pair of rates there has been, that is from the gains with the
+    highest higher rate first, whatever the unused basic rate band.
     """
     taxable = {}
-    for rates, gain in sorted(
-        gains.items(), key=lambda item: item[0][band], reverse=True
-    ):
+    for rates, gain in sorted(gains.items(), key=lambda item: item[0][1], reverse=True):
         deducted = min(gain, deductions)
         deductions -= deducted
         taxable[rates] = gain - deducted
     return taxable
 
 
+def _estimated_tax(
+    report: CapitalGainsReport,
+    taxable: dict[tuple[int, int], Decimal],
+    income: Decimal,
+    *,
+    rates_changed: bool,
+) -> tuple[str, list[str]]:
+    """Return the tax for the user's income, and the notes on how it was reached."""
+    allowance = PERSONAL_ALLOWANCES[report.tax_year]
+    limit = BASIC_RATE_LIMITS[report.tax_year]
+    # Dividends that carried a tax credit are not taxed as the amount received.
+    dividends = (
+        Decimal(0)
+        if report.dividends_carry_tax_credit
+        else report.total_dividends_amount()
+    )
+    interest = report.total_uk_interest + report.total_foreign_interest
+    taxable_income = max(Decimal(0), income + dividends + interest - allowance)
+    band = max(Decimal(0), limit - taxable_income)
+    charged = _charged_by_rate(taxable, band)
+
+    added = [
+        f"{_pounds(amount)} {name}"
+        for name, amount in (("dividends", dividends), ("interest", interest))
+        if amount
+    ]
+    source = f"Income {_pounds(income)}"
+    if added:
+        source += f", plus {' and '.join(added)} from these files,"
+    if band:
+        notes = [
+            (
+                f"{source.removesuffix(',')}, less the £{allowance:,} Personal "
+                f"Allowance: taxable income {_pounds(taxable_income)}, which leaves "
+                f"{_pounds(band)} of the £{limit:,} basic rate limit unused."
+            )
+        ]
+    else:
+        # The allowance shrinks above £100,000, so only its most is stated.
+        notes = [
+            (
+                f"{source} less the Personal Allowance (£{allowance:,} at most) is "
+                f"£{limit:,} or more, so none of the basic rate limit is unused."
+            )
+        ]
+    if report.explains_dividend_tax_credit():
+        notes.append(
+            "Dividends before 6 April 2016 are not added: include their taxable "
+            "amount in --income."
+        )
+    (rate, amount), *rest = sorted(charged.items())
+    parts = [
+        f"{_pounds(amount)} is taxed at {rate}%",
+        *(f"{_pounds(amount)} at {rate}%" for rate, amount in rest),
+    ]
+    listed = f"{', '.join(parts[:-1])} and {parts[-1]}" if rest else parts[0]
+    notes.append(f"Of the taxable gain, {listed}.")
+    if rates_changed:
+        notes.append(
+            "Losses, the annual exempt amount and the unused part of the limit are "
+            "set against the gains where they save the most tax."
+            if band
+            else _HIGHEST_RATE_FIRST
+        )
+    return _pounds(_tax(charged)), notes
+
+
 def _capital_gains_tax(
-    report: CapitalGainsReport, allowance: Decimal
+    report: CapitalGainsReport, allowance: Decimal, income: Decimal | None
 ) -> tuple[list[tuple[str, str]], list[str]]:
     """Return the rows and notes for the tax on a full year's taxable gain.
 
-    The rate depends on taxable income, which the calculation never sees, so
-    the tax is given at the basic and at the higher rate, with who pays each.
-    The tax due lies between the two.
+    The rate depends on taxable income. Without the user's income the tax is
+    given at the basic and at the higher rate, with who pays each; the tax due
+    lies between the two. With it, one figure is given.
     """
     if report.period_start is not None or report.taxable_gain() == 0:
         return [], []
     gains: dict[tuple[int, int], Decimal] = defaultdict(Decimal)
     for date, gain in report.gains_by_date.items():
         gains[_rates_on(date)] += gain
-    deductions = allowance - report.capital_loss
-    at_basic, at_higher = (
-        _taxable_by_rates(gains, deductions, band) for band in (0, 1)
+    taxable = _taxable_by_rates(gains, allowance - report.capital_loss)
+    # At the higher rates none of the basic rate band is unused.
+    higher_tax = _pounds(_tax(_charged_by_rate(taxable, Decimal(0))))
+    left_out = (
+        "gains that are not in the files you supplied, losses brought forward and "
+        "reliefs. See https://cgt-calc.uk/usage/"
     )
-    taxes = []
-    for band, taxable in enumerate((at_basic, at_higher)):
-        tax = sum((left * rates[band] for rates, left in taxable.items()), Decimal(0))
-        taxes.append(f"£{round_decimal(tax / 100, 2):,}")
     estimate = (
-        "The tax is an estimate: it leaves out gains that are not in the files you "
-        "supplied, losses brought forward and reliefs. See "
-        "https://cgt-calc.uk/usage/#tax-at-the-basic-and-higher-rate"
+        f"The tax is an estimate: it leaves out {left_out}"
+        "#tax-at-the-basic-and-higher-rate"
     )
     # The part of the taxable gain whose rate depends on income.
     banded = sum(
-        (left for (basic, higher), left in at_higher.items() if basic != higher),
+        (left for (basic, higher), left in taxable.items() if basic != higher),
         Decimal(0),
     )
     if not banded:
         # All of it is taxed at one rate whatever the income.
-        rate = next(basic for (basic, _), left in at_higher.items() if left)
-        return [(f"Tax at {rate}%", taxes[0])], [estimate]
+        rate = next(basic for (basic, _), left in taxable.items() if left)
+        return [(f"Tax at {rate}%", higher_tax)], [estimate]
 
     year_end = get_tax_year_end(report.tax_year)
     opening = _rates_on(get_tax_year_start(report.tax_year))
     closing = _rates_on(year_end)
-    # No tax year has had more than one change of rates.
     change = next(
         f"{start.day} {start:%B %Y}"
         for start, _, _ in reversed(CAPITAL_GAINS_TAX_RATES)
         if start <= year_end
     )
+    limit = f"£{BASIC_RATE_LIMITS[report.tax_year]:,}"
+    # Gains taxed at one rate whatever the income do not use the limit
+    # (F(No. 2)A 2010 Sch 1 para 18), so only the rest is set against it.
+    single_rate = any(
+        left for (basic, higher), left in taxable.items() if basic == higher
+    )
+    before_change = (
+        f"Gains before {change} are taxed at {opening[0]}% whatever your income "
+        f"and do not count towards the {limit}."
+    )
+    if income is not None:
+        tax, notes = _estimated_tax(
+            report, taxable, income, rates_changed=opening != closing
+        )
+        if single_rate:
+            notes.append(before_change)
+        notes.append(f"The tax leaves out {left_out}#estimate-the-tax-from-your-income")
+        return [("Estimated tax", tax)], notes
+
+    # At the basic rates all of the taxable gain fits within the band.
+    basic_tax = _pounds(_tax(_charged_by_rate(taxable, report.taxable_gain())))
     basic, higher = (
         f"{before}%" if before == after else f"{before}%, or {after}% from {change}"
         for before, after in zip(opening, closing, strict=True)
     )
-    limit = f"£{BASIC_RATE_LIMITS[report.tax_year]:,}"
-    income = f"your taxable income for {report.tax_year}/{report.tax_year + 1}"
-    # Gains taxed at one rate whatever the income do not use the limit
-    # (F(No. 2)A 2010 Sch 1 para 18), so only the rest is set against it.
-    single_rate = any(
-        left for (basic, higher), left in at_higher.items() if basic == higher
-    )
+    tax_year = f"{report.tax_year}/{report.tax_year + 1}"
     counted = that = "the taxable gain"
     if single_rate:
-        amount = f"£{round_decimal(banded, 2):,}"
-        that = f"that {amount}"
-        counted = f"the {amount} of taxable gain made from {change}"
+        that = f"that {_pounds(banded)}"
+        counted = f"the {_pounds(banded)} of taxable gain made from {change}"
     notes = [
-        f"Basic rate ({basic}): {income} plus {counted} is {limit} or less.",
-        f"Higher rate ({higher}): {income} is {limit} or more.",
+        (
+            f"Basic rate ({basic}): your taxable income for {tax_year} plus {counted} "
+            f"is {limit} or less."
+        ),
+        f"Higher rate ({higher}): your taxable income for {tax_year} is {limit} or more.",
         (
             f"If your taxable income is under {limit} but {that} takes you over it, "
             f"you pay the basic rate on the part of it that fits under {limit} and "
@@ -275,17 +398,18 @@ def _capital_gains_tax(
         ),
     ]
     if opening != closing:
-        notes.append(
-            "Losses and the annual exempt amount are deducted from the gains taxed "
-            "at the highest rate first."
-        )
+        notes.append(_HIGHEST_RATE_FIRST)
     if single_rate:
-        notes.append(
-            f"Gains before {change} are taxed at {opening[0]}% whatever your income "
-            f"and do not count towards the {limit}."
-        )
-    notes.append(estimate)
-    return [("Tax at basic rate", taxes[0]), ("Tax at higher rate", taxes[1])], notes
+        notes.append(before_change)
+    notes += [
+        (
+            f"To get a single figure, add --income with your income for {tax_year} "
+            "before the Personal Allowance, such as the pay on your P60. cgt-calc "
+            "adds the dividends and interest in these files."
+        ),
+        estimate,
+    ]
+    return [("Tax at basic rate", basic_tax), ("Tax at higher rate", higher_tax)], notes
 
 
 def _render_excess_reported_income(report: CapitalGainsReport) -> str:

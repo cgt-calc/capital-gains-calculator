@@ -83,6 +83,31 @@ BASIC_RATE_LIMITS: Final[dict[int, int]] = {
     2026: 37700,
 }
 
+# Income Tax Personal Allowance: the standard amount, before it is reduced for
+# income above £100,000. At that income a gain is taxed at the higher rate
+# whatever the allowance, so the reduction never changes the rate.
+# From HMRC's Income Tax personal allowances and reliefs table:
+# https://www.gov.uk/government/statistics/income-tax-personal-allowances-and-reliefs
+PERSONAL_ALLOWANCES: Final[dict[int, int]] = {
+    2010: 6475,
+    2011: 7475,
+    2012: 8105,
+    2013: 9440,
+    2014: 10000,
+    2015: 10600,
+    2016: 11000,
+    2017: 11500,
+    2018: 11850,
+    2019: 12500,
+    2020: 12500,
+    2021: 12570,
+    2022: 12570,
+    2023: 12570,
+    2024: 12570,
+    2025: 12570,
+    2026: 12570,
+}
+
 # Dividend Tax annual allowance
 # https://www.gov.uk/tax-on-dividends
 # ITA 2007 s13A: £5,000 from 2016/17, £2,000 from 2018/19 (F(No. 2)A 2017 s8).

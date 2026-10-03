@@ -23,6 +23,7 @@ Basic rate (10%): your taxable income for 2023/2024 plus the taxable gain is £3
 Higher rate (20%): your taxable income for 2023/2024 is £37,700 or more.
 If your taxable income is under £37,700 but the taxable gain takes you over it, you pay the basic rate on the part of it that fits under £37,700 and the higher rate on the rest. Your tax is then between the two figures.
 Taxable income is your income after the Personal Allowance and other Income Tax reliefs.
+To get a single figure, add --income with your income for 2023/2024 before the Personal Allowance, such as the pay on your P60. cgt-calc adds the dividends and interest in these files.
 The tax is an estimate: it leaves out gains that are not in the files you supplied, losses brought forward and reliefs. See https://cgt-calc.uk/usage/#tax-at-the-basic-and-higher-rate
 
 Dividends

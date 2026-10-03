@@ -22,6 +22,7 @@ from .exceptions import CgtError, TransactionDumpError
 from .isin_converter import IsinConverter
 from .logging import setup_logging, style_text
 from .parsers.broker_registry import BrokerRegistry
+from .render_text import render_text
 from .share_prices import SharePrices
 from .spin_off_handler import SpinOffHandler
 from .transaction_dumper import dump_transactions
@@ -158,7 +159,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
     report = calculator.calculate(broker_transactions)
     # The report string is newline-terminated already; avoid a trailing
     # blank line so piped output stays stable under newline normalisation.
-    print(report, end="")
+    print(render_text(report, args.income), end="")
 
     # Generate PDF report.
     if not args.no_report:

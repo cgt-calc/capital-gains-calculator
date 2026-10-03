@@ -21,6 +21,7 @@ from cgt_calc.const import (
     BASIC_RATE_LIMITS,
     CAPITAL_GAIN_ALLOWANCES,
     DIVIDEND_ALLOWANCES,
+    PERSONAL_ALLOWANCES,
     PRE_POOLING_REFUSED_ACTIONS,
     RENAME_DESCRIPTION_PREFIX,
 )
@@ -49,6 +50,7 @@ from cgt_calc.model import (
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.parsers.eri.model import ERITransaction
 from cgt_calc.rename_planning import RENAME_DAY_UNSUPPORTED_ACTIONS
+from cgt_calc.render_text import render_text
 from cgt_calc.share_prices import SharePrices
 from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.stock_splits import (
@@ -63,6 +65,7 @@ from .calc_test_data import (
     buy_transaction,
     calc_basic_data,
     eri_transaction,
+    interest_transaction,
     sell_transaction,
     split_transaction,
     transaction,
@@ -3344,6 +3347,10 @@ HIGHEST_RATE_FIRST_NOTE = (
     "Losses and the annual exempt amount are deducted from the gains taxed at the "
     "highest rate first."
 )
+GAINS_BEFORE_23_JUNE_2010_NOTE = (
+    "Gains before 23 June 2010 are taxed at 18% whatever your income and do not "
+    "count towards the £37,400."
+)
 ESTIMATE_NOTE = (
     "The tax is an estimate: it leaves out gains that are not in the files you "
     "supplied, losses brought forward and reliefs. See "
@@ -3357,6 +3364,11 @@ NOTES_FOR_2024 = [
         "£37,700",
     ),
     HIGHEST_RATE_FIRST_NOTE,
+    (
+        "To get a single figure, add --income with your income for 2024/2025 "
+        "before the Personal Allowance, such as the pay on your P60. cgt-calc adds "
+        "the dividends and interest in these files."
+    ),
     ESTIMATE_NOTE,
 ]
 
@@ -3409,9 +3421,12 @@ NOTES_FOR_2024 = [
                     that="that £9,900.00",
                 ),
                 HIGHEST_RATE_FIRST_NOTE,
+                GAINS_BEFORE_23_JUNE_2010_NOTE,
                 (
-                    "Gains before 23 June 2010 are taxed at 18% whatever your income "
-                    "and do not count towards the £37,400."
+                    "To get a single figure, add --income with your income for "
+                    "2010/2011 before the Personal Allowance, such as the pay on "
+                    "your P60. cgt-calc adds the dividends and interest in these "
+                    "files."
                 ),
                 ESTIMATE_NOTE,
             ],
@@ -3458,6 +3473,228 @@ def test_tax_is_shown_at_the_basic_and_the_higher_rate(
     assert _lines_after_taxable_gain(text) == lines
 
 
+LEFT_OUT_NOTE = (
+    "The tax leaves out gains that are not in the files you supplied, losses "
+    "brought forward and reliefs. See "
+    "https://cgt-calc.uk/usage/#estimate-the-tax-from-your-income"
+)
+LOWEST_TAX_NOTE = (
+    "Losses, the annual exempt amount and the unused part of the limit are set "
+    "against the gains where they save the most tax."
+)
+US_FUND = Isin("US9220427424")
+EITHER_SIDE_OF_23_JUNE_2010 = [
+    (datetime.date(2010, 6, 22), 1000, 6000),
+    (datetime.date(2010, 6, 23), 1000, 21000),
+]
+EITHER_SIDE_OF_30_OCTOBER_2024 = [
+    (datetime.date(2024, 10, 29), 1000, 11000),
+    (datetime.date(2024, 10, 30), 1000, 9000),
+    (datetime.date(2024, 6, 3), 3000, 1000),
+]
+WITH_DIVIDENDS_AND_INTEREST = [
+    *_sold_at_a_gain_or_loss([(datetime.date(2025, 6, 2), 1000, 16000)]),
+    transaction(
+        datetime.date(2025, 6, 2),
+        ActionType.DIVIDEND,
+        "BAR",
+        None,
+        None,
+        0,
+        1200,
+        GBP,
+        isin=US_FUND,
+    ),
+    interest_transaction(datetime.date(2025, 6, 2), 300, GBP),
+    # £1,000 at the rate of 1.3412 recorded for this day.
+    interest_transaction(datetime.date(2025, 6, 30), 1341.2),
+]
+WITH_A_DIVIDEND_IN_2015 = [
+    *_sold_at_a_gain_or_loss([(datetime.date(2015, 6, 1), 1000, 32100)]),
+    transaction(
+        datetime.date(2015, 6, 1),
+        ActionType.DIVIDEND,
+        "BAR",
+        None,
+        None,
+        0,
+        1200,
+        GBP,
+        isin=US_FUND,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("tax_year", "income", "transactions", "lines"),
+    [
+        pytest.param(
+            2025,
+            0,
+            _sold_at_a_gain_or_loss([(datetime.date(2025, 6, 2), 1000, 44000)]),
+            [
+                "Estimated tax: £7,338.00",
+                (
+                    "Income £0.00, less the £12,570 Personal Allowance: taxable income "
+                    "£0.00, which leaves £37,700.00 of the £37,700 basic rate limit "
+                    "unused."
+                ),
+                (
+                    "Of the taxable gain, £37,700.00 is taxed at 18% and £2,300.00 at "
+                    "24%."
+                ),
+                LEFT_OUT_NOTE,
+            ],
+            id="no income leaves the whole limit, and unused allowance adds nothing",
+        ),
+        pytest.param(
+            2025,
+            45000,
+            WITH_DIVIDENDS_AND_INTEREST,
+            [
+                "Estimated tax: £2,713.80",
+                (
+                    "Income £45,000.00, plus £1,200.00 dividends and £1,300.00 "
+                    "interest from these files, less the £12,570 Personal Allowance: "
+                    "taxable income £34,930.00, which leaves £2,770.00 of the £37,700 "
+                    "basic rate limit unused."
+                ),
+                "Of the taxable gain, £2,770.00 is taxed at 18% and £9,230.00 at 24%.",
+                LEFT_OUT_NOTE,
+            ],
+            id="the report's dividends and UK and foreign interest are income too",
+        ),
+        pytest.param(
+            2015,
+            30000,
+            WITH_A_DIVIDEND_IN_2015,
+            [
+                "Estimated tax: £4,361.50",
+                (
+                    "Income £30,000.00, less the £10,600 Personal Allowance: taxable "
+                    "income £19,400.00, which leaves £12,385.00 of the £31,785 basic "
+                    "rate limit unused."
+                ),
+                (
+                    "Dividends before 6 April 2016 are not added: include their "
+                    "taxable amount in --income."
+                ),
+                (
+                    "Of the taxable gain, £12,385.00 is taxed at 18% and £7,615.00 at "
+                    "28%."
+                ),
+                LEFT_OUT_NOTE,
+            ],
+            id="dividends that carried a tax credit are not added",
+        ),
+        pytest.param(
+            2010,
+            36475,
+            _sold_at_a_gain_or_loss(EITHER_SIDE_OF_23_JUNE_2010),
+            [
+                "Estimated tax: £2,932.00",
+                (
+                    "Income £36,475.00, less the £6,475 Personal Allowance: taxable "
+                    "income £30,000.00, which leaves £7,400.00 of the £37,400 basic "
+                    "rate limit unused."
+                ),
+                (
+                    "Of the taxable gain, £12,400.00 is taxed at 18% and £2,500.00 at "
+                    "28%."
+                ),
+                LOWEST_TAX_NOTE,
+                GAINS_BEFORE_23_JUNE_2010_NOTE,
+                LEFT_OUT_NOTE,
+            ],
+            id="gains before 23 June 2010 leave the limit to the later ones",
+        ),
+        pytest.param(
+            2024,
+            38270,
+            _sold_at_a_gain_or_loss(EITHER_SIDE_OF_30_OCTOBER_2024),
+            [
+                "Estimated tax: £1,600.00",
+                (
+                    "Income £38,270.00, less the £12,570 Personal Allowance: taxable "
+                    "income £25,700.00, which leaves £12,000.00 of the £37,700 basic "
+                    "rate limit unused."
+                ),
+                (
+                    "Of the taxable gain, £10,000.00 is taxed at 10%, £2,000.00 at "
+                    "18% and £1,000.00 at 24%."
+                ),
+                LOWEST_TAX_NOTE,
+                LEFT_OUT_NOTE,
+            ],
+            id="the limit goes to the gains before 30 October 2024 first",
+        ),
+        pytest.param(
+            2024,
+            50270,
+            _sold_at_a_gain_or_loss(EITHER_SIDE_OF_30_OCTOBER_2024),
+            [
+                "Estimated tax: £2,720.00",
+                (
+                    "Income £50,270.00 less the Personal Allowance (£12,570 at most) "
+                    "is £37,700 or more, so none of the basic rate limit is unused."
+                ),
+                (
+                    "Of the taxable gain, £10,000.00 is taxed at 20% and £3,000.00 at "
+                    "24%."
+                ),
+                HIGHEST_RATE_FIRST_NOTE,
+                LEFT_OUT_NOTE,
+            ],
+            id="income at the limit leaves none of it unused",
+        ),
+        pytest.param(
+            2009,
+            45000,
+            _sold_at_a_gain_or_loss([(datetime.date(2009, 6, 1), 1000, 21100)]),
+            ["Tax at 18%: £1,800.00", ESTIMATE_NOTE],
+            id="income makes no difference to a single rate",
+        ),
+    ],
+)
+def test_income_narrows_the_tax_to_one_estimate(
+    tax_year: int,
+    income: int,
+    transactions: list[BrokerTransaction],
+    lines: list[str],
+) -> None:
+    """With the year's income the terminal shows one figure and how it was reached.
+
+    The income is what the user has outside the files; the report's own
+    dividends and interest are added and the Personal Allowance deducted. In
+    2024/25 the unused part of the limit may go to either period's gains (TCGA
+    1992 s1I(7)), and goes where it saves the most. HMRC's 2024/25 adjustment
+    calculator gives £200 and £120 for the two 2024 cases: these figures less
+    the same gains taxed at 10% and 20%.
+    """
+    calculator = create_calculator(tax_year=tax_year, balance_check=False)
+
+    text = render_text(get_report(calculator, transactions), Decimal(income))
+
+    assert _lines_after_taxable_gain(text) == lines
+
+
+def test_income_option_reaches_the_terminal_summary(tmp_path: Path) -> None:
+    """`--income` on the command line replaces the two tax rows with the estimate."""
+    raw_file = tmp_path / "raw.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2025-04-10,BUY,FOO,10,100,0,GBP\n"
+        "2025-06-02,SELL,FOO,10,1600,0,GBP\n",
+        encoding="utf-8",
+    )
+    cmd = build_cmd("--year", "2025", "--raw-file", str(raw_file), "--income", "45000")
+    cmd += ["--no-balance-check", "--no-report"]
+
+    summary = _lines_after_taxable_gain(run_cli(cmd).stdout)
+
+    assert summary[0] == "Estimated tax: £2,563.80"
+
+
 def test_a_report_of_part_of_a_tax_year_shows_no_tax() -> None:
     """The taxable gain of a custom period is not the year's, so it is not taxed."""
     currency_converter = CurrencyConverter(None, {})
@@ -3488,6 +3725,11 @@ def test_every_year_with_two_rates_has_a_basic_rate_limit() -> None:
     assert set(BASIC_RATE_LIMITS) == {
         year for year in CAPITAL_GAIN_ALLOWANCES if year >= 2010
     }
+
+
+def test_every_year_with_a_basic_rate_limit_has_a_personal_allowance() -> None:
+    """Adding a year's limit without its Personal Allowance must fail here."""
+    assert set(PERSONAL_ALLOWANCES) == set(BASIC_RATE_LIMITS)
 
 
 def test_acquisitions_before_2010_join_the_pool() -> None:

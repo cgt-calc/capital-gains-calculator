@@ -179,6 +179,7 @@ OPRA
 OptionType
 OSError
 OTGLY
+P60
 ParsingError
 pdf
 pdflatex
@@ -227,6 +228,7 @@ s17
 s18
 s19
 s1F
+s1I
 s1K
 s257
 s272
