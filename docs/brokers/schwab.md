@@ -1,8 +1,9 @@
 # Charles Schwab
 
 cgt-calc reads the CSV export of a Charles Schwab brokerage account. It treats every value in the
-export as US dollars and converts it to pounds using HMRC's monthly exchange rate for the month of
-each transaction.
+export as US dollars and converts it to pounds using
+[HMRC's exchange rate](../extra-data-and-options.md#exchange-rates) for the date of each
+transaction.
 
 If you receive shares from an employer, you may also need an Equity Awards export to supply the
 market price used for each employer-share acquisition. It can be a CSV or a JSON file. Read

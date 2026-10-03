@@ -458,3 +458,117 @@ def test_query_hmrc_api_404_before_2015_says_how_to_add_the_rates(
         r"to .*rates\.csv: a CSV file with the header 'month,currency,rate'",
     ):
         converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2009, 6, 1))
+
+
+def _monthly_usd(rate: str) -> FakeSession:
+    """Stand in for HMRC's monthly file, which gives one rate for the month."""
+    xml = (
+        "<exchangeRateMonthList><exchangeRate>"
+        f"<currencyCode>USD</currencyCode><rateNew>{rate}</rateNew>"
+        "</exchangeRate></exchangeRateMonthList>"
+    )
+    return FakeSession(FakeResponse(ok=True, text=xml))
+
+
+@pytest.mark.parametrize(
+    ("currency", "date", "rate"),
+    [
+        (USD, datetime.date(2016, 1, 26), Decimal("1.5003")),
+        (USD, datetime.date(2016, 1, 27), Decimal("1.4144")),
+        # The Swiss franc changed twice in February 2015, on the 4th and 11th.
+        (CurrencyCode("CHF"), datetime.date(2015, 2, 10), Decimal("1.3692")),
+        (CurrencyCode("CHF"), datetime.date(2015, 2, 11), Decimal("1.3995")),
+        # Offshore yuan is priced as the yuan, whose rate changed that day.
+        (CurrencyCode("CNH"), datetime.date(2015, 5, 27), Decimal("9.8007")),
+    ],
+)
+def test_a_rate_hmrc_changed_during_the_month_applies_from_its_date(
+    currency: CurrencyCode, date: datetime.date, rate: Decimal
+) -> None:
+    """HMRC's monthly file shows one rate; the change it made later does not.
+
+    January 2016 opened at 1.5003 dollars to the pound and HMRC changed it to
+    1.4144 from the 27th. The download gives 1.5003 for the whole month, so it
+    is not asked: it would also leave that rate on file.
+    """
+    converter = CurrencyConverter()
+    converter.session = _monthly_usd("1.5003")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    assert converter.currency_to_gbp_rate(currency, date) == rate
+    assert converter.cache == {}
+
+
+def test_a_currency_the_shipped_rates_lack_comes_from_the_rates_given() -> None:
+    """HMRC lists no XAU in January 2016, so the rate supplied is the one used."""
+    date = datetime.date(2016, 1, 27)
+    gold = CurrencyCode("XAU")
+    converter = CurrencyConverter(initial_data={date: {gold: Decimal("0.001")}})
+
+    assert converter.currency_to_gbp_rate(gold, date) == Decimal("0.001")
+
+
+def test_a_month_that_ships_is_never_downloaded() -> None:
+    """The download has no currency the shipped month lacks, only stale rates.
+
+    Asking for it would put the rates the month opened with on file, and the
+    next run would overrule the rows this one wrote.
+    """
+    converter = CurrencyConverter()
+    converter.session = OfflineSession()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    with pytest.raises(ExchangeRateMissingError):
+        converter.currency_to_gbp_rate(CurrencyCode("XAU"), datetime.date(2016, 1, 27))
+
+
+def test_a_different_rate_on_file_is_overruled_and_reported_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The rates file is also the cache, and the cache never saw HMRC's change.
+
+    A row that agrees with HMRC says nothing. One that differs is not used,
+    and is named so it can be removed: once for each row, however many times
+    it is read.
+    """
+    rates_file = tmp_path / "rates.csv"
+    rates_file.write_text(
+        "month,currency,rate\n"
+        "2016-01-26,USD,1.5003\n"
+        "2016-01-28,USD,1.5003\n"
+        "2016-01-29,USD,1.5003\n"
+        "2016-01-29,EUR,1.371\n",
+        encoding="utf8",
+    )
+    converter = CurrencyConverter(exchange_rates_file=rates_file)
+    eur = CurrencyCode("EUR")
+
+    def rate(currency: CurrencyCode, day: int) -> Decimal:
+        return converter.currency_to_gbp_rate(currency, datetime.date(2016, 1, day))
+
+    with caplog.at_level(logging.WARNING):
+        assert rate(USD, 26) == Decimal("1.5003")
+        assert rate(USD, 28) == rate(USD, 28) == Decimal("1.4144")
+        assert rate(USD, 29) == Decimal("1.4144")
+        assert rate(eur, 29) == Decimal("1.2978")
+
+    def overruled(row: str, hmrc: str) -> str:
+        return (
+            f"{rates_file} gives {row}, but HMRC's rate for that date is {hmrc}, "
+            "which is used instead. Remove that row to stop this warning."
+        )
+
+    assert [record.getMessage() for record in caplog.records] == [
+        overruled("1.5003 USD per £1 for 2016-01-28", "1.4144"),
+        overruled("1.5003 USD per £1 for 2016-01-29", "1.4144"),
+        overruled("1.371 EUR per £1 for 2016-01-29", "1.2978"),
+    ]
+
+
+def test_test_converter_does_not_record_a_shipped_rate(tmp_path: Path) -> None:
+    """A rate that ships needs no fixture row, so the tracked file is left alone."""
+    rates_file = tmp_path / "rates.csv"
+    rates_file.write_text("month,currency,rate\n", encoding="utf8")
+    converter = RecordingCurrencyConverter(exchange_rates_file=rates_file)
+
+    converter.currency_to_gbp_rate(USD, datetime.date(2016, 1, 27))
+
+    assert rates_file.read_text(encoding="utf-8") == "month,currency,rate\n"

@@ -11,15 +11,29 @@ a normal calculation.
 
 ### Exchange rates
 
-cgt-calc downloads monthly GBP exchange rates from the
-[UK Trade Tariff API](https://www.trade-tariff.service.gov.uk/exchange_rates) for 2021 onwards and
-[HMRC's legacy service](https://www.hmrc.gov.uk/softwaredevelopers/2020-exrates.html) for February
-2015 to 2020. It saves them to `out/exchange_rates.csv`.
+cgt-calc converts other currencies to pounds at HMRC's monthly exchange rates.
 
-Neither service has rates before February 2015. For an earlier transaction in another currency, add
-a row to the file yourself: the transaction's date in the `month` column, the currency code, and the
-rate as units of that currency per £1. If the file does not exist yet, start it with the header line
-`month,currency,rate`.
+- **February 2015 to April 2016:** the rates come with cgt-calc. In those months HMRC also changed
+    some rates during the month (listed as amendments for
+    [2015](https://www.hmrc.gov.uk/softwaredevelopers/2015-exrates.htm) and
+    [2016](https://www.hmrc.gov.uk/softwaredevelopers/2016-exrates.htm)), and each change is used
+    from the day it applied. For example, the US dollar rate for January 2016 was 1.5003 until the
+    26th and 1.4144 from the 27th.
+- **May 2016 onwards:** cgt-calc downloads each month's rates, from
+    [HMRC's legacy service](https://www.hmrc.gov.uk/softwaredevelopers/2020-exrates.html) up to 2020
+    and from the [UK Trade Tariff API](https://www.trade-tariff.service.gov.uk/exchange_rates) for
+    2021 onwards. It saves them to `out/exchange_rates.csv`.
+
+For February 2015 to April 2016, a row in that file is used only for a currency HMRC did not list.
+If the file gives a different rate from HMRC's for one of those dates, cgt-calc uses HMRC's rate and
+prints a warning naming the row. A file written by an earlier version of cgt-calc can hold such
+rows, because it saved the rate from before HMRC's change. The warning is repeated on every run
+until you remove the row.
+
+No rates before February 2015 come with cgt-calc or can be downloaded. For an earlier transaction in
+another currency, add a row to the file yourself: the transaction's date in the `month` column, the
+currency code, and the rate as units of that currency per £1. If the file does not exist yet, start
+it with the header line `month,currency,rate`.
 
 HMRC's rates for those months are kept in the UK Government Web Archive:
 
@@ -41,8 +55,9 @@ lists Dollar (USD) at 1.5649 with no change, so a purchase on 15 June 2009 needs
 
 Use `--exchange-rates-file` to select another file in the same format. An empty value disables the
 cache. Keep the completed file with the report to preserve the exchange rates used. cgt-calc may add
-missing months to the selected file, so retain the version used for the final report. This does not
-preserve other fetched data, such as Yahoo Finance prices.
+missing months to the selected file, so retain the version used for the final report. Rates that
+come with cgt-calc are not written to the file. Keeping it does not preserve other fetched data,
+such as Yahoo Finance prices.
 
 ### ISIN to ticker translation
 

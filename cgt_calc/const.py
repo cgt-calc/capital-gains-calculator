@@ -257,6 +257,10 @@ INITIAL_ISIN_TRANSLATION_RESOURCE: Final = "initial_isin_translation.csv"
 # ERI data folder
 ERI_RESOURCE_FOLDER: Final = "eri"
 
+# HMRC exchange rates for the months when HMRC also changed rates during the
+# month, which its monthly files do not show. Each row starts on its date.
+SHIPPED_RATES_RESOURCE: Final = "hmrc_exchange_rates.csv"
+
 # Most recent transactions shown when the balance check fails
 BALANCE_CHECK_CONTEXT_ROWS: Final = 10
 
