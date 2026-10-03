@@ -1,2 +1,4 @@
 old,new,since,until,reused,isin,company,source
 FB,META,2012-05-18,2022-06-09,2025-06-26,US30303M1027,Meta Platforms,https://www.sec.gov/Archives/edgar/data/1326801/000132680122000070/may312022-exhibit991.htm https://www.cboe.com/us/equities/notices/new_listings/details/?early_trading_ipo=false&etf=true&firm_name=ProShares&first_trade_dt=2025-06-26&ipo=true&symbols=FB%2CRB
+VIACA,PARAA,,2022-02-17,,US92556H1077,Paramount Global Class A,https://www.sec.gov/Archives/edgar/data/813828/000081382822000011/viac-20220216.htm
+BLL,BALL,,2022-05-10,,US0584981064,Ball Corporation,https://www.sec.gov/Archives/edgar/data/9389/000000938922000010/bll-20220427x8k.htm https://investors.ball.com/news-presentations/press-releases/detail/82/ball-board-declares-quarterly-dividend-stock-ticker-symbol-changing-to-ball
