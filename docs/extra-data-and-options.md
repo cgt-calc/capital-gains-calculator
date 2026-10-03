@@ -13,10 +13,12 @@ a normal calculation.
 
 cgt-calc converts other currencies to pounds at HMRC's monthly exchange rates.
 
-- **February 2015 to April 2016:** the rates come with cgt-calc. In those months HMRC also
-    [changed some rates during the month](https://www.hmrc.gov.uk/softwaredevelopers/2016-exrates.htm),
-    and each change is used from the day it applied. For example, the US dollar rate for January
-    2016 was 1.5003 until the 26th and 1.4144 from the 27th.
+- **February 2015 to April 2016:** the rates come with cgt-calc. In those months HMRC also changed
+    some rates during the month (listed as amendments for
+    [2015](https://www.hmrc.gov.uk/softwaredevelopers/2015-exrates.htm) and
+    [2016](https://www.hmrc.gov.uk/softwaredevelopers/2016-exrates.htm)), and each change is used
+    from the day it applied. For example, the US dollar rate for January 2016 was 1.5003 until the
+    26th and 1.4144 from the 27th.
 - **May 2016 onwards:** cgt-calc downloads each month's rates, from
     [HMRC's legacy service](https://www.hmrc.gov.uk/softwaredevelopers/2020-exrates.html) up to 2020
     and from the [UK Trade Tariff API](https://www.trade-tariff.service.gov.uk/exchange_rates) for

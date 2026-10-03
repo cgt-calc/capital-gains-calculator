@@ -20,7 +20,7 @@ from pyrate_limiter.abstracts.rate import Duration
 from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
 from requests.adapters import HTTPAdapter, Retry
 
-from .const import CGT_MODE, UK_CURRENCY, RuntimeMode
+from .const import CGT_MODE, SHIPPED_RATES_RESOURCE, UK_CURRENCY, RuntimeMode
 from .dates import is_date
 from .exceptions import (
     CalculationError,
@@ -43,44 +43,8 @@ EXCHANGE_RATES_HEADER: Final = ["month", "currency", "rate"]
 NEW_ENDPOINT_FROM_YEAR: Final = 2021
 # The legacy HMRC endpoint has no monthly files before this month.
 FIRST_PUBLISHED_RATES_MONTH: Final = datetime.date(2015, 2, 1)
-# HMRC's rates for the months when it also changed them during the month, which
-# its monthly files do not show. Each row starts on its date.
-SHIPPED_RATES_RESOURCE: Final = "hmrc_exchange_rates.csv"
 
 type _StartingRates = dict[datetime.date, Decimal]
-
-
-@cache
-def _shipped_rates() -> dict[datetime.date, dict[CurrencyCode, _StartingRates]]:
-    """Read the rates that ship with cgt-calc.
-
-    They are kept by month, named by its first day, then by currency, then by
-    the day each rate starts.
-    """
-    with (
-        resources.files(RESOURCES_PACKAGE)
-        .joinpath(SHIPPED_RATES_RESOURCE)
-        .open(encoding="utf8") as fin
-    ):
-        by_date = CurrencyConverter._read_exchange_rates_data(  # noqa: SLF001
-            Path("resources") / SHIPPED_RATES_RESOURCE, fin
-        )
-    rates: dict[datetime.date, dict[CurrencyCode, _StartingRates]] = {}
-    for start, by_currency in by_date.items():
-        month = rates.setdefault(start.replace(day=1), {})
-        for currency, rate in by_currency.items():
-            month.setdefault(currency, {})[start] = rate
-    return rates
-
-
-def _shipped_rate(currency: CurrencyCode, date: datetime.date) -> Decimal | None:
-    """Return the shipped rate in force on `date`, if the table has one.
-
-    That is the latest of the month's rates starting on or before the date.
-    """
-    starts = _shipped_rates().get(date.replace(day=1), {}).get(currency, {})
-    in_force = [start for start in starts if start <= date]
-    return starts[max(in_force)] if in_force else None
 
 
 class CurrencyConverter:
@@ -227,6 +191,43 @@ class CurrencyConverter:
             return CurrencyConverter._read_exchange_rates_data(exchange_rates_file, fin)
 
     @staticmethod
+    @cache
+    def _shipped_rates() -> dict[datetime.date, dict[CurrencyCode, _StartingRates]]:
+        """Read the rates that ship with cgt-calc.
+
+        They are kept by month, named by its first day, then by currency, then by
+        the day each rate starts.
+        """
+        with (
+            resources.files(RESOURCES_PACKAGE)
+            .joinpath(SHIPPED_RATES_RESOURCE)
+            .open(encoding="utf8") as fin
+        ):
+            by_date = CurrencyConverter._read_exchange_rates_data(
+                Path("resources") / SHIPPED_RATES_RESOURCE, fin
+            )
+        rates: dict[datetime.date, dict[CurrencyCode, _StartingRates]] = {}
+        for start, by_currency in by_date.items():
+            month = rates.setdefault(start.replace(day=1), {})
+            for currency, rate in by_currency.items():
+                month.setdefault(currency, {})[start] = rate
+        return rates
+
+    @staticmethod
+    def _shipped_rate(currency: CurrencyCode, date: datetime.date) -> Decimal | None:
+        """Return the shipped rate in force on `date`, if the table has one.
+
+        That is the latest of the month's rates starting on or before the date.
+        """
+        starts = (
+            CurrencyConverter._shipped_rates()
+            .get(date.replace(day=1), {})
+            .get(currency, {})
+        )
+        in_force = [start for start in starts if start <= date]
+        return starts[max(in_force)] if in_force else None
+
+    @staticmethod
     def _write_exchange_rates_file(
         exchange_rates_file: Path | None,
         data: dict[datetime.date, dict[CurrencyCode, Decimal]],
@@ -348,7 +349,7 @@ class CurrencyConverter:
         # offshore (Hong Kong) Chinese Yuan handling
         if currency == "CNH":
             currency = CurrencyCode("CNY")
-        shipped = _shipped_rate(currency, date)
+        shipped = self._shipped_rate(currency, date)
         if shipped is None:
             return self._recorded_rate(currency, date)
         # The rates file is also the cache of what was downloaded, and the
@@ -378,7 +379,7 @@ class CurrencyConverter:
         # A month that ships has every rate HMRC published for it. Downloading
         # it could add no currency: it would only put the rates the month opened
         # with on file, to be overruled the next time they are read.
-        if date not in self.cache and date.replace(day=1) not in _shipped_rates():
+        if date not in self.cache and date.replace(day=1) not in self._shipped_rates():
             self._query_hmrc_api(date)
         if currency not in self.cache.get(date, {}):
             raise ExchangeRateMissingError(currency, date)
