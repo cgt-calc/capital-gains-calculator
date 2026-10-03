@@ -21,8 +21,8 @@ from cgt_calc.currency_converter import (
 )
 from cgt_calc.exceptions import (
     CalculationError,
-    ExchangeRateMissingError,
     ExternalApiError,
+    HmrcRateMissingError,
     ParsingError,
 )
 from cgt_calc.model import CurrencyCode, ForeignCurrencyAmount
@@ -391,13 +391,17 @@ def test_cnh_is_treated_as_cny() -> None:
     assert converter.currency_to_gbp_rate(CurrencyCode("CNH"), DATE) == Decimal(9)
 
 
-def test_missing_currency_for_known_date() -> None:
-    """Raise when the date is cached but the currency is missing."""
+def test_missing_currency_for_known_date(tmp_path: Path) -> None:
+    """Raise when the date is cached but the currency is missing.
+
+    The message names the rates file, which is where the row goes.
+    """
     converter = CurrencyConverter(
-        initial_data={DATE: {CurrencyCode("USD"): Decimal(1)}}
+        exchange_rates_file=tmp_path / "rates.csv",
+        initial_data={DATE: {CurrencyCode("USD"): Decimal(1)}},
     )
 
-    with pytest.raises(ExchangeRateMissingError):
+    with pytest.raises(HmrcRateMissingError, match=r"Add it to .*rates\.csv: "):
         converter.currency_to_gbp_rate(CurrencyCode("EUR"), DATE)
 
 
@@ -484,10 +488,10 @@ def test_combine_amounts_refuses_two_foreign_currencies_with_opt_in(
             converter.combine_amounts(first, second, DATE, autoconvert=True)
 
 
-def test_query_hmrc_api_404_before_2015_says_how_to_add_the_rates(
+def test_query_hmrc_api_404_before_april_2002_says_how_to_add_the_rates(
     tmp_path: Path,
 ) -> None:
-    """HMRC has no files before February 2015, so say which date to add and where."""
+    """No rates before April 2002 ship or download, so say which date to add and where."""
     rates_file = tmp_path / "rates.csv"
     converter = CurrencyConverter(exchange_rates_file=rates_file)
     response = FakeResponse(ok=False, status_code=404, text="<!DOCTYPE html>")
@@ -495,11 +499,11 @@ def test_query_hmrc_api_404_before_2015_says_how_to_add_the_rates(
 
     with pytest.raises(
         ExternalApiError,
-        match=r"HMRC publishes no exchange rates for June 2009 at this address; "
-        r"its monthly files start in February 2015\. Add the rates for 2009-06-01 "
+        match=r"HMRC publishes no exchange rates for March 2002 at this address, "
+        r"and cgt-calc has none before April 2002\. Add the rates for 2002-03-28 "
         r"to .*rates\.csv: a CSV file with the header 'month,currency,rate'",
     ):
-        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2009, 6, 1))
+        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2002, 3, 28))
 
 
 def _monthly_usd(rate: str) -> FakeSession:
@@ -517,6 +521,8 @@ def _monthly_usd(rate: str) -> FakeSession:
     [
         (USD, datetime.date(2016, 1, 26), Decimal("1.5003")),
         (USD, datetime.date(2016, 1, 27), Decimal("1.4144")),
+        (USD, datetime.date(2008, 11, 18), Decimal("1.6336")),
+        (USD, datetime.date(2008, 11, 19), Decimal("1.5047")),
         # The Swiss franc changed twice in February 2015, on the 4th and 11th.
         (CurrencyCode("CHF"), datetime.date(2015, 2, 10), Decimal("1.3692")),
         (CurrencyCode("CHF"), datetime.date(2015, 2, 11), Decimal("1.3995")),
@@ -540,6 +546,32 @@ def test_a_rate_hmrc_changed_during_the_month_applies_from_its_date(
     assert converter.cache == {}
 
 
+@pytest.mark.parametrize(
+    ("currency", "date", "rate"),
+    [
+        # Each checked by hand against HMRC's page for the month, one for each
+        # form HMRC published the months before February 2015 in.
+        pytest.param(USD, datetime.date(2009, 6, 15), Decimal("1.5649"), id="web page"),
+        pytest.param(USD, datetime.date(2005, 6, 15), Decimal("1.8344"), id="PDF"),
+        pytest.param(
+            CurrencyCode("EUR"),
+            datetime.date(2006, 6, 15),
+            Decimal("1.4746"),
+            id="Word",
+        ),
+        pytest.param(USD, datetime.date(2015, 1, 15), Decimal("1.5562"), id="XML"),
+    ],
+)
+def test_rates_from_april_2002_come_with_cgt_calc(
+    currency: CurrencyCode, date: datetime.date, rate: Decimal
+) -> None:
+    """HMRC's download has no file for these months, so they are not asked for."""
+    converter = CurrencyConverter()
+    converter.session = OfflineSession()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    assert converter.currency_to_gbp_rate(currency, date) == rate
+
+
 def test_a_currency_the_shipped_rates_lack_comes_from_the_rates_given() -> None:
     """HMRC lists no XAU in January 2016, so the rate supplied is the one used."""
     date = datetime.date(2016, 1, 27)
@@ -558,7 +590,7 @@ def test_a_month_that_ships_is_never_downloaded() -> None:
     converter = CurrencyConverter()
     converter.session = OfflineSession()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
-    with pytest.raises(ExchangeRateMissingError):
+    with pytest.raises(HmrcRateMissingError):
         converter.currency_to_gbp_rate(CurrencyCode("XAU"), datetime.date(2016, 1, 27))
 
 

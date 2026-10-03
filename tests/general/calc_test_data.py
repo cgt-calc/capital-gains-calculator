@@ -81,6 +81,7 @@ def buy_transaction(
     fees: float,
     amount: float,
     isin: Isin | None = None,
+    currency: CurrencyCode = USD,
 ) -> BrokerTransaction:
     """Create buy transaction."""
     return transaction(
@@ -91,6 +92,7 @@ def buy_transaction(
         price,
         fees,
         amount,
+        currency,
         isin=isin,
     )
 
@@ -103,6 +105,7 @@ def sell_transaction(
     fees: float,
     amount: float,
     isin: Isin | None = None,
+    currency: CurrencyCode = USD,
 ) -> BrokerTransaction:
     """Create sell transaction."""
     return transaction(
@@ -113,6 +116,7 @@ def sell_transaction(
         price,
         fees,
         amount,
+        currency,
         isin=isin,
     )
 
@@ -121,6 +125,7 @@ def transfer_transaction(
     date: datetime.date,
     amount: float,
     fees: float = 0,
+    currency: CurrencyCode = USD,
 ) -> BrokerTransaction:
     """Create transfer transaction."""
     return transaction(
@@ -128,6 +133,7 @@ def transfer_transaction(
         ActionType.TRANSFER,
         fees=fees,
         amount=amount,
+        currency=currency,
     )
 
 
@@ -314,7 +320,11 @@ calc_basic_data = [
     pytest.param(
         2020,  # tax year
         [
-            transfer_transaction(datetime.date(day=1, month=4, year=2014), 6280),
+            # HMRC's example is in pounds: the usual stand-in of USD at 1 per £1
+            # would be overruled by HMRC's rate for 2014, which comes with cgt-calc.
+            transfer_transaction(
+                datetime.date(day=1, month=4, year=2014), 6280, currency=GBP
+            ),
             buy_transaction(
                 date=datetime.date(day=1, month=4, year=2014),
                 symbol="LOB",
@@ -322,6 +332,7 @@ calc_basic_data = [
                 price=4,
                 fees=150,
                 amount=-4150,
+                currency=GBP,
             ),
             buy_transaction(
                 date=datetime.date(day=1, month=9, year=2017),
@@ -330,6 +341,7 @@ calc_basic_data = [
                 price=4.1,
                 fees=80,
                 amount=-2130,
+                currency=GBP,
             ),
             sell_transaction(
                 date=datetime.date(day=1, month=5, year=2020),
@@ -338,6 +350,7 @@ calc_basic_data = [
                 price=4.8,
                 fees=100,
                 amount=3260,
+                currency=GBP,
             ),
             sell_transaction(
                 date=datetime.date(day=1, month=2, year=2021),
@@ -346,6 +359,7 @@ calc_basic_data = [
                 price=5.2,
                 fees=105,
                 amount=1975,
+                currency=GBP,
             ),
         ],
         # exact amount would be £629+2/3

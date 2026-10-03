@@ -17,6 +17,7 @@ from cgt_calc.exceptions import (
     CgtError,
     ExchangeRateMissingError,
     ExternalApiError,
+    HmrcRateMissingError,
     InteractiveInputRequiredError,
     InvalidTransactionError,
     IsinMissingError,
@@ -129,6 +130,11 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
     ),
     (UnexpectedRowCountError(5, Path("f.csv")), ["f.csv", "5"]),
     (ExchangeRateMissingError("USD", DATE), ["USD", "2023-01-01"]),
+    # The row to add, and the file to add it to.
+    (
+        HmrcRateMissingError("XAU", DATE, Path("rates.csv")),
+        ["2023-01-01,XAU,<rate>", "rates.csv"],
+    ),
     (SharePriceMissingError("FOO", DATE), ["FOO", "2023-01-01"]),
     (BundledPriceCurrencyError("FOO", DATE, "GBP"), ["FOO", "2023-01-01", "GBP"]),
     (LatexRenderError(Path("render.log")), ["render.log"]),

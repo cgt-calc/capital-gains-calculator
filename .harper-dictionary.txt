@@ -1,6 +1,7 @@
 ActionType
 ActionTypes
 ADR
+AED
 AG
 amd64
 Amundi
@@ -32,6 +33,7 @@ calc
 calc's
 CalculationEntry
 Center
+CFA
 CG10246
 CG12313
 CG12920
@@ -87,6 +89,7 @@ dest
 dataclasses
 DictReader
 DictReader's
+dirham
 dprint
 DT14005
 DWS
@@ -310,7 +313,9 @@ ValueError
 VanguardTransaction
 VTI
 worktree
+XCD
 Xetra
+XOF
 xtrackers
 yfinance
 YYYY
