@@ -97,7 +97,7 @@ Documentation: https://cgt-calc.uk/
     broker_group = parser.add_argument_group(
         "Broker inputs",
         description="PATH can be '-' to read the file from standard input "
-        "(one option per run)",
+        "(only one '-' per run)",
     )
     BrokerRegistry.register_all_arguments(broker_group)
 

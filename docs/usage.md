@@ -402,15 +402,15 @@ Reading from standard input changes a few things:
 
 - **Only one option can use it in a run.** If you give `-` to two options, cgt-calc stops before
     reading anything and names them. Pass the other files by path.
-- **cgt-calc cannot ask you a question.** When a spin-off row does not name the holding it came
-    from, cgt-calc normally asks for the old ticker. With piped input it stops instead and tells you
-    which row to add to the spin-offs file. See
+- **cgt-calc cannot ask you a question.** If a spin-off needs a source mapping that is not already
+    in the spin-offs file, cgt-calc stops and tells you which row to add. See
     [Spin-off source mappings](extra-data-and-options.md#spin-off-source-mappings).
-- **Messages call the input `stdin` or `-`.** An error names a row as, for example, `row 2 of -`.
-
-Standard input is read as UTF-8, the same as a file, whatever your system's default encoding is, so
-the program that supplies it must write UTF-8. Text in another encoding usually stops the run with
-`Unexpected error!` and a `UnicodeDecodeError`.
+- **cgt-calc cannot tell a cut-off input from a complete one.** If the program supplying the input
+    fails part-way, cgt-calc calculates from the rows that arrived and reports success, which can
+    leave a sale or other disposal out of the report. Check that the program finished without an
+    error, or save its output to a file and pass that instead.
+- **The input must be UTF-8.** The program supplying it must write UTF-8, whatever your system's
+    default encoding is.
 
 ## Terminal appearance
 
