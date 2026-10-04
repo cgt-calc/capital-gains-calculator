@@ -140,8 +140,8 @@ renamed company's:
     rows are renamed from 18 May 2012 to 25 June 2025, so an `FB` row from 26 June 2025 is left as
     `FB`.
 
-If one file has rows without an ISIN under an old ticker on both sides of one of those dates (for
-`FB`, 18 May 2012 or 26 June 2025), cgt-calc stops with
+If one file has rows without an ISIN under an old ticker, some inside its renamed period and some
+outside it (for `FB`, before 18 May 2012 or from 26 June 2025), cgt-calc stops with
 `Rows under <ticker> fall on both sides of <date>`: nothing in the rows says whether they belong to
 one company or two. In a RAW file, write the current ticker on every row of the renamed company, as
 the message says. cgt-calc checks each file on its own, so rows in separate files are each read by
@@ -155,13 +155,13 @@ Two limitations remain:
     cgt-calc cannot detect it: it is reported under the new ticker, and pooled with the company's
     shares if you also held them. Check each holding and disposal in the report against your
     records.
-- Vanguard's `NameChange` rows record a ticker change in the export itself, and
-    [Trading 212](brokers/trading212.md#known-limitations) stops on a ticker change it cannot pair.
-    Otherwise, a rename missing from the table leaves the old and new tickers as two holdings.
-    cgt-calc may stop with `Tried to sell`, or with `does not match` when rows give one ISIN under
-    both tickers, but a sale can also take its cost from the new ticker's purchases alone without an
-    error. Check the portfolio section of the report: a holding left under a ticker the company no
-    longer uses can mean a rename is missing.
+- A rename missing from the table leaves the old and new tickers as two holdings, except in a
+    Vanguard export, whose `NameChange` rows record the change, and in
+    [Trading 212](brokers/trading212.md#known-limitations), which stops on a ticker change it cannot
+    pair. cgt-calc may stop with `Tried to sell`, or with `does not match` when rows give one ISIN
+    under both tickers, but a sale can also take its cost from the new ticker's purchases alone
+    without an error. Check the portfolio section of the report: a holding left under a ticker the
+    company no longer uses can mean a rename is missing.
 
 If a rename is missing or wrong, or a broker export stops with the `Rows under <ticker>` message,
 first upgrade cgt-calc using the same method you used to install it. If the problem remains, open a
