@@ -383,6 +383,34 @@ full-year report's [tax figures](#tax-at-the-basic-and-higher-rate) already appl
 rates. Its dividend and interest figures are not annual totals either: they include only income
 received inside the period, and the dividend section still deducts the full-year dividend allowance.
 
+## Read a file from standard input
+
+Pass `-` in place of a file path to read that file from standard input. Another program can then
+supply the file without saving it first, such as a script that converts your broker's export to the
+[RAW format](brokers/raw.md):
+
+```shell
+python convert_export.py broker_export.xlsx | cgt-calc --year 2024 --raw-file -
+```
+
+`-` works with every broker option that takes one file: `--schwab-file`, `--schwab-award-file`,
+`--freetrade-file`, `--interactive-brokers-file`, `--revolut-file`, `--vanguard-file`, `--raw-file`
+and `--eri-raw-file`. Options that take a directory need a path, and so do `--prices-file`,
+`--exchange-rates-file`, `--isin-translation-file` and `--spin-offs-file`.
+
+Reading from standard input changes a few things:
+
+- **Only one option can use it in a run.** If you give `-` to two options, cgt-calc stops before
+    reading anything and names them. Pass the other files by path.
+- **cgt-calc cannot ask you a question.** If a spin-off needs a source mapping that is not already
+    in the spin-offs file, cgt-calc stops and tells you which row to add. See
+    [Spin-off source mappings](extra-data-and-options.md#spin-off-source-mappings).
+- **Check that the program supplying the input finished successfully.** If it stops early, cgt-calc
+    may still produce a report from incomplete data. If you save its output to a file first, pass
+    that file to cgt-calc only after the program succeeds.
+- **The input must be UTF-8.** The program supplying it must write UTF-8, whatever your system's
+    default encoding is.
+
 ## Terminal appearance
 
 Colours and emoji are used automatically when the terminal supports them. The standard

@@ -67,6 +67,8 @@
 ^legal_and_general\.py:.*PhrasalVerbAsCompoundNoun
 # "Your tax is" - Harper joins "tax is" into the noun "taxis".
 ^usage\.md:.*CompoundNouns.*taxis
+# "a file path" is the ordinary open compound; Harper prefers "filepath".
+^usage\.md:.*CompoundNouns.*filepath
 # "all of the gain" is ordinary English; the shorter form is only a preference.
 ^(usage\.md|render_text\.py):.*CondenseAllThe
 # "reminds you when the report has such dividends" is complete as it stands.

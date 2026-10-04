@@ -624,6 +624,23 @@ def test_existing_file_or_stdin_type_accepts_stdin() -> None:
     assert existing_file_or_stdin_type("-") == STDIN_PATH
 
 
+def test_every_broker_path_option_accepts_stdin() -> None:
+    """The help says any broker PATH can be '-', so each one has to accept it."""
+    parser = create_parser()
+    group = next(
+        group
+        for group in parser._action_groups  # noqa: SLF001
+        if group.title == "Broker inputs"
+    )
+
+    refusing = [
+        action.option_strings[0]
+        for action in group._group_actions  # noqa: SLF001
+        if action.metavar == "PATH" and action.type is not existing_file_or_stdin_type
+    ]
+    assert not refusing
+
+
 @pytest.mark.parametrize(
     "option",
     [
