@@ -154,12 +154,12 @@ to your dividend income yourself and, if you use
 
 A row that takes back an earlier dividend is recorded at the amount taken back, with a warning. Its
 tax is not converted, so the report keeps the original dividend's tax at source and any treaty
-relief on it. The report's dividend income and tax at source are then too high by the tax the
-reversal takes back, and its treaty relief by whatever relief the original dividend received, which
-the PDF report shows beside that dividend. That relief is never more than the tax, so the taxable
-dividends are not understated. If you copy these figures from the report, take the original
-dividend's tax and relief out of each. The `--income` estimate includes the extra income too, which
-makes the estimate slightly high.
+relief on it. The report's dividend income and tax at source are then both too high by the original
+dividend's tax, and its treaty relief by the relief on the original dividend, which the PDF report
+shows beside it. That relief is never more than the tax, so the taxable dividends are not
+understated. If you copy these figures from the report, take the original dividend's tax out of the
+dividend income and the tax at source, and its relief out of the treaty relief. The `--income`
+estimate includes the extra income too, which makes the estimate slightly high.
 
 ### Known limitations
 
