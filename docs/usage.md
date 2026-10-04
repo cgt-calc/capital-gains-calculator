@@ -405,10 +405,9 @@ Reading from standard input changes a few things:
 - **cgt-calc cannot ask you a question.** If a spin-off needs a source mapping that is not already
     in the spin-offs file, cgt-calc stops and tells you which row to add. See
     [Spin-off source mappings](extra-data-and-options.md#spin-off-source-mappings).
-- **cgt-calc cannot tell a cut-off input from a complete one.** If the program supplying the input
-    fails part-way, cgt-calc calculates from the rows that arrived and reports success, which can
-    leave a sale or other disposal out of the report. Check that the program finished without an
-    error, or save its output to a file and pass that instead.
+- **Check that the program supplying the input finished successfully.** If it stops early, cgt-calc
+    may still produce a report from incomplete data. If you save its output to a file first, pass
+    that file to cgt-calc only after the program succeeds.
 - **The input must be UTF-8.** The program supplying it must write UTF-8, whatever your system's
     default encoding is.
 
