@@ -27,7 +27,7 @@ cgt-calc --year 2025 --schwab-file schwab_transactions.csv
 
 Replace the Schwab option with the one for your broker. LaTeX is needed to create the PDF report.
 See [Installation](https://cgt-calc.uk/installation/), [Brokers](https://cgt-calc.uk/brokers/), and
-[Usage](https://cgt-calc.uk/usage/) for the complete steps.
+[Generate a report](https://cgt-calc.uk/usage/) for the complete steps.
 
 ## What cgt-calc calculates
 
@@ -42,10 +42,10 @@ terminal and writes the full calculation to a **PDF report**.
 
 cgt-calc reports the net gain from the transactions you supply and, for supported tax years,
 estimates the amount left after the annual tax-free allowance for capital gains (the **annual exempt
-amount**) and the Capital Gains Tax on it at the basic and the higher rate. It does **not** include
-gains or losses outside those inputs, decide which rate applies to you, work out your final tax
-bill, or submit a tax return. Some investment scenarios are not supported; check the relevant
-[broker guide](https://cgt-calc.uk/brokers/) and the
+amount**) and the Capital Gains Tax on it: at the basic and the higher rate, or as one estimate if
+you give your income. It does **not** include gains or losses outside those inputs, work out your
+final tax bill, or submit a tax return. Some investment scenarios are not supported; check the
+relevant [broker guide](https://cgt-calc.uk/brokers/) and the
 [offshore funds limitations](https://cgt-calc.uk/offshore-funds/#unsupported-functionality) before
 relying on the result.
 

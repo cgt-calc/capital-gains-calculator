@@ -14,6 +14,7 @@ from .args_validators import (
     date_type,
     existing_file_or_stdin_type,
     existing_file_type,
+    income_type,
     optional_cache_file_type,
     output_path_type,
     set_completer,
@@ -77,6 +78,15 @@ Environment variables:
         type=date_type,
         metavar="YYYY-MM-DD",
         help="end of a custom reporting period (requires --from)",
+    )
+    year_group.add_argument(
+        "--income",
+        type=income_type,
+        metavar="POUNDS",
+        help="your income for the tax year before the Personal Allowance, such as "
+        "the pay on your P60, without the interest and, from 2016/17, the dividends "
+        "in the files you supply; the summary then shows one estimate of the "
+        "Capital Gains Tax instead of two (needs a full tax year)",
     )
 
     # Broker Inputs
@@ -313,6 +323,11 @@ def resolve_reporting_period(
         return
     if args.period_from is None or args.period_to is None:
         parser.error("--from and --to must be used together")
+    if args.income is not None:
+        parser.error(
+            "--income cannot be combined with --from/--to: the tax is estimated for "
+            "a full tax year"
+        )
     if args.year is not None:
         parser.error("--year cannot be combined with --from/--to")
     if args.period_from > args.period_to:

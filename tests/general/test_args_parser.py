@@ -834,6 +834,43 @@ def test_resolve_period_rejects_invalid_combinations(argv: list[str]) -> None:
     assert exc_info.value.code == 2
 
 
+def test_income_is_refused_with_a_custom_period(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The tax is worked out for a whole tax year, so --income needs one."""
+    parser = create_parser()
+    args = parser.parse_args(
+        ["--income", "45000", "--from", "2024-04-06", "--to", "2024-10-29"]
+    )
+
+    with pytest.raises(SystemExit):
+        resolve_reporting_period(parser, args)
+
+    assert (
+        "--income cannot be combined with --from/--to: the tax is estimated for a "
+        "full tax year" in capsys.readouterr().err
+    )
+
+
+@pytest.mark.parametrize("value", ["45,000", "45.000", "45000.50", "1234567890123"])
+def test_an_income_that_is_not_whole_pounds_is_refused(
+    value: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Only whole pounds, written as up to twelve digits, are read as an income.
+
+    A comma or a dot could separate thousands or pence, and guessing wrong
+    turns 45.000 into £45 or 45000,50 into four and a half million. Twelve
+    digits are more than any income needs.
+    """
+    with pytest.raises(SystemExit):
+        create_parser().parse_args([f"--income={value}"])
+
+    assert (
+        f"invalid income: '{value}', expected whole pounds such as 45000"
+        in capsys.readouterr().err
+    )
+
+
 def test_resolve_period_rejects_a_period_before_the_earliest_tax_year(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

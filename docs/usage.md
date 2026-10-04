@@ -222,9 +222,9 @@ started from.
 When a full tax year has a **Taxable gain**, the terminal shows the Capital Gains Tax on it twice,
 as **Tax at basic rate** and **Tax at higher rate**. The PDF report does not include these figures.
 
-cgt-calc does not know your income, so it cannot tell which rate you pay. The notes under the two
-figures give the rates and the Income Tax basic rate limit for that tax year, which is £37,700 for
-2025/26:
+cgt-calc does not know your income, so it cannot tell which rate you pay unless you
+[give your income](#estimate-the-tax-from-your-income). The notes under the two figures give the
+rates and the Income Tax basic rate limit for that tax year, which is £37,700 for 2025/26:
 
 - **Tax at basic rate** is your tax if your taxable income for that year plus the taxable gain is
     £37,700 or less.
@@ -284,6 +284,77 @@ capital gain, although it can be taxed as income. Work out that disposal outside
 
 No tax figures are shown when the taxable gain is zero or when you use `--from` and `--to`, even for
 a period that covers the whole tax year.
+
+## Estimate the tax from your income
+
+Add `--income` to get one figure in place of the two. Pass your income for the tax year before the
+Personal Allowance, without the dividends and interest in the files you supply. For most employees
+that is the pay shown on the P60:
+
+```shell
+cgt-calc --year 2025 --schwab-file schwab_transactions.csv --income 45000
+```
+
+cgt-calc then:
+
+1. Adds the dividends and interest in the report to the income you gave.
+2. Deducts the standard Personal Allowance for the year, which is £12,570 for 2025/26.
+3. Works out how much of the basic rate limit that taxable income leaves unused.
+4. Taxes that much of the gain at the basic rate and the rest at the higher rate.
+
+The terminal shows **Estimated tax** in place of the two figures, with notes that give each step so
+that you can check it:
+
+```text
+  Taxable gain:        £12,000.00
+  Estimated tax:        £2,653.80
+Income £45,000.00, plus £1,200.00 dividends and £300.00 interest from these files, less the £12,570 Personal Allowance: taxable income £33,930.00, which leaves £3,770.00 of the £37,700 basic rate limit unused.
+Of the taxable gain, £3,770.00 is taxed at 18% and £8,230.00 at 24%.
+```
+
+In the figure you pass, include:
+
+- pay from every job, taxable benefits, pensions, rental profit and any other taxable income
+- dividends and interest from accounts that are not in the files you supply
+
+Leave out income that is not taxed, such as interest and dividends in an ISA.
+
+cgt-calc cannot know the following, so allow for them in the figure you pass:
+
+- **A Personal Allowance that is not the standard one.** Subtract any Blind Person's Allowance. Add
+    any part of your allowance that you transferred with Marriage Allowance. If you received
+    Marriage Allowance, change nothing: it reduces your tax, not your taxable income. Before 2016/17
+    some older people had a higher age-related allowance; subtract the extra.
+- **Gift Aid donations and pension contributions that get tax relief at source.** They raise your
+    basic rate limit. Subtract their gross amount: what you paid plus the basic rate tax relief
+    added to it. If that takes the figure below your Personal Allowance, the estimate can be too
+    high, because cgt-calc cannot count the rest.
+- **Other Income Tax reliefs.** Subtract anything else that reduces your taxable income, such as a
+    trading loss you claim against your income.
+- **Dividends and interest exported after tax.** cgt-calc adds them as the report shows them. If
+    your broker's export gives an amount after tax was taken off, as
+    [Trading 212 does for dividends](brokers/trading212.md#known-limitations), add that tax.
+- **Dividends before 6 April 2016.** cgt-calc does not add them, because the amount taxed is not the
+    amount received (see [Choose the tax year](#choose-the-tax-year)). Add their taxable amount
+    yourself. The terminal reminds you when the report has such dividends.
+
+The Personal Allowance shrinks when income is over £100,000. That does not change the estimate: at
+that income all of the gain is taxed at the higher rate. For the same reason, when your income
+leaves none of the limit unused, the notes give the allowance as "£12,570 at most".
+
+For 2010/11 and 2024/25, when the rates changed during the year, cgt-calc sets the losses, the
+annual exempt amount and the unused part of the limit against the gains where they save the most
+tax. HMRC confirms you may use them
+[in the most beneficial way](https://www.gov.uk/government/publications/changes-to-the-rates-of-capital-gains-tax/capital-gains-tax-rates-of-tax).
+The estimate is the tax for the whole year. It is not the adjustment figure that the 2024/25 Self
+Assessment return asks for.
+
+`--income` needs a full tax year, so it cannot be combined with `--from` and `--to`. Write it in
+whole pounds, such as `45000`. For 2008/09 and 2009/10 it changes nothing: everyone paid 18%
+whatever their income, so the terminal still shows one figure, **Tax at 18%**. The same goes for
+2010/11 when all of your taxable gain was made before 23 June 2010. The estimate leaves out the same
+things as the two figures: see
+[Tax at the basic and higher rate](#tax-at-the-basic-and-higher-rate).
 
 ## Report part of a tax year (advanced)
 

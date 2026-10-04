@@ -12,7 +12,7 @@ because not every award export or transaction type is supported.
 
 - [Installation](installation.md) — install cgt-calc and check that it runs
 - [Brokers](brokers/index.md) — find the export instructions for your broker
-- [Usage](usage.md) — generate and check your report
+- [Generate a report](usage.md) — run cgt-calc and check the results
 - [Offshore funds (ERI)](offshore-funds.md) — if you hold non-UK funds
 
 ## What cgt-calc calculates
@@ -28,10 +28,10 @@ terminal and writes the full calculation to a **PDF report**.
 
 cgt-calc reports the net gain from the transactions you supply and, for supported tax years,
 estimates the amount left after the annual tax-free allowance for capital gains (the **annual exempt
-amount**) and the Capital Gains Tax on it at the basic and the higher rate. It does **not** include
-gains or losses outside those inputs, decide which rate applies to you, work out your final tax
-bill, or submit a tax return. Some investment scenarios are not supported; check the relevant
-[broker guide](brokers/index.md) and the
+amount**) and the Capital Gains Tax on it: at the basic and the higher rate, or as one estimate if
+you give your income. It does **not** include gains or losses outside those inputs, work out your
+final tax bill, or submit a tax return. Some investment scenarios are not supported; check the
+relevant [broker guide](brokers/index.md) and the
 [offshore funds limitations](offshore-funds.md#unsupported-functionality) before relying on the
 result.
 
