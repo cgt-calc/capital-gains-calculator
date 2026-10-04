@@ -163,6 +163,10 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
     # the file by hand is told to do. No broker export makes that promise.
     rows_in_time_order: ClassVar[bool] = True
     format_name = "CSV"
+    argument_help = (
+        "transactions in cgt-calc's own RAW CSV format, for other brokers and for "
+        "events added by hand"
+    )
     deprecated_flags: ClassVar[list[str]] = ["--raw"]
 
     @staticmethod

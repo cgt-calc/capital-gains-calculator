@@ -1003,10 +1003,9 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 type=existing_file_or_stdin_type,
                 default=None,
                 metavar="PATH",
-                help="Charles Schwab Equity Awards export: the price-only "
-                "export that prices vests in the main history, as the "
-                "award-price CSV or as JSON holding only Lapse rows, or the "
-                "complete transaction history as JSON or CSV",
+                help="Charles Schwab Equity Awards export as CSV or JSON: the "
+                "award account's complete history, or the export that only "
+                "prices vests in the main history",
             ),
             shtab.FILE,
         )
@@ -1038,7 +1037,8 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 type=existing_directory_type,
                 default=None,
                 metavar="DIR",
-                help="directory with Charles Schwab transaction history in CSV format",
+                help="directory with several Charles Schwab transaction history "
+                "exports in CSV format (incompatible with --schwab-file)",
             ),
             shtab.DIRECTORY,
         )

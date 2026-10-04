@@ -201,6 +201,7 @@ class RevolutParser(StandardCSVParser[RevolutTransaction]):
     arg_name = "revolut"
     pretty_name = "Revolut format"
     format_name = "CSV"
+    argument_help = "Revolut Invest account statement in CSV format"
 
     columns: ClassVar[set[str]] = set(COLUMNS)
 
