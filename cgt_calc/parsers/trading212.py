@@ -538,8 +538,9 @@ class Trading212Transaction(BrokerTransaction):
         if self.amount < 0 and tax < 0:
             LOGGER.warning(
                 "The %s dividend taken back on %s is recorded at the %s %s taken "
-                "back, and its %s %s of tax is not converted: the report's dividend "
-                "income and treaty relief stay too high by that tax",
+                "back, and its %s %s of tax is not converted: the original "
+                "dividend's tax at source and any treaty relief on it stay in the "
+                "report",
                 self.symbol,
                 self.date,
                 -self.amount,

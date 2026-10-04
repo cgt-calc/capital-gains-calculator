@@ -152,12 +152,14 @@ cgt-calc records the amount received and prints a warning naming the dividend. A
 to your dividend income yourself and, if you use
 [`--income`](../usage.md#estimate-the-tax-from-your-income), to the figure you pass.
 
-A row that takes back an earlier dividend is recorded at the amount taken back, with a warning. The
-report then keeps the original dividend's tax at source and treaty relief, so its dividend income
-and its treaty relief are both too high by the tax the reversal takes back. Its taxable dividends
-are not understated: where the treaty relief equals the tax, as for US shares, the two cancel out.
-If you copy dividend income or foreign tax figures from the report, subtract that tax from each. The
-`--income` estimate includes it too, which makes the estimate slightly high.
+A row that takes back an earlier dividend is recorded at the amount taken back, with a warning. Its
+tax is not converted, so the report keeps the original dividend's tax at source and any treaty
+relief on it. The report's dividend income and tax at source are then too high by the tax the
+reversal takes back, and its treaty relief by whatever relief the original dividend received, which
+the PDF report shows beside that dividend. That relief is never more than the tax, so the taxable
+dividends are not understated. If you copy these figures from the report, take the original
+dividend's tax and relief out of each. The `--income` estimate includes the extra income too, which
+makes the estimate slightly high.
 
 ### Known limitations
 

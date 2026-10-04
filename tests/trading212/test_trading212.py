@@ -1511,8 +1511,8 @@ def test_a_reversed_dividend_keeps_the_amount_received(
     ]
     assert (
         "The BAZ dividend taken back on 2024-07-01 is recorded at the 6.80 GBP taken "
-        "back, and its 1.50 USD of tax is not converted: the report's dividend income "
-        "and treaty relief stay too high by that tax" in caplog.text
+        "back, and its 1.50 USD of tax is not converted: the original dividend's tax "
+        "at source and any treaty relief on it stay in the report" in caplog.text
     )
 
 
