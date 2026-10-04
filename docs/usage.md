@@ -396,7 +396,9 @@ python convert_export.py broker_export.xlsx | cgt-calc --year 2024 --raw-file -
 `-` works with every broker option that takes one file: `--schwab-file`, `--schwab-award-file`,
 `--freetrade-file`, `--interactive-brokers-file`, `--revolut-file`, `--vanguard-file`, `--raw-file`
 and `--eri-raw-file`. Options that take a directory need a path, and so do `--prices-file`,
-`--exchange-rates-file`, `--isin-translation-file` and `--spin-offs-file`.
+`--exchange-rates-file`, `--isin-translation-file` and `--spin-offs-file`. The output options,
+`--output` and `--dump-transactions`, need a path as well: cgt-calc does not write the report or the
+parsed transactions to standard output.
 
 Reading from standard input changes a few things:
 
