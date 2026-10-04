@@ -183,7 +183,7 @@ _HIGHEST_RATE_FIRST = (
 
 
 def _pounds(amount: Decimal) -> str:
-    """Return an amount as the summary prints it."""
+    """Return an amount as the terminal report prints it."""
     return f"£{round_decimal(amount, 2):,}"
 
 
