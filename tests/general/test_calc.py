@@ -2473,7 +2473,7 @@ def test_negative_balance_error_shows_short_history_in_full() -> None:
     assert message.count("Balance after transaction=") == 1
     assert message.endswith(
         "A negative balance usually means deposits or other transactions are "
-        "missing from your input files, so check that they cover the account's "
+        "missing from your input files, so check that they cover each account's "
         "whole history. Use --no-balance-check only if the guide for your broker "
         "says to, or after you understand why the history cannot reconcile. "
         "See https://cgt-calc.uk/usage/#check-the-result"

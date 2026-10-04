@@ -1725,7 +1725,7 @@ class TransactionIngester:
                 msg += "\n".join(indent_entry(entry) for entry in entries) + "\n"
                 msg += (
                     "A negative balance usually means deposits or other transactions "
-                    "are missing from your input files, so check that they cover the "
+                    "are missing from your input files, so check that they cover each "
                     "account's whole history. Use --no-balance-check only if the "
                     "guide for your broker says to, or after you understand why the "
                     "history cannot reconcile. "
