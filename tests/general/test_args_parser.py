@@ -860,7 +860,7 @@ def test_an_income_that_is_not_whole_pounds_is_refused(
 
     A comma or a dot could separate thousands or pence, and guessing wrong
     turns 45.000 into £45 or 45000,50 into four and a half million. Twelve
-    digits are more than any income needs; more would overflow the rounding.
+    digits are more than any income needs.
     """
     with pytest.raises(SystemExit):
         create_parser().parse_args([f"--income={value}"])

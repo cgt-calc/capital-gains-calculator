@@ -3764,8 +3764,8 @@ def test_each_change_of_rates_keeps_the_deduction_rule() -> None:
     """Adding rates the deductions cannot follow must fail here.
 
     Losses and the annual exempt amount are deducted from the gains with the
-    highest higher rate first. That gives the lowest tax while one pair of
-    rates is at least the other in both its rates.
+    highest higher rate, then the highest basic rate, first. That gives the
+    lowest tax while one pair of rates is at least the other in both its rates.
     """
     rates = [(basic, higher) for _, basic, higher in CAPITAL_GAINS_TAX_RATES]
     for before, after in itertools.pairwise(rates):
