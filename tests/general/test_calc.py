@@ -2457,7 +2457,6 @@ def test_negative_balance_error_trims_long_history() -> None:
     message = str(excinfo.value)
     assert "... 5 earlier transaction(s) omitted ..." in message
     assert message.count("Balance after transaction=") == BALANCE_CHECK_CONTEXT_ROWS
-    assert "use --no-balance-check" in message
 
 
 def test_negative_balance_error_shows_short_history_in_full() -> None:
@@ -2472,7 +2471,13 @@ def test_negative_balance_error_shows_short_history_in_full() -> None:
     assert "Reached a negative balance of -1.000000 USD" in message
     assert "omitted" not in message
     assert message.count("Balance after transaction=") == 1
-    assert "use --no-balance-check" in message
+    assert message.endswith(
+        "A negative balance usually means deposits or other transactions are "
+        "missing from your input files, so check that they cover each account's "
+        "whole history. Use --no-balance-check only if the guide for your broker "
+        "says to, or after you understand why the history cannot reconcile. "
+        "See https://cgt-calc.uk/usage/#check-the-result"
+    )
 
 
 def test_negative_balance_error_shows_only_relevant_transactions() -> None:
