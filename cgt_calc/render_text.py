@@ -97,29 +97,31 @@ def _summary_rows(
     """Return the tax summary as (title, label/value rows, notes) groups."""
     capital: list[tuple[str, str]] = [
         ("Disposals", str(report.disposal_count)),
-        ("Disposal proceeds", f"£{report.disposal_proceeds:,}"),
-        ("Allowable costs", f"£{report.allowable_costs:,}"),
-        ("Gain", f"£{report.capital_gain:,}"),
-        ("Loss", f"£{-report.capital_loss:,}"),
-        *([("Losses on gifts", f"£{-report.gift_loss:,}")] if report.gift_loss else []),
+        ("Disposal proceeds", _pounds(report.disposal_proceeds)),
+        ("Allowable costs", _pounds(report.allowable_costs)),
+        ("Gain", _pounds(report.capital_gain)),
+        ("Loss", _pounds(-report.capital_loss)),
+        *(
+            [("Losses on gifts", _pounds(-report.gift_loss))]
+            if report.gift_loss
+            else []
+        ),
         *(
             [
                 ("Exempt disposals", str(report.exempt_disposal_count)),
                 (
                     "Exempt disposal proceeds",
-                    f"£{report.exempt_disposal_proceeds:,}",
+                    _pounds(report.exempt_disposal_proceeds),
                 ),
             ]
             if report.exempt_disposal_count
             else []
         ),
-        ("Total gain", f"£{report.total_gain():,}"),
+        ("Total gain", _pounds(report.total_gain())),
     ]
     capital_notes: list[str] = []
     if report.capital_gain_allowance is not None:
-        capital.append(
-            ("Taxable gain", f"£{round_decimal(report.taxable_gain(), 2):,}")
-        )
+        capital.append(("Taxable gain", _pounds(report.taxable_gain())))
         tax_rows, tax_notes = _capital_gains_tax(
             report, report.capital_gain_allowance, income
         )
@@ -128,12 +130,7 @@ def _summary_rows(
     else:
         capital_notes.append("WARNING: Missing allowance for this tax year")
     if report.show_unrealized_gains:
-        capital.append(
-            (
-                "Unrealized gains",
-                f"£{round_decimal(report.total_unrealized_gains(), 2):,}",
-            )
-        )
+        capital.append(("Unrealized gains", _pounds(report.total_unrealized_gains())))
         if any(h.unrealized_gains is None for h in report.portfolio):
             capital_notes.append(
                 "WARNING: Some unrealized gains couldn't be calculated."
@@ -142,20 +139,13 @@ def _summary_rows(
             )
 
     dividends: list[tuple[str, str]] = [
-        ("Proceeds", f"£{round_decimal(report.total_dividends_amount(), 2):,}"),
+        ("Proceeds", _pounds(report.total_dividends_amount())),
     ]
     if report.dividend_allowance is not None:
-        dividends.append(
-            (
-                "Tax-free allowance",
-                f"£{round_decimal(report.dividend_allowance, 2):,}",
-            )
-        )
+        dividends.append(("Tax-free allowance", _pounds(report.dividend_allowance)))
     taxable_dividends = report.taxable_dividends()
     if taxable_dividends is not None:
-        dividends.append(
-            ("Taxable proceeds", f"£{round_decimal(taxable_dividends, 2):,}")
-        )
+        dividends.append(("Taxable proceeds", _pounds(taxable_dividends)))
     dividend_notes: list[str] = []
     if report.explains_dividend_tax_credit():
         dividend_notes.append(
@@ -165,9 +155,9 @@ def _summary_rows(
         )
 
     interest: list[tuple[str, str]] = [
-        ("UK proceeds", f"£{report.total_uk_interest:,}"),
-        ("Foreign proceeds", f"£{report.total_foreign_interest:,}"),
-        ("Tax paid", f"£{report.total_interest_tax:,}"),
+        ("UK proceeds", _pounds(report.total_uk_interest)),
+        ("Foreign proceeds", _pounds(report.total_foreign_interest)),
+        ("Tax paid", _pounds(report.total_interest_tax)),
     ]
 
     return [
@@ -437,7 +427,7 @@ def _render_excess_reported_income(report: CapitalGainsReport) -> str:
         assert item.eris
         assert len(item.eris) == 1
         dist_type = "interest" if item.eris[0].is_interest else "dividend"
-        out += f"{bul}{item.eris[0].symbol}: £{round_decimal(item.amount, 2):,} "
+        out += f"{bul}{item.eris[0].symbol}: {_pounds(item.amount)} "
         out += f"(included as {dist_type})\n"
     return out
 
@@ -470,8 +460,7 @@ def _render_spouse_transfers(report: CapitalGainsReport) -> str:
         base_cost = sum((e.allowable_cost for e in entry_list), Decimal(0))
         out += (
             f"{bul}{date_index}: {symbol} "
-            f"{strip_zeros(quantity)} units, base cost "
-            f"£{round_decimal(base_cost, 2):,}\n"
+            f"{strip_zeros(quantity)} units, base cost {_pounds(base_cost)}\n"
             f"    {date_index},TRANSFER_FROM_SPOUSE,{symbol},"
             f"{exact_str(quantity)},{exact_str(base_cost / quantity)},"
             "0.00,GBP\n"
@@ -511,13 +500,13 @@ def _render_gifts(report: CapitalGainsReport) -> str:
         market_value = sum((e.amount + e.fees for e in entry_list), Decimal(0))
         gain = sum((e.gain for e in entry_list), Decimal(0))
         if gain < 0:
-            outcome = f"loss £{round_decimal(-gain, 2):,}"
+            outcome = f"loss {_pounds(-gain)}"
             if clogged:
                 outcome += " (clogged)"
         else:
-            outcome = f"gain £{round_decimal(gain, 2):,}"
+            outcome = f"gain {_pounds(gain)}"
         out += (
             f"{bul}{date_index}: {symbol} {strip_zeros(quantity)} units, "
-            f"market value £{round_decimal(market_value, 2):,}, {outcome}\n"
+            f"market value {_pounds(market_value)}, {outcome}\n"
         )
     return out
