@@ -73,3 +73,5 @@
 ^usage\.md:.*MissingPreposition
 # "a wrong guess changes the income a thousandfold" is complete as it stands.
 ^args_validators\.py:.*MissingPreposition
+# "Trading 212's" - Harper splits the possessive after a number.
+^trading212\.md:.*SpellCheck.*`s`

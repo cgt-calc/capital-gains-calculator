@@ -30,7 +30,12 @@ from cgt_calc.stock_splits import (
     quantity_sign,
     recover_ratio,
 )
-from cgt_calc.util import approx_equal, approx_equal_scaled, parse_decimal
+from cgt_calc.util import (
+    approx_equal,
+    approx_equal_scaled,
+    normalize_amount,
+    parse_decimal,
+)
 
 from .base_parsers import BaseDirParser
 
@@ -418,6 +423,14 @@ class Trading212Transaction(BrokerTransaction):
                         float(discrepancy),
                     )
 
+        # A dividend is recorded before foreign tax once overlapping exports are
+        # merged (finalize_transactions): the merge does not compare the price
+        # per share, so the amount it compares must not depend on it.
+        self.withholding_tax = decimal_or_none(row, Trading212Column.WITHHOLDING_TAX)
+        self.withholding_currency = (
+            row.get(Trading212Column.CURRENCY_WITHHOLDING_TAX) or None
+        )
+
         isin_raw = row[Trading212Column.ISIN]
         isin = Isin(isin_raw) if isin_raw else None
         # An export without the ID column gives None; one with the column
@@ -456,6 +469,81 @@ class Trading212Transaction(BrokerTransaction):
             isin,
             foreign_fees=foreign_fees,
         )
+
+    def separate_foreign_tax(self) -> BrokerTransaction | None:
+        """Record this dividend before foreign tax; return the tax as its own row.
+
+        The tax is read once: afterwards the amount includes it.
+        """
+        foreign_tax = self._foreign_tax()
+        self.withholding_tax = None
+        if foreign_tax is None:
+            return None
+        assert self.amount is not None, "a dividend with tax has an amount"
+        self.amount += foreign_tax
+        if self.quantity:
+            self.price = abs(self.amount + self.fees) / self.quantity
+        tax = BrokerTransaction(
+            date=self.date,
+            action=ActionType.DIVIDEND_TAX,
+            symbol=self.symbol,
+            description=self.description,
+            quantity=None,
+            price=None,
+            fees=Decimal(0),
+            amount=-foreign_tax,
+            currency=self.currency,
+            broker=self.broker,
+            isin=self.isin,
+        )
+        tax.source = self.source
+        return tax
+
+    def _foreign_tax(self) -> Decimal | None:
+        """Return the foreign tax withheld from this dividend, in the account currency.
+
+        The row gives the payment per share and the tax in the share's currency,
+        and the amount received after the tax in the account currency. The tax
+        is converted at the exchange rate the row gives or, where it gives none,
+        at the rate its own figures imply, so the dividend before tax less the
+        tax is what was received.
+
+        Tax in the account currency, pounds or pence, stays in the amount
+        received: it may be UK tax, for example on a property income
+        distribution, which is not foreign tax. So does the tax on a row that
+        takes a dividend back: treaty relief is worked out per payment, so
+        converting the reversal would cancel the dividend but leave the
+        original's relief standing.
+        """
+        tax = self.withholding_tax
+        if (
+            self.action is not ActionType.DIVIDEND
+            or self.amount is None
+            or not tax
+            or self.withholding_currency in {None, self.currency, "GBX"}
+        ):
+            return None
+        if (
+            self.withholding_currency == self.currency_foreign
+            and self.amount > 0
+            and tax > 0
+        ):
+            if self.exchange_rate:
+                return normalize_amount(tax / self.exchange_rate)
+            gross = (self.quantity or Decimal(0)) * (self.price_foreign or Decimal(0))
+            if gross > tax:
+                return normalize_amount(tax * self.amount / (gross - tax))
+        LOGGER.warning(
+            "The %s dividend on %s is recorded at the %s %s received, without the "
+            "%s %s of tax withheld, which cannot be converted from this row",
+            self.symbol,
+            self.date,
+            self.amount,
+            self.currency,
+            tax,
+            self.withholding_currency,
+        )
+        return None
 
     def _checkable_fees(
         self,
@@ -545,11 +633,12 @@ class Trading212Transaction(BrokerTransaction):
         and the sell that closes it, so an ID tells rows apart within a group
         rather than forming one.
 
-        So are `price_foreign`, `currency_foreign`, `exchange_rate` and
-        `notes`. Nothing outside this module reads them, and the price check
-        that does runs at parse time, so whichever copy of a row survives,
-        the calculation sees the same values. Keeping them would instead
-        block a merge whenever two exports differ only in presentation.
+        So are `price_foreign`, `currency_foreign`, `exchange_rate`, the
+        withholding tax and `notes`. Keeping them would block a merge whenever
+        two exports differ only in presentation. Only a dividend's foreign tax
+        is worked out from them after the merge, so two copies that round the
+        price differently can give slightly different tax depending on which
+        copy is kept, enough for the treaty check to fail on one of them.
 
         Reorganisation rows are the exception on both counts, and take the
         exact instant and those figures back. See below.
@@ -1212,6 +1301,16 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
     def finalize_transactions(
         cls, transactions: list[BrokerTransaction]
     ) -> list[BrokerTransaction]:
+        """Pair reorganisation rows, then record dividends before foreign tax.
+
+        Both need every export of the account, merged.
+        """
+        return cls._add_foreign_tax(cls._pair_reorganisations(transactions))
+
+    @classmethod
+    def _pair_reorganisations(
+        cls, transactions: list[BrokerTransaction]
+    ) -> list[BrokerTransaction]:
         """Combine each pair of reorganisation rows into one event.
 
         This has to see the whole directory at once. The two halves can land
@@ -1243,6 +1342,24 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
         for event in events:
             cls._refuse_rows_between_halves(event, rest)
         return sorted([*rest, *events], key=cls._by_instant)
+
+    @staticmethod
+    def _add_foreign_tax(
+        transactions: list[BrokerTransaction],
+    ) -> list[BrokerTransaction]:
+        """Record each dividend before foreign tax, with the tax on a row after it.
+
+        This runs once overlapping exports are merged, so a dividend that two
+        exports both report gets one tax row, and its warning is printed once.
+        """
+        result: list[BrokerTransaction] = []
+        for transaction in transactions:
+            result.append(transaction)
+            if isinstance(transaction, Trading212Transaction):
+                tax = transaction.separate_foreign_tax()
+                if tax is not None:
+                    result.append(tax)
+        return result
 
     @staticmethod
     def _split_candidates(halves: list[SplitHalf]) -> list[list[SplitHalf]]:

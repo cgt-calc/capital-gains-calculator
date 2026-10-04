@@ -334,8 +334,8 @@ cgt-calc cannot know the following, so allow for them in the figure you pass:
 - **Other Income Tax reliefs.** Subtract anything else that reduces your taxable income, such as a
     trading loss you claim against your income.
 - **Dividends and interest exported after tax.** cgt-calc adds them as the report shows them. If
-    your broker's export gives an amount after tax was taken off, as
-    [Trading 212 does for dividends](brokers/trading212.md#known-limitations), add that tax.
+    your broker's export gives an amount after tax was taken off, as Trading 212 does in
+    [some cases](brokers/trading212.md#known-limitations), add that tax.
 - **Dividends before 6 April 2016.** cgt-calc does not add them, because the amount taxed is not the
     amount received (see [Choose the tax year](#choose-the-tax-year)). Add their taxable amount
     yourself. The terminal reminds you when the report has such dividends.
