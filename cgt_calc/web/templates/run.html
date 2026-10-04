@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Run · cgt-calc{% endblock %}
+{% block content %}
+<div class="title">
+  <h1>Run</h1>
+  <span id="status" class="status {{ run.status.value }}">{{ run.status.value }}</span>
+  <a class="button ghost again" href="/runs/{{ run.id }}/rerun">Change options and run again</a>
+</div>
+
+<h2>Command</h2>
+<div class="command">
+  <pre id="command"><code>{{ run.command.display }}</code></pre>
+  <button type="button" id="copy" class="ghost" hidden>Copy</button>
+</div>
+<p class="muted">Run it in a folder holding the same files, laid out as the paths above.</p>
+
+<h2>Log</h2>
+<pre id="log" class="log" data-events="/runs/{{ run.id }}/events?start={{ run.log | length }}"
+     data-live="{{ 'true' if not run.finished else 'false' }}">{% for line in run.log %}<span class="{{ line | log_level }}">{{ line }}
+</span>{% endfor %}</pre>
+
+{% if run.finished %}
+{% if run.status == statuses.FAILED %}
+<p class="notice error" role="alert">
+  The calculation did not finish. The log above says why. You can
+  <a href="/runs/{{ run.id }}/rerun">change the options and run again</a> with the same files,
+  or <a href="/">start again</a> with new ones.
+</p>
+{% endif %}
+
+{% if artifacts %}
+<h2>Downloads</h2>
+<ul class="files">
+  {% for artifact in artifacts %}
+  <li>
+    <a href="/runs/{{ run.id }}/files/{{ artifact.name }}">{{ artifact.name }}</a>
+    <span class="muted">{{ '%.1f' | format(artifact.size / 1024) }} KiB</span>
+  </li>
+  {% endfor %}
+</ul>
+<p><a class="button" href="/runs/{{ run.id }}/bundle.zip">Download everything (.zip)</a></p>
+{% endif %}
+
+{% if run.report %}
+<h2>Report</h2>
+<pre class="report">{{ run.report }}</pre>
+{% endif %}
+
+<form class="delete" method="post" action="/runs/{{ run.id }}/delete">
+  <button type="submit" class="ghost">Delete this run and its files</button>
+</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/run.js?v={{ version }}"></script>{% endblock %}
