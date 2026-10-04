@@ -27,7 +27,7 @@ cgt-calc --year 2025 --schwab-file schwab_transactions.csv
 
 Replace the Schwab option with the one for your broker. LaTeX is needed to create the PDF report.
 See [Installation](https://cgt-calc.uk/installation/), [Brokers](https://cgt-calc.uk/brokers/), and
-[Usage](https://cgt-calc.uk/usage/) for the complete steps.
+[Generate a report](https://cgt-calc.uk/usage/) for the complete steps.
 
 ## What cgt-calc calculates
 

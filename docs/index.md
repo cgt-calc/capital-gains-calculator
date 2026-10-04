@@ -12,7 +12,7 @@ because not every award export or transaction type is supported.
 
 - [Installation](installation.md) — install cgt-calc and check that it runs
 - [Brokers](brokers/index.md) — find the export instructions for your broker
-- [Usage](usage.md) — generate and check your report
+- [Generate a report](usage.md) — run cgt-calc and check the results
 - [Offshore funds (ERI)](offshore-funds.md) — if you hold non-UK funds
 
 ## What cgt-calc calculates

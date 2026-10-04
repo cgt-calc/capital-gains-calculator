@@ -350,9 +350,11 @@ The estimate is the tax for the whole year. It is not the adjustment figure that
 Assessment return asks for.
 
 `--income` needs a full tax year, so it cannot be combined with `--from` and `--to`. Write it in
-whole pounds, such as `45000`. It makes no difference when the terminal shows **Tax at 18%**,
-because that rate does not depend on income. The estimate leaves out the same things as the two
-figures: see [Tax at the basic and higher rate](#tax-at-the-basic-and-higher-rate).
+whole pounds, such as `45000`. For 2008/09 and 2009/10 it changes nothing: everyone paid 18%
+whatever their income, so the terminal still shows one figure, **Tax at 18%**. The same goes for
+2010/11 when all of your taxable gain was made before 23 June 2010. The estimate leaves out the same
+things as the two figures: see
+[Tax at the basic and higher rate](#tax-at-the-basic-and-higher-rate).
 
 ## Report part of a tax year (advanced)
 
