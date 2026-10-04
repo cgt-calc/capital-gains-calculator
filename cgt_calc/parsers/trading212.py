@@ -400,16 +400,18 @@ class Trading212Transaction(BrokerTransaction):
             abs(amount + fees) / quantity if amount is not None and quantity else None
         )
 
+        # Not on a dividend row of any kind: its price per share is after
+        # foreign tax, and the exchange rate a current export gives on it runs
+        # the other way.
         if (
             amount is not None
             and quantity
             and self.price_foreign is not None
+            and not self.raw_action.startswith("Dividend")
             and (self.currency_foreign == "GBP" or self.exchange_rate is not None)
         ):
             exchange_rate = self.exchange_rate or Decimal(1)
-            check_fees = self._checkable_fees(
-                row, fees, foreign_fees, currency, exchange_rate
-            )
+            check_fees = self._checkable_fees(fees, foreign_fees, exchange_rate)
             if check_fees is not None:
                 check_price = abs(amount + check_fees) / quantity
                 calculated_price_foreign = check_price * exchange_rate
@@ -503,10 +505,15 @@ class Trading212Transaction(BrokerTransaction):
         """Return the foreign tax withheld from this dividend, in the account currency.
 
         The row gives the amount received after the tax in the account's
-        currency. Tax already in that currency is used as it is. Tax in the
-        share's currency is converted at the exchange rate the row gives or,
-        where it gives none, at the rate the row's own figures imply. Either
-        way, the dividend before tax less the tax is what was received.
+        currency. Tax already in that currency is used as it is.
+
+        Tax in the share's currency is converted with the row's own figures.
+        The price per share is after the tax too (it is the declared dividend
+        less the tax in every real export checked, from 2020 to 2026, #709
+        among them), so shares times price is the amount received in the
+        share's currency, and the tax is the same share of one as of the
+        other. The row's exchange rate is not used: exports made before late
+        2025 give none on a dividend, and it adds nothing to these figures.
 
         Tax in pounds or pence stays in the amount received, whatever the
         account's currency: it may be UK tax, for example on a property income
@@ -527,14 +534,11 @@ class Trading212Transaction(BrokerTransaction):
         if self.amount > 0 and tax > 0:
             if self.withholding_currency == self.currency:
                 return tax
-            if self.withholding_currency == self.currency_foreign:
-                if self.exchange_rate:
-                    return normalize_amount(tax / self.exchange_rate)
-                gross = (self.quantity or Decimal(0)) * (
-                    self.price_foreign or Decimal(0)
-                )
-                if gross > tax:
-                    return normalize_amount(tax * self.amount / (gross - tax))
+            received = (self.quantity or Decimal(0)) * (
+                self.price_foreign or Decimal(0)
+            )
+            if self.withholding_currency == self.currency_foreign and received > 0:
+                return normalize_amount(tax * self.amount / received)
         if self.amount < 0 and tax < 0:
             LOGGER.warning(
                 "The %s dividend taken back on %s is recorded at the %s %s taken "
@@ -563,33 +567,18 @@ class Trading212Transaction(BrokerTransaction):
 
     def _checkable_fees(
         self,
-        row: dict[Trading212Column, str],
         fees: Decimal,
         foreign_fees: dict[CurrencyCode, Decimal],
-        currency: CurrencyCode,
         exchange_rate: Decimal,
     ) -> Decimal | None:
-        """Total amounts to add back for the price consistency check.
-
-        Withholding tax is deducted from a dividend Total while the Price
-        per Share stays gross, so it is added back here. It is not a
-        dealing cost and never reaches the reported fees.
+        """Total fees to add back for the price consistency check.
 
         Foreign amounts in the instrument currency are converted with the
         export's own exchange rate. Returns None when one is in some other
         currency, which the export alone cannot convert.
         """
         total = fees
-        foreign = dict(foreign_fees)
-        withholding_tax = decimal_or_none(row, Trading212Column.WITHHOLDING_TAX)
-        if withholding_tax:
-            tax_currency = row.get(Trading212Column.CURRENCY_WITHHOLDING_TAX) or None
-            if tax_currency is None or tax_currency == currency:
-                total += withholding_tax
-            else:
-                tax_code = CurrencyCode(tax_currency)
-                foreign[tax_code] = foreign.get(tax_code, Decimal(0)) + withholding_tax
-        for fee_currency, fee_amount in foreign.items():
+        for fee_currency, fee_amount in foreign_fees.items():
             if fee_currency != self.currency_foreign:
                 return None
             total += fee_amount / exchange_rate
@@ -652,9 +641,10 @@ class Trading212Transaction(BrokerTransaction):
         So are `price_foreign`, `currency_foreign`, `exchange_rate`, the
         withholding tax and `notes`. Keeping them would block a merge whenever
         two exports differ only in presentation. Only a dividend's foreign tax
-        is worked out from them after the merge, so two copies that round the
-        price differently can give slightly different tax depending on which
-        copy is kept, enough for the treaty check to fail on one of them.
+        is worked out, from the price and the withholding tax, after the merge,
+        so two copies that round the price differently can give slightly
+        different tax depending on which copy is kept, enough for the treaty
+        check to fail on one of them.
 
         Reorganisation rows are the exception on both counts, and take the
         exact instant and those figures back. See below.

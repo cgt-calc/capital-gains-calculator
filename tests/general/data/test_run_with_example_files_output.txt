@@ -10,7 +10,7 @@ Final balance
   Morgan Stanley: 1.00 (USD)
 
 Dividends
-  NVDA: 0.12, excluding 0.02 taxed at source (GBP)
+  NVDA: 0.11, excluding 0.01 taxed at source (GBP)
 
 Interest
   Charles Schwab: 1.40 (USD)
