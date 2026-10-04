@@ -1723,7 +1723,14 @@ class TransactionIngester:
                 msg += f" at the end of {transaction.date}"
                 msg += " after processing the following transactions:\n"
                 msg += "\n".join(indent_entry(entry) for entry in entries) + "\n"
-                msg += "Tip: If your input file is missing deposits/withdrawals use --no-balance-check."
+                msg += (
+                    "A negative balance usually means deposits or other transactions "
+                    "are missing from your input files, so check that they cover the "
+                    "account's whole history. Use --no-balance-check only if the "
+                    "guide for your broker says to, or after you understand why the "
+                    "history cannot reconcile. "
+                    "See https://cgt-calc.uk/usage/#check-the-result"
+                )
                 raise CalculationError(msg)
             balance[transaction.broker, transaction.currency] = new_balance
             if day_last_row[transaction.date] == i:
