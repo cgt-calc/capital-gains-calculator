@@ -73,6 +73,7 @@ def test_a_gift_with_a_gain_counts_like_a_sale() -> None:
     assert report.total_gain() == Decimal(80)
     assert "gift$FOO" in report.calculation_log[GIFT_DAY]
     assert calculator.portfolio["FOO"].quantity == Decimal(6)
+    assert "market value £120.00, gain £80.00" in render_text(report)
 
 
 def test_a_loss_on_a_gift_is_reported_but_not_totalled() -> None:
