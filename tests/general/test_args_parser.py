@@ -692,15 +692,14 @@ def test_reject_duplicate_stdin_allows_a_single_option() -> None:
     assert args.raw_file == STDIN_PATH
 
 
-def test_schwab_award_file_help_names_every_layout_it_takes() -> None:
+def test_schwab_award_file_help_names_both_kinds_of_export() -> None:
     """The canonical option's help says it takes either kind of export."""
     help_text = " ".join(create_parser().format_help().split())
 
     assert (
-        "--schwab-award-file PATH Charles Schwab Equity Awards export: the "
-        "price-only export that prices vests in the main history, as the "
-        "award-price CSV or as JSON holding only Lapse rows, or the complete "
-        "transaction history as JSON or CSV" in help_text
+        "--schwab-award-file PATH Charles Schwab Equity Awards export as CSV or "
+        "JSON: the award account's complete history, or the export that only "
+        "prices vests in the main history" in help_text
     )
 
 

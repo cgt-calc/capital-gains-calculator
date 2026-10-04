@@ -49,8 +49,11 @@ def create_parser() -> argparse.ArgumentParser:
         allow_abbrev=False,
         epilog="""
 Environment variables:
-  NO_COLOR              disable colored output
-  FORCE_COLOR           force colored output
+  NO_COLOR              disable coloured output
+  FORCE_COLOR           use colours even when output is not a terminal
+  NO_EMOJI              keep colours but drop emoji
+
+Documentation: https://cgt-calc.uk/
 """,
     )
 
@@ -61,32 +64,33 @@ Environment variables:
         type=year_type,
         metavar="YYYY",
         default=None,
-        help="first year of the UK tax year (e.g. 2024 for tax year 2024/25; "
-        f"default: {get_last_elapsed_tax_year()})",
+        help="first year of the UK tax year to report, e.g. 2024 for 2024/25 "
+        f"(default: {get_last_elapsed_tax_year()}, the last completed tax year)",
     )
     year_group.add_argument(
         "--from",
         dest="period_from",
         type=date_type,
         metavar="YYYY-MM-DD",
-        help="start of a custom reporting period, e.g. for the HMRC 2024/25 "
-        "CGT adjustment calculation (requires --to, incompatible with --year)",
+        help="first day of a period within one tax year, to report only part of "
+        "it, e.g. from the rate change on 2024-10-30 (requires --to, incompatible "
+        "with --year)",
     )
     year_group.add_argument(
         "--to",
         dest="period_to",
         type=date_type,
         metavar="YYYY-MM-DD",
-        help="end of a custom reporting period (requires --from)",
+        help="last day of that period (requires --from)",
     )
     year_group.add_argument(
         "--income",
         type=income_type,
         metavar="POUNDS",
-        help="your income for the tax year before the Personal Allowance, such as "
-        "the pay on your P60, without the interest and, from 2016/17, the dividends "
-        "in the files you supply; the summary then shows one estimate of the "
-        "Capital Gains Tax instead of two (needs a full tax year)",
+        help="your income for the tax year before the Personal Allowance, e.g. the "
+        "pay on your P60, without the dividends and interest in the files you "
+        "supply; gives one Capital Gains Tax estimate instead of two (incompatible "
+        "with --from and --to)",
     )
 
     # Broker Inputs
@@ -100,7 +104,8 @@ Environment variables:
             "--prices-file",
             type=existing_file_type,
             metavar="PATH",
-            help="share prices in CSV format, for vests without a price and for spin-offs",
+            help="share prices in CSV format, for vests without a price and for "
+            "spin-offs; used instead of the bundled prices",
         ),
         shtab.FILE,
     )
@@ -118,7 +123,8 @@ Environment variables:
             type=optional_cache_file_type,
             metavar="PATH",
             default=DEFAULT_EXCHANGE_RATES_FILE,
-            help="monthly exchange rates in CSV format (generated automatically if missing; default: %(default)s)",
+            help="cache of HMRC monthly exchange rates in CSV format, downloaded "
+            "as needed (default: %(default)s)",
         ),
         shtab.FILE,
     )
@@ -128,7 +134,8 @@ Environment variables:
             type=optional_cache_file_type,
             default=DEFAULT_ISIN_TRANSLATION_FILE,
             metavar="PATH",
-            help="ISIN to ticker translations in CSV format (generated automatically if missing; default: %(default)s)",
+            help="cache of ISIN to ticker lookups in CSV format, updated as needed "
+            "(default: %(default)s)",
         ),
         shtab.FILE,
     )
@@ -138,7 +145,9 @@ Environment variables:
             type=optional_cache_file_type,
             metavar="PATH",
             default=DEFAULT_SPIN_OFF_FILE,
-            help="spin-offs data in CSV format (default: %(default)s)",
+            help="old ticker each spin-off came from, in CSV format; an interactive "
+            "run asks for a missing one and saves the answer here "
+            "(default: %(default)s)",
         ),
         shtab.FILE,
     )
@@ -150,15 +159,17 @@ Environment variables:
         dest="balance_check",
         action="store_false",
         default=True,
-        help="skip balance verification (useful for partial transaction records)",
+        help="do not stop when a broker's cash balance falls below zero, which "
+        "usually means transactions are missing from the export",
     )
     calc_group.add_argument(
         "--autoconvert-currency",
         action="store_true",
         default=False,
         help=(
-            "combine GBP and one foreign currency for the same dividend; "
-            "different foreign currencies remain an error"
+            "accept the same dividend reported in GBP and in one foreign currency, "
+            "converting the foreign amounts to GBP; two different foreign "
+            "currencies are still an error"
         ),
     )
     calc_group.add_argument(
@@ -166,28 +177,27 @@ Environment variables:
         dest="calc_unrealized_gains",
         action="store_true",
         default=False,
-        help="estimate today's unrealized gains/losses for holdings in the "
-        "report's ending portfolio using Section 104 pooled costs",
+        help="estimate the gain or loss on the holdings in the report's ending "
+        "portfolio if sold at today's price, fetched from Yahoo Finance",
     )
     calc_group.add_argument(
         "--interest-fund-tickers",
         type=ticker_list_type,
         metavar="TICKER[,TICKER...]",
         default=[],
-        help="tickers of bond funds/ETFs whose dividends are taxed as interest in the UK",
+        help="tickers of offshore bond funds, including ETFs, whose income is "
+        "reported as foreign interest rather than dividends",
     )
     calc_group.add_argument(
         "--cgt-exempt-tickers",
         type=ticker_list_type,
         metavar="TICKER[,TICKER...]",
         default=[],
-        help="advanced manual CGT-exempt instrument classification (TCGA 1992 "
-        "s115): your own unverified assertion, since QCB status cannot be "
-        "inferred from a ticker or name; disregards both gains and losses on "
-        "disposals and changes nothing else, so coupon and accrued interest "
-        "stay taxable in whichever box the broker's rows put them and the "
-        "Accrued Income Scheme is not implemented; not for a QCB carrying a "
-        "deferred gain or for a deeply discounted security",
+        help="advanced: treat disposals of these tickers as exempt from Capital "
+        "Gains Tax (TCGA 1992 s115), disregarding both gains and losses; "
+        "cgt-calc cannot check the exemption; not for a qualifying corporate "
+        "bond carrying a deferred gain or for a deeply discounted security; "
+        "coupon and accrued interest stay taxable",
     )
 
     # Output Options
@@ -201,7 +211,7 @@ Environment variables:
             type=output_path_type,
             metavar="PATH",
             default=DEFAULT_REPORT_PATH,
-            help="path to save the generated PDF report (default: %(default)s)",
+            help="where to save the PDF report (default: %(default)s)",
         ),
         shtab.FILE,
     )
@@ -216,12 +226,12 @@ Environment variables:
     output_mutex.add_argument(
         "--no-report",
         action="store_true",
-        help="do not generate PDF report",
+        help="print the summary only, without creating a PDF or LaTeX source",
     )
     output_group.add_argument(
         "--no-pdflatex",
         action="store_true",
-        help="save LaTeX source instead of generating a PDF",
+        help="save the report's LaTeX source instead of creating a PDF",
     )
     set_completer(
         output_group.add_argument(
@@ -253,13 +263,13 @@ Environment variables:
     shtab.add_argument_to(
         general_group,
         "--print-completion",
-        help="print shell tab completion script and exit",
+        help="print a tab completion script for the given shell and exit",
     )
     general_group.add_argument(
         "-v",
         "--verbose",
         action="store_true",
-        help="enable extra logging",
+        help="show debug messages, and a full traceback if the calculation fails",
     )
     return parser
 
