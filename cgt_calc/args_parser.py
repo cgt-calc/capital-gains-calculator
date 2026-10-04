@@ -81,7 +81,7 @@ Documentation: https://cgt-calc.uk/
         dest="period_to",
         type=date_type,
         metavar="YYYY-MM-DD",
-        help="last day of that period (requires --from)",
+        help="last day of the period to report (requires --from)",
     )
     year_group.add_argument(
         "--income",
@@ -167,9 +167,9 @@ Documentation: https://cgt-calc.uk/
         action="store_true",
         default=False,
         help=(
-            "accept the same dividend reported in GBP and in one foreign currency, "
-            "converting the foreign amounts to GBP; two different foreign "
-            "currencies are still an error"
+            "accept the same dividend, or a dividend and its withholding tax, "
+            "reported in GBP and in one foreign currency, converting the foreign "
+            "amounts to GBP; two different foreign currencies are still an error"
         ),
     )
     calc_group.add_argument(
