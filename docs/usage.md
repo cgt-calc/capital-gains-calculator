@@ -166,7 +166,9 @@ Before relying on the figures:
 
 1. Read every warning printed while the calculator runs.
 2. Check that the portfolio section agrees with your records on the end date in the heading (5 April
-    for a full-year report).
+    for a full-year report). A holding under a ticker the company no longer uses can mean cgt-calc
+    does not know its [ticker rename](extra-data-and-options.md#ticker-renames), or that a merger or
+    takeover is missing from your history.
 3. Compare **Number of disposals** with your records. Check that **Disposal proceeds** agrees with
     sale amounts on your broker statements and any values used for other disposals.
 4. Check that dividends and interest are present when you expect them.
