@@ -1509,7 +1509,11 @@ def test_a_reversed_dividend_keeps_the_amount_received(
         (ActionType.DIVIDEND_TAX, "BAZ", Decimal("-1.20"), "GBP"),
         (ActionType.DIVIDEND, "BAZ", Decimal("-6.80"), "GBP"),
     ]
-    assert "recorded at the -6.80 GBP received" in caplog.text
+    assert (
+        "The BAZ dividend taken back on 2024-07-01 is recorded at the 6.80 GBP taken "
+        "back, and its 1.50 USD of tax is not converted: the report's dividend income "
+        "and treaty relief stay too high by that tax" in caplog.text
+    )
 
 
 def test_tax_on_fund_interest_is_left_in_the_amount_received(tmp_path: Path) -> None:
@@ -1525,6 +1529,50 @@ def test_tax_on_fund_interest_is_left_in_the_amount_received(tmp_path: Path) -> 
     assert _dividend_and_tax(transactions) == [
         (ActionType.INTEREST, "BAZ", Decimal("6.80"), "GBP")
     ]
+
+
+@pytest.mark.parametrize(
+    ("account", "tax", "expected"),
+    [
+        pytest.param(
+            {Trading212Column.CURRENCY_TOTAL: "USD"},
+            {Trading212Column.CURRENCY_WITHHOLDING_TAX: "USD"},
+            [
+                (ActionType.DIVIDEND, "BAZ", Decimal("8.00"), "USD"),
+                (ActionType.DIVIDEND_TAX, "BAZ", Decimal("-1.50"), "USD"),
+            ],
+            id="US tax in a dollar account is used as it is",
+        ),
+        pytest.param(
+            {
+                Trading212Column.CURRENCY_TOTAL: "EUR",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "GBP",
+            },
+            {Trading212Column.CURRENCY_WITHHOLDING_TAX: "GBP"},
+            [(ActionType.DIVIDEND, "BAZ", Decimal("6.50"), "EUR")],
+            id="tax in pounds stays in a euro account",
+        ),
+    ],
+)
+def test_an_account_in_another_currency(
+    tmp_path: Path,
+    account: Mapping[str | Trading212Column, str],
+    tax: Mapping[str | Trading212Column, str],
+    expected: list[tuple[ActionType, str, Decimal, str]],
+) -> None:
+    """Pounds and pence are left as received whatever the account's currency.
+
+    Trading 212 credits dividends in the account's chosen currency. Tax already
+    in that currency needs no conversion, and tax in pounds may be UK tax,
+    which is not foreign tax.
+    """
+    row = _make_dividend_row("6.50", {**REAL_SHAPE, **account, **tax})
+
+    transactions = Trading212Parser().load_from_dir(
+        _prepare_file(tmp_path, [HEADER_2024, row])
+    )
+
+    assert _dividend_and_tax(transactions) == expected
 
 
 def test_exports_that_print_the_price_differently_give_one_dividend(

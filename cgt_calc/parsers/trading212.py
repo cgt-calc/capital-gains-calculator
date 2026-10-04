@@ -14,7 +14,7 @@ import math
 from pathlib import Path
 from typing import ClassVar, Final, NoReturn, TextIO, override
 
-from cgt_calc.const import UK_TIMEZONE
+from cgt_calc.const import UK_CURRENCY, UK_TIMEZONE
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import (
     ActionType,
@@ -502,37 +502,52 @@ class Trading212Transaction(BrokerTransaction):
     def _foreign_tax(self) -> Decimal | None:
         """Return the foreign tax withheld from this dividend, in the account currency.
 
-        The row gives the payment per share and the tax in the share's currency,
-        and the amount received after the tax in the account currency. The tax
-        is converted at the exchange rate the row gives or, where it gives none,
-        at the rate its own figures imply, so the dividend before tax less the
-        tax is what was received.
+        The row gives the amount received after the tax in the account's
+        currency. Tax already in that currency is used as it is. Tax in the
+        share's currency is converted at the exchange rate the row gives or,
+        where it gives none, at the rate the row's own figures imply. Either
+        way, the dividend before tax less the tax is what was received.
 
-        Tax in the account currency, pounds or pence, stays in the amount
-        received: it may be UK tax, for example on a property income
-        distribution, which is not foreign tax. So does the tax on a row that
-        takes a dividend back: treaty relief is worked out per payment, so
-        converting the reversal would cancel the dividend but leave the
-        original's relief standing.
+        Tax in pounds or pence stays in the amount received, whatever the
+        account's currency: it may be UK tax, for example on a property income
+        distribution, which is not foreign tax. So does tax with no currency
+        given, which an export means as the account's currency. So does the tax
+        on a row that takes a dividend back: treaty relief is worked out per
+        payment, so converting the reversal would cancel the dividend but leave
+        the original's relief standing.
         """
         tax = self.withholding_tax
         if (
             self.action is not ActionType.DIVIDEND
             or self.amount is None
             or not tax
-            or self.withholding_currency in {None, self.currency, "GBX"}
+            or self.withholding_currency in {None, UK_CURRENCY, "GBX"}
         ):
             return None
-        if (
-            self.withholding_currency == self.currency_foreign
-            and self.amount > 0
-            and tax > 0
-        ):
-            if self.exchange_rate:
-                return normalize_amount(tax / self.exchange_rate)
-            gross = (self.quantity or Decimal(0)) * (self.price_foreign or Decimal(0))
-            if gross > tax:
-                return normalize_amount(tax * self.amount / (gross - tax))
+        if self.amount > 0 and tax > 0:
+            if self.withholding_currency == self.currency:
+                return tax
+            if self.withholding_currency == self.currency_foreign:
+                if self.exchange_rate:
+                    return normalize_amount(tax / self.exchange_rate)
+                gross = (self.quantity or Decimal(0)) * (
+                    self.price_foreign or Decimal(0)
+                )
+                if gross > tax:
+                    return normalize_amount(tax * self.amount / (gross - tax))
+        if self.amount < 0 and tax < 0:
+            LOGGER.warning(
+                "The %s dividend taken back on %s is recorded at the %s %s taken "
+                "back, and its %s %s of tax is not converted: the report's dividend "
+                "income and treaty relief stay too high by that tax",
+                self.symbol,
+                self.date,
+                -self.amount,
+                self.currency,
+                -tax,
+                self.withholding_currency,
+            )
+            return None
         LOGGER.warning(
             "The %s dividend on %s is recorded at the %s %s received, without the "
             "%s %s of tax withheld, which cannot be converted from this row",

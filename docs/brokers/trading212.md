@@ -135,11 +135,12 @@ share. cgt-calc records the dividend before that tax and the tax withheld as tax
 does for other brokers. The report's dividend income then includes the tax, and where cgt-calc knows
 the double taxation treaty with the share's country, so do its treaty figures.
 
-When the tax is given in the share's currency, cgt-calc converts it at the exchange rate on the row
-or, when the row has none, at the rate Trading 212 used for the payment, which the row's own figures
-give. Either way, the dividend before tax less the tax is the amount you received. For example, 10
-shares paying $1.00 each, with $1.50 withheld and £6.80 received, are recorded as a £8.00 dividend
-and £1.20 of tax at source.
+Tax already in your account's currency, such as US tax in a dollar account, is used as it is. When
+the tax is given in the share's currency instead, cgt-calc converts it at the exchange rate on the
+row or, when the row has none, at the rate Trading 212 used for the payment, which the row's own
+figures give. Either way, the dividend before tax less the tax is the amount you received. For
+example, 10 shares paying $1.00 each, with $1.50 withheld and £6.80 received, are recorded as a
+£8.00 dividend and £1.20 of tax at source.
 
 If Trading 212 rounded the price per share, a rate worked out from the row is slightly off. The tax
 may then not match the treaty rate exactly, and cgt-calc prints a warning and leaves the treaty out
@@ -151,19 +152,21 @@ cgt-calc records the amount received and prints a warning naming the dividend. A
 to your dividend income yourself and, if you use
 [`--income`](../usage.md#estimate-the-tax-from-your-income), to the figure you pass.
 
-A row that takes back an earlier dividend is also recorded at the amount taken back, with the same
-warning. Treaty relief is worked out for each payment, so converting the reversal would cancel the
-dividend but leave the original's relief in the report. As it is, the report's dividend income is
-too high by the tax that the reversal takes back: subtract that tax from the dividend income you
-report. The `--income` estimate includes it too, which makes the estimate slightly high.
+A row that takes back an earlier dividend is recorded at the amount taken back, with a warning. The
+report then keeps the original dividend's tax at source and treaty relief, so its dividend income
+and its treaty relief are both too high by the tax the reversal takes back. Its taxable dividends
+are not understated: where the treaty relief equals the tax, as for US shares, the two cancel out.
+If you copy dividend income or foreign tax figures from the report, subtract that tax from each. The
+`--income` estimate includes it too, which makes the estimate slightly high.
 
 ### Known limitations
 
 - Some tax withheld is left in the amount received and does not appear separately in the report: tax
-    in pounds or pence, tax with no currency given, and tax on fund interest distributions
-    (`Dividend (Interest)`). Tax in pounds may be UK tax, for example on a property income
-    distribution, which is not foreign tax. Add that tax to your income yourself and, if you use
-    [`--income`](../usage.md#estimate-the-tax-from-your-income), to the figure you pass.
+    in pounds or pence, whatever your account's currency, tax with no currency given, and tax on
+    fund interest distributions (`Dividend (Interest)`). Tax in pounds may be UK tax, for example on
+    a property income distribution, which is not foreign tax. Add that tax to your income yourself
+    and, if you use [`--income`](../usage.md#estimate-the-tax-from-your-income), to the figure you
+    pass.
 - Share transfers between accounts or brokers, labelled `Transfer in` or `Transfer out`, are not
     supported.
 - One run covers one Trading 212 account. `--trading212-dir` takes a single directory and every file
