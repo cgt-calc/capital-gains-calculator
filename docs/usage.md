@@ -173,9 +173,9 @@ Before relying on the figures:
 5. Confirm that every relevant account was included once, without overlapping exports.
 6. Check that unusual events such as share splits, spin-offs and offshore fund income were handled.
 
-Avoid `--no-balance-check` unless the relevant broker guide recommends it or you understand why the
-check cannot succeed. Disabling it removes one of the checks that can reveal incomplete transaction
-history.
+Avoid `--no-balance-check` unless the relevant [broker guide](brokers/index.md) recommends it or you
+understand why the check cannot succeed. Disabling it removes one of the checks that can reveal
+incomplete transaction history.
 
 For each broker and currency, the balance check compares the cash balance with zero after the last
 row of each day, rather than after every row. Exports disagree about the order of a day's rows, and

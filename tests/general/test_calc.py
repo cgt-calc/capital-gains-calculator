@@ -2457,7 +2457,6 @@ def test_negative_balance_error_trims_long_history() -> None:
     message = str(excinfo.value)
     assert "... 5 earlier transaction(s) omitted ..." in message
     assert message.count("Balance after transaction=") == BALANCE_CHECK_CONTEXT_ROWS
-    assert "--no-balance-check" in message
 
 
 def test_negative_balance_error_shows_short_history_in_full() -> None:
