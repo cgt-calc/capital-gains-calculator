@@ -383,6 +383,35 @@ full-year report's [tax figures](#tax-at-the-basic-and-higher-rate) already appl
 rates. Its dividend and interest figures are not annual totals either: they include only income
 received inside the period, and the dividend section still deducts the full-year dividend allowance.
 
+## Read a file from standard input
+
+Pass `-` in place of a file path to read that file from standard input. Another program can then
+supply the file without saving it first, such as a script that converts your broker's export to the
+[RAW format](brokers/raw.md):
+
+```shell
+python convert_export.py broker_export.xlsx | cgt-calc --year 2024 --raw-file -
+```
+
+`-` works with every broker option that takes one file: `--schwab-file`, `--schwab-award-file`,
+`--freetrade-file`, `--interactive-brokers-file`, `--revolut-file`, `--vanguard-file`, `--raw-file`
+and `--eri-raw-file`. Options that take a directory need a path, and so do `--prices-file`,
+`--exchange-rates-file`, `--isin-translation-file` and `--spin-offs-file`.
+
+Reading from standard input changes a few things:
+
+- **Only one option can use it in a run.** If you give `-` to two options, cgt-calc stops before
+    reading anything and names them. Pass the other files by path.
+- **cgt-calc cannot ask you a question.** When a spin-off row does not name the holding it came
+    from, cgt-calc normally asks for the old ticker. With piped input it stops instead and tells you
+    which row to add to the spin-offs file. See
+    [Spin-off source mappings](extra-data-and-options.md#spin-off-source-mappings).
+- **Messages call the input `stdin` or `-`.** An error names a row as, for example, `row 2 of -`.
+
+Standard input is read as UTF-8, the same as a file, whatever your system's default encoding is, so
+the program that supplies it must write UTF-8. Text in another encoding usually stops the run with
+`Unexpected error!` and a `UnicodeDecodeError`.
+
 ## Terminal appearance
 
 Colours and emoji are used automatically when the terminal supports them. The standard
