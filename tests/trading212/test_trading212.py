@@ -1747,8 +1747,9 @@ def test_a_refused_action_says_whether_it_is_unsupported_or_unknown(
     """A row the Trading 212 page lists as unsupported says so, with the link.
 
     `Unknown action` would send the reader to report a change of format, for
-    a row that is refused on purpose. It is kept for a label cgt-calc has not
-    met, where a report is what the page asks for.
+    a row that is refused on purpose. It is kept for every other label that
+    is not read. `ADR Fee` is one: it is on a single real row, too little to
+    decide how to read it, so a report of the row is what the page asks for.
     """
     rows = [
         HEADER_2024,

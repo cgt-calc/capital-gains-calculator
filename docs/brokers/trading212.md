@@ -184,13 +184,10 @@ high.
     ([TCGA 1992 s122](https://www.legislation.gov.uk/ukpga/1992/12/section/122)) and not dividend
     income: take it out of the dividend income you report and work out the capital gains treatment
     yourself.
-- cgt-calc takes the country a dividend came from to be the first two letters of the share's ISIN. A
-    company based elsewhere can have an ISIN that starts `US`, as with the New York shares of a
-    Dutch company or a depositary receipt. Where the tax on its dividend was withheld at 15%, which
-    is also the US rate, the report applies the US treaty and shows 15% relief without a warning.
-    The treaty with the company's own country may allow less, such as 10% for the Netherlands
-    ([DT14005](https://www.gov.uk/hmrc-internal-manuals/double-taxation-relief/dt14005)). Check the
-    treaty figure for any share whose company is not based in the country its ISIN starts with.
+- The treaty applied to a dividend follows the first two letters of the share's ISIN, which do not
+    always show where the company is based. A dividend on the New York shares of a Dutch company,
+    for example, can be given the US treaty without a warning; see
+    [Income reported in more than one currency](../extra-data-and-options.md#income-reported-in-more-than-one-currency).
 - Share transfers between accounts or brokers, labelled `Transfer in` or `Transfer out`, are not
     supported, and cgt-calc stops at the row.
 - One run covers one Trading 212 account. `--trading212-dir` takes a single directory and every file
