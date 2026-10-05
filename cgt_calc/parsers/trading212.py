@@ -73,6 +73,7 @@ class Trading212Column(StrEnum):
     STAMP_DUTY_GBP = "Stamp duty (GBP)"
     STAMP_DUTY = "Stamp duty"
     CURRENCY_STAMP_DUTY = "Currency (Stamp duty)"
+    STAMP_DUTY_RESERVE_TAX_GBP = "Stamp duty reserve tax (GBP)"
     STAMP_DUTY_RESERVE_TAX = "Stamp duty reserve tax"
     CURRENCY_STAMP_DUTY_RESERVE_TAX = "Currency (Stamp duty reserve tax)"
     FRENCH_TRANSACTION_TAX = "French transaction tax"
@@ -105,6 +106,20 @@ LOGGER = logging.getLogger(__name__)
 SPLIT_OPEN_ACTION: Final = "Stock split open"
 SPLIT_CLOSE_ACTION: Final = "Stock split close"
 SPLIT_ACTIONS: Final = frozenset({SPLIT_OPEN_ACTION, SPLIT_CLOSE_ACTION})
+
+# Actions the Trading 212 page lists under its known limitations: share
+# distributions, and transfers of shares between accounts. A distribution
+# may be a stock dividend, a warrant issue, one side of a demerger or the
+# shares received in a takeover. Those are not all taxed alike, and the row
+# does not say which it is.
+UNSUPPORTED_ACTIONS: Final = frozenset(
+    {
+        "Stock distribution",
+        "Custom stock distribution",
+        "Transfer in",
+        "Transfer out",
+    }
+)
 
 # Two rounded account-currency totals, so the only error between them is the
 # rounding itself.
@@ -150,6 +165,7 @@ SPLIT_ZERO_COLUMNS: Final[tuple[Trading212Column, ...]] = (
     Trading212Column.STAMP_DUTY,
     Trading212Column.STAMP_DUTY_GBP,
     Trading212Column.STAMP_DUTY_RESERVE_TAX,
+    Trading212Column.STAMP_DUTY_RESERVE_TAX_GBP,
     Trading212Column.FRENCH_TRANSACTION_TAX,
     Trading212Column.CURRENCY_CONVERSION_FEE,
     Trading212Column.CURRENCY_CONVERSION_FEE_GBP,
@@ -201,7 +217,7 @@ FEE_COLUMNS: Final[list[FeeColumn]] = [
     ),
     FeeColumn(
         attribute="stamp_duty",
-        gbp_column=None,
+        gbp_column=Trading212Column.STAMP_DUTY_RESERVE_TAX_GBP,
         bare_column=Trading212Column.STAMP_DUTY_RESERVE_TAX,
         currency_column=Trading212Column.CURRENCY_STAMP_DUTY_RESERVE_TAX,
         currency_required=False,
@@ -285,8 +301,14 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Dividend (Ordinary)",
         "Dividend (Dividend)",
         "Dividend (Dividends paid by us corporations)",
+        "Dividend (Dividends paid by foreign corporations)",
         "Dividend (Dividend manufactured payment)",
         "Dividend (Property income distribution)",
+        # Trading 212 records no tax withheld on these rows. That says nothing
+        # about whether the payment is income: real exports use the label for
+        # ordinary dividends and for repayments of share premium, which the
+        # page tells the user to check.
+        "Dividend (Tax exempted)",
         "Dividend adjustment",
     }:
         return ActionType.DIVIDEND
@@ -318,6 +340,13 @@ def action_from_str(label: str, file: Path) -> ActionType:
         "Spending cashback",
     }:
         return ActionType.ADJUSTMENT
+
+    if label in UNSUPPORTED_ACTIONS:
+        raise ParsingError(
+            file,
+            f"{label} rows are not supported. See "
+            "https://cgt-calc.uk/brokers/trading212/#known-limitations",
+        )
 
     raise ParsingError(file, f"Unknown action: {label}")
 

@@ -227,6 +227,15 @@ the tax deducted on your broker's tax voucher. If the fallback is wrong or missi
 mapping under [ISIN to ticker translation](#isin-to-ticker-translation); if you cannot, calculate
 the relief outside cgt-calc rather than relying on the treaty figure in the report.
 
+An ISIN does not always show where the company is resident either. cgt-calc reads the country from
+its first two letters, and a company based elsewhere can have an ISIN that starts `US`, as with the
+New York shares of a Dutch company or a depositary receipt. Where the tax on its dividend was
+withheld at 15%, which is also the US rate, the report applies the US treaty and shows 15% relief
+without a warning. The treaty with the company's own country may allow less, such as 10% for the
+Netherlands ([DT14005](https://www.gov.uk/hmrc-internal-manuals/double-taxation-relief/dt14005)).
+Check the treaty figure for any share whose company is not based in the country its ISIN starts
+with, and calculate the relief outside cgt-calc if it is wrong.
+
 ### Shares held before April 2008
 
 Since 6 April 2008, all your shares in one company are pooled at what they cost, whenever you bought
