@@ -334,9 +334,9 @@ def test_a_tax_correction_nothing_cancels_is_named_in_a_warning(
         (
             f"The QCOM dividend tax correction of {total.removeprefix('USD ')} USD "
             "on 2021-11-02 is not cancelled by an opposite one that day, so it is "
-            "treated as a change to the tax at source of a QCOM dividend. Check "
+            "treated as a change to the tax at source of one QCOM dividend. Check "
             "that dividend's figures: see "
-            "https://cgt-calc.uk/brokers/revolut/#dividends-and-withholding-tax"
+            "https://cgt-calc.uk/brokers/revolut/#tax-corrections"
         )
     ]
 

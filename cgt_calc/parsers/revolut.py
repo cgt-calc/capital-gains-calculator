@@ -44,9 +44,6 @@ class RevolutColumn(StrEnum):
 
 COLUMNS: Final[list[str]] = [column.value for column in RevolutColumn]
 HEADER_LINE: Final = ",".join(COLUMNS) + "\n"
-DIVIDEND_DOCS: Final = (
-    "https://cgt-calc.uk/brokers/revolut/#dividends-and-withholding-tax"
-)
 LOGGER = logging.getLogger(__name__)
 
 
@@ -277,8 +274,8 @@ class RevolutParser(StandardCSVParser[RevolutTransaction]):
                 "them after foreign tax and does not give that tax. Unless you "
                 "have added it in a RAW file, the report's dividend income is "
                 "too low by any tax taken from the tax year's dividends, and "
-                "that tax is not shown as tax at source. See %s",
-                DIVIDEND_DOCS,
+                "that tax is not shown as tax at source. See "
+                "https://cgt-calc.uk/brokers/revolut/#dividends-and-withholding-tax"
             )
         corrections: defaultdict[
             tuple[str | None, datetime.date, CurrencyCode], Decimal
@@ -293,13 +290,13 @@ class RevolutParser(StandardCSVParser[RevolutTransaction]):
                 LOGGER.warning(
                     "The %s dividend tax correction of %s %s on %s is not "
                     "cancelled by an opposite one that day, so it is treated as "
-                    "a change to the tax at source of a %s dividend. Check that "
-                    "dividend's figures: see %s",
+                    "a change to the tax at source of one %s dividend. Check "
+                    "that dividend's figures: see "
+                    "https://cgt-calc.uk/brokers/revolut/#tax-corrections",
                     symbol,
                     amount,
                     currency,
                     date,
                     symbol,
-                    DIVIDEND_DOCS,
                 )
         return transactions

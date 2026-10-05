@@ -180,9 +180,9 @@ cgt-calc warns about a correction that nothing cancels and names it. Revolut has
 full and taken the tax afterwards with such a correction, so the `DIVIDEND` row before it may not be
 short of the tax that Revolut shows. For that dividend, the amount to enter in the two RAW rows, or
 to add yourself, is the dividend before tax less the `DIVIDEND` amount in the CSV. Work out the
-dividend before tax as the dividend per share that the company declared times the shares you held.
-If nothing is left, as when the dividend was paid in full, enter no rows for it: the correction is
-already its tax at source.
+dividend before tax as the dividend per share that the company declared, which its investor pages
+give, times the shares you held on the day before the ex-dividend date. If nothing is left, as when
+the dividend was paid in full, enter no rows for it: the correction is already its tax at source.
 
 ## Troubleshooting
 
