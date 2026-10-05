@@ -400,6 +400,20 @@ class Trading212Transaction(BrokerTransaction):
         ):
             amount *= -1
 
+        # Trading 212 exports the shares given up in a takeover paid in shares
+        # as a sell at a price and a total of zero. Nothing was sold, and read
+        # as a sale the row would report the whole cost as a loss. Both must be
+        # zero: a price of zero with a real total is a share priced below a cent,
+        # and a total of zero with a real price is the sale of a tiny fraction.
+        if action is ActionType.SELL and amount == 0 and self.price_foreign == 0:
+            raise ValueError(
+                f"A sale of {symbol} at a price and a total of zero cannot be read "
+                "as a sale. Trading 212 exports the shares given up in a takeover "
+                "paid in shares this way, and reading the row as a sale would "
+                "report their whole cost as a loss. See "
+                "https://cgt-calc.uk/brokers/trading212/#known-limitations"
+            )
+
         self.transaction_fee = Decimal(0)
         self.finra_fee = Decimal(0)
         self.stamp_duty = Decimal(0)

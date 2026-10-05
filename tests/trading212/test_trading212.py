@@ -7,6 +7,7 @@ from decimal import Decimal
 import logging
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 from typing import TYPE_CHECKING
@@ -737,7 +738,7 @@ def test_an_older_export_names_stamp_duty_reserve_tax_in_pounds(
             header,
             {
                 Trading212Column.ACTION: "Market buy",
-                Trading212Column.TIME: "2021-09-02 07:01:55",
+                Trading212Column.TIME: "2021-09-02 08:00:00",
                 Trading212Column.ISIN: "GB0000000017",
                 Trading212Column.TICKER: "WID",
                 Trading212Column.NAME: "Widget plc",
@@ -1757,11 +1758,11 @@ def test_a_refused_action_says_whether_it_is_unsupported_or_unknown(
             HEADER_2024,
             {
                 Trading212Column.ACTION: action,
-                Trading212Column.TIME: "2024-12-02 12:05:56",
+                Trading212Column.TIME: "2024-12-02 12:00:00",
                 Trading212Column.ISIN: "US0000000036",
                 Trading212Column.TICKER: "BAZ",
                 Trading212Column.NAME: "Baz Corp",
-                Trading212Column.NO_OF_SHARES: "0.0963784900",
+                Trading212Column.NO_OF_SHARES: "0.5000000000",
                 Trading212Column.PRICE_PER_SHARE: "0E-10",
                 Trading212Column.CURRENCY_PRICE_PER_SHARE: "USD",
                 Trading212Column.TOTAL: "0.00",
@@ -1773,6 +1774,67 @@ def test_a_refused_action_says_whether_it_is_unsupported_or_unknown(
 
     with pytest.raises(ParsingError, match=rf"row 2: {message}$"):
         Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
+
+
+def _make_sell_row(
+    shares: str, price: str, total: str, currency: str = "GBP"
+) -> list[str]:
+    """Build a sale in a pound account, at the price and total given."""
+    return _make_row(
+        HEADER_2024,
+        {
+            Trading212Column.ACTION: "Market sell",
+            Trading212Column.TIME: "2024-06-03 10:00:00",
+            Trading212Column.ISIN: "US0000000036",
+            Trading212Column.TICKER: "BAZ",
+            Trading212Column.NAME: "Baz Corp",
+            Trading212Column.NO_OF_SHARES: shares,
+            Trading212Column.PRICE_PER_SHARE: price,
+            Trading212Column.CURRENCY_PRICE_PER_SHARE: currency,
+            Trading212Column.TOTAL: total,
+            Trading212Column.CURRENCY_TOTAL: "GBP",
+            Trading212Column.TRANSACTION_ID: "sell-1",
+        },
+    )
+
+
+def test_a_sale_at_a_price_and_a_total_of_zero_is_refused(tmp_path: Path) -> None:
+    """The shares given up in a takeover paid in shares are not read as sold.
+
+    Trading 212 exports them as a sell at a price and a total of zero. Read
+    as a sale for nothing, the row would report their whole cost as a loss.
+    """
+    rows = [HEADER_2024, _make_sell_row("40.0000000000", "0E-10", "0.00", "USD")]
+    message = (
+        "row 2: A sale of BAZ at a price and a total of zero cannot be read as a "
+        "sale. Trading 212 exports the shares given up in a takeover paid in "
+        "shares this way, and reading the row as a sale would report their whole "
+        "cost as a loss. See "
+        "https://cgt-calc.uk/brokers/trading212/#known-limitations"
+    )
+
+    with pytest.raises(ParsingError, match=re.escape(message) + "$"):
+        Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
+
+
+@pytest.mark.parametrize(
+    ("shares", "price", "total"),
+    [
+        pytest.param("5000", "0.00", "12.50", id="a share priced below a cent"),
+        pytest.param("0.0001", "6.00", "0.00", id="a tiny fraction of a share"),
+    ],
+)
+def test_a_sale_with_only_a_zero_price_or_a_zero_total_is_a_sale(
+    tmp_path: Path, shares: str, price: str, total: str
+) -> None:
+    """A price or a total can print as zero on a real sale; only both refuse it."""
+    rows = [HEADER_2024, _make_sell_row(shares, price, total, "USD")]
+
+    transactions = Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
+
+    assert [(t.action, t.symbol, t.amount) for t in transactions] == [
+        (ActionType.SELL, "BAZ", Decimal(total))
+    ]
 
 
 def test_read_trading212_transactions_invalid_decimal(tmp_path: Path) -> None:
