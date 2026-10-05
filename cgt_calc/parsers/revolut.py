@@ -249,3 +249,25 @@ class RevolutParser(StandardCSVParser[RevolutTransaction]):
             LOGGER.debug("Skipping %s", transaction.description)
             return None
         return transaction
+
+    @classmethod
+    @override
+    def finalize_transactions(
+        cls, transactions: list[RevolutTransaction]
+    ) -> list[RevolutTransaction]:
+        """Warn that the dividends read are short of the tax withheld from them.
+
+        A `DIVIDEND` row is the cash received after foreign tax, and no row or
+        column gives the tax (#1110), so the dividend before tax cannot be
+        worked out here: the rate depends on the company, which the export
+        does not identify.
+        """
+        if any(t.action is ActionType.DIVIDEND for t in transactions):
+            LOGGER.warning(
+                "Revolut gives each dividend after foreign tax and does not give "
+                "the tax, so dividends are recorded at the amount received. "
+                "Dividend income in the report is too low by any tax withheld, "
+                "and that tax is not shown as tax at source. To add it, see "
+                "https://cgt-calc.uk/brokers/revolut/#dividends-and-withholding-tax"
+            )
+        return transactions

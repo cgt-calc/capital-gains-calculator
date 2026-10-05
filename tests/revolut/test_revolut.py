@@ -32,6 +32,16 @@ BASE_ROW_VALUES = {
     RevolutColumn.FX_RATE: "1.3646",
 }
 
+# The export gives a dividend after foreign tax and leaves the tax out, so a
+# run that reads one says which of its figures are short of that tax.
+DIVIDENDS_AFTER_TAX_WARNING = (
+    "Revolut gives each dividend after foreign tax and does not give the tax, "
+    "so dividends are recorded at the amount received. Dividend income in the "
+    "report is too low by any tax withheld, and that tax is not shown as tax "
+    "at source. To add it, see "
+    "https://cgt-calc.uk/brokers/revolut/#dividends-and-withholding-tax"
+)
+
 
 def _default_row(overrides: dict[RevolutColumn, str] | None = None) -> list[str]:
     """Return default row data with optional overrides."""
@@ -70,7 +80,7 @@ def test_run_with_revolut_file(request: pytest.FixtureRequest, tax_year: str) ->
         report_path(request),
     )
     result = run_cli(cmd)
-    assert stderr_alerts(result.stderr) == [], "Run with example files generated errors"
+    assert stderr_alerts(result.stderr) == [f"WARNING: {DIVIDENDS_AFTER_TAX_WARNING}"]
     expected_file = (
         Path("tests") / "revolut" / "data" / f"expected_output_{tax_year}.txt"
     )
@@ -285,6 +295,18 @@ def test_read_revolut_stock_split(tmp_path: Path) -> None:
     assert transaction.quantity == Decimal("5.72912688")
     assert transaction.price == Decimal(0)
     assert transaction.amount == Decimal(0)
+
+
+def test_a_file_without_dividends_is_read_without_the_tax_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Only a dividend is short of its tax, so other rows raise no warning."""
+    path = _write_csv(tmp_path, [_default_row()])
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.revolut"):
+        RevolutParser().load_from_file(path)
+
+    assert not caplog.text
 
 
 @pytest.mark.parametrize(
@@ -517,3 +539,55 @@ def test_run_with_a_trade_before_a_same_day_split_is_refused(
     assert "the instant on it is when the broker booked the entry" in result.stderr
     # The export does state its times, so it must not be told to supply them.
     assert "in one input that states times" not in result.stderr
+
+
+def test_run_with_the_tax_withheld_from_a_dividend_added_in_a_raw_file(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> None:
+    """Two RAW rows on a dividend's date restore the tax the export leaves out.
+
+    A dividend of USD 44.50 with 15% withheld arrives as USD 37.83. The RAW
+    dividend adds the USD 6.67 back to the payment and the RAW tax row records
+    it as tax at source, which matches the treaty rate on the whole payment.
+    """
+    path = _write_csv(
+        tmp_path,
+        [
+            _default_row(TOP_UP),
+            _default_row(),
+            _default_row(
+                {
+                    RevolutColumn.DATE: "2025-12-18T12:50:45.000000Z",
+                    RevolutColumn.ACTION: "DIVIDEND",
+                    RevolutColumn.QUANTITY: "",
+                    RevolutColumn.PRICE_PER_SHARE: "",
+                    RevolutColumn.TOTAL_AMOUNT: "USD 37.83",
+                }
+            ),
+        ],
+    )
+    raw_path = tmp_path / "raw.csv"
+    raw_path.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2025-12-18,DIVIDEND,QCOM,1,6.67,0,USD\n"
+        "2025-12-18,DIVIDEND_TAX,QCOM,1,-6.67,0,USD\n",
+        encoding="utf-8",
+    )
+    cmd = build_cmd(
+        "--year",
+        "2025",
+        "--revolut-file",
+        str(path),
+        "--raw-file",
+        str(raw_path),
+        "--output",
+        report_path(request),
+    )
+
+    result = run_cli(cmd)
+
+    assert "  QCOM: 44.50, excluding 6.67 taxed at source (USD)\n" in result.stdout
+    # The two RAW rows cancel, so they leave no cash behind them.
+    assert "  Unknown: 0.00 (USD)\n" in result.stdout
+    # And the tax matched the treaty rate, or a second warning would say not.
+    assert stderr_alerts(result.stderr) == [f"WARNING: {DIVIDENDS_AFTER_TAX_WARNING}"]
