@@ -118,8 +118,8 @@ warning when the file contains a dividend.
 
 HMRC calculates foreign income before direct foreign tax is deducted
 ([HMRC guidance](https://www.gov.uk/hmrc-internal-manuals/international-manual/intm165030)). The
-report's dividend income is therefore too low by the tax withheld, and the report shows no tax at
-source or treaty relief for these dividends.
+report's dividend income is therefore too low by the tax withheld, and that tax does not appear as
+tax at source.
 
 To put the tax into the report:
 
@@ -138,6 +138,9 @@ To put the tax into the report:
     2025-12-18,DIVIDEND_TAX,QCOM,1,-6.67,0,USD
     ```
 
+    Both rows are needed, because cgt-calc matches a RAW `DIVIDEND_TAX` only to a RAW `DIVIDEND`,
+    not to the dividend in the Revolut CSV.
+
 3. Pass both files:
 
     ```shell
@@ -149,25 +152,29 @@ tax, and reports the `DIVIDEND_TAX` as its tax at source. The two rows cancel, s
 balance that the RAW file adds to the terminal's **Final balance** list is zero. The warning is
 still printed, because cgt-calc cannot tell that you have added the tax.
 
-Check the terminal's **Dividends** list printed after **Final balance**. For each ticker, the amount
-should be the dividends before tax and the value after `excluding ... taxed at source` the tax, both
-as Revolut shows them for the tax year.
+Check the terminal's **Dividends** list printed after **Final balance**. For each ticker, the value
+after `excluding ... taxed at source` should be the total of the tax you noted in step 1, and the
+amount before it should be the ticker's `DIVIDEND` rows for the tax year plus that tax.
 
-cgt-calc then works out treaty relief as for any [RAW dividend](raw.md#known-limitations): unless it
-knows the ticker's ISIN, it takes the country from the currency and treats a `USD` dividend as US.
-Check the relief yourself for a company outside the US that pays in dollars. If cgt-calc warns that
-the double taxation treaty does not match, check that both RAW rows have the date of the dividend.
-If they do, the tax was withheld at another rate than the treaty's, and cgt-calc leaves the relief
-out of the report.
+With the tax in the report, cgt-calc works out double taxation treaty relief as for any
+[RAW dividend](raw.md#known-limitations), and the PDF report shows it beside the dividend. Unless
+cgt-calc knows the ticker's ISIN, it takes the company's country from the currency. A `USD` dividend
+is treated as US, which is wrong for a company outside the US that pays in dollars, so
+[check the country](../extra-data-and-options.md#income-reported-in-more-than-one-currency) for
+those. Where cgt-calc cannot tell the country, or the tax does not match the treaty rate, it prints
+a warning and leaves the relief out. If the warning says that the double taxation treaty does not
+match, first check that the RAW rows have the date of the dividend.
 
 If you do not add the tax this way, add it to your dividend income yourself and, if you use
 [`--income`](../usage.md#estimate-the-tax-from-your-income), to the figure you pass.
 
-A `DIVIDEND TAX (CORRECTION)` row is not the tax withheld from a dividend. Revolut adds it when it
-changes that tax afterwards, and cgt-calc counts it as a change to the dividend's tax at source. Two
-corrections of the same amount, one positive and one negative, cancel each other. If no other row
-cancels a correction, enter the tax in the RAW file as it was before the correction, because
-cgt-calc applies the correction itself.
+A `DIVIDEND TAX (CORRECTION)` row changes the tax on a dividend after it was paid, and cgt-calc
+counts it as a change to that dividend's tax at source. These rows usually come in pairs of the same
+amount, one negative and one positive, which cancel and change nothing. cgt-calc warns about a
+correction that nothing cancels and names it. Revolut has paid a dividend before tax and then taken
+the tax with such a correction, so the tax Revolut shows is not always what the `DIVIDEND` row is
+short of. For the dividend that the correction follows, the amount to enter in the RAW rows is the
+dividend before tax less the `DIVIDEND` amount in the CSV, which can be nothing.
 
 ## Troubleshooting
 
@@ -201,6 +208,10 @@ whose columns were reordered or removed would be read incorrectly.
 Check that the period was set to **All time** so that the top ups, transfers and sales that funded
 later purchases are all present. Do not add a made-up top up to silence the error; establish the
 missing cash or holdings from your Revolut records first.
+
+If the error names the broker `Unknown`, the balance belongs to a RAW file. In the
+[rows that add dividend tax](#dividends-and-withholding-tax), give both rows of a dividend the same
+date.
 
 Revolut can report a cash balance of `-0.01` even when your transaction history is complete. If your
 records account for every transaction and the shortfall is a hundredth of a unit or so, rerun with

@@ -35,10 +35,10 @@ BASE_ROW_VALUES = {
 # The export gives a dividend after foreign tax and leaves the tax out, so a
 # run that reads one says which of its figures are short of that tax.
 DIVIDENDS_AFTER_TAX_WARNING = (
-    "Revolut gives each dividend after foreign tax and does not give the tax, "
-    "so dividends are recorded at the amount received. Dividend income in the "
-    "report is too low by any tax withheld, and that tax is not shown as tax "
-    "at source. To add it, see "
+    "Revolut dividends are recorded as received: the export gives each one "
+    "after foreign tax and does not give that tax. Unless you have added it in "
+    "a RAW file, the report's dividend income is too low by any tax taken from "
+    "the tax year's dividends, and that tax is not shown as tax at source. See "
     "https://cgt-calc.uk/brokers/revolut/#dividends-and-withholding-tax"
 )
 
@@ -307,6 +307,40 @@ def test_a_file_without_dividends_is_read_without_the_tax_warning(
         RevolutParser().load_from_file(path)
 
     assert not caplog.text
+
+
+@pytest.mark.parametrize("total", ["USD 4.48", "USD -4.48"])
+def test_a_tax_correction_nothing_cancels_is_named_in_a_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, total: str
+) -> None:
+    """A correction with no opposite row changes a dividend's tax, either way.
+
+    Real exports pair a correction with its opposite within a second, as the
+    example file does, and the two change nothing. The one seen on its own was
+    negative: the tax on a dividend Revolut had paid in full. So the dividend
+    a lone correction follows is not short of tax in the way the others are,
+    and the reader has to be told which one it is.
+    """
+    overrides = {
+        RevolutColumn.ACTION: "DIVIDEND TAX (CORRECTION)",
+        RevolutColumn.QUANTITY: "",
+        RevolutColumn.PRICE_PER_SHARE: "",
+        RevolutColumn.TOTAL_AMOUNT: total,
+    }
+    path = _write_csv(tmp_path, [_default_row(overrides)])
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.revolut"):
+        RevolutParser().load_from_file(path)
+
+    assert caplog.messages == [
+        (
+            f"The QCOM dividend tax correction of {total.removeprefix('USD ')} USD "
+            "on 2021-11-02 is not cancelled by an opposite one that day, so it is "
+            "counted as a change to the tax at source of the dividend it follows. "
+            "Check that dividend's figures: see "
+            "https://cgt-calc.uk/brokers/revolut/#dividends-and-withholding-tax"
+        )
+    ]
 
 
 @pytest.mark.parametrize(

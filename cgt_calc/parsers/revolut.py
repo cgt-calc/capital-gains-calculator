@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 import csv
 import datetime
 from decimal import Decimal
@@ -43,6 +44,9 @@ class RevolutColumn(StrEnum):
 
 COLUMNS: Final[list[str]] = [column.value for column in RevolutColumn]
 HEADER_LINE: Final = ",".join(COLUMNS) + "\n"
+DIVIDEND_DOCS: Final = (
+    "https://cgt-calc.uk/brokers/revolut/#dividends-and-withholding-tax"
+)
 LOGGER = logging.getLogger(__name__)
 
 
@@ -255,19 +259,46 @@ class RevolutParser(StandardCSVParser[RevolutTransaction]):
     def finalize_transactions(
         cls, transactions: list[RevolutTransaction]
     ) -> list[RevolutTransaction]:
-        """Warn that the dividends read are short of the tax withheld from them.
+        """Warn about the dividend tax the export leaves out.
 
         A `DIVIDEND` row is the cash received after foreign tax, and no row or
-        column gives the tax (#1110), so the dividend before tax cannot be
-        worked out here: the rate depends on the company, which the export
-        does not identify.
+        column gives that tax (#1110). The dividend before tax cannot be
+        worked out here: the rate depends on the holder and on the company,
+        which the export names only by ticker.
+
+        A `DIVIDEND TAX (CORRECTION)` row nearly always comes with its
+        opposite within a second, and the two change nothing. The one seen on
+        its own was the tax on a dividend paid in full, so the dividend a lone
+        correction follows is not short of tax in the way the others are.
         """
         if any(t.action is ActionType.DIVIDEND for t in transactions):
             LOGGER.warning(
-                "Revolut gives each dividend after foreign tax and does not give "
-                "the tax, so dividends are recorded at the amount received. "
-                "Dividend income in the report is too low by any tax withheld, "
-                "and that tax is not shown as tax at source. To add it, see "
-                "https://cgt-calc.uk/brokers/revolut/#dividends-and-withholding-tax"
+                "Revolut dividends are recorded as received: the export gives "
+                "each one after foreign tax and does not give that tax. Unless "
+                "you have added it in a RAW file, the report's dividend income "
+                "is too low by any tax taken from the tax year's dividends, and "
+                "that tax is not shown as tax at source. See %s",
+                DIVIDEND_DOCS,
             )
+        corrections: defaultdict[
+            tuple[str | None, datetime.date, CurrencyCode], Decimal
+        ] = defaultdict(Decimal)
+        for transaction in transactions:
+            if transaction.action is ActionType.DIVIDEND_TAX:
+                assert transaction.amount is not None, "a Revolut row has a total"
+                key = (transaction.symbol, transaction.date, transaction.currency)
+                corrections[key] += transaction.amount
+        for (symbol, date, currency), amount in corrections.items():
+            if amount:
+                LOGGER.warning(
+                    "The %s dividend tax correction of %s %s on %s is not "
+                    "cancelled by an opposite one that day, so it is counted as "
+                    "a change to the tax at source of the dividend it follows. "
+                    "Check that dividend's figures: see %s",
+                    symbol,
+                    amount,
+                    currency,
+                    date,
+                    DIVIDEND_DOCS,
+                )
         return transactions
