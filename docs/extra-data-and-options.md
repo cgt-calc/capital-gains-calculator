@@ -117,8 +117,17 @@ that link to divide the existing pooled cost between them. During an interactive
 the old ticker and saves the answer to `out/spin_offs.csv`.
 
 If the run cannot ask you for the old ticker, add the required `dst,src` row to a mapping file, pass
-that file with `--spin-offs-file`, and rerun. An empty value disables the cache, so cgt-calc does
-not read or save spin-off mappings.
+that file with `--spin-offs-file`, and rerun. The file needs the header line `dst,src` first. Each
+row after it gives the new ticker, then the ticker it was spun off from. For `NEWCO` spun off from
+`ACME`:
+
+```csv
+dst,src
+NEWCO,ACME
+```
+
+An empty `--spin-offs-file` value disables the cache, so cgt-calc does not read or save spin-off
+mappings.
 
 ### Ticker renames
 

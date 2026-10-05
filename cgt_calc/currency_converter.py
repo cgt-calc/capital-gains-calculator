@@ -104,21 +104,22 @@ class CurrencyConverter:
         ]
         line_numbers = [number for number, _ in kept]
         csv_reader = csv.DictReader(line for _, line in kept)
-        if csv_reader.fieldnames is None:
+        header = csv_reader.fieldnames
+        if header is None:
             # File is empty.
             return cache
+        # Checked before any row: a file of one rate and no header has no row
+        # left to check, and would be read as empty.
+        if sorted(header) != sorted(EXCHANGE_RATES_HEADER):
+            raise ParsingError(
+                exchange_rates_file,
+                "Unexpected columns in exchange rate file: "
+                f"found {header}, expected {EXCHANGE_RATES_HEADER}",
+            )
         for line in csv_reader:
             row_number = line_numbers[csv_reader.line_num - 1]
-            # A value beyond the last column is filed under the key None,
-            # which the header check below cannot sort.
+            # A value beyond the last column is filed under the key None.
             extra = line.pop(None, None)
-            # Guard against schema drift before touching row contents.
-            if sorted(EXCHANGE_RATES_HEADER) != sorted(line.keys()):
-                raise ParsingError(
-                    exchange_rates_file,
-                    "Unexpected columns in exchange rate file: "
-                    f"found {sorted(line.keys())}, expected {EXCHANGE_RATES_HEADER}",
-                )
             if extra is not None:
                 raise ParsingError(
                     exchange_rates_file,

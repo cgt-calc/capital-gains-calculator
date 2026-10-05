@@ -123,6 +123,12 @@ def test_read_exchange_rates_accepts_a_byte_order_mark(tmp_path: Path) -> None:
             "Unexpected columns",
             id="header shorter than its rows",
         ),
+        # Not read as a header with no rows under it, which is an empty file.
+        pytest.param(
+            "2024-01-01,USD,1.25\n",
+            re.escape("found ['2024-01-01', 'USD', '1.25']"),
+            id="one rate and no header",
+        ),
     ],
 )
 def test_read_exchange_rates_refuses_a_malformed_file(
