@@ -54,16 +54,17 @@ def test_an_empty_prices_file_holds_no_prices(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "header",
-    ["Date, Symbol, Price", "\ufeffdate,symbol,price"],
-    ids=["other case and spacing", "byte-order mark"],
+    "content",
+    [
+        'Date, Symbol, Price\n"Mar 08, 2021", FOO, 10.5\n',
+        '\ufeffdate,symbol,price\n"Mar 08, 2021",FOO,10.5\n',
+    ],
+    ids=["capitals and a space after each comma", "byte-order mark"],
 )
-def test_a_prices_header_is_recognised_as_typed_or_saved(
-    tmp_path: Path, header: str
-) -> None:
-    """Capitals, spaces after the commas and Excel's "CSV UTF-8" are accepted."""
+def test_a_prices_file_is_read_as_typed_or_saved(tmp_path: Path, content: str) -> None:
+    """Capitals, a space after each comma and Excel's "CSV UTF-8" are accepted."""
     prices_file = tmp_path / "share_prices.csv"
-    prices_file.write_text(f'{header}\n"Mar 08, 2021",FOO,10.5\n', encoding="utf8")
+    prices_file.write_text(content, encoding="utf8")
 
     prices = SharePrices(prices_file=prices_file)
 

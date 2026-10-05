@@ -40,7 +40,8 @@ class SharePricesEntry:
             raise UnexpectedColumnCountError(row, SHARE_PRICES_COLUMNS_NUM, file)
         # date,symbol,price
         self.date = self._parse_date(row[0], file)
-        self.symbol = row[1]
+        # Spaces typed beside the comma are not part of a ticker.
+        self.symbol = row[1].strip()
         try:
             self.price = Decimal(row[2])
         except InvalidOperation as err:

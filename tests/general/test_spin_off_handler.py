@@ -83,6 +83,12 @@ def test_spin_offs_file_skips_a_blank_row(tmp_path: Path, blank: str) -> None:
         pytest.param("NEW,OLD\n", "['NEW', 'OLD']", id="one mapping and no header"),
         # The header is the error, not the rows it makes too long.
         pytest.param("dst\nNEW,OLD\n", "['dst']", id="header with a column missing"),
+        # Not accepted with the last column of that name deciding the source.
+        pytest.param(
+            "dst,src,src\nNEW,OLD,OTHER\n",
+            "['dst', 'src', 'src']",
+            id="column named twice",
+        ),
     ],
 )
 def test_spin_offs_file_reports_a_wrong_first_line(

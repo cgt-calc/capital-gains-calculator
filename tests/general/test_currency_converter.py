@@ -129,6 +129,12 @@ def test_read_exchange_rates_accepts_a_byte_order_mark(tmp_path: Path) -> None:
             re.escape("found ['2024-01-01', 'USD', '1.25']"),
             id="one rate and no header",
         ),
+        # Not accepted with the last column of that name deciding the rate.
+        pytest.param(
+            "month,currency,rate,rate\n2024-01-01,USD,1.25,1.30\n",
+            re.escape("found ['month', 'currency', 'rate', 'rate']"),
+            id="column named twice",
+        ),
     ],
 )
 def test_read_exchange_rates_refuses_a_malformed_file(
