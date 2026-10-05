@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
+import subprocess
+import sys
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -46,7 +48,7 @@ def test_uses_current_price_when_present(monkeypatch: pytest.MonkeyPatch) -> Non
     The ticker info has no "currency" field, so the price is read as USD.
     """
     monkeypatch.setattr(
-        "cgt_calc.current_price_fetcher.yf.Ticker",
+        "yfinance.Ticker",
         lambda symbol: FakeTicker({"currentPrice": 100.0}),
     )
     price = _fetcher().get_current_market_price("AAPL")
@@ -59,7 +61,7 @@ def test_falls_back_to_regular_market_price(monkeypatch: pytest.MonkeyPatch) -> 
     See https://github.com/cgt-calc/capital-gains-calculator/issues/801.
     """
     monkeypatch.setattr(
-        "cgt_calc.current_price_fetcher.yf.Ticker",
+        "yfinance.Ticker",
         lambda symbol: FakeTicker({"regularMarketPrice": 366.79, "navPrice": 366.74}),
     )
     price = _fetcher().get_current_market_price("VTI")
@@ -69,7 +71,7 @@ def test_falls_back_to_regular_market_price(monkeypatch: pytest.MonkeyPatch) -> 
 def test_falls_back_to_nav_price(monkeypatch: pytest.MonkeyPatch) -> None:
     """Some tickers only carry navPrice, with no currentPrice or regularMarketPrice."""
     monkeypatch.setattr(
-        "cgt_calc.current_price_fetcher.yf.Ticker",
+        "yfinance.Ticker",
         lambda symbol: FakeTicker({"navPrice": 42.5}),
     )
     price = _fetcher().get_current_market_price("BND")
@@ -81,7 +83,7 @@ def test_returns_none_when_no_price_field_present(
 ) -> None:
     """No known price field means the price is genuinely unavailable."""
     monkeypatch.setattr(
-        "cgt_calc.current_price_fetcher.yf.Ticker",
+        "yfinance.Ticker",
         lambda symbol: FakeTicker({"someOtherField": 1}),
     )
     assert _fetcher().get_current_market_price("XYZ") is None
@@ -92,7 +94,7 @@ def test_returns_none_when_ticker_info_is_empty(
 ) -> None:
     """An empty info dict (e.g. an unknown symbol) yields no price."""
     monkeypatch.setattr(
-        "cgt_calc.current_price_fetcher.yf.Ticker",
+        "yfinance.Ticker",
         lambda symbol: FakeTicker({}),
     )
     assert _fetcher().get_current_market_price("UNKNOWN") is None
@@ -107,7 +109,7 @@ def test_gbp_pence_quoted_ticker_is_divided_by_100(
     converted directly to GBP rather than looked up via CurrencyConverter.
     """
     monkeypatch.setattr(
-        "cgt_calc.current_price_fetcher.yf.Ticker",
+        "yfinance.Ticker",
         lambda symbol: FakeTicker({"currentPrice": 100.0, "currency": "GBp"}),
     )
     price = _fetcher().get_current_market_price("VOD.L")
@@ -119,7 +121,7 @@ def test_eur_quoted_ticker_uses_eur_rate_not_usd(
 ) -> None:
     """A EUR-quoted ticker should be converted using the EUR rate, not USD."""
     monkeypatch.setattr(
-        "cgt_calc.current_price_fetcher.yf.Ticker",
+        "yfinance.Ticker",
         lambda symbol: FakeTicker({"currentPrice": 100.0, "currency": "EUR"}),
     )
     price = _fetcher().get_current_market_price("MC.PA")
@@ -139,7 +141,7 @@ def test_raises_clear_error_when_no_market_data(
 ) -> None:
     """An empty price history raises an error naming the symbol and date."""
     monkeypatch.setattr(
-        "cgt_calc.current_price_fetcher.yf.Ticker",
+        "yfinance.Ticker",
         lambda symbol: FakeEmptyHistoryTicker(),
     )
     with pytest.raises(MarketDataMissingError, match=r"FOO.*2021-05-10"):
@@ -206,7 +208,7 @@ def test_closing_price_converted_at_historical_rate(
     )
     fetcher = CurrentPriceFetcher(converter)
     monkeypatch.setattr(
-        "cgt_calc.current_price_fetcher.yf.Ticker",
+        "yfinance.Ticker",
         lambda symbol: FakeHistoryTicker(100.0, "USD"),
     )
 
@@ -241,7 +243,7 @@ def test_closing_price_is_the_price_traded_that_day(
     for Solventum on 2024-04-01.
     """
     monkeypatch.setattr(
-        "cgt_calc.current_price_fetcher.yf.Ticker",
+        "yfinance.Ticker",
         lambda symbol: FakeHistoryTicker(48.17, "GBP", splits=splits),
     )
 
@@ -255,9 +257,7 @@ def test_closing_price_is_asked_for_without_dividend_adjustment(
 ) -> None:
     """Yahoo's default, `auto_adjust=True`, lowers past closes for dividends."""
     ticker = FakeHistoryTicker(48.17, "GBP")
-    monkeypatch.setattr(
-        "cgt_calc.current_price_fetcher.yf.Ticker", lambda symbol: ticker
-    )
+    monkeypatch.setattr("yfinance.Ticker", lambda symbol: ticker)
 
     _fetcher().get_closing_price("FOO", datetime.date(2024, 1, 2))
 
@@ -269,9 +269,42 @@ def test_a_history_starting_after_the_day_is_refused(
 ) -> None:
     """A day the market was shut is not priced from the next day's close."""
     monkeypatch.setattr(
-        "cgt_calc.current_price_fetcher.yf.Ticker",
+        "yfinance.Ticker",
         lambda symbol: FakeHistoryTicker(48.17, "GBP", days_late=1),
     )
 
     with pytest.raises(MarketDataMissingError, match=r"FOO.*2024-01-01"):
         _fetcher().get_closing_price("FOO", datetime.date(2024, 1, 1))
+
+
+def test_a_run_that_fetches_no_price_does_not_load_yfinance() -> None:
+    """A run that fetches no price never loads yfinance.
+
+    It pulls in pandas and doubles the modules a start loads, so it is
+    imported only where Yahoo is asked for a price.
+    """
+    script = (
+        "import sys\n"
+        "from cgt_calc.cli import main\n"
+        "sys.exit(main() or ('yfinance' in sys.modules and 'yfinance was loaded'))\n"
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            script,
+            "--year",
+            "2022",
+            "--raw-file",
+            "tests/raw/data/test_data.csv",
+            "--no-balance-check",
+            "--no-report",
+            "--exchange-rates-file",
+            "tests/exchange_rates_data.csv",
+        ],
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr

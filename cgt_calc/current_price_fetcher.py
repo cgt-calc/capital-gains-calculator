@@ -6,8 +6,6 @@ import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-import yfinance as yf  # type: ignore[import-untyped]
-
 if TYPE_CHECKING:
     from .currency_converter import CurrencyConverter
 from .exceptions import ExchangeRateMissingError, MarketDataMissingError
@@ -50,6 +48,9 @@ class CurrentPriceFetcher:
         if self.current_prices_data is not None and symbol in self.current_prices_data:
             return self.current_prices_data[symbol]
 
+        # Imported here because it loads pandas, and most runs fetch no price.
+        import yfinance as yf  # type: ignore[import-untyped]  # noqa: PLC0415
+
         ticker = yf.Ticker(symbol).info
         if not ticker:
             return None
@@ -86,6 +87,9 @@ class CurrentPriceFetcher:
         the day itself is not: that day's close is already after it, and
         Yahoo records some spin-offs as splits on their own day.
         """
+        # Imported here because it loads pandas, and most runs fetch no price.
+        import yfinance as yf  # noqa: PLC0415
+
         yf_ticker = yf.Ticker(symbol)
         prices = yf_ticker.history(
             interval="1d",
