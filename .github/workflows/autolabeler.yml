@@ -21,6 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run release-drafter autolabeler
-        uses: release-drafter/release-drafter/autolabeler@v7.7.0
+        uses: release-drafter/release-drafter/autolabeler@v7.9.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
