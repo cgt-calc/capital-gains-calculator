@@ -2136,12 +2136,13 @@ def test_a_purchase_under_either_of_the_day_s_tickers_joins_the_same_pool(
 
 
 @pytest.mark.parametrize(
-    "fee_day", [RENAME_DAY, EVENT_DAY], ids=["earlier", "same-day"]
+    "fee_day",
+    [pytest.param(RENAME_DAY, id="earlier"), pytest.param(EVENT_DAY, id="same-day")],
 )
 def test_a_fee_under_the_new_ticker_is_not_a_second_holding(
     fee_day: datetime.date,
 ) -> None:
-    """A management fee is cost with no shares, so there is nothing to pool.
+    """A management fee is cost with no shares, so it is not a second holding.
 
     The fee is recorded under the name the day's rename moves the holding to,
     that day or before it. That name holds no shares the reorganisation could
