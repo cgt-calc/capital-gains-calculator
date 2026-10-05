@@ -110,6 +110,35 @@ def test_stdin_decodes_utf8_under_a_legacy_locale(
     assert [txn.symbol for txn in transactions] == ["CAFÉ"]
 
 
+MARKED_CSV = (
+    b"\xef\xbb\xbf"
+    b"date,action,symbol,quantity,price,fees,currency\n"
+    b"2023-02-09,DIVIDEND,OPRA,4200,0.80,0.0,USD\n"
+)
+
+
+def test_a_byte_order_mark_is_not_read_as_data(tmp_path: Path) -> None:
+    """A file saved as Excel's "CSV UTF-8" starts with a mark, not a column."""
+    raw_file = tmp_path / "raw.csv"
+    raw_file.write_bytes(MARKED_CSV)
+
+    transactions = RawParser.load_from_file(raw_file, show_parsing_msg=False)
+
+    assert [txn.symbol for txn in transactions] == ["OPRA"]
+
+
+def test_stdin_drops_a_byte_order_mark(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A marked file piped in is read as the same file is by path."""
+    monkeypatch.setattr(
+        sys, "stdin", io.TextIOWrapper(io.BytesIO(MARKED_CSV), encoding="cp1252")
+    )
+    force_utf8_stdio()
+
+    transactions = RawParser.load_from_file(STDIN_PATH, show_parsing_msg=False)
+
+    assert [txn.symbol for txn in transactions] == ["OPRA"]
+
+
 def test_run_with_nonexistent_file() -> None:
     """Runs the script with a nonexistent file and verifies it fails with an error."""
     missing_file = "tests/raw/data/does_not_exist.csv"

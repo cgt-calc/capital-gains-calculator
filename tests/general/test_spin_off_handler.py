@@ -31,6 +31,14 @@ def test_cached_source_needs_no_terminal(
     assert handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {}) == "OLD"
 
 
+def test_spin_offs_file_with_a_byte_order_mark_is_read(tmp_path: Path) -> None:
+    """A mapping file saved as Excel's "CSV UTF-8" keeps its dst column."""
+    spin_offs_file = tmp_path / "spin_offs.csv"
+    spin_offs_file.write_text("\ufeffdst,src\nNEW,OLD\n", encoding="utf8")
+
+    assert SpinOffHandler(spin_offs_file).cache == {"NEW": "OLD"}
+
+
 def test_non_interactive_run_raises_clear_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

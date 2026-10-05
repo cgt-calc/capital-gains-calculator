@@ -187,7 +187,7 @@ class CurrencyConverter:
     ) -> defaultdict[datetime.date, dict[CurrencyCode, Decimal]]:
         if not exchange_rates_file or not exchange_rates_file.is_file():
             return defaultdict(dict)
-        with exchange_rates_file.open(encoding="utf8") as fin:
+        with exchange_rates_file.open(encoding="utf-8-sig") as fin:
             return CurrencyConverter._read_exchange_rates_data(exchange_rates_file, fin)
 
     @staticmethod

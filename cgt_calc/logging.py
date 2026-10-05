@@ -178,11 +178,12 @@ def force_utf8_stdio() -> None:
     Windows encodes piped output with the legacy code page by default,
     which cannot hold every character the reports use, and decodes piped
     input the same way, turning a UTF-8 broker export read from stdin
-    into mojibake.
+    into mojibake. Input also drops a leading byte-order mark, as a file
+    read by path does; output must never write one.
     """
     for stream in (sys.stdin, sys.stdout, sys.stderr):
         if isinstance(stream, io.TextIOWrapper):
-            stream.reconfigure(encoding="utf-8")
+            stream.reconfigure(encoding="utf-8-sig" if stream is sys.stdin else "utf-8")
 
 
 def setup_logging() -> None:

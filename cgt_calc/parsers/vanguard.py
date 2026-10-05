@@ -697,7 +697,7 @@ class VanguardParser(BaseSingleFileParser[VanguardTransaction]):
         cls, file: TextIO, file_path: Path
     ) -> list[VanguardTransaction]:
         """Read Vanguard transactions from exported transaction report file."""
-        raw_text = file.read().removeprefix("\ufeff")
+        raw_text = file.read()
         delimiter = _detect_delimiter(raw_text)
         csv_reader = csv.reader(io.StringIO(raw_text), delimiter=delimiter)
         lines = [(csv_reader.line_num, row) for row in csv_reader]

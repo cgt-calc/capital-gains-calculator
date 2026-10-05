@@ -59,6 +59,20 @@ def test_read_exchange_rates_skips_blank_rows(tmp_path: Path) -> None:
     assert cache[february] == {CurrencyCode("EUR"): Decimal("1.10")}
 
 
+def test_read_exchange_rates_accepts_a_byte_order_mark(tmp_path: Path) -> None:
+    """A rates file saved as Excel's "CSV UTF-8" still has a month column."""
+    rates_file = tmp_path / "marked.csv"
+    rates_file.write_text(
+        "\ufeffmonth,currency,rate\n2024-01-01,USD,1.25\n", encoding="utf8"
+    )
+
+    converter = CurrencyConverter(exchange_rates_file=rates_file)
+
+    assert converter.cache[datetime.date(2024, 1, 1)] == {
+        CurrencyCode("USD"): Decimal("1.25")
+    }
+
+
 @pytest.mark.parametrize(
     ("content", "match"),
     [

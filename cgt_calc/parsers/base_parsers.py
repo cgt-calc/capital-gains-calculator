@@ -113,7 +113,10 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
     full_arg: str
     deprecated_flags: ClassVar[list[str]] = []
     argument_help: ClassVar[str | None] = None
-    encoding: str = "utf-8"
+    # UTF-8 that also drops a leading byte-order mark. Excel's "CSV UTF-8"
+    # writes one, and it would otherwise be read as part of the first column
+    # name.
+    encoding: str = "utf-8-sig"
     # Set only where the format documents that rows sharing a date are in the
     # order they happened. It decides whether a row can be placed either side
     # of a same-day share reorganisation without an exported time.
