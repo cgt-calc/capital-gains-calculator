@@ -948,6 +948,8 @@ def test_dump_transactions_defaults_to_no_export() -> None:
         # The option once took mode words; they are now ordinary filenames.
         "only",
         "continue",
+        # A file really named '-' can still be asked for by an explicit path.
+        "./-",
     ],
 )
 def test_dump_transactions_takes_a_path(value: str) -> None:
