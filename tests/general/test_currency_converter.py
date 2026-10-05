@@ -112,6 +112,17 @@ def test_read_exchange_rates_accepts_a_byte_order_mark(tmp_path: Path) -> None:
             "Missing data",
             id="missing value",
         ),
+        pytest.param(
+            "month,currency,rate\n2024-01-01,USD,1.25,\n",
+            "Too many values in exchange rate file at line 2: expected 3, found 4",
+            id="value beyond the last column",
+        ),
+        # The header is the error, not the rows it makes too long.
+        pytest.param(
+            "month,currency\n2024-01-01,USD,1.25\n",
+            "Unexpected columns",
+            id="header shorter than its rows",
+        ),
     ],
 )
 def test_read_exchange_rates_refuses_a_malformed_file(

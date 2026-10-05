@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from cgt_calc.const import DEFAULT_SPIN_OFF_FILE
-from cgt_calc.exceptions import InteractiveInputRequiredError
+from cgt_calc.exceptions import InteractiveInputRequiredError, ParsingError
 from cgt_calc.model import Position
 from cgt_calc.spin_off_handler import SpinOffHandler
 
@@ -35,6 +35,59 @@ def test_spin_offs_file_with_a_byte_order_mark_is_read(tmp_path: Path) -> None:
     """A mapping file saved as Excel's "CSV UTF-8" keeps its dst column."""
     spin_offs_file = tmp_path / "spin_offs.csv"
     spin_offs_file.write_text("\ufeffdst,src\nNEW,OLD\n", encoding="utf8")
+
+    assert SpinOffHandler(spin_offs_file).cache == {"NEW": "OLD"}
+
+
+@pytest.mark.parametrize(
+    ("row", "match"),
+    [
+        pytest.param(
+            "NEW,OLD,",
+            "This row has 3 columns, not 2",
+            id="value beyond the last column",
+        ),
+        pytest.param("NEW", "needs both tickers", id="no source column"),
+        pytest.param("NEW,", "needs both tickers", id="empty source"),
+        pytest.param(",OLD", "needs both tickers", id="empty new ticker"),
+        pytest.param("NEW,   ", "needs both tickers", id="source of only spaces"),
+    ],
+)
+def test_spin_offs_file_refuses_a_malformed_row(
+    tmp_path: Path, row: str, match: str
+) -> None:
+    """A row that is not a new ticker and its source is refused by row number."""
+    spin_offs_file = tmp_path / "spin_offs.csv"
+    spin_offs_file.write_text(f"dst,src\n{row}\n", encoding="utf8")
+
+    with pytest.raises(ParsingError, match=match) as excinfo:
+        SpinOffHandler(spin_offs_file)
+
+    assert excinfo.value.row_index == 2
+
+
+@pytest.mark.parametrize("blank", [",", "   "], ids=["only a comma", "only spaces"])
+def test_spin_offs_file_skips_a_blank_row(tmp_path: Path, blank: str) -> None:
+    """A row with nothing in it is ignored, not read as a mapping."""
+    spin_offs_file = tmp_path / "spin_offs.csv"
+    spin_offs_file.write_text(f"dst,src\nNEW,OLD\n{blank}\n", encoding="utf8")
+
+    assert SpinOffHandler(spin_offs_file).cache == {"NEW": "OLD"}
+
+
+def test_spin_offs_file_reports_a_short_header_before_its_rows(tmp_path: Path) -> None:
+    """A header with a column missing is the error, not the rows it makes too long."""
+    spin_offs_file = tmp_path / "spin_offs.csv"
+    spin_offs_file.write_text("dst\nNEW,OLD\n", encoding="utf8")
+
+    with pytest.raises(ParsingError, match="invalid columns"):
+        SpinOffHandler(spin_offs_file)
+
+
+def test_spin_offs_file_ignores_spaces_around_a_ticker(tmp_path: Path) -> None:
+    """Spaces typed beside the comma are not part of either ticker."""
+    spin_offs_file = tmp_path / "spin_offs.csv"
+    spin_offs_file.write_text("dst,src\n NEW , OLD \n", encoding="utf8")
 
     assert SpinOffHandler(spin_offs_file).cache == {"NEW": "OLD"}
 
