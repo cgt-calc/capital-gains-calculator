@@ -47,16 +47,18 @@ class SpinOffHandler:
             self.spin_offs_file.open(encoding="utf-8-sig") as fin,
         ):
             csv_reader = csv.DictReader(fin)
+            header = csv_reader.fieldnames
+            # Checked before any row: a file of one mapping and no header has
+            # no row left to check, and would be read as empty.
+            if header is not None and sorted(header) != sorted(SPIN_OFFS_HEADER):
+                raise ParsingError(
+                    self.spin_offs_file,
+                    f"invalid columns {header}, they should be {SPIN_OFFS_HEADER}",
+                    row_index=1,
+                )
             for line in csv_reader:
-                # A value beyond the last column is filed under the key None,
-                # which the header check below cannot sort.
+                # A value beyond the last column is filed under the key None.
                 extra = line.pop(None, None)
-                if sorted(SPIN_OFFS_HEADER) != sorted(line.keys()):
-                    raise ParsingError(
-                        self.spin_offs_file,
-                        f"invalid columns {line.keys()}, "
-                        f"they should be {SPIN_OFFS_HEADER}",
-                    )
                 if extra is not None:
                     raise UnexpectedColumnCountError(
                         [*line.values(), *extra],

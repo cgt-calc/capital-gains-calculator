@@ -32,6 +32,45 @@ def test_load_custom_file(tmp_path: Path) -> None:
     assert prices.get(datetime.date(2021, 3, 8), "FOO", "USD") == Decimal("10.5")
 
 
+def test_a_prices_file_without_its_header_is_refused(tmp_path: Path) -> None:
+    """A first line that is a price is not skipped as if it were the header."""
+    prices_file = tmp_path / "share_prices.csv"
+    prices_file.write_text('"Apr 01, 2024",ACME,94.00\n"Apr 01, 2024",NEWCO,17.50\n')
+
+    with pytest.raises(
+        ParsingError, match="Unexpected header in share prices file"
+    ) as excinfo:
+        SharePrices(prices_file=prices_file)
+
+    assert excinfo.value.row_index == 1
+
+
+def test_an_empty_prices_file_holds_no_prices(tmp_path: Path) -> None:
+    """A file with nothing in it has no header to check, and is not an error."""
+    prices_file = tmp_path / "share_prices.csv"
+    prices_file.touch()
+
+    assert SharePrices(prices_file=prices_file).prices == {}
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        'Date, Symbol, Price\n"Mar 08, 2021", FOO, 10.5\n',
+        '\ufeffdate,symbol,price\n"Mar 08, 2021",FOO,10.5\n',
+    ],
+    ids=["capitals and a space after each comma", "byte-order mark"],
+)
+def test_a_prices_file_is_read_as_typed_or_saved(tmp_path: Path, content: str) -> None:
+    """Capitals, a space after each comma and Excel's "CSV UTF-8" are accepted."""
+    prices_file = tmp_path / "share_prices.csv"
+    prices_file.write_text(content, encoding="utf8")
+
+    prices = SharePrices(prices_file=prices_file)
+
+    assert prices.get(datetime.date(2021, 3, 8), "FOO", "USD") == Decimal("10.5")
+
+
 def test_get_missing_price(tmp_path: Path) -> None:
     """Raise when no price is stored for the date and symbol."""
     prices_file = tmp_path / "share_prices.csv"

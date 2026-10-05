@@ -22,7 +22,8 @@ from .exceptions import (
 from .resources import RESOURCES_PACKAGE
 from .ticker_renames import current_ticker
 
-SHARE_PRICES_COLUMNS_NUM: Final = 3
+SHARE_PRICES_HEADER: Final = ["date", "symbol", "price"]
+SHARE_PRICES_COLUMNS_NUM: Final = len(SHARE_PRICES_HEADER)
 
 
 @dataclass
@@ -39,7 +40,8 @@ class SharePricesEntry:
             raise UnexpectedColumnCountError(row, SHARE_PRICES_COLUMNS_NUM, file)
         # date,symbol,price
         self.date = self._parse_date(row[0], file)
-        self.symbol = row[1]
+        # Spaces typed beside the comma are not part of a ticker.
+        self.symbol = row[1].strip()
         try:
             self.price = Decimal(row[2])
         except InvalidOperation as err:
@@ -116,12 +118,21 @@ class SharePrices:
                 lines = list(csv.reader(csv_file))
         else:
             with (
-                reading_as("utf-8", self.prices_file),
-                self.prices_file.open(encoding="utf-8") as csv_file,
+                reading_as("utf-8-sig", self.prices_file),
+                self.prices_file.open(encoding="utf-8-sig") as csv_file,
             ):
                 lines = list(csv.reader(csv_file))
-        lines = lines[1:]
         file = self.prices_file or Path("resources") / SHARE_PRICES_RESOURCE
+        # Skipped unread, the first line of a file with no header would be a
+        # price dropped without a word.
+        if lines and [cell.strip().lower() for cell in lines[0]] != SHARE_PRICES_HEADER:
+            raise ParsingError(
+                file,
+                "Unexpected header in share prices file: "
+                f"expected {SHARE_PRICES_HEADER}, found {lines[0]}",
+                row_index=1,
+            )
+        lines = lines[1:]
         # The ticker each price was written under, to name an earlier one.
         stated: dict[tuple[datetime.date, str], str] = {}
         for index, row in enumerate(lines, start=2):
