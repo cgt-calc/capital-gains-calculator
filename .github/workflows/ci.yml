@@ -172,9 +172,11 @@ jobs:
 
       - name: Run the installed cgt-calc
         # The pytest step mounts the workspace over /build, which hides the
-        # image's own install, so only this step runs what users get.
+        # image's own install, so only this step runs what users get. It
+        # runs as a non-root user, as the Docker docs tell Linux users to.
         run: |
           docker run --rm \
+            --user "$(id -u):$(id -g)" \
             -e CGT_TEST_MODE_STRICT=1 \
             -v "${{ github.workspace }}:/data" \
             local/cgt-calc:test \
