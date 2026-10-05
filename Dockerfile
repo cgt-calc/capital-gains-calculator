@@ -1,10 +1,9 @@
 # syntax=docker/dockerfile:1.7
 
-FROM python:3.12-slim-trixie AS base
+FROM python:3.14-slim-trixie AS base
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
     PYTHONFAULTHANDLER=1 \
     PYTHONUNBUFFERED=1
 
@@ -18,6 +17,11 @@ FROM base AS builder
 
 # Copy uv static binary
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Ship the venv with compiled bytecode. A container run as a non-root
+# user cannot write it later, and would recompile every dependency on
+# each start.
+ENV UV_COMPILE_BYTECODE=1
 
 WORKDIR /build
 
@@ -39,9 +43,10 @@ COPY cgt_calc /build/cgt_calc
 ARG VERSION
 
 # --no-editable installs the package into the venv itself,
-# so the runtime stage only needs the venv.
+# so the runtime stage only needs the venv. Without --frozen,
+# `uv version` would first install the dev dependencies too.
 RUN --mount=type=cache,target=/root/.cache \
-    if [ -n "$VERSION" ]; then uv version "$VERSION"; fi \
+    if [ -n "$VERSION" ]; then uv version --frozen "$VERSION"; fi \
  && uv sync --frozen --no-dev --no-editable
 
 FROM base AS runtime
