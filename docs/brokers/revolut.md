@@ -172,9 +172,12 @@ If you do not add the tax this way, add it to your dividend income yourself and,
 
 #### Tax corrections
 
-A `DIVIDEND TAX (CORRECTION)` row changes the tax on a dividend after it was paid, and cgt-calc
-treats it as a change to that dividend's tax at source. These rows usually come in pairs of the same
-amount, one negative and one positive, which cancel and change nothing.
+A `DIVIDEND TAX (CORRECTION)` row changes the tax on a dividend after it was paid. These rows
+usually come in pairs of the same amount, one negative and one positive, which cancel and change
+nothing. cgt-calc counts any other correction as tax at source on the ticker's dividend of the same
+day or, when there is none, on its only dividend in the 30 days before or the 5 days after. Where it
+finds no such dividend, or more than one, it prints a warning and leaves the correction out of the
+report.
 
 cgt-calc warns about a correction that nothing cancels and names it. Revolut has paid a dividend in
 full and taken the tax afterwards with such a correction, so the `DIVIDEND` row before it may not be

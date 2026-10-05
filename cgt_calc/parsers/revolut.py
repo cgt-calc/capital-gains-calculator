@@ -289,14 +289,12 @@ class RevolutParser(StandardCSVParser[RevolutTransaction]):
             if amount:
                 LOGGER.warning(
                     "The %s dividend tax correction of %s %s on %s is not "
-                    "cancelled by an opposite one that day, so it is treated as "
-                    "a change to the tax at source of one %s dividend. Check "
-                    "that dividend's figures: see "
+                    "cancelled by an opposite one that day. Check the figures "
+                    "for the dividend it belongs to: see "
                     "https://cgt-calc.uk/brokers/revolut/#tax-corrections",
                     symbol,
                     amount,
                     currency,
                     date,
-                    symbol,
                 )
         return transactions

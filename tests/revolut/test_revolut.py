@@ -43,6 +43,16 @@ DIVIDENDS_AFTER_TAX_WARNING = (
 )
 
 
+def _lone_correction_warning(ticker: str, amount: str, day: str) -> str:
+    """Return the warning for a tax correction that nothing cancels."""
+    return (
+        f"The {ticker} dividend tax correction of {amount} USD on {day} is not "
+        "cancelled by an opposite one that day. Check the figures for the "
+        "dividend it belongs to: see "
+        "https://cgt-calc.uk/brokers/revolut/#tax-corrections"
+    )
+
+
 def _default_row(overrides: dict[RevolutColumn, str] | None = None) -> list[str]:
     """Return default row data with optional overrides."""
     values = BASE_ROW_VALUES.copy()
@@ -297,47 +307,37 @@ def test_read_revolut_stock_split(tmp_path: Path) -> None:
     assert transaction.amount == Decimal(0)
 
 
-def test_a_file_without_dividends_is_read_without_the_tax_warning(
+def test_tax_corrections_nothing_cancels_are_each_named_in_a_warning(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Only a dividend is short of its tax, so other rows raise no warning."""
-    path = _write_csv(tmp_path, [_default_row()])
-
-    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.revolut"):
-        RevolutParser().load_from_file(path)
-
-    assert not caplog.text
-
-
-@pytest.mark.parametrize("total", ["USD 4.48", "USD -4.48"])
-def test_a_tax_correction_nothing_cancels_is_named_in_a_warning(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture, total: str
-) -> None:
-    """A correction with no opposite row that day is named, whichever way it runs.
+    """A correction with no opposite row for its ticker that day is named.
 
     Real exports pair a correction with its opposite within a second, as the
-    example file does, and the two change nothing. One on its own moves a
-    dividend's tax, so the reader has to be told which one it is.
+    example file does, and the two change nothing. Revolut books them for
+    several tickers on one day, so tax taken for one ticker must not cancel
+    tax returned for another. And with no dividend in the file, the warning
+    about dividends has nothing to say.
     """
-    overrides = {
-        RevolutColumn.ACTION: "DIVIDEND TAX (CORRECTION)",
-        RevolutColumn.QUANTITY: "",
-        RevolutColumn.PRICE_PER_SHARE: "",
-        RevolutColumn.TOTAL_AMOUNT: total,
-    }
-    path = _write_csv(tmp_path, [_default_row(overrides)])
+    path = _write_csv(
+        tmp_path,
+        [
+            _default_row({**CORRECTION, RevolutColumn.TOTAL_AMOUNT: "USD -4.48"}),
+            _default_row(
+                {
+                    **CORRECTION,
+                    RevolutColumn.TICKER: "MSFT",
+                    RevolutColumn.TOTAL_AMOUNT: "USD 4.48",
+                }
+            ),
+        ],
+    )
 
     with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.revolut"):
         RevolutParser().load_from_file(path)
 
     assert caplog.messages == [
-        (
-            f"The QCOM dividend tax correction of {total.removeprefix('USD ')} USD "
-            "on 2021-11-02 is not cancelled by an opposite one that day, so it is "
-            "treated as a change to the tax at source of one QCOM dividend. Check "
-            "that dividend's figures: see "
-            "https://cgt-calc.uk/brokers/revolut/#tax-corrections"
-        )
+        _lone_correction_warning("QCOM", "-4.48", "2021-11-02"),
+        _lone_correction_warning("MSFT", "4.48", "2021-11-02"),
     ]
 
 
@@ -472,6 +472,18 @@ OPENING_BUY = {
     RevolutColumn.PRICE_PER_SHARE: "USD 100",
     RevolutColumn.TOTAL_AMOUNT: "USD 1000",
 }
+# A dividend and a tax correction on it: cash rows, timed like the example file's.
+DIVIDEND = {
+    RevolutColumn.DATE: "2025-12-18T12:50:45.000000Z",
+    RevolutColumn.ACTION: "DIVIDEND",
+    RevolutColumn.QUANTITY: "",
+    RevolutColumn.PRICE_PER_SHARE: "",
+}
+CORRECTION = {
+    RevolutColumn.ACTION: "DIVIDEND TAX (CORRECTION)",
+    RevolutColumn.QUANTITY: "",
+    RevolutColumn.PRICE_PER_SHARE: "",
+}
 # NVIDIA's four-for-one split: ten shares became forty on 20 July 2021.
 SPLIT = {
     RevolutColumn.DATE: "2021-07-20T10:34:52.000000Z",
@@ -587,15 +599,7 @@ def test_run_with_the_tax_withheld_from_a_dividend_added_in_a_raw_file(
         [
             _default_row(TOP_UP),
             _default_row(),
-            _default_row(
-                {
-                    RevolutColumn.DATE: "2025-12-18T12:50:45.000000Z",
-                    RevolutColumn.ACTION: "DIVIDEND",
-                    RevolutColumn.QUANTITY: "",
-                    RevolutColumn.PRICE_PER_SHARE: "",
-                    RevolutColumn.TOTAL_AMOUNT: "USD 37.83",
-                }
-            ),
+            _default_row({**DIVIDEND, RevolutColumn.TOTAL_AMOUNT: "USD 37.83"}),
         ],
     )
     raw_path = tmp_path / "raw.csv"
@@ -623,3 +627,47 @@ def test_run_with_the_tax_withheld_from_a_dividend_added_in_a_raw_file(
     assert "  Unknown: 0.00 (USD)\n" in result.stdout
     # And the tax matched the treaty rate, or a second warning would say not.
     assert stderr_alerts(result.stderr) == [f"WARNING: {DIVIDENDS_AFTER_TAX_WARNING}"]
+
+
+def test_run_with_a_dividend_paid_in_full_and_taxed_by_a_correction(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> None:
+    """A lone correction after a dividend paid in full is that dividend's tax.
+
+    The one lone correction seen in a real export followed its dividend by 28
+    minutes and was 15% of it. Counted as tax at source it leaves the dividend
+    as paid, before tax, with the tax the treaty expects, so nothing needs
+    adding. The second warning names the correction because the first one,
+    about dividends being short of their tax, is not true of this dividend.
+    """
+    path = _write_csv(
+        tmp_path,
+        [
+            _default_row(TOP_UP),
+            _default_row(),
+            _default_row({**DIVIDEND, RevolutColumn.TOTAL_AMOUNT: "USD 44.50"}),
+            _default_row(
+                {
+                    **CORRECTION,
+                    RevolutColumn.DATE: "2025-12-18T13:18:45.000000Z",
+                    RevolutColumn.TOTAL_AMOUNT: "USD -6.67",
+                }
+            ),
+        ],
+    )
+    cmd = build_cmd(
+        "--year",
+        "2025",
+        "--revolut-file",
+        str(path),
+        "--output",
+        report_path(request),
+    )
+
+    result = run_cli(cmd)
+
+    assert "  QCOM: 44.50, excluding 6.67 taxed at source (USD)\n" in result.stdout
+    assert stderr_alerts(result.stderr) == [
+        f"WARNING: {DIVIDENDS_AFTER_TAX_WARNING}",
+        f"WARNING: {_lone_correction_warning('QCOM', '-6.67', '2025-12-18')}",
+    ]
