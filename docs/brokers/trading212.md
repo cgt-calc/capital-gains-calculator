@@ -230,23 +230,28 @@ high.
     [RAW actions](raw.md#actions-to-use) records it, you can remove its row from a working copy of
     the export and enter the distribution in a separate file passed with `--raw-file`; see
     [Combining RAW with a broker export](raw.md#combining-raw-with-a-broker-export). No RAW action
-    records a takeover paid in shares, so leave that row in place.
-- A takeover paid in shares is not supported, and cgt-calc does not recognise it. Trading 212
-    exports the shares you gave up as a `Market sell` with a price and a total of zero, which
-    cgt-calc reads as a sale for nothing, so the report would show a loss you did not make. The new
-    shares arrive on a `Stock distribution` row, which stops the run, or, for a takeover some years
-    ago, on no row at all. In that case, if you later sold the new shares, the run stops at that
-    sale with `Tried to sell`; do not add a purchase for them to make it run. If you still hold
-    them, the run finishes with the loss in the report and the new shares missing from the final
-    portfolio. cgt-calc cannot calculate a history that contains such a takeover, so work the two
-    holdings out by hand (consider professional advice).
+    records a takeover paid in shares; see the next item.
+- A takeover paid in shares is not supported. Trading 212 exports the shares you gave up as a
+    `Market sell` with a price and a total of zero, and cgt-calc stops at a sale like that: read as
+    a sale, the row would report the whole cost of those shares as a loss you did not make. The new
+    shares arrive on a `Stock distribution` row or, for a takeover some years ago, on no row at all.
+    cgt-calc cannot calculate those two holdings. To calculate the rest of the account, leave both
+    out: in a working copy of the export, remove every row for the old shares and for the new ones
+    except their dividends, not only the row cgt-calc stopped at. The report and any tax it
+    estimates then leave out every gain and loss on those two holdings, including a later sale of
+    the new shares: work the two holdings out by hand (consider professional advice) and add their
+    gains and losses to the report's figures. The cash from the rows you remove is also missing from
+    the balance cgt-calc keeps. If that takes the balance below zero, the run stops with
+    `Reached a negative balance`; run it again with `--no-balance-check`, which turns the check off
+    for every input in the run.
 - The
     [export for a Trading 212 contract for difference account](https://helpcentre.trading212.com/hc/en-us/articles/36243765206301-How-to-export-the-trading-data-from-my-CFD-account)
     uses a different, record-based CSV format that this parser does not support.
 
 Do not delete an unsupported transaction from the export to make the calculation run, unless you
-record it in a RAW file as described above for share distributions. The missing activity could make
-the resulting holdings and gains incorrect.
+record it in a RAW file as described above for share distributions, or leave both securities out as
+described above for a takeover. The missing activity could make the resulting holdings and gains
+incorrect.
 
 ## Troubleshooting
 
