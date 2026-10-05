@@ -183,9 +183,9 @@ def force_utf8_stdio() -> None:
 
     Changing a stream's encoding resets its error handler to "strict".
     stderr gets back the one Python gives it, so that a message naming a
-    file whose name is not valid UTF-8 is still printed, escaped. stdin and
-    stdout stay strict: input that is not UTF-8 has to be reported, not read
-    as escaped text.
+    file whose name is not valid UTF-8 is still printed, escaped. stdin
+    stays strict, so that input that is not UTF-8 is reported, not read as
+    escaped text; stdout is strict as it was.
     """
     for stream in (sys.stdin, sys.stdout, sys.stderr):
         if isinstance(stream, io.TextIOWrapper):
