@@ -1777,7 +1777,7 @@ def test_a_refused_action_says_whether_it_is_unsupported_or_unknown(
 
 
 def _make_sell_row(shares: str, price: str, total: str) -> list[str]:
-    """Build a sale of a dollar share in a pound account, at the price and total given."""
+    """Build a sale of a dollar share in a pound account, at a given price and total."""
     return _make_row(
         HEADER_2024,
         {
