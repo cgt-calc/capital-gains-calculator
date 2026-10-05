@@ -180,10 +180,19 @@ def force_utf8_stdio() -> None:
     input the same way, turning a UTF-8 broker export read from stdin
     into mojibake. Input also drops a leading byte-order mark, as a file
     read by path does; output must never write one.
+
+    Changing a stream's encoding resets its error handler to "strict".
+    stderr gets back the one Python gives it, so that a message naming a
+    file whose name is not valid UTF-8 is still printed, escaped. stdin and
+    stdout stay strict: input that is not UTF-8 has to be reported, not read
+    as escaped text.
     """
     for stream in (sys.stdin, sys.stdout, sys.stderr):
         if isinstance(stream, io.TextIOWrapper):
-            stream.reconfigure(encoding="utf-8-sig" if stream is sys.stdin else "utf-8")
+            stream.reconfigure(
+                encoding="utf-8-sig" if stream is sys.stdin else "utf-8",
+                errors="backslashreplace" if stream is sys.stderr else "strict",
+            )
 
 
 def setup_logging() -> None:
