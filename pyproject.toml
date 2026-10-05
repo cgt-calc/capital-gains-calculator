@@ -84,7 +84,7 @@ dev = [
   "types-requests>=2.33.0.20260906",
 ]
 docs = [
-  "zensical>=0.0.62",
+  "zensical>=0.0.67",
 ]
 # Kept out of the dev group: the Linux wheel is large and only the link check
 # job needs it.
