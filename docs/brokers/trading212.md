@@ -173,8 +173,19 @@ high.
     a property income distribution, which is not foreign tax. Add that tax to your income yourself
     and, if you use [`--income`](../usage.md#estimate-the-tax-from-your-income), to the figure you
     pass.
+- cgt-calc does not use a dividend row's label to tell income from capital.
+    `Dividend (Tax exempted)` is on rows where Trading 212 records no tax withheld, and the exports
+    examined use it both for ordinary dividends and for repayments of share premium. cgt-calc
+    records either as dividend income. Whether such a repayment is income or capital for UK tax
+    depends on how the company made it under the law of its own country
+    ([SAIM5210](https://www.gov.uk/hmrc-internal-manuals/savings-and-investment-manual/saim5210)),
+    which the row does not show, so check the company's announcement of the payment. If it was
+    capital, it is a capital distribution
+    ([TCGA 1992 s122](https://www.legislation.gov.uk/ukpga/1992/12/section/122)) and not dividend
+    income: take it out of the dividend income you report and work out the capital gains treatment
+    yourself.
 - Share transfers between accounts or brokers, labelled `Transfer in` or `Transfer out`, are not
-    supported.
+    supported, and cgt-calc stops at the row.
 - One run covers one Trading 212 account. `--trading212-dir` takes a single directory and every file
     in it is read as one account, because nothing in the CSV identifies which account a row belongs
     to. If you hold the same security in two Trading 212 accounts, their exports cannot be combined
@@ -206,15 +217,32 @@ high.
     cost-preserving reorganisation. Trading 212 labels such a payment `Dividend` or an adjustment,
     which parses cleanly, so nothing here will notice.
 - Share distributions, labelled `Stock distribution` or `Custom stock distribution`, are not
-    supported. A distribution alongside a consolidation is usually a company separation, where the
+    supported, and cgt-calc stops at the row. In the exports examined, Trading 212 uses the label
+    for a stock dividend, an issue of warrants, the new shares of a company separation and the
+    shares received in a takeover. These are not all taxed in the same way, and the row does not say
+    which it is. A distribution alongside a consolidation is usually a company separation, where the
     pooled cost has to be apportioned between the two resulting holdings by market value rather than
-    preserved whole.
+    preserved whole. Once you have established what the distribution was, and if one of the
+    [RAW actions](raw.md#actions-to-use) records it, you can remove its row from a working copy of
+    the export and enter the distribution in a separate file passed with `--raw-file`; see
+    [Combining RAW with a broker export](raw.md#combining-raw-with-a-broker-export). No RAW action
+    records a takeover paid in shares, so leave that row in place.
+- A takeover paid in shares is not supported, and cgt-calc does not recognise it. Trading 212
+    exports the shares you gave up as a `Market sell` with a price and a total of zero, which
+    cgt-calc reads as a sale for nothing, so the report would show a loss you did not make. The new
+    shares arrive on a `Stock distribution` row, which stops the run, or, for a takeover some years
+    ago, on no row at all. In that case, if you later sold the new shares, the run stops at that
+    sale with `Tried to sell`; do not add a purchase for them to make it run. If you still hold
+    them, the run finishes with the loss in the report and the new shares missing from the final
+    portfolio. cgt-calc cannot calculate a history that contains such a takeover, so work the two
+    holdings out by hand (consider professional advice).
 - The
     [export for a Trading 212 contract for difference account](https://helpcentre.trading212.com/hc/en-us/articles/36243765206301-How-to-export-the-trading-data-from-my-CFD-account)
     uses a different, record-based CSV format that this parser does not support.
 
-Do not delete an unsupported transaction from the export to make the calculation run. The missing
-activity could make the resulting holdings and gains incorrect.
+Do not delete an unsupported transaction from the export to make the calculation run, unless you
+record it in a RAW file as described above for share distributions. The missing activity could make
+the resulting holdings and gains incorrect.
 
 ## Troubleshooting
 

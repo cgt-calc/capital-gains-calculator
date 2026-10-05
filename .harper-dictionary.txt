@@ -81,6 +81,7 @@ currentPrice
 cusip
 DayAcquisitions
 dataclass
+demerger
 depositary
 dest
 dataclasses
@@ -241,6 +242,7 @@ s4B
 s58
 s8
 SA106
+SAIM5210
 SI
 SalePrice
 Schwab

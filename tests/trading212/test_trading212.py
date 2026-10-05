@@ -722,6 +722,46 @@ def test_read_trading212_transactions_supports_2025_bare_columns(
     assert spin_off.quantity == Decimal(5)
 
 
+def test_an_older_export_names_stamp_duty_reserve_tax_in_pounds(
+    tmp_path: Path,
+) -> None:
+    """Some older exports head the stamp duty column `Stamp duty reserve tax (GBP)`.
+
+    It is the same tax as in the columns named before and after it, and part
+    of what the purchase cost.
+    """
+    header = [*HEADER_2020, "Stamp duty reserve tax (GBP)"]
+    rows = [
+        header,
+        _make_row(
+            header,
+            {
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.TIME: "2021-09-02 07:01:55",
+                Trading212Column.ISIN: "GB0000000017",
+                Trading212Column.TICKER: "WID",
+                Trading212Column.NAME: "Widget plc",
+                Trading212Column.NO_OF_SHARES: "50",
+                Trading212Column.PRICE_PER_SHARE: "6.00",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "GBP",
+                Trading212Column.EXCHANGE_RATE: "1.00000",
+                Trading212Column.TOTAL_GBP: "301.50",
+                "Stamp duty reserve tax (GBP)": "1.50",
+                Trading212Column.TRANSACTION_ID: "buy-1",
+            },
+        ),
+    ]
+
+    transactions = Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
+
+    buy = transactions[0]
+    assert isinstance(buy, Trading212Transaction)
+    assert buy.amount == Decimal("-301.50")
+    assert buy.stamp_duty == Decimal("1.50")
+    assert buy.fees == Decimal("1.50")
+    assert buy.price == Decimal("6.00")
+
+
 def test_read_trading212_transactions_non_gbp_french_tax(tmp_path: Path) -> None:
     """Store non-GBP French transaction tax in foreign_fees."""
 
@@ -1458,6 +1498,54 @@ def test_a_dividend_row_from_a_current_export(tmp_path: Path) -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        pytest.param(
+            {
+                Trading212Column.ACTION: (
+                    "Dividend (Dividends paid by foreign corporations)"
+                )
+            },
+            [
+                (ActionType.DIVIDEND, "BAZ", Decimal("8.00"), "GBP"),
+                (ActionType.DIVIDEND_TAX, "BAZ", Decimal("-1.20"), "GBP"),
+            ],
+            id="tax withheld",
+        ),
+        pytest.param(
+            {
+                Trading212Column.ACTION: "Dividend (Tax exempted)",
+                Trading212Column.WITHHOLDING_TAX: "0.00",
+            },
+            [(ActionType.DIVIDEND, "BAZ", Decimal("6.80"), "GBP")],
+            id="no tax withheld",
+        ),
+    ],
+)
+def test_a_dividend_under_another_label_is_a_dividend(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    overrides: Mapping[str | Trading212Column, str],
+    expected: list[tuple[ActionType, str, Decimal, str]],
+) -> None:
+    """Trading 212 names a cash dividend in more ways than `Ordinary`.
+
+    Both labels are on rows of real exports. A `Tax exempted` row records no
+    tax withheld, so the amount received is the dividend and no warning is
+    due.
+    """
+    folder = _prepare_file(
+        tmp_path, [HEADER_2024, _make_dividend_row("6.80", overrides)]
+    )
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
+        transactions = Trading212Parser().load_from_dir(folder)
+
+    assert not caplog.text
+    assert _dividend_and_tax(transactions) == expected
+
+
 def test_a_reversed_dividend_keeps_the_amount_received(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -1639,6 +1727,40 @@ def test_foreign_tax_the_row_cannot_convert_leaves_the_amount_received(
         f"without the {tax} of tax withheld, which cannot be converted from this row"
         in caplog.text
     )
+
+
+def test_a_share_distribution_is_refused_as_unsupported(tmp_path: Path) -> None:
+    """A row the Trading 212 page lists as unsupported says so, with the link.
+
+    `Unknown action` would send the reader to report a change of format, for
+    a row that is refused on purpose.
+    """
+    rows = [
+        HEADER_2024,
+        _make_row(
+            HEADER_2024,
+            {
+                Trading212Column.ACTION: "Stock distribution",
+                Trading212Column.TIME: "2024-12-02 12:05:56",
+                Trading212Column.ISIN: "US0000000036",
+                Trading212Column.TICKER: "BAZ",
+                Trading212Column.NAME: "Baz Corp",
+                Trading212Column.NO_OF_SHARES: "0.0963784900",
+                Trading212Column.PRICE_PER_SHARE: "0E-10",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "USD",
+                Trading212Column.TOTAL: "0.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "distribution-1",
+            },
+        ),
+    ]
+
+    with pytest.raises(
+        ParsingError,
+        match=r"row 2: Stock distribution rows are not supported\. See "
+        r"https://cgt-calc\.uk/brokers/trading212/#known-limitations$",
+    ):
+        Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
 
 
 def test_read_trading212_transactions_invalid_decimal(tmp_path: Path) -> None:
