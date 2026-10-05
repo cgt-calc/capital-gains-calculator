@@ -1,10 +1,9 @@
 # syntax=docker/dockerfile:1.7
 
-FROM python:3.12-slim-trixie AS base
+FROM python:3.14-slim-trixie AS base
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
     PYTHONFAULTHANDLER=1 \
     PYTHONUNBUFFERED=1
 
@@ -18,6 +17,11 @@ FROM base AS builder
 
 # Copy uv static binary
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Ship the venv with compiled bytecode. A container run as a non-root
+# user cannot write it later, and would recompile every dependency on
+# each start.
+ENV UV_COMPILE_BYTECODE=1
 
 WORKDIR /build
 

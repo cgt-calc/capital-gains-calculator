@@ -170,6 +170,16 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Run the installed cgt-calc
+        # The pytest step mounts the workspace over /build, which hides the
+        # image's own install, so only this step runs what users get.
+        run: |
+          docker run --rm \
+            -e CGT_TEST_MODE_STRICT=1 \
+            -v "${{ github.workspace }}:/data" \
+            local/cgt-calc:test \
+            -lc "cgt-calc --year 2022 --raw-file tests/raw/data/test_data.csv --no-balance-check --exchange-rates-file tests/exchange_rates_data.csv --output /tmp/report.pdf && test -s /tmp/report.pdf"
+
       - name: Run pytest inside container
         run: |
           docker run --rm \
