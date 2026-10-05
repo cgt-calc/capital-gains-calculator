@@ -201,6 +201,7 @@ pytest
 python3
 QCB
 QCBs
+QCOM
 rata
 regularMarketPrice
 reportable
