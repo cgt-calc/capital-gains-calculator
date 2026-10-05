@@ -137,3 +137,23 @@ def test_force_utf8_stdio_reconfigures_stdin(monkeypatch: pytest.MonkeyPatch) ->
     force_utf8_stdio()
 
     assert sys.stdin.read() == "CAFÉ"
+
+
+def test_force_utf8_stdio_keeps_stderr_able_to_print_any_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A file name that is not valid UTF-8 is escaped on stderr, not an error."""
+    written = io.BytesIO()
+    monkeypatch.setattr(
+        sys,
+        "stderr",
+        io.TextIOWrapper(written, encoding="cp1252", errors="backslashreplace"),
+    )
+    # What a Latin-1 file name looks like once the operating system hands it over.
+    name = b"r\xe9sum\xe9.csv".decode("utf-8", "surrogateescape")
+
+    force_utf8_stdio()
+    sys.stderr.write(name)
+    sys.stderr.flush()
+
+    assert written.getvalue() == b"r\\udce9sum\\udce9.csv"

@@ -12,6 +12,7 @@ from cgt_calc.args_validators import STDIN_PATH
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.isin_converter import IsinConverter
+from cgt_calc.logging import force_utf8_stdio
 from cgt_calc.parsers.hl import HargreavesLansdownParser
 from cgt_calc.parsers.raw import RawParser
 from cgt_calc.parsers.schwab import SchwabParser
@@ -67,6 +68,8 @@ def test_piped_input_that_is_not_utf8_is_reported(
     monkeypatch.setattr(
         sys, "stdin", io.TextIOWrapper(io.BytesIO(UTF16_CSV), encoding="utf-8")
     )
+    # As the CLI sets it up: stdin must stay strict for the check to fire.
+    force_utf8_stdio()
 
     with pytest.raises(ParsingError, match="standard input is not UTF-8 text"):
         RawParser.load_from_file(STDIN_PATH, show_parsing_msg=False)
