@@ -20,7 +20,7 @@ from cgt_calc.args_validators import (
     existing_file_or_stdin_type,
     set_completer,
 )
-from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError, reading_as
 from cgt_calc.logging import parsing_msg
 from cgt_calc.model import BrokerTransaction, TransactionSource
 from cgt_calc.ticker_renames import ambiguity, current_ticker
@@ -40,10 +40,11 @@ def read_input(file_path: Path, encoding: str) -> str:
     deciding which parser owns it reads it here and hands the text on rather
     than the path.
     """
-    if file_path == STDIN_PATH:
-        return sys.stdin.read()
-    with file_path.open(encoding=encoding) as file:
-        return file.read()
+    with reading_as(encoding, file_path):
+        if file_path == STDIN_PATH:
+            return sys.stdin.read()
+        with file_path.open(encoding=encoding) as file:
+            return file.read()
 
 
 def use_current_tickers(
@@ -180,22 +181,23 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
         load passes its own token so every file in it shares one boundary; a
         file loaded on its own is a boundary of its own.
         """
-        if file_path == STDIN_PATH:
-            return cls.load_from_stream(
-                sys.stdin,
-                STDIN_PATH,
-                warn_on_empty=warn_on_empty,
-                show_parsing_msg=show_parsing_msg,
-                account=account,
-            )
-        with file_path.open(encoding=cls.encoding) as file:
-            return cls.load_from_stream(
-                file,
-                file_path,
-                warn_on_empty=warn_on_empty,
-                show_parsing_msg=show_parsing_msg,
-                account=account,
-            )
+        with reading_as(cls.encoding, file_path):
+            if file_path == STDIN_PATH:
+                return cls.load_from_stream(
+                    sys.stdin,
+                    STDIN_PATH,
+                    warn_on_empty=warn_on_empty,
+                    show_parsing_msg=show_parsing_msg,
+                    account=account,
+                )
+            with file_path.open(encoding=cls.encoding) as file:
+                return cls.load_from_stream(
+                    file,
+                    file_path,
+                    warn_on_empty=warn_on_empty,
+                    show_parsing_msg=show_parsing_msg,
+                    account=account,
+                )
 
     @classmethod
     def load_from_stream(

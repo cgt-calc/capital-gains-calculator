@@ -29,6 +29,7 @@ from cgt_calc.exceptions import (
     SymbolMissingError,
     UnexpectedColumnCountError,
     UnexpectedRowCountError,
+    reading_as,
 )
 from cgt_calc.logging import parsing_msg
 from cgt_calc.model import (
@@ -1208,7 +1209,10 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
             if not cls.file_path_filter(file_path):
                 continue
             try:
-                with file_path.open(encoding=cls.encoding) as file:
+                with (
+                    reading_as(cls.encoding, file_path),
+                    file_path.open(encoding=cls.encoding) as file,
+                ):
                     parsing_msg(file_path)
                     rows = cls._read_rows(file, file_path, from_directory=True)
             except OSError as exc:

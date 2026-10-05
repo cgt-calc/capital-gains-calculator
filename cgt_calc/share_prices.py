@@ -17,6 +17,7 @@ from .exceptions import (
     ParsingError,
     SharePriceMissingError,
     UnexpectedColumnCountError,
+    reading_as,
 )
 from .resources import RESOURCES_PACKAGE
 from .ticker_renames import current_ticker
@@ -114,7 +115,10 @@ class SharePrices:
             ):
                 lines = list(csv.reader(csv_file))
         else:
-            with self.prices_file.open(encoding="utf-8") as csv_file:
+            with (
+                reading_as("utf-8", self.prices_file),
+                self.prices_file.open(encoding="utf-8") as csv_file,
+            ):
                 lines = list(csv.reader(csv_file))
         lines = lines[1:]
         file = self.prices_file or Path("resources") / SHARE_PRICES_RESOURCE

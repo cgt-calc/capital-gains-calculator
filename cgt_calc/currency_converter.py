@@ -27,6 +27,7 @@ from .exceptions import (
     ExchangeRateMissingError,
     ExternalApiError,
     ParsingError,
+    reading_as,
 )
 from .model import CurrencyCode, ForeignCurrencyAmount
 from .resources import RESOURCES_PACKAGE
@@ -187,7 +188,10 @@ class CurrencyConverter:
     ) -> defaultdict[datetime.date, dict[CurrencyCode, Decimal]]:
         if not exchange_rates_file or not exchange_rates_file.is_file():
             return defaultdict(dict)
-        with exchange_rates_file.open(encoding="utf-8-sig") as fin:
+        with (
+            reading_as("utf-8-sig", exchange_rates_file),
+            exchange_rates_file.open(encoding="utf-8-sig") as fin,
+        ):
             return CurrencyConverter._read_exchange_rates_data(exchange_rates_file, fin)
 
     @staticmethod

@@ -7,7 +7,7 @@ import logging
 import sys
 from typing import TYPE_CHECKING, Final
 
-from .exceptions import InteractiveInputRequiredError, ParsingError
+from .exceptions import InteractiveInputRequiredError, ParsingError, reading_as
 from .util import open_with_parents
 
 if TYPE_CHECKING:
@@ -37,7 +37,10 @@ class SpinOffHandler:
         if self.spin_offs_file is None or not self.spin_offs_file.is_file():
             return cache
 
-        with self.spin_offs_file.open(encoding="utf-8-sig") as fin:
+        with (
+            reading_as("utf-8-sig", self.spin_offs_file),
+            self.spin_offs_file.open(encoding="utf-8-sig") as fin,
+        ):
             csv_reader = csv.DictReader(fin)
             for line in csv_reader:
                 if sorted(SPIN_OFFS_HEADER) != sorted(line.keys()):
