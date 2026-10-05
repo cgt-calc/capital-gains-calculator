@@ -88,18 +88,36 @@ def test_run_with_raw_files_stdin(request: pytest.FixtureRequest) -> None:
     assert_stdout_matches(result, cmd, expected_file, piped_from=csv_file)
 
 
+MARKED_CSV = (
+    b"\xef\xbb\xbf"
+    b"date,action,symbol,quantity,price,fees,currency\n"
+    b"2023-02-09,DIVIDEND,OPRA,4200,0.80,0.0,USD\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("csv_bytes", "symbol"),
+    [
+        (
+            (
+                "date,action,symbol,quantity,price,fees,currency\n"
+                "2023-02-09,DIVIDEND,CAFÉ,4200,0.80,0.0,USD\n"
+            ).encode(),
+            "CAFÉ",
+        ),
+        (MARKED_CSV, "OPRA"),
+    ],
+    ids=["symbol outside ASCII", "byte-order mark"],
+)
 def test_stdin_decodes_utf8_under_a_legacy_locale(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, csv_bytes: bytes, symbol: str
 ) -> None:
     """A UTF-8 export piped in keeps its characters on a legacy code page.
 
     Windows decodes redirected stdin with the ANSI code page, so a symbol
-    outside ASCII would otherwise arrive as mojibake.
+    outside ASCII would otherwise arrive as mojibake, and a leading
+    byte-order mark as stray characters in front of the first column name.
     """
-    csv_bytes = (
-        "date,action,symbol,quantity,price,fees,currency\n"
-        "2023-02-09,DIVIDEND,CAFÉ,4200,0.80,0.0,USD\n"
-    ).encode()
     monkeypatch.setattr(
         sys, "stdin", io.TextIOWrapper(io.BytesIO(csv_bytes), encoding="cp1252")
     )
@@ -107,14 +125,7 @@ def test_stdin_decodes_utf8_under_a_legacy_locale(
 
     transactions = RawParser.load_from_file(STDIN_PATH, show_parsing_msg=False)
 
-    assert [txn.symbol for txn in transactions] == ["CAFÉ"]
-
-
-MARKED_CSV = (
-    b"\xef\xbb\xbf"
-    b"date,action,symbol,quantity,price,fees,currency\n"
-    b"2023-02-09,DIVIDEND,OPRA,4200,0.80,0.0,USD\n"
-)
+    assert [txn.symbol for txn in transactions] == [symbol]
 
 
 def test_a_byte_order_mark_is_not_read_as_data(tmp_path: Path) -> None:
@@ -123,18 +134,6 @@ def test_a_byte_order_mark_is_not_read_as_data(tmp_path: Path) -> None:
     raw_file.write_bytes(MARKED_CSV)
 
     transactions = RawParser.load_from_file(raw_file, show_parsing_msg=False)
-
-    assert [txn.symbol for txn in transactions] == ["OPRA"]
-
-
-def test_stdin_drops_a_byte_order_mark(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A marked file piped in is read as the same file is by path."""
-    monkeypatch.setattr(
-        sys, "stdin", io.TextIOWrapper(io.BytesIO(MARKED_CSV), encoding="cp1252")
-    )
-    force_utf8_stdio()
-
-    transactions = RawParser.load_from_file(STDIN_PATH, show_parsing_msg=False)
 
     assert [txn.symbol for txn in transactions] == ["OPRA"]
 
