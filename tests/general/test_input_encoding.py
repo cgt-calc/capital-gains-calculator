@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import io
 import sys
 from typing import TYPE_CHECKING
@@ -18,6 +17,7 @@ from cgt_calc.parsers.raw import RawParser
 from cgt_calc.parsers.schwab import SchwabParser
 from cgt_calc.share_prices import SharePrices
 from cgt_calc.spin_off_handler import SpinOffHandler
+from tests.schwab.helpers import load_via_cli
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -26,22 +26,11 @@ if TYPE_CHECKING:
 UTF16_CSV = "date,action,symbol\n2024-05-01,BUY,ACME\n".encode("utf-16")
 
 
-def _schwab_award_file(path: Path) -> object:
-    return SchwabParser.load_from_args(
-        argparse.Namespace(
-            schwab_file=None,
-            schwab_dir=None,
-            schwab_award_file=path,
-            schwab_equity_award_json=None,
-        )
-    )
-
-
 @pytest.mark.parametrize(
     "read",
     [
         lambda path: RawParser.load_from_file(path, show_parsing_msg=False),
-        _schwab_award_file,
+        lambda path: load_via_cli(schwab_award_file=str(path)),
         lambda path: SchwabParser.load_from_dir(path.parent),
         SharePrices,
         lambda path: CurrencyConverter(exchange_rates_file=path),
@@ -74,12 +63,12 @@ def test_a_file_that_is_not_utf8_is_reported_by_name(
 def test_piped_input_that_is_not_utf8_is_reported(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Standard input is checked too, with advice that fits a pipe."""
+    """Standard input is checked too, with advice that fits a pipe or redirect."""
     monkeypatch.setattr(
         sys, "stdin", io.TextIOWrapper(io.BytesIO(UTF16_CSV), encoding="utf-8")
     )
 
-    with pytest.raises(ParsingError, match="the piped input is not UTF-8 text"):
+    with pytest.raises(ParsingError, match="standard input is not UTF-8 text"):
         RawParser.load_from_file(STDIN_PATH, show_parsing_msg=False)
 
 

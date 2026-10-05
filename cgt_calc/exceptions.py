@@ -63,8 +63,8 @@ def reading_as(encoding: str, file: Path) -> Iterator[None]:
         # imported here without a cycle.
         if str(file) == "-":
             detail = (
-                f"the piped input is not {name} text. The program supplying it "
-                f"must write {name}."
+                f"standard input is not {name} text. The program or file that "
+                f"supplies it must be {name}."
             )
         else:
             detail = (
