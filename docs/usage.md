@@ -335,7 +335,7 @@ cgt-calc cannot know the following, so allow for them in the figure you pass:
     trading loss you claim against your income.
 - **Dividends and interest exported after tax.** cgt-calc adds them as the report shows them. If
     your broker's export gives an amount after tax was taken off, as Revolut does for
-    [every dividend](brokers/revolut.md#dividends-and-withholding-tax) and Trading 212 does in
+    [dividends](brokers/revolut.md#dividends-and-withholding-tax) and Trading 212 does in
     [some cases](brokers/trading212.md#known-limitations), add that tax unless you have put it into
     the report.
 - **Dividends before 6 April 2016.** cgt-calc does not add them, because the amount taxed is not the

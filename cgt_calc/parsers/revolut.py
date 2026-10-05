@@ -266,17 +266,17 @@ class RevolutParser(StandardCSVParser[RevolutTransaction]):
         worked out here: the rate depends on the holder and on the company,
         which the export names only by ticker.
 
-        A `DIVIDEND TAX (CORRECTION)` row nearly always comes with its
-        opposite within a second, and the two change nothing. The one seen on
-        its own was the tax on a dividend paid in full, so the dividend a lone
+        A `DIVIDEND TAX (CORRECTION)` row usually comes with its opposite
+        within a second, and the two change nothing. The one seen on its own
+        was the tax on a dividend paid in full, so the dividend a lone
         correction follows is not short of tax in the way the others are.
         """
         if any(t.action is ActionType.DIVIDEND for t in transactions):
             LOGGER.warning(
                 "Revolut dividends are recorded as received: the export gives "
-                "each one after foreign tax and does not give that tax. Unless "
-                "you have added it in a RAW file, the report's dividend income "
-                "is too low by any tax taken from the tax year's dividends, and "
+                "them after foreign tax and does not give that tax. Unless you "
+                "have added it in a RAW file, the report's dividend income is "
+                "too low by any tax taken from the tax year's dividends, and "
                 "that tax is not shown as tax at source. See %s",
                 DIVIDEND_DOCS,
             )
@@ -292,13 +292,14 @@ class RevolutParser(StandardCSVParser[RevolutTransaction]):
             if amount:
                 LOGGER.warning(
                     "The %s dividend tax correction of %s %s on %s is not "
-                    "cancelled by an opposite one that day, so it is counted as "
-                    "a change to the tax at source of the dividend it follows. "
-                    "Check that dividend's figures: see %s",
+                    "cancelled by an opposite one that day, so it is treated as "
+                    "a change to the tax at source of a %s dividend. Check that "
+                    "dividend's figures: see %s",
                     symbol,
                     amount,
                     currency,
                     date,
+                    symbol,
                     DIVIDEND_DOCS,
                 )
         return transactions

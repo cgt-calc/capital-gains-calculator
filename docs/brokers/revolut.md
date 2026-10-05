@@ -113,8 +113,8 @@ transaction stamped at or after 23:00 UTC on 5 April belongs to the following ta
 
 A `DIVIDEND` row gives the amount you received, after any foreign tax such as US tax on a US share.
 The CSV does not give the tax withheld, and cgt-calc cannot work it out: the rate depends on the
-company, which the CSV names only by ticker. cgt-calc records the amount received and prints a
-warning when the file contains a dividend.
+company, which the CSV names only by ticker, and on the tax status Revolut holds for you. cgt-calc
+records the amount received and prints a warning when the file contains a dividend.
 
 HMRC calculates foreign income before direct foreign tax is deducted
 ([HMRC guidance](https://www.gov.uk/hmrc-internal-manuals/international-manual/intm165030)). The
@@ -127,10 +127,11 @@ To put the tax into the report:
     **Dividend**. Revolut shows the withholding tax in the transaction details
     ([Revolut dividend guide](https://help.revolut.com/help/wealth/stocks/corporate-events/receiving-dividends/)).
 
-2. Write a [RAW file](raw.md) with two rows for each dividend that had tax withheld. Give both rows
-    the ticker, the currency and the [UK date](#dates-and-time-zones) of the `DIVIDEND` row. Enter
-    the tax as a positive `DIVIDEND` and as a negative `DIVIDEND_TAX`. For USD 6.67 withheld from a
-    QCOM dividend on 18 December 2025:
+2. Write a [RAW file](raw.md) with two rows for each dividend that had tax withheld. If cgt-calc
+    warned about a dividend tax correction for the ticker, read [Tax corrections](#tax-corrections)
+    first. Give both rows the ticker, the currency and the [UK date](#dates-and-time-zones) of the
+    `DIVIDEND` row. Enter the tax as a positive `DIVIDEND` and as a negative `DIVIDEND_TAX`. For USD
+    6.67 withheld from a QCOM dividend on 18 December 2025:
 
     ```csv
     date,action,symbol,quantity,price,fees,currency
@@ -154,7 +155,8 @@ still printed, because cgt-calc cannot tell that you have added the tax.
 
 Check the terminal's **Dividends** list printed after **Final balance**. For each ticker, the value
 after `excluding ... taxed at source` should be the total of the tax you noted in step 1, and the
-amount before it should be the ticker's `DIVIDEND` rows for the tax year plus that tax.
+amount before it should be the ticker's `DIVIDEND` rows for the tax year plus the RAW `DIVIDEND`
+amounts you entered.
 
 With the tax in the report, cgt-calc works out double taxation treaty relief as for any
 [RAW dividend](raw.md#known-limitations), and the PDF report shows it beside the dividend. Unless
@@ -168,13 +170,19 @@ match, first check that the RAW rows have the date of the dividend.
 If you do not add the tax this way, add it to your dividend income yourself and, if you use
 [`--income`](../usage.md#estimate-the-tax-from-your-income), to the figure you pass.
 
+#### Tax corrections
+
 A `DIVIDEND TAX (CORRECTION)` row changes the tax on a dividend after it was paid, and cgt-calc
-counts it as a change to that dividend's tax at source. These rows usually come in pairs of the same
-amount, one negative and one positive, which cancel and change nothing. cgt-calc warns about a
-correction that nothing cancels and names it. Revolut has paid a dividend before tax and then taken
-the tax with such a correction, so the tax Revolut shows is not always what the `DIVIDEND` row is
-short of. For the dividend that the correction follows, the amount to enter in the RAW rows is the
-dividend before tax less the `DIVIDEND` amount in the CSV, which can be nothing.
+treats it as a change to that dividend's tax at source. These rows usually come in pairs of the same
+amount, one negative and one positive, which cancel and change nothing.
+
+cgt-calc warns about a correction that nothing cancels and names it. Revolut has paid a dividend in
+full and taken the tax afterwards with such a correction, so the `DIVIDEND` row before it may not be
+short of the tax that Revolut shows. For that dividend, the amount to enter in the two RAW rows, or
+to add yourself, is the dividend before tax less the `DIVIDEND` amount in the CSV. Work out the
+dividend before tax as the dividend per share that the company declared times the shares you held.
+If nothing is left, as when the dividend was paid in full, enter no rows for it: the correction is
+already its tax at source.
 
 ## Troubleshooting
 
