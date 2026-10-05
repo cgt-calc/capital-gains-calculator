@@ -1776,10 +1776,8 @@ def test_a_refused_action_says_whether_it_is_unsupported_or_unknown(
         Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
 
 
-def _make_sell_row(
-    shares: str, price: str, total: str, currency: str = "GBP"
-) -> list[str]:
-    """Build a sale in a pound account, at the price and total given."""
+def _make_sell_row(shares: str, price: str, total: str) -> list[str]:
+    """Build a sale of a dollar share in a pound account, at the price and total given."""
     return _make_row(
         HEADER_2024,
         {
@@ -1790,7 +1788,7 @@ def _make_sell_row(
             Trading212Column.NAME: "Baz Corp",
             Trading212Column.NO_OF_SHARES: shares,
             Trading212Column.PRICE_PER_SHARE: price,
-            Trading212Column.CURRENCY_PRICE_PER_SHARE: currency,
+            Trading212Column.CURRENCY_PRICE_PER_SHARE: "USD",
             Trading212Column.TOTAL: total,
             Trading212Column.CURRENCY_TOTAL: "GBP",
             Trading212Column.TRANSACTION_ID: "sell-1",
@@ -1804,7 +1802,7 @@ def test_a_sale_at_a_price_and_a_total_of_zero_is_refused(tmp_path: Path) -> Non
     Trading 212 exports them as a sell at a price and a total of zero. Read
     as a sale for nothing, the row would report their whole cost as a loss.
     """
-    rows = [HEADER_2024, _make_sell_row("40.0000000000", "0E-10", "0.00", "USD")]
+    rows = [HEADER_2024, _make_sell_row("40.0000000000", "0E-10", "0.00")]
     message = (
         "row 2: A sale of BAZ at a price and a total of zero cannot be read as a "
         "sale. Trading 212 exports the shares given up in a takeover paid in "
@@ -1828,7 +1826,7 @@ def test_a_sale_with_only_a_zero_price_or_a_zero_total_is_a_sale(
     tmp_path: Path, shares: str, price: str, total: str
 ) -> None:
     """A price or a total can print as zero on a real sale; only both refuse it."""
-    rows = [HEADER_2024, _make_sell_row(shares, price, total, "USD")]
+    rows = [HEADER_2024, _make_sell_row(shares, price, total)]
 
     transactions = Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
 

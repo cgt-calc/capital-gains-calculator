@@ -237,9 +237,11 @@ high.
     shares arrive on a `Stock distribution` row or, for a takeover some years ago, on no row at all.
     cgt-calc cannot calculate those two holdings. To calculate the rest of the account, leave both
     out: in a working copy of the export, remove every row for the old shares and for the new ones
-    except their dividends, not only the row cgt-calc stopped at. Work the two holdings out by hand
-    (consider professional advice). The cash from the rows you remove is then missing from the
-    balance cgt-calc keeps. If that takes the balance below zero, the run stops with
+    except their dividends, not only the row cgt-calc stopped at. The report and any tax it
+    estimates then leave out every gain and loss on those two holdings, including a later sale of
+    the new shares: work the two holdings out by hand (consider professional advice) and add their
+    gains and losses to the report's figures. The cash from the rows you remove is also missing from
+    the balance cgt-calc keeps. If that takes the balance below zero, the run stops with
     `Reached a negative balance`; run it again with `--no-balance-check`, which turns the check off
     for every input in the run.
 - The
@@ -296,6 +298,13 @@ check that you passed the directory itself to `--trading212-dir`, not the path t
 
 Re-export the history with all data categories selected. Check for a missing date range, files from
 the wrong account, or an unsupported action listed above.
+
+### `Tried to sell`
+
+The history does not hold the shares being sold. Check first for a missing date range or a missing
+file. If the shares came from a takeover paid in shares, the export may have no row for them: see
+[Known limitations](#known-limitations), and do not add a purchase for them to make the calculation
+run.
 
 ### A price-per-share warning appears
 
