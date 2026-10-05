@@ -1729,18 +1729,33 @@ def test_foreign_tax_the_row_cannot_convert_leaves_the_amount_received(
     )
 
 
-def test_a_share_distribution_is_refused_as_unsupported(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("action", "message"),
+    [
+        pytest.param(
+            "Stock distribution",
+            r"Stock distribution rows are not supported\. See "
+            r"https://cgt-calc\.uk/brokers/trading212/#known-limitations",
+            id="listed as unsupported",
+        ),
+        pytest.param("ADR Fee", "Unknown action: ADR Fee", id="not known"),
+    ],
+)
+def test_a_refused_action_says_whether_it_is_unsupported_or_unknown(
+    tmp_path: Path, action: str, message: str
+) -> None:
     """A row the Trading 212 page lists as unsupported says so, with the link.
 
     `Unknown action` would send the reader to report a change of format, for
-    a row that is refused on purpose.
+    a row that is refused on purpose. It is kept for a label cgt-calc has not
+    met, where a report is what the page asks for.
     """
     rows = [
         HEADER_2024,
         _make_row(
             HEADER_2024,
             {
-                Trading212Column.ACTION: "Stock distribution",
+                Trading212Column.ACTION: action,
                 Trading212Column.TIME: "2024-12-02 12:05:56",
                 Trading212Column.ISIN: "US0000000036",
                 Trading212Column.TICKER: "BAZ",
@@ -1755,11 +1770,7 @@ def test_a_share_distribution_is_refused_as_unsupported(tmp_path: Path) -> None:
         ),
     ]
 
-    with pytest.raises(
-        ParsingError,
-        match=r"row 2: Stock distribution rows are not supported\. See "
-        r"https://cgt-calc\.uk/brokers/trading212/#known-limitations$",
-    ):
+    with pytest.raises(ParsingError, match=rf"row 2: {message}$"):
         Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
 
 

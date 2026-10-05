@@ -107,10 +107,11 @@ SPLIT_OPEN_ACTION: Final = "Stock split open"
 SPLIT_CLOSE_ACTION: Final = "Stock split close"
 SPLIT_ACTIONS: Final = frozenset({SPLIT_OPEN_ACTION, SPLIT_CLOSE_ACTION})
 
-# Actions the Trading 212 page lists under its known limitations. A share
-# distribution may be a stock dividend, a warrant issue, one side of a
-# demerger or the shares received in a takeover. They are not all taxed
-# alike, and the row does not say which it is.
+# Actions the Trading 212 page lists under its known limitations: share
+# distributions, and transfers of shares between accounts. A distribution
+# may be a stock dividend, a warrant issue, one side of a demerger or the
+# shares received in a takeover. Those are not all taxed alike, and the row
+# does not say which it is.
 UNSUPPORTED_ACTIONS: Final = frozenset(
     {
         "Stock distribution",

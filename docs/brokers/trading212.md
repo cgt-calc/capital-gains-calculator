@@ -184,6 +184,13 @@ high.
     ([TCGA 1992 s122](https://www.legislation.gov.uk/ukpga/1992/12/section/122)) and not dividend
     income: take it out of the dividend income you report and work out the capital gains treatment
     yourself.
+- cgt-calc takes the country a dividend came from to be the first two letters of the share's ISIN. A
+    company based elsewhere can have an ISIN that starts `US`, as with the New York shares of a
+    Dutch company or a depositary receipt. Where the tax on its dividend was withheld at 15%, which
+    is also the US rate, the report applies the US treaty and shows 15% relief without a warning.
+    The treaty with the company's own country may allow less, such as 10% for the Netherlands
+    ([DT14005](https://www.gov.uk/hmrc-internal-manuals/double-taxation-relief/dt14005)). Check the
+    treaty figure for any share whose company is not based in the country its ISIN starts with.
 - Share transfers between accounts or brokers, labelled `Transfer in` or `Transfer out`, are not
     supported, and cgt-calc stops at the row.
 - One run covers one Trading 212 account. `--trading212-dir` takes a single directory and every file
@@ -289,6 +296,13 @@ check that you passed the directory itself to `--trading212-dir`, not the path t
 
 Re-export the history with all data categories selected. Check for a missing date range, files from
 the wrong account, or an unsupported action listed above.
+
+### `Tried to sell`
+
+The history does not hold the shares being sold. Check first for a missing date range or a missing
+file. If the shares came from a takeover paid in shares, the export may have no row for them: see
+[Known limitations](#known-limitations), and do not add a purchase for them to make the calculation
+run.
 
 ### A price-per-share warning appears
 
