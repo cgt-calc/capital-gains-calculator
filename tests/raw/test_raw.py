@@ -411,6 +411,75 @@ def test_rows_that_are_all_another_security_s_are_left_alone(tmp_path: Path) -> 
     assert [transaction.symbol for transaction in transactions] == ["FB", "FB"]
 
 
+def test_the_optional_eighth_column_gives_a_row_its_isin(tmp_path: Path) -> None:
+    """A cash row leaves the field blank, and a stray space is still blank."""
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(
+        raw_file,
+        [
+            [*COLUMNS, "isin"],
+            ["2024-01-02", "TRANSFER", "", "1", "100.00", "0.00", "USD", " "],
+            ["2024-01-03", "BUY", "META", "1", "10.00", "0.00", "USD", "US30303M1027"],
+        ],
+    )
+
+    transactions = RawParser().load_from_file(raw_file)
+
+    assert [transaction.isin for transaction in transactions] == [None, "US30303M1027"]
+
+
+@pytest.mark.parametrize(
+    ("header", "row", "message"),
+    [
+        pytest.param(
+            [*COLUMNS, "isin"],
+            ["2024-01-02", "BUY", "XYZ", "1", "10.00", "0.00", "USD", "US30303M1028"],
+            "Invalid ISIN checksum: 'US30303M1028'",
+            id="not-an-isin",
+        ),
+        pytest.param(
+            [*COLUMNS, "isin"],
+            ["2024-01-02", "TRANSFER", "", "1", "10.00", "0.00", "USD", "US30303M1027"],
+            "A row with an ISIN needs a symbol",
+            id="no-symbol",
+        ),
+        pytest.param(
+            [*COLUMNS, "isin"],
+            ["2024-01-02", "BUY", "XYZ", "1", "10.00", "0.00", "USD"],
+            "This row has 7 columns, not 8",
+            id="field-missing",
+        ),
+        pytest.param(
+            [*COLUMNS, "cusip"],
+            ["2024-01-02", "BUY", "XYZ", "1", "10.00", "0.00", "USD", "30303M102"],
+            "Expected column 8 to be 'isin' but found 'cusip'",
+            id="another-eighth-column",
+        ),
+        pytest.param(
+            COLUMNS,
+            ["2024-01-02", "BUY", "XYZ", "1", "10.00", "0.00", "USD", "US30303M1027"],
+            "This row has 8 columns, not 7",
+            id="not-in-the-header",
+        ),
+        pytest.param(
+            [*COLUMNS, "isin", "notes"],
+            ["2024-01-02", "BUY", "XYZ", "1", "10.00", "0.00", "USD", "", ""],
+            "This row has 9 columns, not 8:\n  date,action,",
+            id="a-ninth-column",
+        ),
+    ],
+)
+def test_a_misused_isin_column_is_refused(
+    tmp_path: Path, header: list[str], row: list[str], message: str
+) -> None:
+    """The eighth column is an ISIN, named in the header and present on every row."""
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(raw_file, [header, row])
+
+    with pytest.raises(ParsingError, match=re.escape(message)):
+        RawParser().load_from_file(raw_file)
+
+
 def test_read_raw_transactions_transfer_from_spouse(tmp_path: Path) -> None:
     """Parse a RAW TRANSFER_FROM_SPOUSE row: shares arriving at a stated cost."""
 

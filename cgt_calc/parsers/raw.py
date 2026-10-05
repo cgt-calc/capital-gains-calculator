@@ -14,6 +14,7 @@ from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
     CurrencyCode,
+    Isin,
     TransactionSource,
 )
 from cgt_calc.util import parse_decimal
@@ -38,6 +39,8 @@ class RawColumn(StrEnum):
 
 COLUMNS: Final[list[str]] = [column.value for column in RawColumn]
 CSV_COLUMNS_NUM: Final = len(COLUMNS)
+# An optional eighth column, which a file has when its header names it.
+ISIN_COLUMN: Final = "isin"
 LOGGER = logging.getLogger(__name__)
 
 
@@ -101,10 +104,13 @@ class RawTransaction(BrokerTransaction):
         self,
         row: list[str],
         file: Path,
+        *,
+        with_isin: bool = False,
     ):
         """Create transaction from CSV row."""
-        if len(row) != CSV_COLUMNS_NUM:
-            raise UnexpectedColumnCountError(row, CSV_COLUMNS_NUM, file)
+        columns_num = CSV_COLUMNS_NUM + with_isin
+        if len(row) != columns_num:
+            raise UnexpectedColumnCountError(row, columns_num, file)
 
         row_values: dict[RawColumn, str] = {
             column: row[i] for i, column in enumerate(RawColumn)
@@ -137,6 +143,15 @@ class RawTransaction(BrokerTransaction):
             amount = None
 
         currency = CurrencyCode(row_values[RawColumn.CURRENCY])
+        isin_raw = row[CSV_COLUMNS_NUM].strip() if with_isin else ""
+        # An ISIN names a security, so beside a blank symbol it is a value
+        # typed in the wrong row or column rather than something to ignore.
+        if isin_raw and symbol is None:
+            raise ValueError(
+                "A row with an ISIN needs a symbol. Fill in the symbol or leave "
+                "the ISIN blank."
+            )
+        isin = Isin(isin_raw) if isin_raw else None
         broker = "Unknown"
         super().__init__(
             date,
@@ -149,6 +164,7 @@ class RawTransaction(BrokerTransaction):
             amount,
             currency,
             broker,
+            isin,
         )
 
 
@@ -170,15 +186,17 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
     deprecated_flags: ClassVar[list[str]] = ["--raw"]
 
     @staticmethod
-    def _validate_header(header: list[str], file: Path) -> None:
-        """Validate optional header row."""
+    def _validate_header(header: list[str], file: Path) -> bool:
+        """Validate the header row and say whether it names the ISIN column."""
 
-        if len(header) != CSV_COLUMNS_NUM:
-            raise UnexpectedColumnCountError(header, CSV_COLUMNS_NUM, file, row_index=1)
+        with_isin = len(header) > CSV_COLUMNS_NUM
+        expected = [*COLUMNS, ISIN_COLUMN] if with_isin else COLUMNS
+        if len(header) != len(expected):
+            raise UnexpectedColumnCountError(header, len(expected), file, row_index=1)
 
         normalized = [value.strip().lower() for value in header]
         for index, (exp, act) in enumerate(
-            zip(COLUMNS, normalized, strict=True), start=1
+            zip(expected, normalized, strict=True), start=1
         ):
             if exp != act:
                 raise ParsingError(
@@ -186,6 +204,7 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
                     f"Expected column {index} to be '{exp}' but found '{header[index - 1]}'",
                     row_index=1,
                 )
+        return with_isin
 
     @staticmethod
     def _has_header(first_row: list[str]) -> bool:
@@ -208,8 +227,9 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
 
         data_rows = lines
         start_index = 1
+        with_isin = False
         if cls._has_header(lines[0]):
-            cls._validate_header(lines[0], file_path)
+            with_isin = cls._validate_header(lines[0], file_path)
             data_rows = lines[1:]
             start_index = 2
         else:
@@ -221,7 +241,7 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
         transactions: list[RawTransaction] = []
         for index, row in enumerate(data_rows, start=start_index):
             try:
-                transaction = RawTransaction(row, file_path)
+                transaction = RawTransaction(row, file_path, with_isin=with_isin)
             except ParsingError as err:
                 err.add_row_context(index)
                 raise

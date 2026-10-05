@@ -133,19 +133,20 @@ Another security can take a ticker after a company gives it up, so cgt-calc chec
 renamed company's:
 
 - **A row with an ISIN** is renamed when the ISIN is the company's, whatever the row's date.
-- **A row without an ISIN**, such as a Schwab or RAW row, is renamed from the table's `since` date
-    up to the day before its `reused` date, when another security started trading under the old
-    ticker. A blank column sets no limit on that side. The `until` column, the day the company
-    changed ticker, does not limit it, because a broker can keep the old ticker on later rows. `FB`
-    rows are renamed from 18 May 2012 to 25 June 2025, so an `FB` row from 26 June 2025 is left as
-    `FB`.
+- **A row without an ISIN**, such as a Schwab row or a RAW row that gives none, is renamed from the
+    table's `since` date up to the day before its `reused` date, when another security started
+    trading under the old ticker. A blank column sets no limit on that side. The `until` column, the
+    day the company changed ticker, does not limit it, because a broker can keep the old ticker on
+    later rows. `FB` rows are renamed from 18 May 2012 to 25 June 2025, so an `FB` row from 26 June
+    2025 is left as `FB`.
 
 If one file has rows without an ISIN under an old ticker, some inside its renamed period and some
 outside it (for `FB`, before 18 May 2012 or from 26 June 2025), cgt-calc stops with
 `Rows under <ticker> fall on both sides of <date>`: nothing in the rows says whether they belong to
 one company or two. In a RAW file, write the current ticker on every row of the renamed company, as
-the message says. cgt-calc checks each file on its own, so rows in separate files are each read by
-their own date without an error.
+the message says, or give those rows its [ISIN](brokers/raw.md#optional-isin-column). cgt-calc
+checks each file on its own, so rows in separate files are each read by their own date without an
+error.
 
 Two limitations remain:
 

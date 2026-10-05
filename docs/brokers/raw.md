@@ -25,7 +25,8 @@ The columns are:
 | `currency` | Three-letter currency code for the price, fees and resulting amount, such as `USD`                                                |
 
 The header is required. cgt-calc can infer it from a file without a header for compatibility, but
-warns because it then has to assume that the columns are in the order above.
+warns because it then has to assume that the columns are in the order above. An eighth column,
+`isin`, is optional: see [Optional `isin` column](#optional-isin-column).
 
 Here is a complete small example:
 
@@ -72,6 +73,46 @@ If a `STOCK_ACTIVITY` row has no `price`, cgt-calc looks it up by ticker and dat
 [share prices](../extra-data-and-options.md#missing-share-prices) and reads it in the row's
 `currency`. If there is none, the run stops with `No share price`: enter the market value per unit
 in `price`.
+
+### Optional `isin` column
+
+A ticker does not always say which security a row is: a company can change its ticker, and another
+security can take the old one. To say which security you mean, add `isin` as an eighth column and
+give the ISIN, the 12-character code printed on contract notes and statements:
+
+```csv
+date,action,symbol,quantity,price,fees,currency,isin
+2024-01-02,TRANSFER,,1,5000.00,0.00,USD,
+2024-01-03,BUY,META,10,350.00,1.00,USD,US30303M1027
+```
+
+Once the header has the column, every row needs the eighth field. Leave it blank, keeping the comma,
+on a cash row and on a security whose ISIN you do not know. cgt-calc stops on a value that is not a
+valid ISIN and on an ISIN in a row with no symbol.
+
+Give the ISIN on every row of a security or on none of them: a row under an old ticker that another
+security has since taken, such as `FB`, is renamed by its own ISIN or else by its date. If a
+security's ISIN changed while you held it, use the current one on all of its rows.
+
+With an ISIN on a security's rows:
+
+- A [ticker rename](../extra-data-and-options.md#ticker-renames) is matched by the ISIN, whatever
+    the row's date.
+- cgt-calc stops when the ISIN appears under two tickers that it does not know as one security, or
+    when one ticker appears under two ISINs. Two tickers that the
+    [ISIN-to-ticker mapping](../extra-data-and-options.md#isin-to-ticker-translation) lists for one
+    ISIN, such as `VUSA` and `VUSD`, are still reported as two holdings, so write one of them on all
+    of that fund's rows.
+- The source country of a dividend is read from the ISIN rather than guessed from the currency.
+- [Excess reported income](../offshore-funds.md) that cgt-calc holds for a fund is applied by its
+    ISIN, even under a ticker cgt-calc does not know.
+
+If the run stops with `is already used for ISIN`, the
+[ISIN-to-ticker mapping](../extra-data-and-options.md#isin-to-ticker-translation) holds the ticker
+you wrote under another ISIN, which the message names. Check your row first: if the ISIN in the
+message is your security's, the one you typed is wrong, so correct it. If yours is right, another
+security has the same ticker, for example a London-listed fund and a US share. Write a symbol of
+your own for your security, such as `OPEN.US`, on all of its rows.
 
 ## Actions to use
 
@@ -128,13 +169,13 @@ trade came before or after the spin-off.
 
 ## Known limitations
 
-- The format has no ISIN or source-country column. For a dividend with withholding tax, when
-    cgt-calc cannot match the ticker to a known ISIN, it guesses the source country from the
-    currency when possible: `USD` is treated as US and `PLN` as Poland. An investment domiciled
-    elsewhere can consequently receive the wrong treaty treatment without a source-country warning;
-    that warning is issued only when withholding tax was deducted and cgt-calc cannot infer a
-    country from the currency. Verify foreign dividend income and tax against the broker statement
-    rather than assuming that treaty limits were applied.
+- The format has no source-country column. For a dividend with withholding tax, when none of the
+    ticker's rows gives an [ISIN](#optional-isin-column) and cgt-calc cannot match the ticker to a
+    known one, it guesses the source country from the currency when possible: `USD` is treated as US
+    and `PLN` as Poland. An investment domiciled elsewhere can consequently receive the wrong treaty
+    treatment without a source-country warning; that warning is issued only when withholding tax was
+    deducted and cgt-calc cannot infer a country from the currency. Verify foreign dividend income
+    and tax against the broker statement rather than assuming that treaty limits were applied.
 - The format does not identify the instrument type. It is intended for ordinary shares and funds; do
     not rely on it for options, futures, bonds, contracts for difference, crypto assets or another
     instrument whose UK tax treatment differs.
@@ -432,8 +473,9 @@ and put the full amount in `price`: positive for money received and negative for
 ### A header or column-count error
 
 Use the seven columns from [Create the CSV](#create-the-csv), in that order, and keep every comma,
-including the empty `symbol` field in a cash row. Save the file as UTF-8 CSV rather than converting
-a PDF or pasting a formatted currency value such as `£1,000` into one field.
+including the empty `symbol` field in a cash row. If the header has the optional `isin` column,
+every row needs that eighth field too, blank or not. Save the file as UTF-8 CSV rather than
+converting a PDF or pasting a formatted currency value such as `£1,000` into one field.
 
 ### `Reached a negative balance` for broker `Unknown`
 
