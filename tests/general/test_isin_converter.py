@@ -536,6 +536,16 @@ def test_translation_file_empty(tmp_path: Path) -> None:
     assert converter.write_data == {}
 
 
+def test_translation_file_with_a_byte_order_mark(tmp_path: Path) -> None:
+    """A translation file saved as Excel's "CSV UTF-8" keeps its header."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"\ufeffISIN,symbol\n{ISIN_A},FOO\n", encoding="utf8")
+
+    converter = IsinConverter(isin_translation_file=translation_file)
+
+    assert converter.write_data == {ISIN_A: {"FOO"}}
+
+
 def test_translation_file_bad_header(tmp_path: Path) -> None:
     """Raise on translation files with an unexpected header."""
     translation_file = tmp_path / "isin_translation.csv"

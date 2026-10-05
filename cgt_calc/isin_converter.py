@@ -281,7 +281,7 @@ class IsinConverter:
             file_label = (
                 source if isinstance(source, Path) else Path("resources") / source.name
             )
-            with source.open(encoding="utf-8") as csv_file:
+            with source.open(encoding="utf-8-sig") as csv_file:
                 lines = list(csv.reader(csv_file))
             if not lines:
                 return {}

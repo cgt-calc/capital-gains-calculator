@@ -37,7 +37,7 @@ class SpinOffHandler:
         if self.spin_offs_file is None or not self.spin_offs_file.is_file():
             return cache
 
-        with self.spin_offs_file.open(encoding="utf8") as fin:
+        with self.spin_offs_file.open(encoding="utf-8-sig") as fin:
             csv_reader = csv.DictReader(fin)
             for line in csv_reader:
                 if sorted(SPIN_OFFS_HEADER) != sorted(line.keys()):

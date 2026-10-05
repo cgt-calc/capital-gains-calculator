@@ -97,6 +97,7 @@ ETCs
 ETF
 ETFs
 ETNs
+Excel's
 expanduser
 f
 FairMarketValuePrice

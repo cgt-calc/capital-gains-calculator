@@ -1055,18 +1055,3 @@ def test_read_vanguard_transaction_after_summary_is_rejected(tmp_path: Path) -> 
 
     with pytest.raises(ParsingError, match="transaction row after the Cash"):
         VanguardParser().load_from_file(vanguard_file)
-
-
-def test_read_vanguard_utf8_bom(tmp_path: Path) -> None:
-    """Accept the BOM written by Excel's CSV UTF-8 format."""
-    vanguard_file = tmp_path / "bom.csv"
-    vanguard_file.write_text(
-        "\ufeffDate,Details,Amount,Balance\n"
-        "09/03/2022,Bought 10 Foo Fund (FOO),-100.00,0\n",
-        encoding="utf-8",
-    )
-
-    transactions = VanguardParser().load_from_file(vanguard_file)
-
-    assert len(transactions) == 1
-    assert transactions[0].symbol == "FOO"

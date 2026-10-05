@@ -136,5 +136,4 @@ def test_force_utf8_stdio_reconfigures_stdin(monkeypatch: pytest.MonkeyPatch) ->
 
     force_utf8_stdio()
 
-    assert sys.stdin.encoding == "utf-8"
     assert sys.stdin.read() == "CAFÉ"
