@@ -46,6 +46,7 @@ from cgt_calc.stock_splits import (
 )
 from cgt_calc.util import round_decimal, strip_zeros
 
+from .calc_test_data import transaction
 from .test_calc import create_calculator, get_report
 
 if TYPE_CHECKING:
@@ -2132,6 +2133,32 @@ def test_a_purchase_under_either_of_the_day_s_tickers_joins_the_same_pool(
     assert report.total_gain() == Decimal(0)
     assert "OLD" not in calculator.portfolio
     assert calculator.portfolio["NEW"] == Position(Decimal(25), Decimal(160))
+
+
+@pytest.mark.parametrize(
+    "fee_day",
+    [pytest.param(RENAME_DAY, id="earlier"), pytest.param(EVENT_DAY, id="same-day")],
+)
+def test_a_fee_under_the_new_ticker_is_not_a_second_holding(
+    fee_day: datetime.date,
+) -> None:
+    """A management fee is cost with no shares, so it is not a second holding.
+
+    The fee is recorded under the name the day's rename moves the holding to,
+    that day or before it. That name holds no shares the reorganisation could
+    have missed, so the day is computed and the fee joins the renamed
+    holding's cost.
+    """
+    calculator = run(
+        [
+            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+            transaction(fee_day, ActionType.FEE, "NEW", amount=-5, currency=GBP),
+            legacy_split(EVENT_DAY, "OLD", "10"),
+            rename(EVENT_DAY, "OLD", "NEW"),
+        ]
+    )
+    assert "OLD" not in calculator.portfolio
+    assert calculator.portfolio["NEW"] == Position(Decimal(20), Decimal(105))
 
 
 def test_a_sale_under_the_new_ticker_of_more_than_the_holding_is_refused() -> None:
