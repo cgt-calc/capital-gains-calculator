@@ -95,8 +95,8 @@ cgt-calc sometimes needs a share's price on a date that your broker files do not
     give are used instead of Yahoo's, and giving only one of the two stops the run.
 
 Put the prices in a CSV file in the same format as `share_prices.csv`, under the tickers in your
-broker files, not Yahoo's, and pass it with `--prices-file`. For a spin-off of `NEWCO` from `ACME`
-on 1 April 2024:
+broker files, not Yahoo's, and pass it with `--prices-file`. The first line must be the header
+`date,symbol,price`. For a spin-off of `NEWCO` from `ACME` on 1 April 2024:
 
 ```csv
 date,symbol,price
@@ -116,10 +116,9 @@ A spin-off row may name the new holding without naming the old holding it came f
 that link to divide the existing pooled cost between them. During an interactive run, it asks for
 the old ticker and saves the answer to `out/spin_offs.csv`.
 
-If the run cannot ask you for the old ticker, add the required `dst,src` row to a mapping file, pass
-that file with `--spin-offs-file`, and rerun. The file needs the header line `dst,src` first. Each
-row after it gives the new ticker, then the ticker it was spun off from. For `NEWCO` spun off from
-`ACME`:
+If the run cannot ask you for the old ticker, put the mapping in a file, pass that file with
+`--spin-offs-file`, and rerun. The file starts with the header line `dst,src`. Each row after it
+gives the new ticker, then the ticker it was spun off from. For `NEWCO` spun off from `ACME`:
 
 ```csv
 dst,src
