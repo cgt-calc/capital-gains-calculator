@@ -17,6 +17,7 @@ jobs:
   pre-commit:
     name: Pre-commit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
@@ -44,6 +45,7 @@ jobs:
   tests:
     name: Tests (Python ${{ matrix.python-version }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -51,11 +53,12 @@ jobs:
         python-version: ["3.12", "3.13", "3.14"]
         include:
           # One job per extra OS is enough: platform breakage is about
-          # OS APIs and encodings, not the Python minor version.
+          # OS APIs and encodings, not the Python minor version. They run
+          # on the newest Python, where measuring coverage is cheap.
           - os: macos-latest
-            python-version: "3.12"
+            python-version: "3.14"
           - os: windows-latest
-            python-version: "3.12"
+            python-version: "3.14"
     env:
       UV_PYTHON: ${{ matrix.python-version }}
     steps:
@@ -70,11 +73,14 @@ jobs:
       - name: Run pytest
         env:
           CGT_TEST_MODE_STRICT: "1"
-        run: uv run pytest -q --cov --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
+        # Coverage is not measured on 3.12: tracing nearly triples the run
+        # there, and the other jobs execute the same lines.
+        run: uv run pytest -q ${{ matrix.python-version != '3.12' && '--cov --cov-report=xml' || '' }} --junitxml=junit.xml -o junit_family=legacy
 
       - name: Upload coverage to Codecov
-        # Codecov merges the reports from all matrix jobs. Runs from
-        # this repository authenticate with the token. Pull requests
+        if: matrix.python-version != '3.12'
+        # Codecov merges the reports from the jobs that send one. Runs
+        # from this repository authenticate with the token. Pull requests
         # from forks can't read secrets and fall back to tokenless
         # uploads, supported for public repositories.
         uses: codecov/codecov-action@v7
@@ -100,6 +106,7 @@ jobs:
   package:
     name: Package smoke test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
@@ -120,6 +127,7 @@ jobs:
   markdown-link-check:
     name: Markdown link check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
@@ -154,6 +162,7 @@ jobs:
   docker-build:
     name: Docker build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
@@ -168,7 +177,11 @@ jobs:
           tags: local/cgt-calc:test
           load: true
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Only main writes the layer cache. Every run can read main's
+          # entries, but ones written from a pull request or the merge
+          # queue are of little or no use to later runs and fill the
+          # repository's 10 GB cache limit.
+          cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max' || '' }}
 
       - name: Run the installed cgt-calc
         # The pytest step mounts the workspace over /build, which hides the

@@ -1,12 +1,12 @@
 codecov:
   notify:
-    # Wait for all test jobs (the Ubuntu matrix, macOS, Windows and
-    # Docker) before setting statuses, so they aren't computed from
-    # partial coverage.
-    after_n_builds: 6
+    # Wait for every job that measures coverage (Ubuntu on 3.13 and
+    # 3.14, macOS, Windows and Docker) before setting statuses, so they
+    # aren't computed from partial coverage.
+    after_n_builds: 5
 
 comment:
-  after_n_builds: 6
+  after_n_builds: 5
   layout: "reach, diff, flags, components, files"
 
 # Path-based coverage views, shown in the PR comment and the Codecov
