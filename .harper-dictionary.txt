@@ -81,6 +81,7 @@ currentPrice
 cusip
 DayAcquisitions
 dataclass
+depositary
 dest
 dataclasses
 DictReader

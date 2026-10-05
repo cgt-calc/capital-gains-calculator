@@ -10,7 +10,7 @@ Final balance
   Morgan Stanley: 1.00 (USD)
 
 Dividends
-  NVDA: 0.10 (GBP)
+  NVDA: 0.11, excluding 0.01 taxed at source (GBP)
 
 Interest
   Charles Schwab: 1.40 (USD)
@@ -41,7 +41,7 @@ To get a single figure, add --income with your income for 2020/2021 before the P
 The tax is an estimate: it leaves out gains that are not in the files you supplied, losses brought forward and reliefs. See https://cgt-calc.uk/usage/#tax-at-the-basic-and-higher-rate
 
 Dividends
-  Proceeds:               £23.27
+  Proceeds:               £23.29
   Tax-free allowance:  £2,000.00
   Taxable proceeds:        £0.00
 

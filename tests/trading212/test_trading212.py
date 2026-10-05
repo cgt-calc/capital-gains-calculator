@@ -309,6 +309,7 @@ def test_read_trading212_transactions_supports_2024_export(tmp_path: Path) -> No
         ActionType.TRANSFER,
         ActionType.BUY,
         ActionType.DIVIDEND,
+        ActionType.DIVIDEND_TAX,
     ]
 
     deposit = transactions[0]
@@ -325,7 +326,8 @@ def test_read_trading212_transactions_supports_2024_export(tmp_path: Path) -> No
 
     dividend = transactions[2]
     assert isinstance(dividend, Trading212Transaction)
-    assert dividend.amount == Decimal("0.40")
+    # £0.40 received for the $0.10 after tax: the $0.05 withheld is £0.20.
+    assert dividend.amount == Decimal("0.60")
     assert dividend.currency == "GBP"
     assert dividend.transaction_fee == Decimal(0)
 
@@ -1323,7 +1325,12 @@ def test_read_trading212_transactions_invalid_time(tmp_path: Path) -> None:
 def _make_dividend_row(
     total: str, overrides: Mapping[str | Trading212Column, str] | None = None
 ) -> list[str]:
-    """Build a GBP-account dividend of a USD stock with USD withholding tax."""
+    """Build a GBP-account dividend of a USD stock with USD withholding tax.
+
+    A dividend of $1.00 a share on 10 shares, with 15% withheld: Trading 212
+    states the price per share after that tax, $0.85. As in an export made
+    since late 2025, the row gives an exchange rate, in pounds per dollar.
+    """
     row: dict[str | Trading212Column, str] = {
         Trading212Column.ACTION: "Dividend (Ordinary)",
         Trading212Column.TIME: "2024-06-01 12:00:00",
@@ -1331,9 +1338,9 @@ def _make_dividend_row(
         Trading212Column.TICKER: "BAZ",
         Trading212Column.NAME: "Baz Corp",
         Trading212Column.NO_OF_SHARES: "10",
-        Trading212Column.PRICE_PER_SHARE: "1.00",
+        Trading212Column.PRICE_PER_SHARE: "0.85",
         Trading212Column.CURRENCY_PRICE_PER_SHARE: "USD",
-        Trading212Column.EXCHANGE_RATE: "1.25",
+        Trading212Column.EXCHANGE_RATE: "0.80",
         Trading212Column.TOTAL: total,
         Trading212Column.CURRENCY_TOTAL: "GBP",
         Trading212Column.WITHHOLDING_TAX: "1.50",
@@ -1344,54 +1351,26 @@ def _make_dividend_row(
     return _make_row(HEADER_2024, row)
 
 
-def test_read_trading212_transactions_withholding_tax_price_consistent(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+@pytest.mark.parametrize(
+    ("price_currency", "tax_currency"),
+    [("GBP", "GBP"), ("GBP", ""), ("GBX", "GBX")],
+)
+def test_tax_in_pounds_or_pence_is_left_in_the_amount_received(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    price_currency: str,
+    tax_currency: str,
 ) -> None:
-    """Stay quiet when only withholding tax separates the total from the price.
-
-    Trading 212 reports the gross Price per Share but a Total net of
-    withholding tax, so the tax has to be added back before comparing them.
-    """
-
-    # 10 shares at $1.00 less $1.50 tax is $8.50, or GBP 6.80 at 1.25.
-    folder = _prepare_file(tmp_path, [HEADER_2024, _make_dividend_row("6.80")])
-
-    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
-        transactions = Trading212Parser().load_from_dir(folder)
-
-    assert "does not add up" not in caplog.text
-    assert transactions[0].amount == Decimal("6.80")
-    # Withholding tax is not a dealing cost.
-    assert transactions[0].fees == Decimal(0)
-
-
-def test_read_trading212_transactions_withholding_tax_price_discrepancy(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Still warn when a dividend does not add up once tax is accounted for."""
-
-    folder = _prepare_file(tmp_path, [HEADER_2024, _make_dividend_row("6.00")])
-
-    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
-        Trading212Parser().load_from_dir(folder)
-
-    assert "does not add up" in caplog.text
-
-
-@pytest.mark.parametrize("tax_currency", ["GBP", ""])
-def test_read_trading212_transactions_account_currency_withholding_tax(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture, tax_currency: str
-) -> None:
-    """Add back withholding tax charged in the account currency.
+    """Tax in pounds or pence may be UK tax, so it gets no tax row and no warning.
 
     Some exports leave the tax currency blank, which means the currency of
-    the transaction.
+    the transaction. A share priced in pence has its tax in pence.
     """
 
     row = _make_dividend_row(
         "8.50",
         {
-            Trading212Column.CURRENCY_PRICE_PER_SHARE: "GBP",
+            Trading212Column.CURRENCY_PRICE_PER_SHARE: price_currency,
             Trading212Column.EXCHANGE_RATE: "",
             Trading212Column.CURRENCY_WITHHOLDING_TAX: tax_currency,
         },
@@ -1399,9 +1378,267 @@ def test_read_trading212_transactions_account_currency_withholding_tax(
     folder = _prepare_file(tmp_path, [HEADER_2024, row])
 
     with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
-        Trading212Parser().load_from_dir(folder)
+        transactions = Trading212Parser().load_from_dir(folder)
 
-    assert "does not add up" not in caplog.text
+    assert not caplog.text
+    assert [(t.action, t.amount) for t in transactions] == [
+        (ActionType.DIVIDEND, Decimal("8.50"))
+    ]
+
+
+def _dividend_and_tax(
+    transactions: Sequence[BrokerTransaction],
+) -> list[tuple[ActionType, str | None, Decimal | None, str]]:
+    """Return what the calculation reads from dividend rows."""
+    return [(t.action, t.symbol, t.amount, t.currency) for t in transactions]
+
+
+@pytest.mark.parametrize("exchange_rate", ["0.80", "Not available"])
+def test_a_dividend_is_recorded_before_foreign_tax(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, exchange_rate: str
+) -> None:
+    """The dividend before tax and the tax withheld become two rows in GBP.
+
+    Trading 212 states the amount received and the price per share after
+    foreign tax, so the tax is the same share of the one as of the other:
+    $1.50 of the $8.50 received is £1.20 of the £6.80. The two rows still add
+    up to the cash received.
+
+    An export made before late 2025 gives no exchange rate on a dividend, and
+    a later one gives it in pounds per dollar. Neither is needed, and neither
+    trips the price check, which reads a rate the other way round.
+    """
+    row = _make_dividend_row("6.80", {Trading212Column.EXCHANGE_RATE: exchange_rate})
+    folder = _prepare_file(tmp_path, [HEADER_2024, row])
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
+        transactions = Trading212Parser().load_from_dir(folder)
+
+    assert not caplog.text
+    assert _dividend_and_tax(transactions) == [
+        (ActionType.DIVIDEND, "BAZ", Decimal("8.00"), "GBP"),
+        (ActionType.DIVIDEND_TAX, "BAZ", Decimal("-1.20"), "GBP"),
+    ]
+    assert transactions[0].price == Decimal("0.80")
+    # Withholding tax is not a dealing cost.
+    assert transactions[0].fees == Decimal(0)
+    assert transactions[1].isin == transactions[0].isin
+    assert transactions[1].date == transactions[0].date
+    assert transactions[1].source == transactions[0].source
+
+
+def test_a_dividend_row_from_a_current_export(tmp_path: Path) -> None:
+    """A real row: the exchange rate it gives is not needed, and not used.
+
+    From the export in #709. LifeVantage paid $0.04 a share; the price is that
+    less 15%. Exports made since late 2025 give a rate on dividend rows, in
+    pounds per dollar, the other way round from a buy row. The row's own
+    figures give the same result with or without it: $0.04 is the same share
+    of £0.19 as of 7.138051 shares at $0.034.
+    """
+    row = _make_dividend_row(
+        "0.19",
+        {
+            Trading212Column.ACTION: "Dividend (Dividend manufactured payment)",
+            Trading212Column.TICKER: "LFVN",
+            Trading212Column.NO_OF_SHARES: "7.1380510000",
+            Trading212Column.PRICE_PER_SHARE: "0.034000",
+            Trading212Column.EXCHANGE_RATE: "0.78287970",
+            Trading212Column.WITHHOLDING_TAX: "0.04",
+        },
+    )
+
+    transactions = Trading212Parser().load_from_dir(
+        _prepare_file(tmp_path, [HEADER_2024, row])
+    )
+
+    assert _dividend_and_tax(transactions) == [
+        (ActionType.DIVIDEND, "LFVN", Decimal("0.2213151884"), "GBP"),
+        (ActionType.DIVIDEND_TAX, "LFVN", Decimal("-0.0313151884"), "GBP"),
+    ]
+
+
+def test_a_reversed_dividend_keeps_the_amount_received(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An adjustment that takes a taxed dividend back is not converted.
+
+    Treaty relief is worked out per payment, so converting the reversal would
+    cancel the dividend but leave the original's relief in the report. Left as
+    received, the extra income and the extra relief offset in the taxable
+    dividends, and the warning says what was left out.
+    """
+    reversal: dict[str | Trading212Column, str] = {
+        Trading212Column.ACTION: "Dividend adjustment",
+        Trading212Column.TIME: "2024-07-01 12:00:00",
+        Trading212Column.WITHHOLDING_TAX: "-1.50",
+        Trading212Column.TRANSACTION_ID: "dividend-reversal",
+    }
+    rows = [
+        HEADER_2024,
+        _make_dividend_row("6.80"),
+        _make_dividend_row("-6.80", reversal),
+    ]
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
+        transactions = Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
+
+    assert _dividend_and_tax(transactions) == [
+        (ActionType.DIVIDEND, "BAZ", Decimal("8.00"), "GBP"),
+        (ActionType.DIVIDEND_TAX, "BAZ", Decimal("-1.20"), "GBP"),
+        (ActionType.DIVIDEND, "BAZ", Decimal("-6.80"), "GBP"),
+    ]
+    assert (
+        "The BAZ dividend taken back on 2024-07-01 is recorded at the 6.80 GBP taken "
+        "back, and its 1.50 USD of tax is not converted: the original dividend's tax "
+        "at source and any treaty relief on it stay in the report" in caplog.text
+    )
+
+
+def test_tax_on_fund_interest_is_left_in_the_amount_received(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Interest distributions are not dividends, and their tax is not converted.
+
+    They are dividend rows all the same, so the price check, which reads the
+    exchange rate the other way round, does not run on them either.
+    """
+    row = _make_dividend_row("6.80", {Trading212Column.ACTION: "Dividend (Interest)"})
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
+        transactions = Trading212Parser().load_from_dir(
+            _prepare_file(tmp_path, [HEADER_2024, row])
+        )
+
+    assert not caplog.text
+    assert _dividend_and_tax(transactions) == [
+        (ActionType.INTEREST, "BAZ", Decimal("6.80"), "GBP")
+    ]
+
+
+@pytest.mark.parametrize(
+    ("account", "tax", "expected"),
+    [
+        pytest.param(
+            {Trading212Column.CURRENCY_TOTAL: "USD"},
+            {Trading212Column.CURRENCY_WITHHOLDING_TAX: "USD"},
+            [
+                (ActionType.DIVIDEND, "BAZ", Decimal("8.00"), "USD"),
+                (ActionType.DIVIDEND_TAX, "BAZ", Decimal("-1.50"), "USD"),
+            ],
+            id="US tax in a dollar account is used as it is",
+        ),
+        pytest.param(
+            {
+                Trading212Column.CURRENCY_TOTAL: "EUR",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "GBP",
+            },
+            {Trading212Column.CURRENCY_WITHHOLDING_TAX: "GBP"},
+            [(ActionType.DIVIDEND, "BAZ", Decimal("6.50"), "EUR")],
+            id="tax in pounds stays in a euro account",
+        ),
+    ],
+)
+def test_an_account_in_another_currency(
+    tmp_path: Path,
+    account: Mapping[str | Trading212Column, str],
+    tax: Mapping[str | Trading212Column, str],
+    expected: list[tuple[ActionType, str, Decimal, str]],
+) -> None:
+    """Pounds and pence are left as received whatever the account's currency.
+
+    Trading 212 credits dividends in the account's chosen currency. Tax already
+    in that currency needs no conversion, and tax in pounds may be UK tax,
+    which is not foreign tax.
+    """
+    row = _make_dividend_row("6.50", {**account, **tax})
+
+    transactions = Trading212Parser().load_from_dir(
+        _prepare_file(tmp_path, [HEADER_2024, row])
+    )
+
+    assert _dividend_and_tax(transactions) == expected
+
+
+def test_exports_that_print_the_price_differently_give_one_dividend(
+    tmp_path: Path,
+) -> None:
+    """The dividend is grossed up after overlapping exports are merged.
+
+    The merge ignores the price per share, which two exports may round
+    differently, so the amount it compares must not depend on it either.
+    """
+    folder = tmp_path / "inputs"
+    folder.mkdir()
+    for name, price in (("2024-05.csv", "0.85"), ("2024-06.csv", "0.86")):
+        row = _make_dividend_row("6.80", {Trading212Column.PRICE_PER_SHARE: price})
+        _write_csv(folder / name, [HEADER_2024, row])
+
+    transactions = Trading212Parser().load_from_dir(folder)
+
+    assert [t.action for t in transactions] == [
+        ActionType.DIVIDEND,
+        ActionType.DIVIDEND_TAX,
+    ]
+
+
+@pytest.mark.parametrize(
+    ("overrides", "received", "tax"),
+    [
+        pytest.param(
+            {Trading212Column.NO_OF_SHARES: ""}, "6.80", "1.50 USD", id="no shares"
+        ),
+        pytest.param(
+            {Trading212Column.PRICE_PER_SHARE: ""}, "6.80", "1.50 USD", id="no price"
+        ),
+        pytest.param(
+            {Trading212Column.CURRENCY_WITHHOLDING_TAX: "EUR"},
+            "6.80",
+            "1.50 EUR",
+            id="tax in a third currency",
+        ),
+        pytest.param(
+            {Trading212Column.WITHHOLDING_TAX: "-1.50"},
+            "6.80",
+            "-1.50 USD",
+            id="tax refunded on a payment",
+        ),
+        pytest.param(
+            {Trading212Column.TOTAL: "-6.80"},
+            "-6.80",
+            "1.50 USD",
+            id="tax on an amount taken back",
+        ),
+        pytest.param(
+            {Trading212Column.TOTAL: "0"},
+            "0",
+            "1.50 USD",
+            id="nothing received",
+        ),
+    ],
+)
+def test_foreign_tax_the_row_cannot_convert_leaves_the_amount_received(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    overrides: Mapping[str | Trading212Column, str],
+    received: str,
+    tax: str,
+) -> None:
+    """A row whose figures cannot convert the tax keeps the amount received."""
+    row = _make_dividend_row("6.80", overrides)
+    folder = _prepare_file(tmp_path, [HEADER_2024, row])
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
+        transactions = Trading212Parser().load_from_dir(folder)
+
+    assert _dividend_and_tax(transactions) == [
+        (ActionType.DIVIDEND, "BAZ", Decimal(received), "GBP")
+    ]
+    assert (
+        f"The BAZ dividend on 2024-06-01 is recorded at the {received} GBP received, "
+        f"without the {tax} of tax withheld, which cannot be converted from this row"
+        in caplog.text
+    )
 
 
 def test_read_trading212_transactions_invalid_decimal(tmp_path: Path) -> None:
@@ -1611,6 +1848,14 @@ def _identity(
         (
             _datetime_of(transaction),
             _transaction_id_of(transaction),
+            transaction.action,
+            transaction.amount,
+        )
+        if isinstance(transaction, Trading212Transaction)
+        # A dividend's tax row, which takes the dividend's source.
+        else (
+            transaction.source and transaction.source.timestamp,
+            None,
             transaction.action,
             transaction.amount,
         )

@@ -128,11 +128,51 @@ Combining the wrong two holdings, or splitting one, changes the gain. If you hit
 [open an issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the ISIN and
 both tickers.
 
+### Dividends and foreign tax
+
+On a dividend row, both the `Total` and the `Price / share` are after foreign tax, such as US tax on
+a US share. cgt-calc records the dividend before that tax and the tax withheld as tax at source, as
+it does for other brokers. The report's dividend income then includes the tax, and where cgt-calc
+knows the double taxation treaty with the share's country, so do its treaty figures.
+
+Tax already in your account's currency, such as US tax in a dollar account, is used as it is. When
+the tax is given in the share's currency instead, cgt-calc converts it with the row's own figures:
+the tax is the same share of the `Total` as it is of the number of shares times the price per share.
+The dividend before tax less the tax is then the amount you received. For example, 10 shares at
+$0.85 after tax, with $1.50 withheld and £6.80 received, are recorded as a £8.00 dividend and £1.20
+of tax at source. The row's `Exchange rate` is not used.
+
+cgt-calc applies treaty relief only when the tax matches the treaty rate to within a penny.
+Otherwise, it prints a warning and leaves the treaty out of the report. That happens when the tax
+was withheld at another rate, as on some depositary receipts. It can also happen with an older
+export: those seen up to early 2024 round the price per share to cents, which makes the converted
+tax slightly off on a dividend from many shares. If the export is old, replace it with a new export
+of the same period, which gives the price in full. Otherwise, check the tax withheld in Trading
+212's record of the dividend and work out the relief outside cgt-calc.
+
+If the row's figures do not allow a conversion, for example because the number of shares is missing,
+cgt-calc records the amount received and prints a warning naming the dividend. Add the tax withheld
+to your dividend income yourself and, if you use
+[`--income`](../usage.md#estimate-the-tax-from-your-income), to the figure you pass.
+
+A row that takes back an earlier dividend is recorded at the amount taken back, with a warning. Its
+tax is not converted, so the report keeps the original dividend's tax at source and any treaty
+relief on it. The report's dividend income and tax at source are then both too high by the original
+dividend's tax, and its treaty relief by the relief on the original dividend, which the PDF report
+shows beside it. That relief is not more than the tax, apart from a penny of rounding, so the
+taxable dividends are not understated. If you copy these figures from the report, take the original
+dividend's tax out of the dividend income and the tax at source, and its relief out of the treaty
+relief. The `--income` estimate includes the extra income too, which makes the estimate slightly
+high.
+
 ### Known limitations
 
-- Dividends are recorded at the CSV `Total`, which is net of withholding tax. The `Withholding tax`
-    column is only used to check the export for consistency and does not appear separately in the
-    report.
+- Some tax withheld is left in the amount received and does not appear separately in the report: tax
+    in pounds or pence, whatever your account's currency, tax with no currency given, and tax on
+    fund interest distributions (`Dividend (Interest)`). Tax in pounds may be UK tax, for example on
+    a property income distribution, which is not foreign tax. Add that tax to your income yourself
+    and, if you use [`--income`](../usage.md#estimate-the-tax-from-your-income), to the figure you
+    pass.
 - Share transfers between accounts or brokers, labelled `Transfer in` or `Transfer out`, are not
     supported.
 - One run covers one Trading 212 account. `--trading212-dir` takes a single directory and every file
