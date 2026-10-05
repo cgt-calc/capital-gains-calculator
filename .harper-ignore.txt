@@ -77,3 +77,5 @@
 ^args_validators\.py:.*MissingPreposition
 # "Trading 212's" - Harper splits the possessive after a number.
 ^trading212\.md:.*SpellCheck.*`s`
+# '-.tex' is the LaTeX source file `--output -` would have created.
+^args_validators\.py:.*`tex`

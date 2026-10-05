@@ -176,6 +176,18 @@ def test_output_rejects_a_blank_value(value: str) -> None:
     assert exc_info.value.code == 2
 
 
+@pytest.mark.parametrize("option", ["--output", "--report", "--dump-transactions"])
+def test_output_options_refuse_a_dash(
+    option: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """'-' is refused: it would otherwise name a file, such as '-' or '-.pdf'."""
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args([option, "-"])
+
+    assert exc_info.value.code == 2
+    assert "cannot be written to standard output" in capsys.readouterr().err
+
+
 @pytest.mark.parametrize(
     ("option", "attr", "filename"),
     [
@@ -936,10 +948,12 @@ def test_dump_transactions_defaults_to_no_export() -> None:
         # The option once took mode words; they are now ordinary filenames.
         "only",
         "continue",
+        # A file really named '-' can still be asked for by an explicit path.
+        "./-",
     ],
 )
 def test_dump_transactions_takes_a_path(value: str) -> None:
-    """--dump-transactions accepts any non-empty path."""
+    """--dump-transactions accepts an ordinary path."""
     parser = create_parser()
 
     args = parser.parse_args(["--dump-transactions", value])
