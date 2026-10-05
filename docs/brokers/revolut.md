@@ -57,7 +57,7 @@ The importer recognises these exact values from the CSV's `Type` column:
 | `BUY - MARKET`, `BUY - LIMIT`    | Share acquisitions                                                                                         |
 | `SELL - MARKET`, `SELL - LIMIT`  | Share disposals                                                                                            |
 | `DIVIDEND`                       | Dividend income at the amount received, after foreign tax; see [Dividends](#dividends-and-withholding-tax) |
-| `DIVIDEND TAX (CORRECTION)`      | A later change to the tax withheld from a dividend, reported as tax at source                              |
+| `DIVIDEND TAX (CORRECTION)`      | A later change to the tax on a dividend; see [Tax corrections](#tax-corrections)                           |
 | `STOCK SPLIT`                    | Changes the share count without changing the existing pooled cost                                          |
 | `CUSTODY FEE`                    | Cash leaving the broker balance                                                                            |
 | `CASH TOP-UP`, `CASH WITHDRAWAL` | Cash added to or removed from the broker balance                                                           |
