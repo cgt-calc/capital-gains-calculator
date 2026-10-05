@@ -50,6 +50,7 @@ def test_spin_offs_file_with_a_byte_order_mark_is_read(tmp_path: Path) -> None:
         pytest.param("NEW", "needs both tickers", id="no source column"),
         pytest.param("NEW,", "needs both tickers", id="empty source"),
         pytest.param(",OLD", "needs both tickers", id="empty new ticker"),
+        pytest.param("NEW,   ", "needs both tickers", id="source of only spaces"),
     ],
 )
 def test_spin_offs_file_refuses_a_malformed_row(
@@ -70,6 +71,23 @@ def test_spin_offs_file_skips_a_blank_row(tmp_path: Path, blank: str) -> None:
     """A row with nothing in it is ignored, not read as a mapping."""
     spin_offs_file = tmp_path / "spin_offs.csv"
     spin_offs_file.write_text(f"dst,src\nNEW,OLD\n{blank}\n", encoding="utf8")
+
+    assert SpinOffHandler(spin_offs_file).cache == {"NEW": "OLD"}
+
+
+def test_spin_offs_file_reports_a_short_header_before_its_rows(tmp_path: Path) -> None:
+    """A header with a column missing is the error, not the rows it makes too long."""
+    spin_offs_file = tmp_path / "spin_offs.csv"
+    spin_offs_file.write_text("dst\nNEW,OLD\n", encoding="utf8")
+
+    with pytest.raises(ParsingError, match="invalid columns"):
+        SpinOffHandler(spin_offs_file)
+
+
+def test_spin_offs_file_ignores_spaces_around_a_ticker(tmp_path: Path) -> None:
+    """Spaces typed beside the comma are not part of either ticker."""
+    spin_offs_file = tmp_path / "spin_offs.csv"
+    spin_offs_file.write_text("dst,src\n NEW , OLD \n", encoding="utf8")
 
     assert SpinOffHandler(spin_offs_file).cache == {"NEW": "OLD"}
 

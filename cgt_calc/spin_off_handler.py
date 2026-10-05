@@ -67,15 +67,18 @@ class SpinOffHandler:
                 # Skip harmless blank rows left by editors or tooling.
                 if not any((value or "").strip() for value in line.values()):
                     continue
-                # A short row leaves the missing column as None.
-                if not (line["dst"] or "").strip() or not (line["src"] or "").strip():
+                # A short row leaves the missing column as None. Spaces typed
+                # beside the comma are not part of a ticker.
+                dst = (line["dst"] or "").strip()
+                src = (line["src"] or "").strip()
+                if not dst or not src:
                     raise ParsingError(
                         self.spin_offs_file,
                         "this row needs both tickers: the new one, then the one "
                         "it was spun off from.",
                         row_index=csv_reader.line_num,
                     )
-                cache[line["dst"]] = line["src"]
+                cache[dst] = src
             return cache
 
     def _write_spin_off_file(self) -> None:
