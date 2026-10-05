@@ -7,7 +7,12 @@ import logging
 import sys
 from typing import TYPE_CHECKING, Final
 
-from .exceptions import InteractiveInputRequiredError, ParsingError, reading_as
+from .exceptions import (
+    InteractiveInputRequiredError,
+    ParsingError,
+    UnexpectedColumnCountError,
+    reading_as,
+)
 from .util import open_with_parents
 
 if TYPE_CHECKING:
@@ -43,11 +48,32 @@ class SpinOffHandler:
         ):
             csv_reader = csv.DictReader(fin)
             for line in csv_reader:
+                # A value beyond the last column is filed under the key None,
+                # which the header check below cannot sort.
+                extra = line.pop(None, None)
                 if sorted(SPIN_OFFS_HEADER) != sorted(line.keys()):
                     raise ParsingError(
                         self.spin_offs_file,
                         f"invalid columns {line.keys()}, "
                         f"they should be {SPIN_OFFS_HEADER}",
+                    )
+                if extra is not None:
+                    raise UnexpectedColumnCountError(
+                        [*line.values(), *extra],
+                        len(SPIN_OFFS_HEADER),
+                        self.spin_offs_file,
+                        row_index=csv_reader.line_num,
+                    )
+                # Skip harmless blank rows left by editors or tooling.
+                if not any((value or "").strip() for value in line.values()):
+                    continue
+                # A short row leaves the missing column as None.
+                if not (line["dst"] or "").strip() or not (line["src"] or "").strip():
+                    raise ParsingError(
+                        self.spin_offs_file,
+                        "this row needs both tickers: the new one, then the one "
+                        "it was spun off from.",
+                        row_index=csv_reader.line_num,
                     )
                 cache[line["dst"]] = line["src"]
             return cache

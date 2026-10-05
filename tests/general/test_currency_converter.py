@@ -112,6 +112,11 @@ def test_read_exchange_rates_accepts_a_byte_order_mark(tmp_path: Path) -> None:
             "Missing data",
             id="missing value",
         ),
+        pytest.param(
+            "month,currency,rate\n2024-01-01,USD,1.25,\n",
+            "Too many values in exchange rate file at line 2",
+            id="value beyond the last column",
+        ),
     ],
 )
 def test_read_exchange_rates_refuses_a_malformed_file(

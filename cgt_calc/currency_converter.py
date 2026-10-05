@@ -109,12 +109,22 @@ class CurrencyConverter:
             return cache
         for line in csv_reader:
             row_number = line_numbers[csv_reader.line_num - 1]
+            # A value beyond the last column is filed under the key None,
+            # which the header check below cannot sort.
+            extra = line.pop(None, None)
             # Guard against schema drift before touching row contents.
             if sorted(EXCHANGE_RATES_HEADER) != sorted(line.keys()):
                 raise ParsingError(
                     exchange_rates_file,
                     "Unexpected columns in exchange rate file: "
                     f"found {sorted(line.keys())}, expected {EXCHANGE_RATES_HEADER}",
+                )
+            if extra is not None:
+                raise ParsingError(
+                    exchange_rates_file,
+                    f"Too many values in exchange rate file at line {row_number}: "
+                    f"expected {len(EXCHANGE_RATES_HEADER)}, found "
+                    f"{len(EXCHANGE_RATES_HEADER) + len(extra)}",
                 )
 
             # Trim values so that whitespace-only cells count as empty.
