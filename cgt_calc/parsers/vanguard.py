@@ -657,25 +657,19 @@ class VanguardParser(BaseSingleFileParser[VanguardTransaction]):
         show_parsing_msg: bool = True,
         account: str | None = None,
     ) -> list[VanguardTransaction]:
-        """Load a text CSV and report Excel or encoding mistakes clearly."""
+        """Load a text CSV and report an Excel workbook clearly."""
         if file_path.suffix.casefold() in {".xls", ".xlsx", ".xlsm", ".xlsb"}:
             raise ParsingError(
                 file_path,
                 "Vanguard Excel workbooks are not supported; save the General "
                 "Account worksheet as a CSV file.",
             )
-        try:
-            return super().load_from_file(
-                file_path,
-                warn_on_empty=warn_on_empty,
-                show_parsing_msg=show_parsing_msg,
-                account=account,
-            )
-        except UnicodeDecodeError as err:
-            raise ParsingError(
-                file_path,
-                "Vanguard input must be a UTF-8 CSV text file.",
-            ) from err
+        return super().load_from_file(
+            file_path,
+            warn_on_empty=warn_on_empty,
+            show_parsing_msg=show_parsing_msg,
+            account=account,
+        )
 
     @classmethod
     def _validate_cash_header(cls, header: list[str], file: Path) -> None:

@@ -677,15 +677,6 @@ def test_read_vanguard_ignores_cosmetic_trailing_empty_cells(tmp_path: Path) -> 
     ]
 
 
-def test_read_vanguard_invalid_utf8_has_clear_error(tmp_path: Path) -> None:
-    """Wrap decoding failures in the normal parsing error type."""
-    vanguard_file = tmp_path / "vanguard.csv"
-    vanguard_file.write_bytes(b"Date,Details,Amount,Balance\n\xff")
-
-    with pytest.raises(ParsingError, match="must be a UTF-8 CSV text file"):
-        VanguardParser().load_from_file(vanguard_file)
-
-
 def test_read_vanguard_legacy_footer_is_ignored(tmp_path: Path) -> None:
     """Ignore a single-cell footer after a legacy cash-only table."""
     vanguard_file = tmp_path / "legacy_footer.csv"

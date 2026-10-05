@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import csv
 import io
 from typing import TYPE_CHECKING
@@ -9,6 +10,7 @@ from typing import TYPE_CHECKING
 from .util import display_str, strip_zeros
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     import datetime
     from decimal import Decimal
     from pathlib import Path
@@ -44,6 +46,32 @@ class ParsingError(CgtError):
         """Attach the row number to the error context."""
         self.row_index = row_index
         self._update_message()
+
+
+@contextmanager
+def reading_as(encoding: str, file: Path) -> Iterator[None]:
+    """Report text that is not in ``encoding`` as a parsing error naming the file.
+
+    Text is decoded as it is read, not when the file is opened, so this wraps
+    the reading rather than the ``open`` call.
+    """
+    try:
+        yield
+    except UnicodeDecodeError as err:
+        name = "UTF-8" if encoding.lower().startswith("utf") else encoding.title()
+        # The stdin marker, args_validators.STDIN_PATH, which cannot be
+        # imported here without a cycle.
+        if str(file) == "-":
+            detail = (
+                f"standard input is not {name} text. What is piped or redirected "
+                f"into it must be {name}."
+            )
+        else:
+            detail = (
+                f"this file is not {name} text. Save it as {name}, or use the "
+                "original file if another program re-saved it."
+            )
+        raise ParsingError(file, detail) from err
 
 
 class UnsupportedBrokerCurrencyError(ParsingError):

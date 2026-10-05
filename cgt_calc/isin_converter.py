@@ -26,6 +26,7 @@ from .exceptions import (
     IsinTranslationError,
     ParsingError,
     UnexpectedColumnCountError,
+    reading_as,
 )
 from .model import Isin
 from .resources import RESOURCES_PACKAGE
@@ -281,7 +282,10 @@ class IsinConverter:
             file_label = (
                 source if isinstance(source, Path) else Path("resources") / source.name
             )
-            with source.open(encoding="utf-8-sig") as csv_file:
+            with (
+                reading_as("utf-8-sig", file_label),
+                source.open(encoding="utf-8-sig") as csv_file,
+            ):
                 lines = list(csv.reader(csv_file))
             if not lines:
                 return {}
