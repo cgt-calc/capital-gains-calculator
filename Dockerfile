@@ -43,9 +43,10 @@ COPY cgt_calc /build/cgt_calc
 ARG VERSION
 
 # --no-editable installs the package into the venv itself,
-# so the runtime stage only needs the venv.
+# so the runtime stage only needs the venv. Without --frozen,
+# `uv version` would first install the dev dependencies too.
 RUN --mount=type=cache,target=/root/.cache \
-    if [ -n "$VERSION" ]; then uv version "$VERSION"; fi \
+    if [ -n "$VERSION" ]; then uv version --frozen "$VERSION"; fi \
  && uv sync --frozen --no-dev --no-editable
 
 FROM base AS runtime
