@@ -68,8 +68,10 @@ selects another path.
 
 cgt-calc can create or rewrite this file after a successful lookup. Tickers read from your broker
 transactions are used for the run but never written to the file: cached, they would be read back as
-reference data and could contradict a later run. It starts with the bundled
-[`initial_isin_translation.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv).
+reference data and could contradict a later run. The file holds only the mappings you add and the
+ones a lookup finds. cgt-calc reads them on top of the bundled
+[`initial_isin_translation.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv),
+which is never copied into the file.
 
 To add or correct a mapping yourself, edit the file, or create it if it does not exist yet. It is a
 CSV file that starts with the header line `ISIN,symbol`. Each row after it gives one ISIN, then
@@ -83,7 +85,11 @@ IE00B3XXRP09,VUSA,VUSD
 
 That row is already in the bundled list and only shows the format. When you write your own:
 
-- Write each ticker exactly as the cgt-calc report shows it.
+- Write each ticker exactly as the cgt-calc report shows it, with no space before or after it. A
+    space is read as part of the ticker, with no warning, and the mapping then never matches.
+- A Vanguard holding that the report shows under its fund name is written with that name in place of
+    a ticker. If the name contains a comma, put it in double quotes, as the **no ISIN mapping was
+    found** warning prints it.
 - Give each ISIN one row. A row for an existing ISIN replaces its bundled symbols, so put every
     verified ticker for that ISIN on the same row. If two rows give the same ISIN, only the last is
     used.

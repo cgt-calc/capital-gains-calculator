@@ -136,8 +136,8 @@ cgt-calc --year 2025 --vanguard-file vanguard.csv \
 ```
 
 This option selects a read/write cache, not a read-only input. cgt-calc may create or rewrite the
-file when it learns a mapping from a transaction or a successful Open FIGI lookup. Keep a separate
-copy of manually curated data if you need an immutable record; see
+file after a successful Open FIGI lookup. Keep a separate copy of manually curated data if you need
+an immutable record; see
 [ISIN to ticker translation](../extra-data-and-options.md#isin-to-ticker-translation).
 
 A missing mapping produces a warning naming each affected Vanguard symbol. Check that warning and
