@@ -16,10 +16,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
 WORKDIR /data
 ENTRYPOINT ["/bin/bash"]
 
-# Install the dependencies into a virtual environment. This stage
-# doesn't need LaTeX, so dependency changes don't invalidate the
-# texlive layer and both stages can build in parallel.
-FROM base AS deps
+# What the build stages below share. None of them needs LaTeX, so
+# they don't invalidate the texlive layer and build in parallel with it.
+FROM base AS build
 
 # Copy uv static binary
 COPY --from=uv /uv /uvx /bin/
@@ -31,18 +30,32 @@ ENV UV_COMPILE_BYTECODE=1
 
 WORKDIR /build
 
-# Only the dependency manifests: this stage is rebuilt when they
-# change, not when the source does.
+# List the runtime dependencies. This stage reruns whenever a manifest
+# changes, but the list it writes changes only when a runtime
+# dependency does.
+FROM build AS requirements
+
 COPY pyproject.toml uv.lock /build/
 
+RUN uv export --frozen --no-dev --no-emit-project --quiet -o requirements.txt
+
+# Install the dependencies into a virtual environment. Only the list
+# is copied in, and a copy is cached by its content, so this stage is
+# rebuilt when the list changes and not on every edit to a manifest.
+FROM build AS deps
+
+COPY --from=requirements /build/requirements.txt /build/
+
+# --prompt gives the venv the name `uv sync` would have given it.
 RUN --mount=type=cache,target=/root/.cache \
-    uv sync --frozen --no-install-project --no-dev
+    uv venv --prompt cgt-calc \
+ && uv pip install --require-hashes -r requirements.txt
 
 # Build the package's wheel from the source.
-FROM deps AS wheel
+FROM build AS wheel
 
 # README.md is required by the build backend (project.readme).
-COPY README.md LICENSE /build/
+COPY pyproject.toml README.md LICENSE /build/
 COPY cgt_calc /build/cgt_calc
 
 # Package version to stamp, e.g. "v2.1.0" or "2.0.0.post127+gabc1234".
@@ -85,4 +98,7 @@ RUN printf '%s\n' 'exec /build/.venv/bin/cgt-calc "$@"' > /bin/cgt-calc \
 # (CI, local) get it by default; publishing targets the runtime stage.
 FROM runtime AS test
 
-COPY --from=deps /bin/uv /bin/uvx /bin/
+# --link makes this layer independent of the ones below, so it is
+# reused when they change. It cannot follow the /bin symlink, hence
+# /usr/local/bin, which is on the PATH.
+COPY --link --from=uv /uv /uvx /usr/local/bin/
