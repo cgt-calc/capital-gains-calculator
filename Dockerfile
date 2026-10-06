@@ -66,8 +66,8 @@ COPY pyproject.toml README.md LICENSE /build/
 COPY cgt_calc /build/cgt_calc
 
 # Package version to stamp, e.g. "v2.1.0" or "2.0.0.post127+gabc1234".
-# Declared this late on purpose: changing it only invalidates the
-# wheel build below, not the copies above.
+# Declared in this stage only, so a new version invalidates the wheel
+# build below and none of the dependency stages.
 ARG VERSION
 
 # Without --frozen, `uv version` would first install the dev
