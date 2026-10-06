@@ -26,6 +26,7 @@ from .exceptions import (
     IsinTranslationError,
     ParsingError,
     UnexpectedColumnCountError,
+    UnexpectedHeaderError,
     reading_as,
 )
 from .model import Isin
@@ -291,12 +292,7 @@ class IsinConverter:
                 return {}
             header = lines[0]
             if header != ISIN_TRANSLATION_HEADER:
-                raise ParsingError(
-                    file_label,
-                    "Unexpected header in ISIN translation data: "
-                    f"expected {ISIN_TRANSLATION_HEADER}, found {header}",
-                    row_index=1,
-                )
+                raise UnexpectedHeaderError(header, ISIN_TRANSLATION_HEADER, file_label)
             entries: dict[Isin, set[str]] = {}
             for index, row in enumerate(lines[1:], start=2):
                 # Skip harmless blank rows left by editors or tooling.

@@ -11,6 +11,7 @@ from .exceptions import (
     InteractiveInputRequiredError,
     ParsingError,
     UnexpectedColumnCountError,
+    UnexpectedHeaderError,
     reading_as,
 )
 from .util import open_with_parents
@@ -51,10 +52,8 @@ class SpinOffHandler:
             # Checked before any row: a file of one mapping and no header has
             # no row left to check, and would be read as empty.
             if header is not None and sorted(header) != sorted(SPIN_OFFS_HEADER):
-                raise ParsingError(
-                    self.spin_offs_file,
-                    f"invalid columns {header}, they should be {SPIN_OFFS_HEADER}",
-                    row_index=1,
+                raise UnexpectedHeaderError(
+                    header, SPIN_OFFS_HEADER, self.spin_offs_file
                 )
             for line in csv_reader:
                 # A value beyond the last column is filed under the key None.

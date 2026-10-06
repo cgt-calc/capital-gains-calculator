@@ -17,6 +17,7 @@ from .exceptions import (
     ParsingError,
     SharePriceMissingError,
     UnexpectedColumnCountError,
+    UnexpectedHeaderError,
     reading_as,
 )
 from .resources import RESOURCES_PACKAGE
@@ -126,12 +127,7 @@ class SharePrices:
         # Skipped unread, the first line of a file with no header would be a
         # price dropped without a word.
         if lines and [cell.strip().lower() for cell in lines[0]] != SHARE_PRICES_HEADER:
-            raise ParsingError(
-                file,
-                "Unexpected header in share prices file: "
-                f"expected {SHARE_PRICES_HEADER}, found {lines[0]}",
-                row_index=1,
-            )
+            raise UnexpectedHeaderError(lines[0], SHARE_PRICES_HEADER, file)
         lines = lines[1:]
         # The ticker each price was written under, to name an earlier one.
         stated: dict[tuple[datetime.date, str], str] = {}

@@ -32,16 +32,33 @@ def test_load_custom_file(tmp_path: Path) -> None:
     assert prices.get(datetime.date(2021, 3, 8), "FOO", "USD") == Decimal("10.5")
 
 
-def test_a_prices_file_without_its_header_is_refused(tmp_path: Path) -> None:
-    """A first line that is a price is not skipped as if it were the header."""
+@pytest.mark.parametrize(
+    ("content", "detail"),
+    [
+        pytest.param(
+            '"Apr 01, 2024",ACME,94.00\n"Apr 01, 2024",NEWCO,17.50\n',
+            "This line must be the header 'date,symbol,price', but it is:\n"
+            "  '\"Apr 01, 2024\",ACME,94.00'",
+            id="a price where the header belongs",
+        ),
+        pytest.param(
+            ' , , \ndate,symbol,price\n"Apr 01, 2024",ACME,94.00\n',
+            "This line must be the header 'date,symbol,price', but it is blank.",
+            id="a line of spaces and commas above the header",
+        ),
+    ],
+)
+def test_a_prices_file_whose_first_line_is_not_the_header_is_refused(
+    tmp_path: Path, content: str, detail: str
+) -> None:
+    """A first line that is not the header is reported, not skipped as one."""
     prices_file = tmp_path / "share_prices.csv"
-    prices_file.write_text('"Apr 01, 2024",ACME,94.00\n"Apr 01, 2024",NEWCO,17.50\n')
+    prices_file.write_text(content)
 
-    with pytest.raises(
-        ParsingError, match="Unexpected header in share prices file"
-    ) as excinfo:
+    with pytest.raises(ParsingError) as excinfo:
         SharePrices(prices_file=prices_file)
 
+    assert excinfo.value.detail == detail
     assert excinfo.value.row_index == 1
 
 
@@ -82,7 +99,7 @@ def test_get_missing_price(tmp_path: Path) -> None:
         SharePriceMissingError,
         match=re.escape(
             "No share price for FOO on 2021-03-08: add it to a file passed with "
-            "--prices-file"
+            "--prices-file (header 'date,symbol,price')"
         ),
     ):
         prices.get(datetime.date(2021, 3, 8), "FOO", "USD")
@@ -290,7 +307,7 @@ def test_a_vest_without_a_price_is_priced_in_its_own_currency(
             match=re.escape(
                 "is in USD, but the transaction is in GBP. Enter the vest's price in "
                 "the row, or give it in the transaction's currency in a file passed "
-                "with --prices-file."
+                "with --prices-file (header 'date,symbol,price')."
             ),
         ):
             calculate_cgt(create_parser().parse_args(args))

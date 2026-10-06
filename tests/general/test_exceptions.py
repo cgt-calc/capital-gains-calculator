@@ -33,6 +33,7 @@ from cgt_calc.exceptions import (
     TransactionDumpError,
     UnclassifiedGiftError,
     UnexpectedColumnCountError,
+    UnexpectedHeaderError,
     UnexpectedRowCountError,
     UnsupportedBrokerCurrencyError,
 )
@@ -122,6 +123,10 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
         UnexpectedColumnCountError(["only", "two"], 3, Path("f.csv")),
         ["f.csv", "3", "only", "two"],
     ),
+    (
+        UnexpectedHeaderError(["NEW", "OLD"], ["dst", "src"], Path("f.csv")),
+        ["f.csv", "row 1", "dst,src", "NEW,OLD"],
+    ),
     (UnexpectedRowCountError(5, Path("f.csv")), ["f.csv", "5"]),
     (ExchangeRateMissingError("USD", DATE), ["USD", "2023-01-01"]),
     (SharePriceMissingError("FOO", DATE), ["FOO", "2023-01-01"]),
@@ -141,7 +146,10 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
         InteractiveInputRequiredError("FOO", DATE, Path("spin_offs.csv")),
         ["FOO", "2023-01-01", "spin_offs.csv"],
     ),
-    (MarketDataMissingError("FOO", DATE), ["FOO", "2023-01-01"]),
+    (
+        MarketDataMissingError("FOO", DATE),
+        ["FOO", "2023-01-01", "--prices-file (header 'date,symbol,price')"],
+    ),
     (
         UnclassifiedGiftError(TRANSACTION, [Decimal(1)]),
         # The row to paste, the shares it covers, and the other outcome.
