@@ -166,6 +166,10 @@ jobs:
     name: Docker build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Stamped into the image, as a publish build stamps a real version,
+      # and read back below.
+      IMAGE_VERSION: 0.0.0.post1+ci
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
@@ -179,6 +183,8 @@ jobs:
           context: .
           tags: local/cgt-calc:test
           load: true
+          build-args: |
+            VERSION=${{ env.IMAGE_VERSION }}
           cache-from: type=gha
           # Only main writes the layer cache. Every run can read main's
           # entries, but ones written from a pull request or the merge
@@ -196,7 +202,7 @@ jobs:
             -e CGT_TEST_MODE_STRICT=1 \
             -v "${{ github.workspace }}:/data" \
             local/cgt-calc:test \
-            -lc "cgt-calc --year 2022 --raw-file tests/raw/data/test_data.csv --no-balance-check --exchange-rates-file tests/exchange_rates_data.csv --output /tmp/report.pdf && test -s /tmp/report.pdf"
+            -lc "cgt-calc --version | grep -Fx 'cgt-calc $IMAGE_VERSION' && cgt-calc --year 2022 --raw-file tests/raw/data/test_data.csv --no-balance-check --exchange-rates-file tests/exchange_rates_data.csv --output /tmp/report.pdf && test -s /tmp/report.pdf"
 
       - name: Run pytest inside container
         run: |
@@ -236,3 +242,19 @@ jobs:
           # Long enough to look into a failed run, short of the 90-day default
           # that keeps every push's reports for a quarter.
           retention-days: 14
+
+      - name: Check the package is a small layer of its own
+        # A source change should rewrite this layer, which is a few MB, and
+        # not the dependencies below it. If the install step ever rewrote
+        # them as well, for example by recompiling their bytecode, every
+        # push would cache them and every pull would download them again.
+        # Last, so that a failure here skips none of the steps above.
+        run: |
+          docker history --no-trunc --human=false --format '{{.Size}}\t{{.CreatedBy}}' local/cgt-calc:test |
+            awk -F'\t' '
+              { print }
+              /uv pip install/ { found = 1; size = $1 }
+              END {
+                if (!found) { print "No layer installs the package with uv pip install."; exit 1 }
+                if (size > 20000000) { print "The package layer is " size " bytes, expected under 20 MB."; exit 1 }
+              }'
