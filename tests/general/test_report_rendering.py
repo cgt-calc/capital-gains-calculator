@@ -6,12 +6,16 @@ arithmetic, not a defect. What must not happen is a line out by the fee: the
 proceeds shown net of the sale fee beside an allowable cost that already
 includes it. The figures are parsed back out of the LaTeX source, so the
 check covers what the reader sees rather than the values behind it.
+
+A name from the user's files is printed as text: the characters LaTeX acts on
+are escaped, in the source and, where pdflatex is available, in a compiled PDF.
 """
 
 from __future__ import annotations
 
 import datetime
 from decimal import Decimal
+import os
 import re
 from typing import TYPE_CHECKING
 
@@ -157,6 +161,8 @@ def test_a_holding_s_name_is_escaped_for_latex(
         [
             transaction(POOL_DAY, ActionType.BUY, name, 10, 100, 0, -1000, GBP),
             transaction(BAR_SALE_DAY, ActionType.SELL, name, 10, 120, 0, 1200, GBP),
+            # A line from the income half of the report, read by the last check.
+            transaction(BAR_SALE_DAY, ActionType.DIVIDEND, name, None, None, 0, 5, GBP),
         ],
     )
 
@@ -165,3 +171,26 @@ def test_a_holding_s_name_is_escaped_for_latex(
 
     assert f"units of A{escaped}B for £1,000.00" in source
     assert name not in source
+
+
+@pytest.mark.skipif(not os.getenv("ENABLE_PDFLATEX"), reason="needs pdflatex")
+def test_a_name_with_every_escaped_character_compiles(tmp_path: Path) -> None:
+    """Pdflatex accepts the escaped spellings, in a heading and in running text.
+
+    The name starts with an ampersand that stops pdflatex when it is not
+    escaped. Led by a backslash it would compile without the fix: the percent
+    sign would hide the rest.
+    """
+    name = "S&P 80% Fund_A #1 {x} ~ ^ < > | \\ $"
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            transaction(POOL_DAY, ActionType.BUY, name, 10, 100, 0, -1000, GBP),
+            transaction(BAR_SALE_DAY, ActionType.SELL, name, 10, 120, 0, 1200, GBP),
+            transaction(BAR_SALE_DAY, ActionType.DIVIDEND, name, None, None, 0, 5, GBP),
+        ],
+    )
+
+    render_pdf(report, tmp_path / "report.pdf")
+
+    assert (tmp_path / "report.pdf").stat().st_size > 0
