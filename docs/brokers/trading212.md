@@ -116,17 +116,24 @@ transaction stamped after 23:00 UTC on 5 April belongs to the following tax year
 ### Tickers and exchange listings
 
 Trading 212 names a security by the ticker of the listing you traded, so one security can appear
-under two tickers: the Xetra line of a US share carries its German code. cgt-calc pools, matches and
-prices holdings by ticker, so it rewrites the aliases it has confirmed to the ticker of the primary
-listing, and the report shows one holding rather than two. `NVD` under `US67066G1040` is reported as
-`NVDA`, and `1YD` under `US11135F1012` as `AVGO`. The rewrite is scoped to that ISIN: the same
-ticker code under another security is left alone.
+under two tickers: the German line of a US share carries its German code, and a fund has a ticker
+for each currency it trades in. cgt-calc pools, matches and prices holdings by ticker, so it
+rewrites the aliases it has confirmed to one ticker for the security, and the report shows one
+holding rather than two. A share is reported under the ticker of its home market and a fund under
+its London ticker: `NVD` under `US67066G1040` is reported as `NVDA`, and `VUSD` under `IE00B3XXRP09`
+as `VUSA`. The rewrite is scoped to that ISIN: the same ticker code under another security is left
+alone.
 
 Only confirmed pairs are rewritten. Where your exports disagree about a security, cgt-calc refuses
 rather than guess: an unrecognised second ticker for one ISIN, or one ticker used for two ISINs.
 Combining the wrong two holdings, or splitting one, changes the gain. If you hit that, please
 [open an issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the ISIN and
 both tickers.
+
+One case is not refused. Where cgt-calc's own list of securities already gives a fund several
+tickers and the pair is not one it rewrites, both tickers are accepted and the fund is kept as two
+holdings, each with its own cost. Check the portfolio in the report: if one fund appears under two
+tickers, please report the pair in the same way.
 
 ### Dividends and foreign tax
 

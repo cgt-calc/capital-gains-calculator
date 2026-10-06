@@ -116,6 +116,7 @@ freetrade
 FX
 GA
 gbp
+GDX
 GE
 GIA
 GOOG
@@ -276,6 +277,7 @@ shtab
 SICAV
 SIPP
 SLF001
+SMH
 SOLV
 SortValue
 SpinOff
