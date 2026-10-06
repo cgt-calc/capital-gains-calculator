@@ -126,8 +126,8 @@ UNSUPPORTED_ACTIONS: Final = frozenset(
 TOTAL_ABS_TOLERANCE: Final = Decimal("0.01")
 
 # The fewest decimal places Trading 212 prints a total, a price and an exchange
-# rate to. A figure with fewer has lost its trailing zeros to a spreadsheet or
-# to typing, which is not precision it never had.
+# rate to. A figure with fewer has only lost trailing zeros to a spreadsheet or
+# to typing, and is as precise as before.
 TOTAL_UNIT: Final = Decimal("0.01")
 PRICE_UNIT: Final = Decimal("0.01")
 RATE_UNIT: Final = Decimal("0.00001")
@@ -467,16 +467,17 @@ class Trading212Transaction(BrokerTransaction):
         # price for every share, and of the exchange rate across the whole
         # value. A fixed allowance per share warned on small purchases of a
         # share priced in pence, where a penny of rounding in the total is a
-        # large part of a penny a share. One unit and not half: the exchange
-        # rate is cut off, not rounded, and real rows are out by a whole unit
-        # of its last digit.
+        # large part of a penny a share. One unit and not half: the eight-place
+        # exchange rate of a current export is cut off, not rounded, and real
+        # rows are out by a whole unit of its last digit.
         # A fee in the total's currency gets no allowance: the total is the
         # rounded value and the rounded fee, so taking the fee off leaves the
         # rounded value, as it does in every real row with a conversion fee,
         # stamp duty, stamp duty reserve tax or French transaction tax. A fee
         # in the price's currency is converted here at the row's rate, which
-        # is not how it reached the total, so it is allowed a unit of the
-        # total.
+        # may not be how it reached the total. No real row has one, so such a
+        # row is allowed a unit of the total: enough for three fees that were
+        # each rounded to a penny on their own.
         # Not on a dividend row of any kind: its price per share is after
         # foreign tax, and the exchange rate a current export gives on it runs
         # the other way.

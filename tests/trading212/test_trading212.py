@@ -1042,15 +1042,15 @@ def _make_trade_row(
         pytest.param(
             ("1000.0000000000", "150.0000000000", "USD", "1.25123", "119881.44"),
             {},
-            id="the exchange rate cut off at five places",
+            id="the exchange rate out by most of its last digit",
         ),
         pytest.param(
-            ("4.0000000000", "10.3400000000", "USD", "1.25123456", "32.98"),
+            ("383.0000000000", "10.3900000000", "USD", "1.25123456", "3180.20"),
             {
                 Trading212Column.ACTION: "Market sell",
-                Trading212Column.FINRA_FEE: "0.03",
+                Trading212Column.FINRA_FEE: "0.07",
                 Trading212Column.CURRENCY_FINRA_FEE: "USD",
-                Trading212Column.TRANSACTION_FEE: "0.08",
+                Trading212Column.TRANSACTION_FEE: "0.11",
                 Trading212Column.CURRENCY_TRANSACTION_FEE: "USD",
             },
             id="two fees in the price's currency",
@@ -1068,9 +1068,9 @@ def test_a_gap_the_printed_figures_allow_does_not_warn(
     Three shares at 512.3p are 15.369 GBP, exported as 15.37: a thirtieth of
     a penny a share, which a fixed allowance per share took for a wrong
     price. Seven shares at a price printed as 31.27 may have cost 31.274
-    each. A thousand shares at $150 are 119,882.04 GBP at 1.25123, but that
-    rate is cut off, so the total can be up to 96p below. Two dollar fees
-    were each rounded to a penny before they reached the total, and the
+    each. A thousand shares at $150 are 119,882.04 GBP at 1.25123, but a
+    rate that is cut off puts the total up to 96p below. Two dollar fees may
+    each have been rounded to a penny before they reached the total, and the
     check converts them unrounded.
     """
     folder = _prepare_file(
@@ -1087,12 +1087,12 @@ def test_a_gap_the_printed_figures_allow_does_not_warn(
     ("figures", "overrides", "action", "stated", "implied"),
     [
         pytest.param(
-            ("100.0000000000", "5.0000000000", "GBP", "1.00000000", "499.50"),
+            ("100.0000000000", "5.0000000000", "GBP", "1.00000000", "499.98"),
             {},
             "Market buy",
-            "499.50",
+            "499.98",
             "500.00",
-            id="fifty pence short on a hundred shares",
+            id="two pence short on a hundred shares",
         ),
         pytest.param(
             ("20000.0000000000", "6.0000000000", "GBP", "1.00000", "120000.50"),
@@ -1111,6 +1111,14 @@ def test_a_gap_the_printed_figures_allow_does_not_warn(
             id="figures that lost their trailing zeros",
         ),
         pytest.param(
+            ("10", "150.00", "USD", "1.25", "1205.00"),
+            {},
+            "Market buy",
+            "1205.00",
+            "1200.00",
+            id="an exchange rate that lost its trailing zeros",
+        ),
+        pytest.param(
             ("1000", "512.30", "GBX", "100.00000", "5123.14"),
             {},
             "Market buy",
@@ -1119,16 +1127,16 @@ def test_a_gap_the_printed_figures_allow_does_not_warn(
             id="a price in pence is allowed pence, not pounds",
         ),
         pytest.param(
-            ("10.0000000000", "15.0000000000", "USD", "1.25000000", "119.32"),
+            ("10.0000000000", "15.0000000000", "USD", "1.25000000", "119.80"),
             {
                 Trading212Column.ACTION: "Market sell",
                 Trading212Column.CURRENCY_CONVERSION_FEE: "0.18",
                 Trading212Column.CURRENCY_CURRENCY_CONVERSION_FEE: "GBP",
             },
             "Market sell",
-            "119.32",
+            "119.80",
             "119.82",
-            id="a sale after its fee",
+            id="a sale two pence short after a fee in pounds",
         ),
     ],
 )
@@ -1143,10 +1151,11 @@ def test_a_total_out_by_more_than_the_figures_allow_warns(
 ) -> None:
     """A gap that rounding cannot explain warns, however small it is a share.
 
-    Fifty pence on 100 shares is half a penny a share, under the old fixed
-    allowance, and still wrong when the price is printed to ten places. The
-    warning gives the total in the row and the total its other figures come
-    to, after fees.
+    Two pence on 100 shares is a fiftieth of a penny a share, far under the
+    old fixed allowance, and still wrong when the price is printed to ten
+    places. A fee in pounds earns no more allowance than that. The warning
+    gives the total in the row and the total its other figures come to,
+    after fees.
     """
     folder = _prepare_file(
         tmp_path, [HEADER_2026, _make_trade_row(*figures, overrides)]

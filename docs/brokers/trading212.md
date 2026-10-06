@@ -310,7 +310,8 @@ run.
 
 cgt-calc warns when a trade's `Total` differs from its number of shares times its price, after the
 exchange rate and fees, by more than the rounding of those figures can explain. The warning names
-the transaction and gives both totals. cgt-calc continues and uses the `Total` in the row, not the
-price. Compare the row with the transaction in Trading 212. If the total there is the one in the
-row, the report is unaffected. If it differs, export the period again, or correct the `Total` in a
-working copy of the export, and run the calculation again.
+the transaction and gives both totals. cgt-calc continues and uses the `Total` and the number of
+shares in the row, not the price. Compare the row with the transaction in Trading 212. If the total
+and the number of shares there are the ones in the row, the report is unaffected. If either differs,
+export the period again, or correct it in a working copy of the export, and run the calculation
+again.
