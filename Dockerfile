@@ -62,8 +62,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=deps /build/.venv /build/.venv
 
 # The bind mount lends this step uv and the wheel, so neither stays
-# in the image.
+# in the image. PYTHONDONTWRITEBYTECODE stops Python caching the
+# standard-library modules it imports while installing, which would
+# land in this layer. The package's own bytecode is still compiled.
 RUN --mount=type=bind,from=wheel,target=/mnt \
+    PYTHONDONTWRITEBYTECODE=1 \
     /mnt/bin/uv pip install --python /build/.venv --no-deps --no-cache \
       --compile-bytecode /mnt/build/dist/*.whl
 
