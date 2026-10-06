@@ -42,9 +42,9 @@ _LATEX_ESCAPES: Final = str.maketrans(
 )
 
 
-def _escape_latex(value: object) -> object:
-    """Escape text the template prints; numbers and dates pass through."""
-    return value.translate(_LATEX_ESCAPES) if isinstance(value, str) else value
+def _escape_latex(value: object) -> str:
+    """Escape a value the template prints, whatever its type, as its text."""
+    return str(value).translate(_LATEX_ESCAPES)
 
 
 def render_pdf(

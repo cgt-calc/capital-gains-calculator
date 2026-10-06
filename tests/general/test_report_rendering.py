@@ -170,6 +170,7 @@ def test_a_holding_s_name_is_escaped_for_latex(
     source = (tmp_path / "report.tex").read_text(encoding="utf-8")
 
     assert f"units of A{escaped}B for £1,000.00" in source
+    assert f"A{escaped}B for £5.00" in source
     assert name not in source
 
 
