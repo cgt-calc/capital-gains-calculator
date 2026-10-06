@@ -192,10 +192,20 @@ jobs:
           # repository's 10 GB cache limit.
           cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max' || '' }}
 
-      - name: Show the image's layers
-        # The package should be a small layer above the large dependency
-        # one: that is what keeps a source change cheap to cache and pull.
-        run: docker history --no-trunc --format '{{.Size}}\t{{.CreatedBy}}' local/cgt-calc:test
+      - name: Check the package is a small layer of its own
+        # A source change should rewrite only this layer, which is about
+        # 4 MB. If the install step ever rewrote the dependencies as well,
+        # for example by recompiling their bytecode, every push would
+        # cache and every pull would download them again.
+        run: |
+          docker history --no-trunc --human=false --format '{{.Size}}\t{{.CreatedBy}}' local/cgt-calc:test |
+            awk -F'\t' '
+              { print }
+              /uv pip install/ { found = 1; size = $1 }
+              END {
+                if (!found) { print "No layer installs the package with uv pip install."; exit 1 }
+                if (size > 20000000) { print "The package layer is " size " bytes, expected under 20 MB."; exit 1 }
+              }'
 
       - name: Run the installed cgt-calc
         # The pytest step mounts the workspace over /build, which hides the
