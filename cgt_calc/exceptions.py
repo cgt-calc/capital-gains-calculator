@@ -263,9 +263,12 @@ class UnexpectedHeaderError(ParsingError):
         *,
         row_index: int = 1,
     ):
-        """Initialise with the line found where the header belongs."""
+        """Initialise with the line found where the header belongs.
+
+        Both are quoted, so that a space at the end of a name can be seen.
+        """
         found = (
-            f":\n  {_as_csv(header)}"
+            f":\n  '{_as_csv(header)}'"
             if any(cell.strip() for cell in header)
             else " blank."
         )

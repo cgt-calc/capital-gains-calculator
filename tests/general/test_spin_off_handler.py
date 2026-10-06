@@ -87,6 +87,8 @@ def test_spin_offs_file_skips_a_blank_row(tmp_path: Path, blank: str) -> None:
         pytest.param(
             "dst,src,src\nNEW,OLD,OTHER\n", "dst,src,src", id="column named twice"
         ),
+        # Quoted, or the line shown would look like the header it must be.
+        pytest.param("dst,src \nNEW,OLD\n", "dst,src ", id="space after a name"),
     ],
 )
 def test_spin_offs_file_reports_a_wrong_first_line(
@@ -98,7 +100,7 @@ def test_spin_offs_file_reports_a_wrong_first_line(
 
     with pytest.raises(
         ParsingError,
-        match=re.escape(f"must be the header 'dst,src', but it is:\n  {found}"),
+        match=re.escape(f"must be the header 'dst,src', but it is:\n  '{found}'"),
     ) as excinfo:
         SpinOffHandler(spin_offs_file)
 

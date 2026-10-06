@@ -554,7 +554,9 @@ def test_translation_file_bad_header(tmp_path: Path) -> None:
 
     with pytest.raises(
         ParsingError,
-        match=re.escape("must be the header 'ISIN,symbol', but it is:\n  Wrong,Header"),
+        match=re.escape(
+            "must be the header 'ISIN,symbol', but it is:\n  'Wrong,Header'"
+        ),
     ):
         IsinConverter(isin_translation_file=translation_file)
 

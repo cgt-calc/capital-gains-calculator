@@ -38,13 +38,13 @@ def test_load_custom_file(tmp_path: Path) -> None:
         pytest.param(
             '"Apr 01, 2024",ACME,94.00\n"Apr 01, 2024",NEWCO,17.50\n',
             "This line must be the header 'date,symbol,price', but it is:\n"
-            '  "Apr 01, 2024",ACME,94.00',
+            "  '\"Apr 01, 2024\",ACME,94.00'",
             id="a price where the header belongs",
         ),
         pytest.param(
-            '\ndate,symbol,price\n"Apr 01, 2024",ACME,94.00\n',
+            ' , , \ndate,symbol,price\n"Apr 01, 2024",ACME,94.00\n',
             "This line must be the header 'date,symbol,price', but it is blank.",
-            id="a blank line above the header",
+            id="a line of spaces and commas above the header",
         ),
     ],
 )
