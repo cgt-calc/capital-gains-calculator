@@ -15,6 +15,8 @@ from decimal import Decimal
 import re
 from typing import TYPE_CHECKING
 
+import pytest
+
 from cgt_calc.model import ActionType
 from cgt_calc.render_latex import render_pdf
 
@@ -121,3 +123,45 @@ def test_lines_add_up_to_their_heading_and_the_total(tmp_path: Path) -> None:
     assert total is not None
     headings = [proceeds for _, proceeds, _ in found]
     assert abs(sum(headings) - money(total[1])) <= PENNY * len(headings)
+
+
+@pytest.mark.parametrize(
+    ("character", "escaped"),
+    [
+        ("%", r"\%"),
+        ("&", r"\&"),
+        ("_", r"\_"),
+        ("#", r"\#"),
+        ("$", r"\$"),
+        ("{", r"\{"),
+        ("}", r"\}"),
+        ("^", r"\textasciicircum{}"),
+        ("~", r"\textasciitilde{}"),
+        ("\\", r"\textbackslash{}"),
+        ("<", r"\textless{}"),
+        (">", r"\textgreater{}"),
+        ("|", r"\textbar{}"),
+    ],
+)
+def test_a_holding_s_name_is_escaped_for_latex(
+    tmp_path: Path, character: str, escaped: str
+) -> None:
+    """A character LaTeX acts on is printed as text, and the line keeps its cost.
+
+    Left as it is, `%` starts a comment that drops the rest of the line, cost
+    included, and most of the others stop pdflatex.
+    """
+    name = f"A{character}B"
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            transaction(POOL_DAY, ActionType.BUY, name, 10, 100, 0, -1000, GBP),
+            transaction(BAR_SALE_DAY, ActionType.SELL, name, 10, 120, 0, 1200, GBP),
+        ],
+    )
+
+    render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
+    source = (tmp_path / "report.tex").read_text(encoding="utf-8")
+
+    assert f"units of A{escaped}B for £1,000.00" in source
+    assert name not in source

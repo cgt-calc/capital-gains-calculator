@@ -1086,7 +1086,10 @@ def test_a_substituted_holding_says_so_in_the_report(tmp_path: Path) -> None:
     )
     render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
     source = (tmp_path / "report.tex").read_text(encoding="utf-8")
-    assert "unresolved — broker 0.0001 -> 0.00000667 used directly" in source
+    # The arrow is spelt out for LaTeX, whose default font has no ">" sign.
+    assert (
+        r"unresolved — broker 0.0001 -\textgreater{} 0.00000667 used directly" in source
+    )
 
 
 def _event(**overrides: object) -> StockSplitEvent:

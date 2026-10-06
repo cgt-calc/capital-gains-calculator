@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from typing import Final
 
 from colorama import Fore
 import jinja2
@@ -18,6 +19,32 @@ from .report_view import build_report_view
 from .util import strip_zeros
 
 LOGGER = logging.getLogger(__name__)
+
+# The characters LaTeX acts on, and how each is written as text. A name from
+# a broker file can hold any of them: "LifeStrategy 80% Equity Fund". The last
+# three are ordinary to LaTeX but print as other signs in its default font.
+_LATEX_ESCAPES: Final = str.maketrans(
+    {
+        "\\": r"\textbackslash{}",
+        "&": r"\&",
+        "%": r"\%",
+        "$": r"\$",
+        "#": r"\#",
+        "_": r"\_",
+        "{": r"\{",
+        "}": r"\}",
+        "~": r"\textasciitilde{}",
+        "^": r"\textasciicircum{}",
+        "<": r"\textless{}",
+        ">": r"\textgreater{}",
+        "|": r"\textbar{}",
+    }
+)
+
+
+def _escape_latex(value: object) -> object:
+    """Escape text the template prints; numbers and dates pass through."""
+    return value.translate(_LATEX_ESCAPES) if isinstance(value, str) else value
 
 
 def render_pdf(
@@ -51,6 +78,9 @@ def render_pdf(
         trim_blocks=True,
         lstrip_blocks=True,
         autoescape=False,
+        # Applied to every value the template prints, so a line added to it
+        # later is covered too.
+        finalize=_escape_latex,
         loader=jinja2.PackageLoader(PACKAGE_NAME, "resources"),
         extensions=["jinja2.ext.loopcontrols"],
     )

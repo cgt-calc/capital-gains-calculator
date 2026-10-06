@@ -314,3 +314,4 @@ Xetra
 xtrackers
 yfinance
 YYYY
+LifeStrategy
