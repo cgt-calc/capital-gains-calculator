@@ -16,10 +16,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
 WORKDIR /data
 ENTRYPOINT ["/bin/bash"]
 
-# Install the dependencies into a virtual environment. This stage
-# doesn't need LaTeX, so dependency changes don't invalidate the
-# texlive layer and both stages can build in parallel.
-FROM base AS deps
+# What the build stages below share. None of them needs LaTeX, so
+# they don't invalidate the texlive layer and build in parallel with it.
+FROM base AS build
 
 # Copy uv static binary
 COPY --from=uv /uv /uvx /bin/
@@ -31,23 +30,44 @@ ENV UV_COMPILE_BYTECODE=1
 
 WORKDIR /build
 
-# Only the dependency manifests: this stage is rebuilt when they
-# change, not when the source does.
+# List the runtime dependencies. This stage reruns whenever a manifest
+# changes, but the list it writes changes only when a runtime
+# dependency does.
+FROM build AS requirements
+
 COPY pyproject.toml uv.lock /build/
 
+# The deps stage installs from the list alone, so it would silently
+# ignore a [tool.uv] setting. Stop the build if one is added, apart
+# from the wheel's build-backend table, until this file either passes
+# the setting on or allows it here.
+RUN python3 -c 'import sys, tomllib; extra = sorted(set(tomllib.load(open("pyproject.toml", "rb")).get("tool", {}).get("uv", {})) - {"build-backend"}); sys.exit(f"pyproject.toml has [tool.uv] settings the dependency stage would ignore: {extra}" if extra else 0)'
+
+RUN uv export --frozen --no-dev --no-emit-project --quiet -o requirements.txt
+
+# Install the dependencies into a virtual environment. Only the list
+# is copied in, and a copy is cached by its content, so this stage is
+# rebuilt when the list changes and not on every edit to a manifest.
+# pyproject.toml is not here, so a [tool.uv] setting would not apply
+# to this install; the requirements stage refuses to build with one.
+FROM build AS deps
+
+COPY --from=requirements /build/requirements.txt /build/
+
 RUN --mount=type=cache,target=/root/.cache \
-    uv sync --frozen --no-install-project --no-dev
+    uv venv \
+ && uv pip install --require-hashes -r requirements.txt
 
 # Build the package's wheel from the source.
-FROM deps AS wheel
+FROM build AS wheel
 
 # README.md is required by the build backend (project.readme).
-COPY README.md LICENSE /build/
+COPY pyproject.toml README.md LICENSE /build/
 COPY cgt_calc /build/cgt_calc
 
 # Package version to stamp, e.g. "v2.1.0" or "2.0.0.post127+gabc1234".
-# Declared this late on purpose: changing it only invalidates the
-# wheel build below, not the dependency layers above.
+# Declared in this stage only, so a new version invalidates the wheel
+# build below and none of the dependency stages.
 ARG VERSION
 
 # Without --frozen, `uv version` would first install the dev
@@ -85,4 +105,7 @@ RUN printf '%s\n' 'exec /build/.venv/bin/cgt-calc "$@"' > /bin/cgt-calc \
 # (CI, local) get it by default; publishing targets the runtime stage.
 FROM runtime AS test
 
-COPY --from=deps /bin/uv /bin/uvx /bin/
+# --link makes this layer independent of the ones below, so it is
+# reused when they change. It cannot follow the /bin symlink, hence
+# /usr/local/bin, which is on the PATH.
+COPY --link --from=uv /uv /uvx /usr/local/bin/
