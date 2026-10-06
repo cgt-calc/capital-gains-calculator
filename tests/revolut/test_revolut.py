@@ -97,10 +97,13 @@ def test_run_with_revolut_file(request: pytest.FixtureRequest, tax_year: str) ->
     assert_stdout_matches(result, cmd, expected_file)
 
 
-def test_read_revolut_transactions_empty_file(tmp_path: Path) -> None:
-    """Ensure parser raises when CSV is empty."""
+@pytest.mark.parametrize(
+    "content", ["", ",".join(COLUMNS) + "\n"], ids=["no bytes", "header and no rows"]
+)
+def test_read_revolut_transactions_empty_file(tmp_path: Path, content: str) -> None:
+    """A file with no rows is reported as empty, under the broker's plain name."""
     empty_file = tmp_path / "empty.csv"
-    empty_file.write_text("")
+    empty_file.write_text(content)
 
     with pytest.raises(ParsingError, match="Revolut CSV file is empty"):
         RevolutParser().load_from_file(empty_file)
