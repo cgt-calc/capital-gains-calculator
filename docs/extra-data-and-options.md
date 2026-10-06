@@ -78,14 +78,13 @@ IE00B3XXRP09,VUSA,VUSD
 
 That row is already in the bundled list and only shows the format. When you write your own:
 
-- Write each ticker exactly as the cgt-calc report shows it, with no space before or after it. A
-    space is read as part of the ticker, with no warning, and the mapping then never matches.
+- Write each ticker exactly as the cgt-calc report shows it.
 - A Vanguard holding with no ticker goes under its fund name, on the row of its own ISIN. The **no
     ISIN mapping was found** warning lists the names as they must be written, each in double quotes
     where it contains a comma.
 - Give each ISIN one row. A row for an existing ISIN replaces its bundled symbols, so put every
-    verified ticker for that ISIN on the same row. If two rows give the same ISIN, only the last is
-    used.
+    verified ticker for that ISIN on the same row. If two rows give the same ISIN different tickers,
+    cgt-calc stops and names both rows.
 - Give each ticker to one ISIN only. A ticker under two stops the run; see
     [`already linked to ISIN`](#already-linked-to-isin).
 

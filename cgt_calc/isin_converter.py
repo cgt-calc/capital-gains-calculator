@@ -58,7 +58,8 @@ class IsinTranslationEntry:
         if isin is None:
             raise ParsingError(file, f"Row contains invalid ISIN '{row[0]}'")
         self.isin = isin
-        self.symbols = set(row[1:])
+        # Spaces typed beside the comma are not part of a ticker.
+        self.symbols = {symbol.strip() for symbol in row[1:]}
 
 
 class IsinConverter:
@@ -294,6 +295,8 @@ class IsinConverter:
             if header != ISIN_TRANSLATION_HEADER:
                 raise UnexpectedHeaderError(header, ISIN_TRANSLATION_HEADER, file_label)
             entries: dict[Isin, set[str]] = {}
+            # The row each ISIN was first read from, to name it in the error.
+            first_rows: dict[Isin, int] = {}
             for index, row in enumerate(lines[1:], start=2):
                 # Skip harmless blank rows left by editors or tooling.
                 if not any(cell.strip() for cell in row):
@@ -303,7 +306,19 @@ class IsinConverter:
                 except ParsingError as err:
                     err.add_row_context(index)
                     raise
+                # Keeping the later row would drop the earlier one's tickers
+                # without a word. The same tickers twice say nothing new.
+                earlier = entries.get(entry.isin)
+                if earlier is not None and earlier != entry.symbols:
+                    raise ParsingError(
+                        file_label,
+                        f"ISIN {entry.isin} is already on row "
+                        f"{first_rows[entry.isin]} with other tickers. Put every "
+                        "ticker for it on one row.",
+                        row_index=index,
+                    )
                 entries[entry.isin] = entry.symbols
+                first_rows.setdefault(entry.isin, index)
             return entries
 
         bundled_source = resources.files(RESOURCES_PACKAGE).joinpath(

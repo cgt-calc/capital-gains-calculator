@@ -597,6 +597,66 @@ def test_translation_row_with_an_empty_ticker_is_not_a_blank_row(
     assert converter.write_data == {ISIN_A: {""}}
 
 
+@pytest.mark.parametrize(
+    ("row", "symbols"),
+    [
+        pytest.param(f"{ISIN_A}, FOO, BAR", {"FOO", "BAR"}, id="space after a comma"),
+        pytest.param(f"{ISIN_A},FOO ,BAR", {"FOO", "BAR"}, id="space before a comma"),
+        # Still the empty ticker that records an ISIN as known without one.
+        pytest.param(f"{ISIN_A},  ", {""}, id="ticker of only spaces"),
+    ],
+)
+def test_translation_file_ignores_spaces_around_a_ticker(
+    tmp_path: Path, row: str, symbols: set[str]
+) -> None:
+    """Spaces typed beside a comma are not part of a ticker."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"ISIN,symbol\n{row}\n")
+
+    converter = IsinConverter(isin_translation_file=translation_file)
+
+    assert converter.write_data == {ISIN_A: symbols}
+
+
+def test_translation_row_ending_in_a_comma_and_a_space_is_refused(
+    tmp_path: Path,
+) -> None:
+    """A ticker left empty beside a real one is refused, as it is without the space."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"ISIN,symbol\n{ISIN_A},FOO, \n")
+
+    with pytest.raises(IsinTranslationError, match="contains an empty value"):
+        IsinConverter(isin_translation_file=translation_file)
+
+
+def test_translation_file_refuses_two_rows_that_disagree_about_an_isin(
+    tmp_path: Path,
+) -> None:
+    """The first row's tickers are not dropped for the second's without a word."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"ISIN,symbol\n{ISIN_A},FOO\n{ISIN_A},BAR\n")
+
+    with pytest.raises(
+        ParsingError,
+        match=f"ISIN {ISIN_A} is already on row 2 with other tickers",
+    ) as excinfo:
+        IsinConverter(isin_translation_file=translation_file)
+
+    assert excinfo.value.row_index == 3
+
+
+def test_translation_file_accepts_a_row_repeated_with_the_same_tickers(
+    tmp_path: Path,
+) -> None:
+    """A second row that says what the first did is not an error."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"ISIN,symbol\n{ISIN_A},FOO,BAR\n{ISIN_A},BAR,FOO\n")
+
+    converter = IsinConverter(isin_translation_file=translation_file)
+
+    assert converter.write_data == {ISIN_A: {"FOO", "BAR"}}
+
+
 def test_translation_file_invalid_row(tmp_path: Path) -> None:
     """Raise with row context on invalid translation rows."""
     translation_file = tmp_path / "isin_translation.csv"
