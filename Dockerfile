@@ -1,5 +1,11 @@
 # syntax=docker/dockerfile:1.7
 
+# uv is pinned, so a new release reaches the image through a pull
+# request and not on whichever build comes next. Dependabot bumps it.
+# It reads only FROM lines, which is why the pin is a stage of its own
+# and not an image named in COPY --from.
+FROM ghcr.io/astral-sh/uv:0.12.23 AS uv
+
 FROM python:3.14-slim-trixie AS base
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -16,7 +22,7 @@ ENTRYPOINT ["/bin/bash"]
 FROM base AS deps
 
 # Copy uv static binary
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=uv /uv /uvx /bin/
 
 # Ship the venv with compiled bytecode. A container run as a non-root
 # user cannot write it later, and would recompile every dependency on

@@ -22,3 +22,13 @@ updates:
       interval: weekly
     labels:
       - "dependencies"
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels:
+      - "dependencies"
+    ignore:
+      # The Python the image ships is chosen by hand. A bump to the next
+      # minor version would otherwise be merged automatically.
+      - dependency-name: "python"
