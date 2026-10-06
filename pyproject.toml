@@ -49,7 +49,7 @@ dependencies = [
   "xlrd>=2.0.2",
   "shtab>=1.12.1",
   # zoneinfo needs a tz database where the OS does not ship one.
-  "tzdata>=2026.3; sys_platform == 'win32' or sys_platform == 'emscripten'",
+  "tzdata>=2026.5; sys_platform == 'win32' or sys_platform == 'emscripten'",
 ]
 
 [project.urls]
