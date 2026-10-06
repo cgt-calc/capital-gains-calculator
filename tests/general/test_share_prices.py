@@ -48,7 +48,7 @@ def test_load_custom_file(tmp_path: Path) -> None:
         ),
     ],
 )
-def test_a_prices_file_without_its_header_is_refused(
+def test_a_prices_file_whose_first_line_is_not_the_header_is_refused(
     tmp_path: Path, content: str, detail: str
 ) -> None:
     """A first line that is not the header is reported, not skipped as one."""
