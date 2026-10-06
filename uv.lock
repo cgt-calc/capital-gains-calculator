@@ -215,7 +215,7 @@ requires-dist = [
     { name = "pyrate-limiter", specifier = ">=4.5.0" },
     { name = "requests", specifier = ">=2.27.1" },
     { name = "shtab", specifier = ">=1.12.1" },
-    { name = "tzdata", marker = "sys_platform == 'emscripten' or sys_platform == 'win32'", specifier = ">=2026.3" },
+    { name = "tzdata", marker = "sys_platform == 'emscripten' or sys_platform == 'win32'", specifier = ">=2026.5" },
     { name = "xlrd", specifier = ">=2.0.2" },
     { name = "yfinance", specifier = ">=1.7.0" },
 ]
@@ -1703,11 +1703,11 @@ wheels = [
 
 [[package]]
 name = "tzdata"
-version = "2026.3"
+version = "2026.5"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/92/ff/5a28bdfd8c3ebec42564ac7d0e54ca3db65044a9314a97f9564fa7a1e926/tzdata-2026.3.tar.gz", hash = "sha256:4a1518b8993086a7982523e071643f3c0e5f213e75b21318e78bcabfff9d1415", size = 198674, upload-time = "2026-07-10T08:50:37.887Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d9/68/f1b440335057bfce71b6e50a9d09445aa2ecbd08359a337976627b8409e7/tzdata-2026.5.tar.gz", hash = "sha256:8cc73c0a0bfca7dbfa59235d60b2eff82231dee33f53d206db1acd9173cfc0a7", size = 200404, upload-time = "2026-10-03T09:23:14.143Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/6d/b53b99a9f2766d095985947a5782f1702cabb129a34f7a802d7197af832f/tzdata-2026.3-py2.py3-none-any.whl", hash = "sha256:dc096730c87af6cab1b171c9d532be840741ff5d459015e7f6947bd7d7e54931", size = 348168, upload-time = "2026-07-10T08:50:36.46Z" },
+    { url = "https://files.pythonhosted.org/packages/94/21/1e5995a1c920cce14e4bffae20c665ec10e7ed03ab25e006cd741092b718/tzdata-2026.5-py2.py3-none-any.whl", hash = "sha256:b683bd1b6659ddcd810ff02ad09ba821d4bf1065072805063eb35c49617905ac", size = 347996, upload-time = "2026-10-03T09:23:12.535Z" },
 ]
 
 [[package]]
