@@ -175,7 +175,7 @@ def test_a_holding_s_name_is_escaped_for_latex(
 
 @pytest.mark.skipif(not os.getenv("ENABLE_PDFLATEX"), reason="needs pdflatex")
 def test_a_name_with_every_escaped_character_compiles(tmp_path: Path) -> None:
-    """Pdflatex accepts the escaped spellings, in a heading and in running text.
+    """The escaped spellings compile with pdflatex, in a heading and in running text.
 
     The name starts with an ampersand that stops pdflatex when it is not
     escaped. Led by a backslash it would compile without the fix: the percent
