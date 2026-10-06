@@ -151,12 +151,12 @@ def test_a_prices_file_skips_a_blank_row(tmp_path: Path, blank: str) -> None:
     assert prices.get(datetime.date(2021, 3, 9), "FOO", "USD") == Decimal(11)
 
 
-def test_a_prices_row_after_a_blank_one_keeps_its_line_number(tmp_path: Path) -> None:
-    """An error names the line of the file, counting the blank rows above it."""
+def test_a_half_filled_prices_row_is_reported_at_its_line(tmp_path: Path) -> None:
+    """A row with any cell filled is not blank, and blank rows above it still count."""
     prices_file = tmp_path / "share_prices.csv"
-    prices_file.write_text('date,symbol,price\n\n"Mar 08, 2021",FOO,ten\n')
+    prices_file.write_text("date,symbol,price\n\n,FOO,10.5\n")
 
-    with pytest.raises(ParsingError, match="Invalid decimal price") as excinfo:
+    with pytest.raises(ParsingError, match="Invalid date format") as excinfo:
         SharePrices(prices_file=prices_file)
 
     assert excinfo.value.row_index == 3
