@@ -10,10 +10,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
 WORKDIR /data
 ENTRYPOINT ["/bin/bash"]
 
-# Build the virtual environment. This stage doesn't need LaTeX,
-# so dependency changes don't invalidate the texlive layer and
-# both stages can build in parallel.
-FROM base AS builder
+# Install the dependencies into a virtual environment. This stage
+# doesn't need LaTeX, so dependency changes don't invalidate the
+# texlive layer and both stages can build in parallel.
+FROM base AS deps
 
 # Copy uv static binary
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
@@ -25,29 +25,30 @@ ENV UV_COMPILE_BYTECODE=1
 
 WORKDIR /build
 
-# 1) Copy dependency manifests first (for caching)
+# Only the dependency manifests: this stage is rebuilt when they
+# change, not when the source does.
 COPY pyproject.toml uv.lock /build/
 
-# Install dependencies (no project source yet -> cacheable)
 RUN --mount=type=cache,target=/root/.cache \
     uv sync --frozen --no-install-project --no-dev
 
-# 2) Now copy project source and install the package.
+# Build the package's wheel from the source.
+FROM deps AS wheel
+
 # README.md is required by the build backend (project.readme).
 COPY README.md LICENSE /build/
 COPY cgt_calc /build/cgt_calc
 
 # Package version to stamp, e.g. "v2.1.0" or "2.0.0.post127+gabc1234".
 # Declared this late on purpose: changing it only invalidates the
-# project install below, not the dependency layers above.
+# wheel build below, not the dependency layers above.
 ARG VERSION
 
-# --no-editable installs the package into the venv itself,
-# so the runtime stage only needs the venv. Without --frozen,
-# `uv version` would first install the dev dependencies too.
+# Without --frozen, `uv version` would first install the dev
+# dependencies too.
 RUN --mount=type=cache,target=/root/.cache \
     if [ -n "$VERSION" ]; then uv version --frozen "$VERSION"; fi \
- && uv sync --frozen --no-dev --no-editable
+ && uv build --wheel
 
 FROM base AS runtime
 
@@ -55,7 +56,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       bash texlive-latex-base \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /build/.venv /build/.venv
+# The dependencies and the package are separate layers. The first is
+# large and is rebuilt only when the deps stage is. The second is
+# small, so a source change rewrites little.
+COPY --from=deps /build/.venv /build/.venv
+
+# The bind mount lends this step uv and the wheel, so neither stays
+# in the image.
+RUN --mount=type=bind,from=wheel,target=/mnt \
+    /mnt/bin/uv pip install --python /build/.venv --no-deps --no-cache \
+      --compile-bytecode /mnt/build/dist/*.whl
 
 # Simple CLI shim
 RUN printf '%s\n' 'exec /build/.venv/bin/cgt-calc "$@"' > /bin/cgt-calc \
@@ -66,4 +76,4 @@ RUN printf '%s\n' 'exec /build/.venv/bin/cgt-calc "$@"' > /bin/cgt-calc \
 # (CI, local) get it by default; publishing targets the runtime stage.
 FROM runtime AS test
 
-COPY --from=builder /bin/uv /bin/uvx /bin/
+COPY --from=deps /bin/uv /bin/uvx /bin/
