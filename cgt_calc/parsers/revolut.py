@@ -200,7 +200,7 @@ class RevolutParser(StandardCSVParser[RevolutTransaction]):
     """Parser for Revolut format transaction files."""
 
     arg_name = "revolut"
-    pretty_name = "Revolut format"
+    pretty_name = "Revolut"
     format_name = "CSV"
     argument_help = "Revolut Invest account statement in CSV format"
 
