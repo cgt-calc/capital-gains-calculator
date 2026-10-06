@@ -91,8 +91,8 @@ class ERIRawParser(BaseSingleFileParser[ERIRaw]):
                 f"Unknown columns: {', '.join(unknown_columns)}",
                 row_index=1,
             )
-        # Rows are matched to the header cell by cell, so a header that is
-        # shorter or longer than its rows cannot be read at all.
+        # Each row is matched to the header cell by cell and then read by
+        # column name, so each of the four has to be there exactly once.
         missing_columns = [column for column in COLUMNS if column not in header]
         if missing_columns:
             raise ParsingError(

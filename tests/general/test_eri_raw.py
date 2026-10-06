@@ -137,6 +137,11 @@ def test_read_eri_raw_raises_on_invalid_isin(tmp_path: Path) -> None:
             "Repeated columns: Currency",
             id="a column named twice",
         ),
+        pytest.param(
+            "ISIN,Currency,Currency,Excess of reporting income over distribution",
+            "Missing columns: Fund Reporting Period End Date",
+            id="one column named twice in place of another",
+        ),
         # The blank line is taken for the header, so every column is missing.
         pytest.param(
             "\n" + HEADER.strip(),

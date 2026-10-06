@@ -81,5 +81,3 @@
 ^trading212\.md:.*SpellCheck.*`s`
 # '-.tex' is the LaTeX source file `--output -` would have created.
 ^args_validators\.py:.*`tex`
-# "a header that is shorter or longer than its rows" - "that" is the relative pronoun.
-^raw\.py:.*ThatThan
