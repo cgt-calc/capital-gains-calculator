@@ -66,16 +66,7 @@ existing mappings first and queries the [Open FIGI API](https://www.openfigi.com
 if needed. It saves new mappings in `out/isin_translation.csv` by default; `--isin-translation-file`
 selects another path.
 
-cgt-calc can create or rewrite this file after a successful lookup. Tickers read from your broker
-transactions are used for the run but never written to the file: cached, they would be read back as
-reference data and could contradict a later run. The file holds only the mappings you add and the
-ones a lookup finds. cgt-calc reads them on top of the bundled
-[`initial_isin_translation.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv),
-which is never copied into the file. A file written by an earlier version of cgt-calc can also hold
-tickers it read from your broker transactions. They are read like any other row, so remove one that
-is wrong.
-
-To add or correct a mapping yourself, edit the file, or create it if it does not exist yet. It is a
+To add or correct a mapping yourself, edit that file, or create it if it does not exist yet. It is a
 CSV file that starts with the header line `ISIN,symbol`. Each row after it gives one ISIN, then
 every ticker that security is known by, each in its own column. For a fund listed under both `VUSA`
 and `VUSD`:
@@ -95,19 +86,31 @@ That row is already in the bundled list and only shows the format. When you writ
 - Give each ISIN one row. A row for an existing ISIN replaces its bundled symbols, so put every
     verified ticker for that ISIN on the same row. If two rows give the same ISIN, only the last is
     used.
-- A ticker can belong to only one ISIN. If two rows, or a row and the bundled list, give the same
-    ticker to different ISINs, cgt-calc stops with an **already linked to ISIN** error. If the
-    ticker is right for your ISIN and the clash is with the bundled list, also give the bundled ISIN
-    a row that leaves that ticker out. If that was its only ticker, write the ISIN followed by a
-    comma, such as `IE00B42WWV65,`.
+- Give each ticker to one ISIN only. A ticker under two stops the run; see
+    [`already linked to ISIN`](#already-linked-to-isin).
 
-Putting two tickers on one row does not make them one holding. cgt-calc combines only the ticker
-pairs it already supports, and any other ticker keeps a holding of its own. Without the row,
-cgt-calc stops when your transactions give one ISIN two tickers (**Ticker ... does not match ...**).
-With both on one row it accepts them and still keeps two holdings, so check the report afterwards.
-If it shows the security twice, do not rely on those holdings' calculated gains: open a
-[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the ISIN and
-both tickers so that the pair can be added.
+!!! warning "Two tickers on one row are not combined into one holding"
+
+    cgt-calc combines only the ticker pairs it already supports, and any other ticker keeps a
+    holding of its own. The row also stops cgt-calc refusing transactions that give that ISIN both
+    tickers, so check the report after adding it. If the report shows the security twice, do not
+    rely on those holdings' calculated gains. Open a
+    [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the ISIN and
+    both tickers so that the pair can be added.
+
+cgt-calc can create or rewrite the file after a successful lookup. The file holds only the mappings
+you add and the ones a lookup finds. cgt-calc reads them on top of the bundled
+[`initial_isin_translation.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv),
+which is never copied into the file. Tickers read from your broker transactions are used for the run
+but never written to the file. A file written by an earlier version of cgt-calc can hold them; they
+are read like any other row, so remove one that is wrong.
+
+#### `already linked to ISIN`
+
+Two rows, or a row and the bundled list, give the same ticker to different ISINs. Correct the row
+that is wrong. If the ticker is right for your ISIN and the clash is with the bundled list, also
+give the bundled ISIN a row that leaves that ticker out. If that was its only ticker, write the ISIN
+followed by a comma, such as `IE00B42WWV65,`.
 
 ## When extra information is needed
 
