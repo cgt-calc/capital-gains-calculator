@@ -299,6 +299,9 @@ class IsinConverter:
                 )
             entries: dict[Isin, set[str]] = {}
             for index, row in enumerate(lines[1:], start=2):
+                # Skip harmless blank rows left by editors or tooling.
+                if not any(cell.strip() for cell in row):
+                    continue
                 try:
                     entry = IsinTranslationEntry(row, file_label)
                 except ParsingError as err:
