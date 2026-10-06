@@ -71,7 +71,9 @@ transactions are used for the run but never written to the file: cached, they wo
 reference data and could contradict a later run. The file holds only the mappings you add and the
 ones a lookup finds. cgt-calc reads them on top of the bundled
 [`initial_isin_translation.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv),
-which is never copied into the file.
+which is never copied into the file. A file written by an earlier version of cgt-calc can also hold
+tickers it read from your broker transactions. They are read like any other row, so remove one that
+is wrong.
 
 To add or correct a mapping yourself, edit the file, or create it if it does not exist yet. It is a
 CSV file that starts with the header line `ISIN,symbol`. Each row after it gives one ISIN, then
@@ -87,14 +89,24 @@ That row is already in the bundled list and only shows the format. When you writ
 
 - Write each ticker exactly as the cgt-calc report shows it, with no space before or after it. A
     space is read as part of the ticker, with no warning, and the mapping then never matches.
-- A Vanguard holding that the report shows under its fund name is written with that name in place of
-    a ticker. If the name contains a comma, put it in double quotes, as the **no ISIN mapping was
-    found** warning prints it.
+- A Vanguard holding with no ticker goes under its fund name, on the row of its own ISIN. The **no
+    ISIN mapping was found** warning lists the names as they must be written, each in double quotes
+    where it contains a comma.
 - Give each ISIN one row. A row for an existing ISIN replaces its bundled symbols, so put every
     verified ticker for that ISIN on the same row. If two rows give the same ISIN, only the last is
     used.
 - A ticker can belong to only one ISIN. If two rows, or a row and the bundled list, give the same
-    ticker to different ISINs, cgt-calc stops with an **already linked to ISIN** error.
+    ticker to different ISINs, cgt-calc stops with an **already linked to ISIN** error. If the
+    ticker is right for your ISIN and the clash is with the bundled list, also give the bundled ISIN
+    a row that leaves that ticker out.
+
+Putting two tickers on one row does not make them one holding. cgt-calc combines only the ticker
+pairs it already supports, and any other ticker keeps a holding of its own. Without the row,
+cgt-calc stops when your transactions give one ISIN two tickers (**Ticker ... does not match ...**).
+With both on one row it accepts them and still keeps two holdings, so check the report afterwards.
+If it shows the security twice, do not rely on those holdings' calculated gains: open a
+[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the ISIN and
+both tickers so that the pair can be added.
 
 ## When extra information is needed
 
