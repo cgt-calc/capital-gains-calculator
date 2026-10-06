@@ -42,13 +42,14 @@ RUN uv export --frozen --no-dev --no-emit-project --quiet -o requirements.txt
 # Install the dependencies into a virtual environment. Only the list
 # is copied in, and a copy is cached by its content, so this stage is
 # rebuilt when the list changes and not on every edit to a manifest.
+# pyproject.toml is not here, so its [tool.uv] settings do not apply
+# to this install.
 FROM build AS deps
 
 COPY --from=requirements /build/requirements.txt /build/
 
-# --prompt gives the venv the name `uv sync` would have given it.
 RUN --mount=type=cache,target=/root/.cache \
-    uv venv --prompt cgt-calc \
+    uv venv \
  && uv pip install --require-hashes -r requirements.txt
 
 # Build the package's wheel from the source.
@@ -60,7 +61,7 @@ COPY cgt_calc /build/cgt_calc
 
 # Package version to stamp, e.g. "v2.1.0" or "2.0.0.post127+gabc1234".
 # Declared this late on purpose: changing it only invalidates the
-# wheel build below, not the dependency layers above.
+# wheel build below, not the copies above.
 ARG VERSION
 
 # Without --frozen, `uv version` would first install the dev
