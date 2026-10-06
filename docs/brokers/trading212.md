@@ -116,13 +116,18 @@ transaction stamped after 23:00 UTC on 5 April belongs to the following tax year
 ### Tickers and exchange listings
 
 Trading 212 names a security by the ticker of the listing you traded, so one security can appear
-under two tickers: the German line of a US share carries its German code, and a fund has a ticker
-for each currency it trades in. cgt-calc pools, matches and prices holdings by ticker, so it
-rewrites the aliases it has confirmed to one ticker for the security, and the report shows one
-holding rather than two. A share is reported under the ticker of its home market and a fund under
-its London ticker: `NVD` under `US67066G1040` is reported as `NVDA`, and `VUSD` under `IE00B3XXRP09`
-as `VUSA`. The rewrite is scoped to that ISIN: the same ticker code under another security is left
-alone.
+under two tickers: the German line of a US share carries its German code, and a fund can have a
+different ticker for each exchange and currency it trades in. cgt-calc pools, matches and prices
+holdings by ticker, so it rewrites the aliases it has confirmed to one ticker for the security, and
+the report shows one holding rather than two. A share is reported under the ticker of its home
+market, and a fund under the ticker of its London line priced in pounds where cgt-calc knows one:
+`NVD` under `US67066G1040` is reported as `NVDA`, and `VUSD` under `IE00B3XXRP09` as `VUSA`. On a
+row that names its ISIN, the rewrite is scoped to that ISIN: the same ticker code under another
+security is left alone.
+
+The rewrite is not limited to Trading 212 rows. A file from another broker that holds one of these
+funds, such as `CSPX` in an Interactive Brokers or RAW file, is reported under the same ticker, here
+`CSP1`, so that the fund is one holding wherever you hold it.
 
 Only confirmed pairs are rewritten. Where your exports disagree about a security, cgt-calc refuses
 rather than guess: an unrecognised second ticker for one ISIN, or one ticker used for two ISINs.
@@ -130,10 +135,12 @@ Combining the wrong two holdings, or splitting one, changes the gain. If you hit
 [open an issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the ISIN and
 both tickers.
 
-One case is not refused. Where cgt-calc's own list of securities already gives a fund several
-tickers and the pair is not one it rewrites, both tickers are accepted and the fund is kept as two
-holdings, each with its own cost. Check the portfolio in the report: if one fund appears under two
-tickers, please report the pair in the same way.
+One case is not refused. Where the bundled list of securities, or a row you added to your
+[ISIN to ticker mapping](../extra-data-and-options.md#isin-to-ticker-translation), gives a fund
+several tickers and the pair is not one cgt-calc rewrites, both tickers are accepted and the fund is
+kept as two holdings, each with its own cost. Do not rely on the gains calculated for those two
+holdings. The summary may show only one of the tickers if you have sold the other, so check your
+exports for a fund you traded under two tickers, and please report the pair in the same way.
 
 ### Dividends and foreign tax
 

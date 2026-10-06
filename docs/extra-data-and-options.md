@@ -98,12 +98,12 @@ selects another path.
 
 To add or correct a mapping yourself, edit that file, or create it if it does not exist yet. It is a
 CSV file that starts with the header line `ISIN,symbol`. Each row after it gives one ISIN, then
-every ticker that security is known by, each in its own column. For a fund listed under both `VUSA`
-and `VUSD`:
+every ticker that security is known by, each in its own column. For a fund listed under both `VAPX`
+and `VDPX`:
 
 ```csv
 ISIN,symbol
-IE00B3XXRP09,VUSA,VUSD
+IE00B9F5YL18,VAPX,VDPX
 ```
 
 That row is already in the bundled list and only shows the format. When you write your own:

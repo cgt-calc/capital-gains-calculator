@@ -65,9 +65,6 @@ ISIN_B = Isin("US5949181045")
 NVIDIA_ISIN = Isin("US67066G1040")
 BROADCOM_ISIN = Isin("US11135F1012")
 
-# A bundled row listing one security under two tickers.
-VANGUARD_ISIN = Isin("IE00B9F5YL18")
-
 FigiData = list[dict[str, str | None]]
 
 
@@ -389,37 +386,34 @@ def test_add_from_transaction_ignores_isin_less_unknown_ticker() -> None:
     assert converter.transaction_symbols == {}
 
 
-def test_add_from_transaction_accepts_a_bundled_multi_ticker_row() -> None:
-    """Accept every ticker of a bundled row listing a security under several.
+def test_add_from_transaction_accepts_a_multi_ticker_reference_row() -> None:
+    """Accept every ticker of a reference row listing a security under several.
 
-    IE00B9F5YL18 ships as VAPX and VDPX, and those holdings pool separately
-    today. That silent split predates the exchange-alias work and is not what
-    this check is for, so both tickers go through as they always have. A pair
-    the alias table names, such as VUSA and VUSD, is rewritten before it gets
-    here.
+    The bundled list has such rows, and those holdings pool separately today.
+    That silent split predates the exchange-alias work and is not what this
+    check is for, so both tickers go through as they always have. A pair the
+    alias table names is rewritten before it gets here.
     """
     converter = IsinConverter()
-    assert converter.data[VANGUARD_ISIN] == {"VAPX", "VDPX"}
+    converter.data[ISIN_A] = {"FOO", "BAR"}
 
-    converter.add_from_transaction(_transaction(VANGUARD_ISIN, "VAPX"))
-    converter.add_from_transaction(_transaction(VANGUARD_ISIN, "VDPX"))
+    converter.add_from_transaction(_transaction(ISIN_A, "FOO"))
+    converter.add_from_transaction(_transaction(ISIN_A, "BAR"))
 
-    assert converter.transaction_symbols[VANGUARD_ISIN] == {"VAPX", "VDPX"}
+    assert converter.transaction_symbols[ISIN_A] == {"FOO", "BAR"}
 
 
-def test_no_alias_points_at_another_alias() -> None:
-    """Every alias names the ticker the report uses for its security.
+def test_each_security_is_reported_under_one_ticker() -> None:
+    """Every alias of one ISIN names the same ticker.
 
-    A fund can have several aliases. One that pointed at another alias, and
-    not at the reported ticker, would leave the security as two holdings.
+    A fund can have several aliases. Two that named different tickers, or one
+    that named another alias, would leave the security as two holdings.
     """
-    chained = [
-        key
-        for key, canonical in ISIN_TICKER_ALIASES.items()
-        if (key[0], canonical) in ISIN_TICKER_ALIASES
-    ]
+    reported: dict[Isin, set[str]] = {}
+    for (isin, _alias), ticker in ISIN_TICKER_ALIASES.items():
+        reported.setdefault(isin, set()).add(ticker)
 
-    assert not chained
+    assert [isin for isin, tickers in reported.items() if len(tickers) > 1] == []
 
 
 def test_add_from_transaction_ignores_rows_without_both_fields() -> None:

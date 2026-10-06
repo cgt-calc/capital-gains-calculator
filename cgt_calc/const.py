@@ -245,8 +245,9 @@ ERI_TAX_DATE_DELTA: Final = relativedelta(months=6)
 
 # Exchange-specific tickers for one security, mapped to the ticker the report
 # uses. Trading 212 lists the German line of a US share under its German code,
-# and a fund under one code for each currency it trades in, so one holding
-# arrives under two names and pools, matches and prices as two.
+# and a fund can have another code on each exchange and in each currency it
+# trades in, so one holding arrives under two names and pools, matches and
+# prices as two.
 # Keyed by ISIN as well as ticker: a ticker code belongs to an exchange rather
 # than to a security, so `NVD` is NVDA only under US67066G1040, and `GDX` and
 # `SMH` name other funds in the US. These are listings that trade side by
@@ -256,6 +257,9 @@ ERI_TAX_DATE_DELTA: Final = relativedelta(months=6)
 # line, its London line in dollars.
 # Add a pair only once an export has shown the alias and both tickers are
 # confirmed for the ISIN from the exchange's or the issuer's own listing data.
+# Check the bundled ISIN list first: a row there that gives the reported
+# ticker a sibling the table does not name lets the sibling through as a
+# second holding, where without the new pair the run would have been refused.
 ISIN_TICKER_ALIASES: Final[dict[tuple[Isin, str], str]] = {
     (Isin("US67066G1040"), "NVD"): "NVDA",
     (Isin("US11135F1012"), "1YD"): "AVGO",
@@ -273,8 +277,6 @@ ISIN_TICKER_ALIASES: Final[dict[tuple[Isin, str], str]] = {
     (Isin("IE00BJGWQN72"), "WCLD"): "KLWD",
     (Isin("IE00BMC38736"), "SMH"): "SMGB",
     (Isin("IE000YYE6WK5"), "DFNS"): "DFNG",
-    (Isin("IE00B3WJKG14"), "QDVE"): "IITU",
-    (Isin("IE00BYZK4552"), "2B76"): "RBOT",
     (Isin("XS2399367254"), "3CNE"): "CON3",
 }
 
