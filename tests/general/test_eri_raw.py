@@ -46,7 +46,9 @@ def test_read_eri_raw_raises_on_invalid_decimal(tmp_path: Path, value: str) -> N
         ERIRawParser.load_from_file(file_path)
 
 
-@pytest.mark.parametrize("content", ["", "\n\n"], ids=["no bytes", "only blank lines"])
+@pytest.mark.parametrize(
+    "content", ["", "\n   \n,,,\n"], ids=["no bytes", "only blank rows"]
+)
 def test_read_eri_raw_raises_on_empty_file(tmp_path: Path, content: str) -> None:
     """Raise ParsingError when ERI file has no header row."""
     file_path = tmp_path / "eri.csv"

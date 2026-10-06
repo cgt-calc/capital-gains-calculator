@@ -369,7 +369,9 @@ def test_read_raw_transactions_reports_a_half_filled_row(tmp_path: Path) -> None
     assert exc.value.row_index == 3
 
 
-@pytest.mark.parametrize("content", ["", "\n\n"], ids=["no bytes", "only blank lines"])
+@pytest.mark.parametrize(
+    "content", ["", "\n   \n,,,,,,\n"], ids=["no bytes", "only blank rows"]
+)
 def test_read_raw_transactions_empty_file(tmp_path: Path, content: str) -> None:
     """Error when RAW CSV is empty."""
 
