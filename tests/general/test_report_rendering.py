@@ -6,14 +6,20 @@ arithmetic, not a defect. What must not happen is a line out by the fee: the
 proceeds shown net of the sale fee beside an allowable cost that already
 includes it. The figures are parsed back out of the LaTeX source, so the
 check covers what the reader sees rather than the values behind it.
+
+A name from the user's files is printed as text: the characters LaTeX acts on
+are escaped, in the source and, where pdflatex is available, in a compiled PDF.
 """
 
 from __future__ import annotations
 
 import datetime
 from decimal import Decimal
+import os
 import re
 from typing import TYPE_CHECKING
+
+import pytest
 
 from cgt_calc.model import ActionType
 from cgt_calc.render_latex import render_pdf
@@ -121,3 +127,71 @@ def test_lines_add_up_to_their_heading_and_the_total(tmp_path: Path) -> None:
     assert total is not None
     headings = [proceeds for _, proceeds, _ in found]
     assert abs(sum(headings) - money(total[1])) <= PENNY * len(headings)
+
+
+@pytest.mark.parametrize(
+    ("character", "escaped"),
+    [
+        ("%", r"\%"),
+        ("&", r"\&"),
+        ("_", r"\_"),
+        ("#", r"\#"),
+        ("$", r"\$"),
+        ("{", r"\{"),
+        ("}", r"\}"),
+        ("^", r"\textasciicircum{}"),
+        ("~", r"\textasciitilde{}"),
+        ("\\", r"\textbackslash{}"),
+        ("<", r"\textless{}"),
+        (">", r"\textgreater{}"),
+        ("|", r"\textbar{}"),
+    ],
+)
+def test_a_holding_s_name_is_escaped_for_latex(
+    tmp_path: Path, character: str, escaped: str
+) -> None:
+    """A character LaTeX acts on is printed as text, and the line keeps its cost.
+
+    Left as it is, `%` starts a comment that drops the rest of the line, cost
+    included, and most of the others stop pdflatex.
+    """
+    name = f"A{character}B"
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            transaction(POOL_DAY, ActionType.BUY, name, 10, 100, 0, -1000, GBP),
+            transaction(BAR_SALE_DAY, ActionType.SELL, name, 10, 120, 0, 1200, GBP),
+            # A line from the income half of the report, read by the last check.
+            transaction(BAR_SALE_DAY, ActionType.DIVIDEND, name, None, None, 0, 5, GBP),
+        ],
+    )
+
+    render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
+    source = (tmp_path / "report.tex").read_text(encoding="utf-8")
+
+    assert f"units of A{escaped}B for £1,000.00" in source
+    assert f"A{escaped}B for £5.00" in source
+    assert name not in source
+
+
+@pytest.mark.skipif(not os.getenv("ENABLE_PDFLATEX"), reason="needs pdflatex")
+def test_a_name_with_every_escaped_character_compiles(tmp_path: Path) -> None:
+    """The escaped spellings compile with pdflatex, in a heading and in running text.
+
+    The name starts with an ampersand that stops pdflatex when it is not
+    escaped. Led by a backslash it would compile without the fix: the percent
+    sign would hide the rest.
+    """
+    name = "S&P 80% Fund_A #1 {x} ~ ^ < > | \\ $"
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            transaction(POOL_DAY, ActionType.BUY, name, 10, 100, 0, -1000, GBP),
+            transaction(BAR_SALE_DAY, ActionType.SELL, name, 10, 120, 0, 1200, GBP),
+            transaction(BAR_SALE_DAY, ActionType.DIVIDEND, name, None, None, 0, 5, GBP),
+        ],
+    )
+
+    render_pdf(report, tmp_path / "report.pdf")
+
+    assert (tmp_path / "report.pdf").stat().st_size > 0
