@@ -89,6 +89,10 @@ def test_spin_offs_file_skips_a_blank_row(tmp_path: Path, blank: str) -> None:
         ),
         # Quoted, or the line shown would look like the header it must be.
         pytest.param("dst,src \nNEW,OLD\n", "dst,src ", id="space after a name"),
+        # Escaped, for the same reason: a zero-width space cannot be seen.
+        pytest.param(
+            "dst,src\u200b\nNEW,OLD\n", "dst,src\\u200b", id="unseen character"
+        ),
     ],
 )
 def test_spin_offs_file_reports_a_wrong_first_line(

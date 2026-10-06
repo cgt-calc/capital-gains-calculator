@@ -265,10 +265,11 @@ class UnexpectedHeaderError(ParsingError):
     ):
         """Initialise with the line found where the header belongs.
 
-        Both are quoted, so that a space at the end of a name can be seen.
+        The line is shown as Python quotes a string, so that a space at the
+        end of a name, or a character that cannot be seen, shows up.
         """
         found = (
-            f":\n  '{_as_csv(header)}'"
+            f":\n  {_as_csv(header)!r}"
             if any(cell.strip() for cell in header)
             else " blank."
         )

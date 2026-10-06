@@ -51,7 +51,7 @@ def test_load_custom_file(tmp_path: Path) -> None:
 def test_a_prices_file_without_its_header_is_refused(
     tmp_path: Path, content: str, detail: str
 ) -> None:
-    """A first line that is not the header is quoted as typed, not skipped."""
+    """A first line that is not the header is reported, not skipped as one."""
     prices_file = tmp_path / "share_prices.csv"
     prices_file.write_text(content)
 
