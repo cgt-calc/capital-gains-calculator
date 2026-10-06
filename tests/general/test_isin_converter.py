@@ -403,6 +403,42 @@ def test_add_from_transaction_accepts_a_multi_ticker_reference_row() -> None:
     assert converter.transaction_symbols[ISIN_A] == {"FOO", "BAR"}
 
 
+def test_a_row_without_an_isin_takes_an_alias_through_the_bundled_list() -> None:
+    """A fund another broker exports without an ISIN is reported under one ticker.
+
+    The docs give this example: `CSPX` in an Interactive Brokers or RAW file
+    is reported as `CSP1`. The row has no ISIN, so it is identified by the
+    bundled row that lists `CSPX`, and then rewritten.
+    """
+    converter = IsinConverter()
+
+    bought = _transaction(None, "CSPX")
+    converter.add_from_transaction(bought)
+
+    assert bought.symbol == "CSP1"
+
+
+def test_the_alias_table_names_every_bundled_ticker_of_its_securities() -> None:
+    """A security in the table has no bundled ticker that the table leaves out.
+
+    Two tickers on one bundled row are let through as two holdings. So once
+    one of them is the ticker a pair is reported under, the other arrives as
+    a second holding, where without the pair the run was refused.
+    """
+    converter = IsinConverter()
+    named: dict[Isin, set[str]] = {}
+    for (isin, alias), ticker in ISIN_TICKER_ALIASES.items():
+        named.setdefault(isin, set()).update({alias, ticker})
+
+    left_out = {
+        isin: sorted(converter.data.get(isin, set()) - tickers)
+        for isin, tickers in named.items()
+        if converter.data.get(isin, set()) - tickers
+    }
+
+    assert left_out == {}
+
+
 def test_each_security_is_reported_under_one_ticker() -> None:
     """Every alias of one ISIN names the same ticker.
 

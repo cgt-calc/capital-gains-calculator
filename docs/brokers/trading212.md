@@ -125,9 +125,12 @@ market, and a fund under the ticker of its London line priced in pounds where cg
 row that names its ISIN, the rewrite is scoped to that ISIN: the same ticker code under another
 security is left alone.
 
-The rewrite is not limited to Trading 212 rows. A row from another broker is rewritten too where
-cgt-calc can tell which security it is: `CSPX` in an Interactive Brokers or RAW file is reported as
-`CSP1`, so that the fund is one holding wherever you hold it.
+The rewrite is not limited to Trading 212 rows. A row from another broker is rewritten too where it
+gives its ISIN, or where its ticker is in the bundled list of securities or in your
+[ISIN to ticker mapping](../extra-data-and-options.md#isin-to-ticker-translation): `CSPX` in an
+Interactive Brokers or RAW file is reported as `CSP1`. A row without an ISIN is matched by its
+ticker alone, so check that the holding is the security you expect. A ticker that cgt-calc cannot
+identify stays a holding of its own, without an error, until you add it to your mapping.
 
 Only confirmed pairs are rewritten. Where your exports disagree about a security, cgt-calc refuses
 rather than guess: an unrecognised second ticker for one ISIN, or one ticker used for two ISINs.
@@ -140,7 +143,7 @@ One case is not refused. Where the bundled list of securities, or a row you adde
 several tickers and the pair is not one cgt-calc rewrites, both tickers are accepted and the fund is
 kept as two holdings, each with its own cost. Do not rely on the gains calculated for those two
 holdings. The summary may show only one of the tickers if you have sold the other, so check your
-exports for a fund you traded under two tickers, and please report the pair in the same way.
+exports for one ISIN with two different tickers, and please report the pair in the same way.
 
 ### Dividends and foreign tax
 
