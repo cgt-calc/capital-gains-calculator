@@ -83,12 +83,28 @@ class ERIRawParser(BaseSingleFileParser[ERIRaw]):
 
     @staticmethod
     def _validate_header(header: list[str], file: Path) -> None:
-        """Check if header is valid."""
+        """Check that the header is the four columns, in any order."""
         unknown_columns = sorted(set(header) - set(COLUMNS))
         if unknown_columns:
             raise ParsingError(
                 file,
                 f"Unknown columns: {', '.join(unknown_columns)}",
+                row_index=1,
+            )
+        # Rows are matched to the header cell by cell, so a header that is
+        # shorter or longer than its rows cannot be read at all.
+        missing_columns = [column for column in COLUMNS if column not in header]
+        if missing_columns:
+            raise ParsingError(
+                file,
+                f"Missing columns: {', '.join(missing_columns)}",
+                row_index=1,
+            )
+        repeated_columns = [column for column in COLUMNS if header.count(column) > 1]
+        if repeated_columns:
+            raise ParsingError(
+                file,
+                f"Repeated columns: {', '.join(repeated_columns)}",
                 row_index=1,
             )
 
