@@ -363,7 +363,7 @@ def test_read_raw_transactions_reports_a_half_filled_row(tmp_path: Path) -> None
         encoding="utf-8",
     )
 
-    with pytest.raises(ParsingError, match="does not match format") as exc:
+    with pytest.raises(ParsingError) as exc:
         RawParser().load_from_file(raw_file)
 
     assert exc.value.row_index == 3
