@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
-import subprocess
 import sys
 from typing import TYPE_CHECKING
 
@@ -15,6 +14,7 @@ from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import MarketDataMissingError
 from cgt_calc.model import CurrencyCode
+from tests.utils import run_cli
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -286,9 +286,11 @@ def test_a_run_that_fetches_no_price_does_not_load_yfinance() -> None:
     script = (
         "import sys\n"
         "from cgt_calc.cli import main\n"
-        "sys.exit(main() or ('yfinance' in sys.modules and 'yfinance was loaded'))\n"
+        "status = main()\n"
+        "print('loaded:', sorted({'yfinance'} & set(sys.modules)), file=sys.stderr)\n"
+        "sys.exit(status)\n"
     )
-    result = subprocess.run(
+    result = run_cli(
         [
             sys.executable,
             "-c",
@@ -301,10 +303,7 @@ def test_a_run_that_fetches_no_price_does_not_load_yfinance() -> None:
             "--no-report",
             "--exchange-rates-file",
             "tests/exchange_rates_data.csv",
-        ],
-        capture_output=True,
-        encoding="utf-8",
-        check=False,
+        ]
     )
 
-    assert result.returncode == 0, result.stderr
+    assert result.stderr.splitlines()[-1] == "loaded: []"
