@@ -70,8 +70,25 @@ cgt-calc can create or rewrite this file after a successful lookup. Tickers read
 transactions are used for the run but never written to the file: cached, they would be read back as
 reference data and could contradict a later run. It starts with the bundled
 [`initial_isin_translation.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv).
-If you edit the cache, a row for an existing ISIN replaces its bundled symbols. Put every verified
-ticker for that ISIN on the same row.
+
+To add or correct a mapping yourself, edit the file, or create it if it does not exist yet. It is a
+CSV file that starts with the header line `ISIN,symbol`. Each row after it gives one ISIN, then
+every ticker that security is known by, each in its own column. For a fund listed under both `VUSA`
+and `VUSD`:
+
+```csv
+ISIN,symbol
+IE00B3XXRP09,VUSA,VUSD
+```
+
+That row is already in the bundled list and only shows the format. When you write your own:
+
+- Write each ticker exactly as the cgt-calc report shows it.
+- Give each ISIN one row. A row for an existing ISIN replaces its bundled symbols, so put every
+    verified ticker for that ISIN on the same row. If two rows give the same ISIN, only the last is
+    used.
+- A ticker can belong to only one ISIN. If two rows, or a row and the bundled list, give the same
+    ticker to different ISINs, cgt-calc stops with an **already linked to ISIN** error.
 
 ## When extra information is needed
 
