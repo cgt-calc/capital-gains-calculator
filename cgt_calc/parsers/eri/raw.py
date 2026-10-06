@@ -113,7 +113,7 @@ class ERIRawParser(BaseSingleFileParser[ERIRaw]):
 
         lines = list(csv.reader(file))
 
-        if not lines:
+        if not any(cell.strip() for row in lines for cell in row):
             raise ParsingError(file_path, "ERI data file is empty")
 
         header = lines[0]
@@ -122,6 +122,9 @@ class ERIRawParser(BaseSingleFileParser[ERIRaw]):
 
         transactions: list[ERIRaw] = []
         for index, row in enumerate(lines[1:], start=2):
+            # Skip harmless blank rows left by editors or tooling.
+            if not any(cell.strip() for cell in row):
+                continue
             try:
                 transaction = ERIRaw(header, row, file_path)
             except ParsingError as err:

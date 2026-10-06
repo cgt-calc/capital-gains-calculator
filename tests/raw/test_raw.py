@@ -336,11 +336,45 @@ def test_read_raw_transactions_negative_fees(tmp_path: Path) -> None:
     )
 
 
-def test_read_raw_transactions_empty_file(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "blank", ["", "   ", ",,,,,,"], ids=["empty line", "only spaces", "only commas"]
+)
+def test_read_raw_transactions_skips_a_blank_row(tmp_path: Path, blank: str) -> None:
+    """A row with nothing in it is ignored, and the rows after it keep their lines."""
+    raw_file = tmp_path / "raw_blank_row.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2024-01-02,BUY,XYZ,10,2.50,0,USD\n"
+        f"{blank}\n"
+        "2024-01-03,BUY,XYZ,5,3.00,0,USD\n",
+        encoding="utf-8",
+    )
+
+    transactions = RawParser().load_from_file(raw_file)
+
+    assert [t.source.row for t in transactions if t.source] == [2, 4]
+
+
+def test_read_raw_transactions_reports_a_half_filled_row(tmp_path: Path) -> None:
+    """A row with any cell filled is not blank: it is reported, at its own line."""
+    raw_file = tmp_path / "raw_half_filled.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n\n,BUY,XYZ,10,2.50,0,USD\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ParsingError, match="does not match format") as exc:
+        RawParser().load_from_file(raw_file)
+
+    assert exc.value.row_index == 3
+
+
+@pytest.mark.parametrize("content", ["", "\n\n"], ids=["no bytes", "only blank lines"])
+def test_read_raw_transactions_empty_file(tmp_path: Path, content: str) -> None:
     """Error when RAW CSV is empty."""
 
     raw_file = tmp_path / "empty.csv"
-    raw_file.write_text("", encoding="utf-8")
+    raw_file.write_text(content, encoding="utf-8")
 
     with pytest.raises(ParsingError) as exc:
         RawParser().load_from_file(raw_file)

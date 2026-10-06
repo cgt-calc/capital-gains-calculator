@@ -46,13 +46,44 @@ def test_read_eri_raw_raises_on_invalid_decimal(tmp_path: Path, value: str) -> N
         ERIRawParser.load_from_file(file_path)
 
 
-def test_read_eri_raw_raises_on_empty_file(tmp_path: Path) -> None:
+@pytest.mark.parametrize("content", ["", "\n\n"], ids=["no bytes", "only blank lines"])
+def test_read_eri_raw_raises_on_empty_file(tmp_path: Path, content: str) -> None:
     """Raise ParsingError when ERI file has no header row."""
     file_path = tmp_path / "eri.csv"
-    file_path.touch()
+    file_path.write_text(content, encoding="utf8")
 
     with pytest.raises(ParsingError, match="ERI data file is empty"):
         ERIRawParser.load_from_file(file_path)
+
+
+@pytest.mark.parametrize(
+    "blank", ["", "   ", ",,,"], ids=["empty line", "only spaces", "only commas"]
+)
+def test_read_eri_raw_skips_a_blank_row(tmp_path: Path, blank: str) -> None:
+    """A row with nothing in it is ignored, and the rows after it keep their lines."""
+    file_path = tmp_path / "eri.csv"
+    file_path.write_text(
+        HEADER
+        + f"{VALID_ISIN},01/02/2023,USD,1.23\n"
+        + f"{blank}\n"
+        + f"{VALID_ISIN},01/02/2024,USD,2.34\n",
+        encoding="utf8",
+    )
+
+    transactions = ERIRawParser.load_from_file(file_path)
+
+    assert [t.source.row for t in transactions if t.source] == [2, 4]
+
+
+def test_read_eri_raw_reports_a_half_filled_row(tmp_path: Path) -> None:
+    """A row with any cell filled is not blank: it is reported, at its own line."""
+    file_path = tmp_path / "eri.csv"
+    file_path.write_text(HEADER + "\n,01/02/2024,USD,1.23\n", encoding="utf8")
+
+    with pytest.raises(ParsingError, match="Invalid ISIN value ''") as excinfo:
+        ERIRawParser.load_from_file(file_path)
+
+    assert excinfo.value.row_index == 3
 
 
 def test_read_eri_raw_parses_valid_row(tmp_path: Path) -> None:
