@@ -253,6 +253,13 @@ def decimal_or_none(
     return parse_decimal(value, column.value)
 
 
+def last_digit(value: Decimal) -> Decimal:
+    """Return one unit of the last digit an exported figure is printed to."""
+    exponent = value.as_tuple().exponent
+    assert isinstance(exponent, int), "an exported figure is a finite number"
+    return Decimal(1).scaleb(exponent)
+
+
 def datetime_from_str(value: str) -> datetime:
     """Convert a timestamp to an aware UTC datetime.
 
@@ -443,6 +450,16 @@ class Trading212Transaction(BrokerTransaction):
             abs(amount + fees) / quantity if amount is not None and quantity else None
         )
 
+        # Shares times price, converted and with the fees, should give the
+        # total. Every figure in the row is printed to so many digits, so the
+        # two may differ by one unit of the last digit of the total, of the
+        # price for every share, and of the exchange rate across the whole
+        # value. A fixed allowance per share warned on every small purchase of
+        # a share priced in pence, where a penny of rounding in the total is a
+        # large part of a penny a share. One unit and not half: real rows are
+        # out by a whole unit of the exchange rate's last digit. Fees get no
+        # allowance: the total is the rounded value and the rounded fee, so
+        # taking the fee off again leaves the rounded value, in every real row.
         # Not on a dividend row of any kind: its price per share is after
         # foreign tax, and the exchange rate a current export gives on it runs
         # the other way.
@@ -456,16 +473,29 @@ class Trading212Transaction(BrokerTransaction):
             exchange_rate = self.exchange_rate or Decimal(1)
             check_fees = self._checkable_fees(fees, foreign_fees, exchange_rate)
             if check_fees is not None:
-                check_price = abs(amount + check_fees) / quantity
-                calculated_price_foreign = check_price * exchange_rate
-                discrepancy = self.price_foreign - calculated_price_foreign
-                if abs(discrepancy) > Decimal("0.015"):
+                implied = quantity * self.price_foreign / exchange_rate
+                rounding = (
+                    last_digit(amount)
+                    + quantity * last_digit(self.price_foreign) / exchange_rate
+                )
+                # A price in the total's own currency is not converted, so its
+                # exchange rate of one is exact however it is printed.
+                if self.exchange_rate is not None and self.currency_foreign != currency:
+                    rounding += implied * last_digit(exchange_rate) / exchange_rate
+                gap = abs(amount + check_fees) - implied
+                if abs(gap) > rounding:
+                    total = abs(amount)
                     LOGGER.warning(
-                        "The Price per Share for this transaction after converting "
-                        "and adding in the fees does not add up to the total amount. "
-                        "You can fix the CSV by reviewing the transaction in the UI. "
-                        "Discrepancy per Share: %.3f.",
-                        float(discrepancy),
+                        "The total of the %s %s on %s is %s %s, but its shares, "
+                        "price, exchange rate and fees come to %s %s. Check the "
+                        "transaction in Trading 212 before relying on the report.",
+                        symbol,
+                        self.raw_action,
+                        date,
+                        total,
+                        currency,
+                        (total - gap).quantize(last_digit(amount)),
+                        currency,
                     )
 
         # A dividend is recorded before foreign tax once overlapping exports are

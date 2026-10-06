@@ -306,8 +306,9 @@ file. If the shares came from a takeover paid in shares, the export may have no 
 [Known limitations](#known-limitations), and do not add a purchase for them to make the calculation
 run.
 
-### A price-per-share warning appears
+### A total does not match its shares and price
 
-Review transactions where the price multiplied by the quantity, after currency conversion and fees,
-does not match the total shown in the CSV. cgt-calc continues after this warning, so resolve the
-discrepancy against the transaction in Trading 212 before relying on the report.
+cgt-calc warns when a trade's `Total` differs from its number of shares times its price, after the
+exchange rate and fees, by more than the rounding of those figures can explain. The warning names
+the transaction and gives both totals. cgt-calc continues and uses the `Total` in the row, so check
+the transaction in Trading 212 before relying on the report.
