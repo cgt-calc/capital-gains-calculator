@@ -733,9 +733,7 @@ class _NoMarketData:
 @pytest.fixture
 def unlisted(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make every price the run was not given fail rather than be looked up."""
-    monkeypatch.setattr(
-        "cgt_calc.current_price_fetcher.yf.Ticker", lambda symbol: _NoMarketData()
-    )
+    monkeypatch.setattr("yfinance.Ticker", lambda symbol: _NoMarketData())
 
 
 @pytest.mark.parametrize("priced", ["SRC", "SRCNEW"], ids=["old", "new"])

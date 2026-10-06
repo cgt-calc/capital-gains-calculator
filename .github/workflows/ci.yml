@@ -121,8 +121,11 @@ jobs:
 
       - name: Run the built wheel in a clean environment
         # Catches runtime imports of packages which are only declared
-        # as dev dependencies.
-        run: uv run --isolated --no-project --with ./dist/*.whl -- cgt-calc --help
+        # as dev dependencies. yfinance is imported only when a price is
+        # fetched, so --help alone would not load it.
+        run: |
+          uv run --isolated --no-project --with ./dist/*.whl -- cgt-calc --help
+          uv run --isolated --no-project --with ./dist/*.whl -- python -c "import yfinance"
 
   markdown-link-check:
     name: Markdown link check

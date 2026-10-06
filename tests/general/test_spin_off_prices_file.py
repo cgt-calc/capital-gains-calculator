@@ -77,7 +77,7 @@ def _run(
             raise AssertionError(f"{symbol} was looked up on Yahoo")
         return FakeHistoryTicker(market[symbol], "GBP")
 
-    monkeypatch.setattr("cgt_calc.current_price_fetcher.yf.Ticker", ticker)
+    monkeypatch.setattr("yfinance.Ticker", ticker)
     calculate_cgt(create_parser().parse_args(args))
     return capsys.readouterr().out
 
