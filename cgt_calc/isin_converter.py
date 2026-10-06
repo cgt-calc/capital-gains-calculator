@@ -288,7 +288,10 @@ class IsinConverter:
                 reading_as("utf-8-sig", file_label),
                 source.open(encoding="utf-8-sig") as csv_file,
             ):
-                lines = list(csv.reader(csv_file))
+                # A space after a comma is skipped here, not left to the trim
+                # below: a name in quotes is only read as quoted when the
+                # quote is the first thing in its cell.
+                lines = list(csv.reader(csv_file, skipinitialspace=True))
             if not lines:
                 return {}
             header = lines[0]
@@ -312,9 +315,10 @@ class IsinConverter:
                 if earlier is not None and earlier != entry.symbols:
                     raise ParsingError(
                         file_label,
-                        f"ISIN {entry.isin} is already on row "
-                        f"{first_rows[entry.isin]} with other tickers. Put every "
-                        "ticker for it on one row.",
+                        f"ISIN {entry.isin} is also on row "
+                        f"{first_rows[entry.isin]}, and the two rows do not list "
+                        "the same tickers. Keep one row for it, with every ticker "
+                        "that is right.",
                         row_index=index,
                     )
                 entries[entry.isin] = entry.symbols
