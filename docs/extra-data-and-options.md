@@ -98,7 +98,8 @@ That row is already in the bundled list and only shows the format. When you writ
 - A ticker can belong to only one ISIN. If two rows, or a row and the bundled list, give the same
     ticker to different ISINs, cgt-calc stops with an **already linked to ISIN** error. If the
     ticker is right for your ISIN and the clash is with the bundled list, also give the bundled ISIN
-    a row that leaves that ticker out.
+    a row that leaves that ticker out. If that was its only ticker, write the ISIN followed by a
+    comma, such as `IE00B42WWV65,`.
 
 Putting two tickers on one row does not make them one holding. cgt-calc combines only the ticker
 pairs it already supports, and any other ticker keeps a holding of its own. Without the row,
