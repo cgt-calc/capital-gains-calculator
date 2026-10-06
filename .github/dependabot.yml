@@ -6,6 +6,16 @@ updates:
       interval: weekly
     labels:
       - "dependencies"
+    ignore:
+      # The build backend's requirement in pyproject.toml already allows
+      # every release of this minor version, so raising its floor each
+      # week changes nothing. Ignoring patch updates by type would not
+      # stop it: with no locked version, Dependabot measures the update
+      # type from the first version in the requirement, which is the
+      # upper bound. Raise this bound when the requirement moves to the
+      # next minor version, or the weekly bumps come back.
+      - dependency-name: "uv-build"
+        versions: ["<0.13"]
   - package-ecosystem: pre-commit
     directory: "/"
     schedule:
