@@ -277,17 +277,18 @@ def test_a_history_starting_after_the_day_is_refused(
         _fetcher().get_closing_price("FOO", datetime.date(2024, 1, 1))
 
 
-def test_a_run_that_fetches_no_price_does_not_load_yfinance() -> None:
-    """A run that fetches no price never loads yfinance.
+def test_a_run_that_fetches_no_price_loads_neither_yfinance_nor_pandas() -> None:
+    """A run that fetches no price loads neither yfinance nor pandas.
 
-    It pulls in pandas and doubles the modules a start loads, so it is
-    imported only where Yahoo is asked for a price.
+    Together they double the modules a start loads. yfinance is imported
+    only where Yahoo is asked for a price, and nothing else such a run
+    imports may bring pandas back.
     """
     script = (
         "import sys\n"
         "from cgt_calc.cli import main\n"
         "status = main()\n"
-        "print('loaded:', sorted({'yfinance'} & set(sys.modules)), file=sys.stderr)\n"
+        "print('loaded:', sorted({'yfinance', 'pandas'} & set(sys.modules)), file=sys.stderr)\n"
         "sys.exit(status)\n"
     )
     result = run_cli(
