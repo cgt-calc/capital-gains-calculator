@@ -224,7 +224,7 @@ requires-dist = [
 dev = [
     { name = "codespell", specifier = ">=2.4.1" },
     { name = "dprint-py", specifier = ">=0.59.0.0" },
-    { name = "harper-cli", specifier = ">=2.11.0" },
+    { name = "harper-cli", specifier = ">=2.12.0" },
     { name = "mypy", specifier = ">=2.4.0" },
     { name = "packaging", specifier = ">=26.3" },
     { name = "pandas-stubs", specifier = ">=3.0.5.260914" },
@@ -551,14 +551,14 @@ wheels = [
 
 [[package]]
 name = "harper-cli"
-version = "2.11.0"
+version = "2.12.0"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ec/cf/39066a8c004404571ca1a4e6c04f5ef06799a44611850311b3e373dd7c37/harper_cli-2.11.0-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:d9816b52b38ef0276ded6369972d70048cace0f2fdeec7424988553699a32cf0", size = 12691152, upload-time = "2026-09-17T08:27:34.727Z" },
-    { url = "https://files.pythonhosted.org/packages/99/a3/8c5431ab57874aacde53cd700b64e2cdf151a319d96ec05ea7ce49540b27/harper_cli-2.11.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:7848eee49953c683d5280727d727c3764c79fe34f65e1c6fd881d61f199a2ef7", size = 8591680, upload-time = "2026-09-17T08:27:37.532Z" },
-    { url = "https://files.pythonhosted.org/packages/c6/33/3bf901d6ef9e5e045c5524b0b3084a50d7dbffc421f4390ba797effae636/harper_cli-2.11.0-py3-none-manylinux2014_aarch64.whl", hash = "sha256:618e9c11234e6397941844b44ee10a83d52e9bc2939fedc452a100045d6cad8d", size = 8760130, upload-time = "2026-09-17T08:27:39.844Z" },
-    { url = "https://files.pythonhosted.org/packages/4b/5e/0203c39125f696803ce93f47ac8d90d0169d66d176785c7a1852d83a22c3/harper_cli-2.11.0-py3-none-manylinux2014_x86_64.whl", hash = "sha256:bf4efb6836b3b8976611d0e56141f1fc886c83d38c1fedf97b6d887ffbf5d2ac", size = 13151746, upload-time = "2026-09-17T08:27:42.446Z" },
-    { url = "https://files.pythonhosted.org/packages/df/f0/bbf76bba2923a66206fc569dd139b8320485cac5f145a89d2fbc9a5de817/harper_cli-2.11.0-py3-none-win_amd64.whl", hash = "sha256:e40345c2c97f9c5f55aee2f0ae9603d0889158c859005a58789f2258ca10d48d", size = 12620785, upload-time = "2026-09-17T08:27:45.299Z" },
+    { url = "https://files.pythonhosted.org/packages/c2/52/2b05c58348e9e1a1a0c397fb7006cf2943c0137febacc8ead7f8b056ba2a/harper_cli-2.12.0-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:38087912d3b7e63c05960fa4f813d7eb9ecdf4eb57f839ec9987243552364458", size = 12741818, upload-time = "2026-10-02T09:27:28.789Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/0a/109dc4a299263442fa5f03e1483769bec886db188915bcd1f6256c932776/harper_cli-2.12.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:545bbd5f3e68dc51608e13fa1100f9cc742dbdc24bb4f58fcc1d7f8bde1a6852", size = 8600332, upload-time = "2026-10-02T09:27:31.204Z" },
+    { url = "https://files.pythonhosted.org/packages/92/0e/8deb132317e0d28514567823f554ab3fe0513ac6e61d335e197c7c562850/harper_cli-2.12.0-py3-none-manylinux2014_aarch64.whl", hash = "sha256:bd8cf7d2f4d23bf9b8c32733a618ce7b41de10d75a929b7285463887c4393d2a", size = 8778954, upload-time = "2026-10-02T09:27:33.971Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/80/fdbe999047fa02a58175facd1f79eaf273e23b654f53e64c727834fcf387/harper_cli-2.12.0-py3-none-manylinux2014_x86_64.whl", hash = "sha256:98fc7443ce6e6bcae50082fb92ccac08dc4b94c5db924104a0d1d9f40cfd1c88", size = 13221377, upload-time = "2026-10-02T09:27:36.558Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/94/060465d45d33cfb4e8ff79857fecebc88dec0aa321a3255588c59097242f/harper_cli-2.12.0-py3-none-win_amd64.whl", hash = "sha256:c913194c2a8924b8d840083b257ae4cf4c6e7d669af07494ac8f23bd10e8e96f", size = 12686199, upload-time = "2026-10-02T09:27:39.273Z" },
 ]
 
 [[package]]
