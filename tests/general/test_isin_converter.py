@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 import logging
+import re
 from typing import TYPE_CHECKING, NoReturn
 
 import pytest
@@ -551,7 +552,10 @@ def test_translation_file_bad_header(tmp_path: Path) -> None:
     translation_file = tmp_path / "isin_translation.csv"
     translation_file.write_text("Wrong,Header\n")
 
-    with pytest.raises(ParsingError, match="Unexpected header"):
+    with pytest.raises(
+        ParsingError,
+        match=re.escape("must be the header 'ISIN,symbol', but it is:\n  Wrong,Header"),
+    ):
         IsinConverter(isin_translation_file=translation_file)
 
 

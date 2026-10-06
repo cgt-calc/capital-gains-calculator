@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from .util import display_str, strip_zeros
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Sequence
     import datetime
     from decimal import Decimal
     from pathlib import Path
@@ -231,7 +231,7 @@ class QuantityNotPositiveError(InvalidTransactionError):
         super().__init__(transaction, "Positive quantity required.")
 
 
-def _as_csv(row: list[str]) -> str:
+def _as_csv(row: Sequence[str]) -> str:
     """Print the row as a CSV line, not as a Python list."""
     line = io.StringIO()
     csv.writer(line).writerow(row)
@@ -248,6 +248,30 @@ class UnexpectedColumnCountError(ParsingError):
         super().__init__(
             file,
             f"This row has {len(row)} columns, not {count}:\n  {_as_csv(row)}",
+            row_index=row_index,
+        )
+
+
+class UnexpectedHeaderError(ParsingError):
+    """A data file whose header line is not the one its reader expects."""
+
+    def __init__(
+        self,
+        header: Sequence[str],
+        expected: Sequence[str],
+        file: Path,
+        *,
+        row_index: int = 1,
+    ):
+        """Initialise with the line found where the header belongs."""
+        found = (
+            f":\n  {_as_csv(header)}"
+            if any(cell.strip() for cell in header)
+            else " blank."
+        )
+        super().__init__(
+            file,
+            f"This line must be the header '{_as_csv(expected)}', but it is{found}",
             row_index=row_index,
         )
 
@@ -298,6 +322,10 @@ class ExchangeRateMissingError(CalculationError):
         super().__init__(self.message)
 
 
+# What a prices file has to start with, said wherever one is asked for.
+_PRICES_FILE = "--prices-file (header 'date,symbol,price')"
+
+
 class SharePriceMissingError(CalculationError):
     """No share price is given for a vest without one."""
 
@@ -305,7 +333,7 @@ class SharePriceMissingError(CalculationError):
         """Initialise."""
         self.message = (
             f"No share price for {symbol} on {date}: add it to a file passed with "
-            "--prices-file"
+            f"{_PRICES_FILE}"
         )
         super().__init__(self.message)
 
@@ -319,7 +347,7 @@ class BundledPriceCurrencyError(CalculationError):
             f"The bundled price for {symbol} on {date} is in USD, but the "
             f"transaction is in {currency}. Enter the vest's price in the row, or "
             "give it in the transaction's currency in a file passed with "
-            "--prices-file."
+            f"{_PRICES_FILE}."
         )
 
 
@@ -399,5 +427,5 @@ class MarketDataMissingError(CgtError):
             "may list it under a different ticker, or it may have been renamed "
             "or delisted. Give the closing prices of both holdings in the "
             "spin-off on that day, in the same currency, in a file passed with "
-            "--prices-file, or work out the spin-off outside cgt-calc."
+            f"{_PRICES_FILE}, or work out the spin-off outside cgt-calc."
         )

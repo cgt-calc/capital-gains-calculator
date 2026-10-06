@@ -104,7 +104,7 @@ def test_read_exchange_rates_accepts_a_byte_order_mark(tmp_path: Path) -> None:
         ),
         pytest.param(
             "month,currency,rate,extra\n2024-01-01,USD,1.25,x\n",
-            "Unexpected columns",
+            "must be the header 'month,currency,rate'",
             id="unexpected columns",
         ),
         pytest.param(
@@ -120,20 +120,25 @@ def test_read_exchange_rates_accepts_a_byte_order_mark(tmp_path: Path) -> None:
         # The header is the error, not the rows it makes too long.
         pytest.param(
             "month,currency\n2024-01-01,USD,1.25\n",
-            "Unexpected columns",
+            re.escape("but it is:\n  month,currency"),
             id="header shorter than its rows",
         ),
         # Not read as a header with no rows under it, which is an empty file.
         pytest.param(
             "2024-01-01,USD,1.25\n",
-            re.escape("found ['2024-01-01', 'USD', '1.25']"),
+            re.escape("but it is:\n  2024-01-01,USD,1.25"),
             id="one rate and no header",
         ),
         # Not accepted with the last column of that name deciding the rate.
         pytest.param(
             "month,currency,rate,rate\n2024-01-01,USD,1.25,1.30\n",
-            re.escape("found ['month', 'currency', 'rate', 'rate']"),
+            re.escape("but it is:\n  month,currency,rate,rate"),
             id="column named twice",
+        ),
+        pytest.param(
+            "# generated\n# do not edit\n2024-01-01,USD,1.25\n",
+            "row 3: This line must be the header",
+            id="comment lines count towards the header's line number",
         ),
     ],
 )

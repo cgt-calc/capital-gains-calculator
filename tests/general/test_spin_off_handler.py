@@ -80,14 +80,12 @@ def test_spin_offs_file_skips_a_blank_row(tmp_path: Path, blank: str) -> None:
     ("content", "found"),
     [
         # Not read as a header with no rows under it, which is an empty file.
-        pytest.param("NEW,OLD\n", "['NEW', 'OLD']", id="one mapping and no header"),
+        pytest.param("NEW,OLD\n", "NEW,OLD", id="one mapping and no header"),
         # The header is the error, not the rows it makes too long.
-        pytest.param("dst\nNEW,OLD\n", "['dst']", id="header with a column missing"),
+        pytest.param("dst\nNEW,OLD\n", "dst", id="header with a column missing"),
         # Not accepted with the last column of that name deciding the source.
         pytest.param(
-            "dst,src,src\nNEW,OLD,OTHER\n",
-            "['dst', 'src', 'src']",
-            id="column named twice",
+            "dst,src,src\nNEW,OLD,OTHER\n", "dst,src,src", id="column named twice"
         ),
     ],
 )
@@ -99,7 +97,8 @@ def test_spin_offs_file_reports_a_wrong_first_line(
     spin_offs_file.write_text(content, encoding="utf8")
 
     with pytest.raises(
-        ParsingError, match=re.escape(f"invalid columns {found}")
+        ParsingError,
+        match=re.escape(f"must be the header 'dst,src', but it is:\n  {found}"),
     ) as excinfo:
         SpinOffHandler(spin_offs_file)
 

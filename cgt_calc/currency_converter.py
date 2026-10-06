@@ -27,6 +27,7 @@ from .exceptions import (
     ExchangeRateMissingError,
     ExternalApiError,
     ParsingError,
+    UnexpectedHeaderError,
     reading_as,
 )
 from .model import CurrencyCode, ForeignCurrencyAmount
@@ -111,10 +112,11 @@ class CurrencyConverter:
         # Checked before any row: a file of one rate and no header has no row
         # left to check, and would be read as empty.
         if sorted(header) != sorted(EXCHANGE_RATES_HEADER):
-            raise ParsingError(
+            raise UnexpectedHeaderError(
+                header,
+                EXCHANGE_RATES_HEADER,
                 exchange_rates_file,
-                "Unexpected columns in exchange rate file: "
-                f"found {header}, expected {EXCHANGE_RATES_HEADER}",
+                row_index=line_numbers[0],
             )
         for line in csv_reader:
             row_number = line_numbers[csv_reader.line_num - 1]
