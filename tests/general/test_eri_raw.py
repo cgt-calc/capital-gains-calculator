@@ -88,13 +88,24 @@ def test_read_eri_raw_reports_a_half_filled_row(tmp_path: Path) -> None:
     assert excinfo.value.row_index == 3
 
 
-def test_read_eri_raw_parses_valid_row(tmp_path: Path) -> None:
-    """Successfully parse a well-formed ERI CSV row."""
+@pytest.mark.parametrize(
+    ("header", "row"),
+    [
+        (HEADER, f"{VALID_ISIN},01/02/2024,USD,1.23\n"),
+        (
+            (
+                "Currency,Excess of reporting income over distribution,ISIN,"
+                "Fund Reporting Period End Date\n"
+            ),
+            f"USD,1.23,{VALID_ISIN},01/02/2024\n",
+        ),
+    ],
+    ids=["documented column order", "another column order"],
+)
+def test_read_eri_raw_parses_valid_row(tmp_path: Path, header: str, row: str) -> None:
+    """Parse a well-formed ERI CSV row, reading each value by its column name."""
     file_path = tmp_path / "eri.csv"
-    file_path.write_text(
-        HEADER + f"{VALID_ISIN},01/02/2024,USD,1.23\n",
-        encoding="utf8",
-    )
+    file_path.write_text(header + row, encoding="utf8")
 
     transactions = ERIRawParser.load_from_file(file_path)
 
