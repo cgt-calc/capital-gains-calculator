@@ -125,8 +125,8 @@ market, and a fund under the ticker of its London line priced in pounds where cg
 row that names its ISIN, the rewrite is scoped to that ISIN: the same ticker code under another
 security is left alone.
 
-The rewrite is not limited to Trading 212 rows. A file from another broker that holds one of these
-funds, such as `CSPX` in an Interactive Brokers or RAW file, is reported under the same ticker, here
+The rewrite is not limited to Trading 212 rows. A row from another broker is rewritten too where
+cgt-calc can tell which security it is: `CSPX` in an Interactive Brokers or RAW file is reported as
 `CSP1`, so that the fund is one holding wherever you hold it.
 
 Only confirmed pairs are rewritten. Where your exports disagree about a security, cgt-calc refuses
