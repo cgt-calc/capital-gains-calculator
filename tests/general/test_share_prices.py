@@ -135,6 +135,33 @@ def test_the_same_price_under_an_earlier_ticker_is_accepted(tmp_path: Path) -> N
     assert prices.get(datetime.date(2021, 2, 16), "META", "USD") == Decimal("270.50")
 
 
+@pytest.mark.parametrize(
+    "blank", ["", "   ", ",,"], ids=["empty line", "only spaces", "only commas"]
+)
+def test_a_prices_file_skips_a_blank_row(tmp_path: Path, blank: str) -> None:
+    """A row with nothing in it is ignored, not read as a price."""
+    prices_file = tmp_path / "share_prices.csv"
+    prices_file.write_text(
+        f'date,symbol,price\n"Mar 08, 2021",FOO,10.5\n{blank}\n"Mar 09, 2021",FOO,11\n'
+    )
+
+    prices = SharePrices(prices_file=prices_file)
+
+    assert prices.get(datetime.date(2021, 3, 8), "FOO", "USD") == Decimal("10.5")
+    assert prices.get(datetime.date(2021, 3, 9), "FOO", "USD") == Decimal(11)
+
+
+def test_a_prices_row_after_a_blank_one_keeps_its_line_number(tmp_path: Path) -> None:
+    """An error names the line of the file, counting the blank rows above it."""
+    prices_file = tmp_path / "share_prices.csv"
+    prices_file.write_text('date,symbol,price\n\n"Mar 08, 2021",FOO,ten\n')
+
+    with pytest.raises(ParsingError, match="Invalid decimal price") as excinfo:
+        SharePrices(prices_file=prices_file)
+
+    assert excinfo.value.row_index == 3
+
+
 def test_invalid_row(tmp_path: Path) -> None:
     """Raise with row context on invalid rows."""
     prices_file = tmp_path / "share_prices.csv"

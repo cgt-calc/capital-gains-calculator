@@ -136,6 +136,9 @@ class SharePrices:
         # The ticker each price was written under, to name an earlier one.
         stated: dict[tuple[datetime.date, str], str] = {}
         for index, row in enumerate(lines, start=2):
+            # Skip harmless blank rows left by editors or tooling.
+            if not any(cell.strip() for cell in row):
+                continue
             try:
                 entry = SharePricesEntry(row, file)
             except ParsingError as err:

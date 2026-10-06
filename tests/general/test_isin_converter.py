@@ -555,6 +555,32 @@ def test_translation_file_bad_header(tmp_path: Path) -> None:
         IsinConverter(isin_translation_file=translation_file)
 
 
+@pytest.mark.parametrize(
+    "blank", ["", "   ", ","], ids=["empty line", "only spaces", "only a comma"]
+)
+def test_translation_file_skips_a_blank_row(tmp_path: Path, blank: str) -> None:
+    """A row with nothing in it is ignored, not read as a translation."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"ISIN,symbol\n{ISIN_A},FOO\n{blank}\n{ISIN_B},BAR\n")
+
+    converter = IsinConverter(isin_translation_file=translation_file)
+
+    assert converter.write_data == {ISIN_A: {"FOO"}, ISIN_B: {"BAR"}}
+
+
+def test_translation_row_after_a_blank_one_keeps_its_line_number(
+    tmp_path: Path,
+) -> None:
+    """An error names the line of the file, counting the blank rows above it."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text("ISIN,symbol\n\nNOTANISIN,FOO\n")
+
+    with pytest.raises(ParsingError, match="invalid ISIN") as excinfo:
+        IsinConverter(isin_translation_file=translation_file)
+
+    assert excinfo.value.row_index == 3
+
+
 def test_translation_file_invalid_row(tmp_path: Path) -> None:
     """Raise with row context on invalid translation rows."""
     translation_file = tmp_path / "isin_translation.csv"
