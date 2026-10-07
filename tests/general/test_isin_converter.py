@@ -68,7 +68,7 @@ BROADCOM_ISIN = Isin("US11135F1012")
 # A bundled row listing one security under two tickers.
 VANGUARD_ISIN = Isin("IE00B3XXRP09")
 
-FigiData = list[dict[str, str]]
+FigiData = list[dict[str, str | None]]
 
 
 class FakeResponse:
@@ -537,14 +537,18 @@ def test_live_lookup_clash_with_a_row_of_the_file_names_no_row(
     assert translation_file.read_text() == f"ISIN,symbol\n{ISIN_A},FOO\n"
 
 
+@pytest.mark.parametrize("empty", ["", None], ids=["empty", "null"])
 def test_live_lookup_refuses_an_empty_ticker_beside_a_real_one(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, empty: str | None
 ) -> None:
     """Refuse to cache a looked-up row that the next run would refuse to read."""
     monkeypatch.setattr(cgt_calc.isin_converter, "CGT_MODE", RuntimeMode.PROD)
     translation_file = tmp_path / "isin_translation.csv"
     converter = IsinConverter(isin_translation_file=translation_file)
-    answer = [{"ticker": "", "exchCode": "LN"}, {"ticker": "FOO", "exchCode": "LN"}]
+    answer: FigiData = [
+        {"ticker": empty, "exchCode": "LN"},
+        {"ticker": "FOO", "exchCode": "LN"},
+    ]
     monkeypatch.setattr(converter, "session", FakeSession([{"data": answer}]))
 
     with pytest.raises(IsinTranslationError, match="contains an empty value"):
