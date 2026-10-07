@@ -38,9 +38,8 @@ cgt-calc stops and names the currency and date when it has no rate for a transac
     applied cannot be told. There are 38, including the Mexican peso in December 2009 under both of
     HMRC's codes (MXV, MXN). The others are minor currencies, mostly the UAE dirham (AED), the East
     Caribbean dollar (XCD) and the CFA and CFP francs (XOF, XPF) in some months from 2006 to 2013.
-    The top of each
-    [year's file](https://github.com/cgt-calc/capital-gains-calculator/tree/main/cgt_calc/resources/hmrc_exchange_rates)
-    lists them.
+    Each year's file lists its own at the top, as in
+    [`2009.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/hmrc_exchange_rates/2009.csv).
 
 To continue, add a row to the file yourself: the transaction's date in the `month` column, the
 currency code, and the rate as units of that currency per £1. Each transaction needs its own row. If
