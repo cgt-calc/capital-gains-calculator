@@ -4,7 +4,8 @@ The acquisition log used to add a purchase, a spin-off's shares and a
 management fee into one figure per day and ticker, and matching worked out
 what it was made of by subtracting the parts it could find recorded
 elsewhere. These pin what each part is recorded as, so a later change can ask
-for the day's genuine acquisitions directly.
+for the day's genuine acquisitions directly. A fee is also followed through to
+what a sale is then identified against.
 """
 
 from __future__ import annotations
@@ -160,6 +161,9 @@ def test_a_fee_is_not_part_of_the_purchase_a_sale_is_identified_against(
     assert entry.allowable_cost == Decimal(750)
     assert entry.gain == Decimal(250)
     assert calculator.portfolio["X"] == pool_left
+    # What the report last says the pool holds is what it holds.
+    stated = list(report.calculation_log[max(report.calculation_log)].values())[-1][-1]
+    assert Position(stated.new_quantity, stated.new_pool_cost) == pool_left
 
 
 def test_a_vest_and_a_transfer_from_a_spouse_are_recorded_as_purchases() -> None:

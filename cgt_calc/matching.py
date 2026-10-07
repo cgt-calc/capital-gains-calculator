@@ -306,9 +306,12 @@ class Matcher:
             acquisition.quantity,
             modified_amount,
         )
+        # A fee's cost goes into the pool whatever became of the day's shares,
+        # so it is stated even when a 30-day claim has taken every one of them.
         if (
             acquisition.quantity - bnb_acquisition.quantity > 0
             or bnb_acquisition.quantity == 0
+            or record.cost_only.amount != 0
         ):
             calculation_entries.append(
                 CalculationEntry(
@@ -359,7 +362,7 @@ class Matcher:
             # For the same reason, a transfer to a spouse needs nothing
             # gathering: the day's renames have already put the whole holding
             # under one name by the time it is recorded.
-            self._pool_todays_reorganisations(identity, date_index)
+            self._pool_what_the_day_did_not_buy(identity, date_index)
         pool = self.run.portfolio[identity.pool_name]
         ctx = DisposalContext(
             symbol=symbol,
@@ -396,10 +399,10 @@ class Matcher:
         ctx.chargeable_gain = round_decimal(ctx.chargeable_gain, 2)
         return ctx.chargeable_gain, ctx.calculation_entries
 
-    def _pool_todays_reorganisations(
+    def _pool_what_the_day_did_not_buy(
         self, identity: DayIdentity, date_index: datetime.date
     ) -> None:
-        """Put shares today's reorganisations created into the holding's pool.
+        """Put what today added to the holding without buying it into its pool.
 
         A spin-off's new shares go under the ticker its own row spelled, and a
         rename that day need not leave the holding under that ticker. They are
@@ -410,9 +413,9 @@ class Matcher:
         brought in here instead. Without this the pool a disposal reads is
         short of them, and where the day opened holding none it is empty.
 
-        A management fee recorded under that ticker beside them comes across
-        too. It is cost the pool carries, and no more part of what the day
-        bought than those shares are.
+        A management fee recorded under that ticker comes across the same
+        way, with or without a reorganisation beside it. It is cost the pool
+        carries, and no part of what the day bought.
 
         What the day bought stays under the name its row put it under, so the
         same-day rule can still identify a disposal against it (see
@@ -421,14 +424,14 @@ class Matcher:
         for name in sorted(identity.names - {identity.pool_name}):
             matchable = self._matchable_acquisition(date_index, name)
             identifiable = self._identifiable_acquisition(date_index, name)
-            reorganised = Position(
+            not_bought = Position(
                 matchable.quantity - identifiable.quantity,
                 matchable.amount - identifiable.amount,
             )
-            if not reorganised.quantity and not reorganised.amount:
+            if not not_bought.quantity and not not_bought.amount:
                 continue
-            self.run.portfolio[name] -= reorganised
-            self.run.portfolio[identity.pool_name] += reorganised
+            self.run.portfolio[name] -= not_bought
+            self.run.portfolio[identity.pool_name] += not_bought
 
     def _match_same_day(self, ctx: DisposalContext) -> None:
         """Identify the disposal against the same day's acquisitions."""
@@ -628,8 +631,8 @@ class Matcher:
                         # in the normal way.
                         continue
 
-                    # This can be some management fee entry or already used
-                    # by bed and breakfast rule
+                    # Already used, by the day's own disposals or by an
+                    # earlier bed and breakfast match
                     if (
                         acquisition.quantity
                         - same_day_disposal.quantity
@@ -1025,7 +1028,10 @@ class Matcher:
         opened the day with no shares at all. Such a name holds cost with
         nothing behind it if it brought cost in - which a purchase today
         masks, by making its quantity positive while pricing only its own
-        shares - or if the day recorded cost but no shares under it.
+        shares - or if the day recorded cost but no shares under it. A fee the
+        day recorded beside shares under such a name is not stranded: it is
+        carried into the pool with whatever else the day did not buy (see
+        `_pool_what_the_day_did_not_buy`).
         """
         acquired = self._matchable_acquisition(date_index, symbol)
         return self._opened_with(symbol).amount != 0 or (
@@ -1624,9 +1630,9 @@ class Matcher:
         through the Section 104 pool instead, which is where s127 puts them.
 
         A management fee is not an acquisition either: it brings in cost and
-        no shares. Counted here, a fee would be relieved in full against
-        whichever disposal is identified against that day's purchase, so it
-        too is left to the Section 104 pool (issue 1121).
+        no shares. Counted here, its cost would be relieved against whichever
+        disposals are identified against that day's purchase, so it too is
+        left to the Section 104 pool (issue 1121).
         """
         if not has_key(self.history.acquisition_list, date_index, symbol):
             return HmrcTransactionData()
