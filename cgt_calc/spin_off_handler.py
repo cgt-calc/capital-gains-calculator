@@ -55,6 +55,8 @@ class SpinOffHandler:
                 raise UnexpectedHeaderError(
                     header, SPIN_OFFS_HEADER, self.spin_offs_file
                 )
+            # The row each new ticker was first read from, to name it in the error.
+            first_rows: dict[str, int] = {}
             for line in csv_reader:
                 # A value beyond the last column is filed under the key None.
                 extra = line.pop(None, None)
@@ -79,7 +81,18 @@ class SpinOffHandler:
                         "it was spun off from.",
                         row_index=csv_reader.line_num,
                     )
+                # Keeping the later row would drop the earlier one's source
+                # without a word. The same row twice says nothing new.
+                earlier = cache.get(dst)
+                if earlier is not None and earlier != src:
+                    raise ParsingError(
+                        self.spin_offs_file,
+                        f"{dst} is spun off from {src} here but from {earlier} "
+                        f"on row {first_rows[dst]}. Keep the row that is right.",
+                        row_index=csv_reader.line_num,
+                    )
                 cache[dst] = src
+                first_rows.setdefault(dst, csv_reader.line_num)
             return cache
 
     def _write_spin_off_file(self) -> None:
