@@ -4,7 +4,7 @@
 # change HMRC made from the 1st replaces the month's published rate.
 # Source: HMRC's monthly pages and change lists for the year, archived at
 # https://webarchive.nationalarchives.gov.uk/ukgwa/20141203171558/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2008&columns=1
-# Left out, as HMRC's documents disagree or cannot be read: 2008-01 XOF, 2008-01 XPF, 2008-07 ZWD, 2008-08 AED, 2008-08 XCD, 2008-08 ZWD, 2008-09 AED, 2008-09 XCD, 2008-11 AED, 2008-11 VEB, 2008-11 VEF, 2008-11 XCD, 2008-11 XOF, 2008-11 XPF
+# Left out, as HMRC's documents disagree or cannot be read: 2008-01 CYP, 2008-01 MTL, 2008-01 XOF, 2008-01 XPF, 2008-03 CYP, 2008-03 MTL, 2008-07 ZWD, 2008-08 AED, 2008-08 XCD, 2008-08 ZWD, 2008-09 AED, 2008-09 XCD, 2008-11 AED, 2008-11 VEB, 2008-11 VEF, 2008-11 XCD, 2008-11 XOF, 2008-11 XPF
 month,currency,rate
 2008-01-01,AED,7.4168
 2008-01-01,AFA,100.028
@@ -38,7 +38,6 @@ month,currency,rate
 2008-01-01,CRC,1007.48
 2008-01-01,CUP,2.0196
 2008-01-01,CVE,152.476
-2008-01-01,CYP,0.8187
 2008-01-01,CZK,36.934
 2008-01-01,DJF,354.37
 2008-01-01,DKK,10.3904
@@ -96,7 +95,6 @@ month,currency,rate
 2008-01-01,MNT,2361.56
 2008-01-01,MOP,16.2241
 2008-01-01,MRO,510.028
-2008-01-01,MTL,0.6006
 2008-01-01,MUR,58.1631
 2008-01-01,MVR,25.8503
 2008-01-01,MWK,281.526
@@ -374,7 +372,6 @@ month,currency,rate
 2008-03-01,CRC,974.004
 2008-03-01,CUP,1.9626
 2008-03-01,CVE,148.545
-2008-03-01,CYP,1.3249
 2008-03-01,CZK,33.6507
 2008-03-01,DJF,345.154
 2008-03-01,DKK,9.8731
@@ -432,7 +429,6 @@ month,currency,rate
 2008-03-01,MNT,2298.54
 2008-03-01,MOP,15.7678
 2008-03-01,MRO,497.164
-2008-03-01,MTL,1.3249
 2008-03-01,MUR,54.9515
 2008-03-01,MVR,25.1207
 2008-03-01,MWK,275.684

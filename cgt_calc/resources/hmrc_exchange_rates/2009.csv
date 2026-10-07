@@ -4,7 +4,7 @@
 # change HMRC made from the 1st replaces the month's published rate.
 # Source: HMRC's monthly pages and change lists for the year, archived at
 # https://webarchive.nationalarchives.gov.uk/ukgwa/20141203171558/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2009&columns=1
-# Left out, as HMRC's documents disagree or cannot be read: 2009-01 XOF, 2009-01 XPF, 2009-02 AED, 2009-02 XCD, 2009-04 AED, 2009-04 XCD, 2009-06 AED, 2009-06 XCD, 2009-12 MXN, 2009-12 MXV
+# Left out, as HMRC's documents disagree or cannot be read: 2009-01 XOF, 2009-01 XPF, 2009-02 AED, 2009-02 XCD, 2009-04 AED, 2009-04 XCD, 2009-06 AED, 2009-06 ALL, 2009-06 XCD, 2009-12 MXN, 2009-12 MXV
 month,currency,rate
 2009-01-01,AED,5.4816
 2009-01-01,AFA,70.1279
@@ -1233,7 +1233,6 @@ month,currency,rate
 2009-05-27,USD,1.5649
 2009-05-27,ZWD,522.129
 2009-06-01,AFA,72.5213
-2009-06-01,ALL,148.338
 2009-06-01,AMD,569.123
 2009-06-01,ANG,2.7312
 2009-06-01,AOR,118.716
@@ -1451,7 +1450,6 @@ month,currency,rate
 2009-06-10,VND,28663.1
 2009-06-10,YER,323.187
 2009-06-10,ZWD,609.383
-2009-06-17,ALL,117.056
 2009-06-17,DZD,117.056
 2009-06-17,PHP,77.7230
 2009-06-17,SBD,12.6920

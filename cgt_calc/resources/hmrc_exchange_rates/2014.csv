@@ -4,6 +4,7 @@
 # change HMRC made from the 1st replaces the month's published rate.
 # Source: HMRC's monthly pages and change lists for the year, archived at
 # https://webarchive.nationalarchives.gov.uk/ukgwa/20141203171558/http://customs.hmrc.gov.uk/channelsPortalWebApp/channelsPortalWebApp.portal?_nfpb=true&_pageLabel=pageImport_RatesCodesTools&id=EXRATES_2014&columns=1
+# Left out, as HMRC's documents disagree or cannot be read: 2014-01 LVL
 # December's changes: the Wayback Machine's copy of
 # https://www.hmrc.gov.uk/softwaredevelopers/rates/exrates-weekly-1214.xml
 month,currency,rate
@@ -86,7 +87,6 @@ month,currency,rate
 2014-01-01,LRD,1.6392
 2014-01-01,LSL,17.8209
 2014-01-01,LTL,4.0934
-2014-01-01,LVL,1.191
 2014-01-01,LYD,2.0054
 2014-01-01,MAD,13.3559
 2014-01-01,MDL,21.2489

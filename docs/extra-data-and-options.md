@@ -35,7 +35,7 @@ cgt-calc stops and names the currency and date when it has no rate for a transac
     and the Romanian leu as ROL until February 2009. A few rows have no code at all, such as the
     Romanian leu in January 2010.
 - **A currency and month for which HMRC's documents disagree or cannot be read**, so the rate HMRC
-    applied cannot be told. There are 38, including the Mexican peso in December 2009 under both of
+    applied cannot be told. There are 44, including the Mexican peso in December 2009 under both of
     HMRC's codes (MXV, MXN). The others are minor currencies, mostly the UAE dirham (AED), the East
     Caribbean dollar (XCD) and the CFA and CFP francs (XOF, XPF) in some months from 2006 to 2013.
     Each year's file lists its own at the top, as in
