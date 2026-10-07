@@ -106,7 +106,8 @@ are read like any other row, so remove one that is wrong.
 
 #### `already linked to ISIN`
 
-Two rows, or a row and the bundled list, give the same ticker to different ISINs. Correct the row
+Two rows, or a row and the bundled list, give the same ticker to different ISINs. The error names
+your row and says where the other ISIN is: on another row, or in the bundled list. Correct the row
 that is wrong. If the ticker is right for your ISIN and the clash is with the bundled list, also
 give the bundled ISIN a row that leaves that ticker out. If that was its only ticker, write the ISIN
 followed by a comma, such as `IE00B42WWV65,`.

@@ -630,10 +630,61 @@ def test_translation_row_with_an_empty_ticker_beside_a_real_one_is_refused(
 ) -> None:
     """A ticker left empty beside a real one is refused, with or without a space."""
     translation_file = tmp_path / "isin_translation.csv"
-    translation_file.write_text(f"ISIN,symbol\n{ISIN_A},FOO{ending}\n")
+    translation_file.write_text(f"ISIN,symbol\n{ISIN_B},BAZ\n{ISIN_A},FOO{ending}\n")
 
-    with pytest.raises(IsinTranslationError, match="contains an empty value"):
+    with pytest.raises(ParsingError, match="empty ticker beside a real one") as excinfo:
         IsinConverter(isin_translation_file=translation_file)
+
+    assert excinfo.value.row_index == 3
+
+
+# The bundled list is read first, so the check meets a bundled ISIN before one
+# that is only in the file, whichever row of the file it is on.
+@pytest.mark.parametrize(
+    ("rows", "row_index", "message"),
+    [
+        pytest.param(
+            f"{ISIN_A},FOO\n{ISIN_B},FOO",
+            3,
+            f"Ticker FOO already linked to ISIN {ISIN_A} on row 2; "
+            f"cannot also link to {ISIN_B}.",
+            id="two rows",
+        ),
+        pytest.param(
+            f"{ISIN_A},FOO\n{VANGUARD_ISIN},FOO",
+            3,
+            f"Ticker FOO already linked to ISIN {ISIN_A} on row 2; "
+            f"cannot also link to {VANGUARD_ISIN}.",
+            id="two rows, the later one for a bundled ISIN",
+        ),
+        pytest.param(
+            f"{ISIN_A},VUSA",
+            2,
+            f"Ticker VUSA already linked to ISIN {VANGUARD_ISIN} in the bundled "
+            f"list; cannot also link to {ISIN_A}.",
+            id="a bundled ticker given to a new ISIN",
+        ),
+        # The bundled list has this ISIN above the one that owns VDJP.
+        pytest.param(
+            f"{VANGUARD_ISIN},VDJP",
+            2,
+            "Ticker VDJP already linked to ISIN IE00B95PGT31 in the bundled "
+            f"list; cannot also link to {VANGUARD_ISIN}.",
+            id="a bundled ISIN given the ticker of a later bundled one",
+        ),
+    ],
+)
+def test_translation_file_ticker_under_two_isins_is_reported_at_its_row(
+    tmp_path: Path, rows: str, row_index: int, message: str
+) -> None:
+    """The error names the user's row, and says where the other ISIN is."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"ISIN,symbol\n{rows}\n")
+
+    with pytest.raises(ParsingError, match=re.escape(message)) as excinfo:
+        IsinConverter(isin_translation_file=translation_file)
+
+    assert excinfo.value.row_index == row_index
 
 
 @pytest.mark.parametrize(
