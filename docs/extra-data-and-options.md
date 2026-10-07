@@ -31,6 +31,9 @@ every run until you remove the row:
 - **From February 2015 to April 2016** it uses HMRC's rate. A file written by an earlier version of
     cgt-calc can hold such rows, because it saved the rate from before HMRC's change.
 
+A row you add for a date from May 2016 is used as it stands, without a comparison. When that date
+needs another currency, cgt-calc downloads the month and saves the other currencies beside your row.
+
 The rates are HMRC's as published, and cgt-calc cannot tell when HMRC's own figure is wrong. HMRC's
 tables give some less common currencies another currency's rate, for example the Georgian lari at
 the Russian rouble's rate until September 2013 and the Liberian dollar at the US dollar's. For a

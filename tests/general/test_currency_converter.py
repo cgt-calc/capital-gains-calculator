@@ -391,18 +391,43 @@ def test_cnh_is_treated_as_cny() -> None:
     assert converter.currency_to_gbp_rate(CurrencyCode("CNH"), DATE) == Decimal(9)
 
 
-def test_missing_currency_for_known_date(tmp_path: Path) -> None:
-    """Raise when the date is cached but the currency is missing.
+def test_a_row_typed_for_one_currency_leaves_the_others_to_be_downloaded(
+    tmp_path: Path,
+) -> None:
+    """A date on file with one currency still has its month asked for another.
 
-    The message names the rates file, which is where the row goes.
+    The row was typed in while HMRC could not be reached. It is kept and still
+    used; the download fills in the date's other currencies beside it. A
+    currency the download lacks as well is refused, naming the file its row
+    goes in.
     """
-    converter = CurrencyConverter(
-        exchange_rates_file=tmp_path / "rates.csv",
-        initial_data={DATE: {CurrencyCode("USD"): Decimal(1)}},
+    date = datetime.date(2019, 6, 14)
+    rates_file = tmp_path / "rates.csv"
+    rates_file.write_text(
+        "month,currency,rate\n2019-06-14,USD,1.2682\n", encoding="utf8"
     )
+    converter = CurrencyConverter(exchange_rates_file=rates_file)
+    xml = (
+        "<exchangeRateMonthList>"
+        "<exchangeRate>"
+        "<currencyCode>USD</currencyCode><rateNew>1.2611</rateNew>"
+        "</exchangeRate>"
+        "<exchangeRate>"
+        "<currencyCode>EUR</currencyCode><rateNew>1.1307</rateNew>"
+        "</exchangeRate>"
+        "</exchangeRateMonthList>"
+    )
+    converter.session = FakeSession(FakeResponse(ok=True, text=xml))  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
+    assert converter.currency_to_gbp_rate(CurrencyCode("EUR"), date) == Decimal(
+        "1.1307"
+    )
+    assert converter.currency_to_gbp_rate(USD, date) == Decimal("1.2682")
+    assert rates_file.read_text(encoding="utf8") == (
+        "month,currency,rate\n2019-06-14,EUR,1.1307\n2019-06-14,USD,1.2682\n"
+    )
     with pytest.raises(HmrcRateMissingError, match=r"Add it to .*rates\.csv: "):
-        converter.currency_to_gbp_rate(CurrencyCode("EUR"), DATE)
+        converter.currency_to_gbp_rate(CurrencyCode("XAU"), date)
 
 
 def test_test_converter_records_new_rates(tmp_path: Path) -> None:
