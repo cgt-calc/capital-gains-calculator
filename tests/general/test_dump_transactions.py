@@ -117,6 +117,7 @@ def _rich() -> BrokerTransaction:
             )
         ],
         affects_cash_balance=False,
+        market="US",
         source=TransactionSource(
             parser="RAW format",
             account="RAW format #1",
@@ -167,6 +168,7 @@ def test_header_is_the_reviewed_schema() -> None:
         "written_option_tax",
         "capital_adjustments",
         "affects_cash_balance",
+        "market",
         "source",
     )
 
@@ -209,6 +211,7 @@ def test_every_field_is_exported() -> None:
     assert row["isin"] == "US02079K3059"
     assert row["ambiguous_quantity"] == "21"
     assert row["affects_cash_balance"] == "false"
+    assert row["market"] == "US"
     assert json.loads(row["foreign_fees"]) == {"EUR": "2", "PLN": "0.30"}
     assert json.loads(row["option_contract"]) == {
         "underlying": "GOOG",

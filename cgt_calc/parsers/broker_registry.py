@@ -191,6 +191,10 @@ class BrokerRegistry:
                 style_text(msg, colour=Fore.CYAN, emoji="📄", stream=sys.stderr),
             )
 
+        # Before anything asks which fund a ticker is: the ERI choice just
+        # below, and later the dividend source country and the pooling checks.
+        isin_converter.set_aside_london_tickers(all_transactions)
+
         # ERI Raw is not a broker but is close enough to one to be here
         # Only add ERI for funds that show up in the portfolio
         isin_map = isin_converter.get_symbol_to_isin_map()

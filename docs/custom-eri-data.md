@@ -29,6 +29,10 @@ Add `--eri-raw-file` to your normal cgt-calc command. For example, with a Schwab
 cgt-calc --year 2024 --schwab-file schwab_transactions.csv --eri-raw-file eri_raw.csv
 ```
 
+Schwab shows a fund under a US symbol, so its ERI is applied only once your mapping file gives the
+fund's ISIN that symbol; see
+[Funds based outside the US](brokers/schwab.md#funds-based-outside-the-us).
+
 ## Where providers publish reports
 
 Download the report for the exact share class and reporting period you need. The lists below show

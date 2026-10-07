@@ -218,6 +218,19 @@ Cash mergers are supported only when the exported pair represents shares leaving
 cgt-calc warns because a merger that also gives you replacement shares needs different treatment and
 is not covered.
 
+### Funds based outside the US
+
+Schwab shows every holding under a US symbol, so cgt-calc does not read a Schwab symbol as one of
+the London fund tickers in its bundled
+[ISIN-to-ticker mapping](../extra-data-and-options.md#isin-to-ticker-translation). `OPEN` in a
+Schwab export is Opendoor, not the Irish fund that London lists as `OPEN`.
+
+A fund based outside the US, such as a UCITS ETF, appears under an over-the-counter symbol, usually
+five letters ending in `F`: `IHPCF`, for example. cgt-calc cannot tell which fund that is. If it is
+a [reporting offshore fund](../offshore-funds.md), add a row with the fund's ISIN and that symbol to
+your [mapping file](../extra-data-and-options.md#isin-to-ticker-translation). Without the row, the
+fund's excess reported income is left out of the report and no warning is printed.
+
 ## Written equity options
 
 The importer supports standard US equity options written with `Sell to Open`, including covered
@@ -482,6 +495,9 @@ use the one with the correct quantity.
     both.
 - Exports from more than one Schwab account cannot be combined. Nothing in the CSV identifies the
     account.
+- Excess reported income from a reporting offshore fund is left out, without a warning, until you
+    map the fund's ISIN to its Schwab symbol; see
+    [Funds based outside the US](#funds-based-outside-the-us).
 
 ## Troubleshooting
 

@@ -2733,6 +2733,11 @@ def test_run_with_example_files(request: pytest.FixtureRequest) -> None:
         "tests/trading212/data/2020/",
         "--mssb-dir",
         "tests/morgan_stanley/data/",
+        # The example's Schwab rows hold a London fund under its London
+        # ticker, VUAG. Schwab symbols are US ones, so the fund is matched
+        # the way a real Schwab holding of it is: by a row of the user's own.
+        "--isin-translation-file",
+        "tests/general/data/example_isin_translation.csv",
         "--output",
         report_path(request),
     )

@@ -18,6 +18,7 @@ from .const import (
     CGT_MODE,
     INITIAL_ISIN_TRANSLATION_RESOURCE,
     ISIN_TICKER_ALIASES,
+    US_MARKET,
     RuntimeMode,
 )
 from .exceptions import (
@@ -93,6 +94,10 @@ class IsinConverter:
         # lookups; a ticker learned from a transaction stored there is what
         # makes one run's holding conflict with the next run's.
         self.write_data: dict[Isin, set[str]] = {}
+        # The ISINs whose row is the bundled table's own, which lists London
+        # tickers. A row in the user's file replaces the bundled one and is
+        # theirs to stand by, whatever market its tickers are from.
+        self.bundled_isins: set[Isin] = set()
         # The tickers this run's transactions carry, and the reverse index.
         # Two transactions disagreeing about a security is the one case where
         # a pool really splits, and the only one refused here.
@@ -162,6 +167,46 @@ class IsinConverter:
             (isin for isin, symbols in self.data.items() if symbol in symbols),
             None,
         )
+
+    def set_aside_london_tickers(self, transactions: list[BrokerTransaction]) -> None:
+        """Stop reading a US symbol as the London ticker the bundled table lists.
+
+        The bundled table gives a fund from outside the US its London
+        tickers, and a row known to be US cannot be one of them: Schwab's
+        `OPEN` is Opendoor, not the iShares fund London lists under that
+        code. Left in, the entry would give the US holding that fund's excess
+        reported income and its source country. A fund with a US ISIN is
+        listed in the US, so its bundled ticker may be the US symbol itself
+        and stays.
+
+        Decided for the run rather than row by row, because every row under
+        one ticker is one holding. The fund keeps its other tickers.
+
+        A row carrying that ISIN under the same ticker is the London fund
+        itself. The run then has two securities under one ticker, which
+        would pool as one holding, so it is refused.
+        """
+        us_symbols = {
+            transaction.symbol
+            for transaction in transactions
+            if transaction.market == US_MARKET and transaction.symbol
+        }
+        set_aside: dict[str, Isin] = {}
+        for isin in self.bundled_isins:
+            if isin.startswith("US"):
+                continue
+            for ticker in self.data[isin] & us_symbols:
+                set_aside[ticker] = isin
+            self.data[isin] -= us_symbols
+        for transaction in transactions:
+            if (transaction.symbol, transaction.isin) in set_aside.items():
+                raise InvalidTransactionError(
+                    transaction,
+                    f"Ticker {transaction.symbol} is a US symbol on another row "
+                    f"of this run and the London ticker of ISIN {transaction.isin} "
+                    "on this one. Two securities under one ticker would be pooled "
+                    "and matched as one holding. Calculate them in separate runs.",
+                )
 
     def add_from_transaction(self, transaction: BrokerTransaction) -> None:
         """Normalise the transaction's ticker and record what it links to.
@@ -379,6 +424,7 @@ class IsinConverter:
             INITIAL_ISIN_TRANSLATION_RESOURCE
         )
         self.data.update(load(bundled_source)[0])
+        self.bundled_isins = set(self.data)
 
         file_rows: dict[Isin, int] = {}
         if (
@@ -387,6 +433,7 @@ class IsinConverter:
         ):
             self.write_data, file_rows = load(self.isin_translation_file)
             self.data.update(self.write_data)
+            self.bundled_isins -= set(self.write_data)
         return file_rows
 
     def _write_isin_translation_file(self) -> None:

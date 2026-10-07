@@ -99,3 +99,7 @@
 ^mssb\.py:.*CompoundNouns.*filesystem
 # "insert ... as a new line" is a line added to the file, not a "newline".
 ^(hargreaves-lansdown|sharesight)\.md:.*CompoundNouns.*newline
+# "Its bundled tickers" is the mapping's possessive; the ItsContraction rule misfires.
+^offshore-funds\.md:.*ItsContraction
+# "one of the London fund tickers" has its plural noun; OneOfTheSingular misfires.
+^schwab\.md:.*OneOfTheSingular

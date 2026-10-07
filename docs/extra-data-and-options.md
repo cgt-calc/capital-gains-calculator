@@ -154,6 +154,12 @@ If a run is stopped abruptly while it saves this file, it can leave a file such 
 `isin_translation.csv.3f9a1c2b.tmp` beside it, as with the [exchange rates file](#exchange-rates).
 The translation file itself is complete, and you can delete the leftover.
 
+The bundled list gives a fund from outside the US its London tickers. A transaction that cgt-calc
+knows to be from a US market, which is every
+[Charles Schwab](brokers/schwab.md#funds-based-outside-the-us) transaction, is not matched to them,
+and nor is any other transaction in the run under the same ticker. A row in your own file is matched
+whichever broker the transaction came from.
+
 #### `already linked to ISIN`
 
 Two rows, or a row and the bundled list, give the same ticker to different ISINs. The error names
@@ -166,6 +172,12 @@ If the error names no row, a lookup found a ticker that another ISIN already has
 ISIN that was looked up, which is the second one in the error, with its correct ticker. If that
 ticker is the one in the error, also take it off the first ISIN: change its row if your file has
 one, or give it a row that leaves the ticker out.
+
+#### `is a US symbol on another row`
+
+One transaction, such as a Charles Schwab one, uses the ticker as a US symbol. Another uses the same
+ticker and carries the ISIN of the London fund that the bundled list gives the ticker to. They are
+two securities, and cgt-calc would pool them as one holding. Calculate them in separate runs.
 
 ## When extra information is needed
 

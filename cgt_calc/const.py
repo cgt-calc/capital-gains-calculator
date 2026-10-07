@@ -306,6 +306,10 @@ SHARE_PRICES_RESOURCE: Final = "share_prices.csv"
 # Package resource listing ticker changes, with dates and ISINs.
 TICKER_RENAMES_RESOURCE: Final = "ticker_renames.csv"
 
+# BrokerTransaction.market for a symbol assigned in the United States, on an
+# exchange or over the counter.
+US_MARKET: Final = "US"
+
 # ISIN initial translation file
 INITIAL_ISIN_TRANSLATION_RESOURCE: Final = "initial_isin_translation.csv"
 
