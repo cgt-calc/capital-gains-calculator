@@ -90,6 +90,7 @@ demerger
 depositary
 dest
 dataclasses
+DFNS
 DictReader
 DictReader's
 dirham
@@ -325,6 +326,7 @@ v2
 ValueError
 VanguardTransaction
 VTI
+WCLD
 worktree
 XCD
 Xetra
