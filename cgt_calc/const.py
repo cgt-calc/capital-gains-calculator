@@ -287,6 +287,7 @@ ERI_RESOURCE_FOLDER: Final = "eri"
 # monthly files never show the changes HMRC made during a month, which it did
 # until April 2016. Each row starts on its date.
 SHIPPED_RATES_FOLDER: Final = "hmrc_exchange_rates"
+SHIPPED_RATES_YEARS: Final = range(2002, 2017)
 
 # Most recent transactions shown when the balance check fails
 BALANCE_CHECK_CONTEXT_ROWS: Final = 10

@@ -150,6 +150,7 @@ KPMG
 KeyError
 jsonable
 Lansdown
+lari
 latex
 len
 leu

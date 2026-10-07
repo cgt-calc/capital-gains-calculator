@@ -12,8 +12,8 @@ The external services used are:
 - [**UK Trade Tariff API**](https://www.trade-tariff.service.gov.uk/exchange_rates) – to fetch
     monthly GBP exchange rates for 2021 onwards
 - [**HMRC's legacy exchange-rate service**](https://www.hmrc.gov.uk/softwaredevelopers/2020-exrates.html)
-    – to fetch monthly GBP exchange rates for May 2016 to 2020. Rates for April 2002 to April 2016
-    come with cgt-calc; for an earlier date, cgt-calc asks the service, which has none
+    – to fetch monthly GBP exchange rates for May 2016 to 2020. Nothing is requested for an earlier
+    date: rates for April 2002 to April 2016 come with cgt-calc
 - [**Open FIGI API**](https://www.openfigi.com/api/overview) – to translate ISIN codes to tickers
     when needed (only ISIN codes are queried)
 - [**Yahoo Finance**](https://uk.help.yahoo.com/kb/finance/privacy-policy-sln6177.html) – to fetch

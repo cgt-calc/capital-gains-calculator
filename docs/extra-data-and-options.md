@@ -21,11 +21,21 @@ cgt-calc converts other currencies to pounds at HMRC's monthly exchange rates.
     and from the [UK Trade Tariff API](https://www.trade-tariff.service.gov.uk/exchange_rates) for
     2021 onwards. It saves them to `out/exchange_rates.csv`.
 
-For April 2002 to April 2016, a row in that file is used only for a currency and date the rates that
-come with cgt-calc lack. If the file gives a different rate from HMRC's for one of those dates,
-cgt-calc uses HMRC's rate and prints a warning naming the row. A file written by an earlier version
-of cgt-calc can hold such rows, because it saved the rate from before HMRC's change. The warning is
-repeated on every run until you remove the row.
+A row in that file for a date from April 2002 to April 2016 is compared with the rate that comes
+with cgt-calc. Where the two differ, cgt-calc prints a warning naming the row and HMRC's rate, on
+every run until you remove the row:
+
+- **Before February 2015** it uses your row. Nothing could be downloaded for those dates, so the row
+    is one you typed in. Check it against HMRC's rate in the warning: a row typed from a month's
+    table can miss a change HMRC made during the month.
+- **From February 2015 to April 2016** it uses HMRC's rate. A file written by an earlier version of
+    cgt-calc can hold such rows, because it saved the rate from before HMRC's change.
+
+The rates are HMRC's as published, and cgt-calc cannot tell when HMRC's own figure is wrong. HMRC's
+tables give some less common currencies another currency's rate, for example the Georgian lari at
+the Russian rouble's rate until September 2013 and the Liberian dollar at the US dollar's. For a
+transaction in a currency like these, compare HMRC's rate with another source and add your own row
+if it is wrong.
 
 cgt-calc stops and names the currency and date when it has no rate for a transaction:
 
@@ -42,8 +52,8 @@ cgt-calc stops and names the currency and date when it has no rate for a transac
     [`2009.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/hmrc_exchange_rates/2009.csv).
 
 To continue, add a row to the file yourself: the transaction's date in the `month` column, the
-currency code, and the rate as units of that currency per £1. Each transaction needs its own row. If
-the file does not exist yet, start it with the header line `month,currency,rate`.
+currency code, and the rate as units of that currency per £1. Each date and currency needs one row.
+If the file does not exist yet, start it with the header line `month,currency,rate`.
 
 HMRC does not prescribe which exchange rate to use, only that the method is reasonable and
 consistent ([CG78310](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg78310)).
