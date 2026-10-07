@@ -1663,6 +1663,34 @@ def test_carried_cost_under_the_disposal_s_own_name_needs_no_refusal() -> None:
     assert calculator.portfolio["NEW"] == Position(Decimal(50), Decimal(1000))
 
 
+def test_a_fee_beside_a_purchase_under_the_renamed_name_is_pooled() -> None:
+    """The fee joins the pool the sale falls back on, not the day's purchase.
+
+    The purchase gives `NEW` shares of its own that day, so the fee recorded
+    beside it is not refused as stranded. It is still no part of what those
+    20 shares cost: the same-day rule prices them at the £300 paid, and the
+    other 30 come out of a pool that carries the £100, as they would had the
+    fee been written `OLD`.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        _gbp_trade(RENAME_DAY, ActionType.BUY, "NEW", 20, 300),
+        _gbp_fee(RENAME_DAY, "NEW", 100),
+        _gbp_trade(RENAME_DAY, ActionType.SELL, "NEW", 50, 1000),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    same_day, section_104 = report.calculation_log[RENAME_DAY]["sell$NEW"]
+    assert same_day.rule_type is RuleType.SAME_DAY
+    assert same_day.allowable_cost == Decimal(300)
+    assert section_104.rule_type is RuleType.SECTION_104
+    assert section_104.allowable_cost == Decimal(330)
+    assert calculator.portfolio["NEW"] == Position(Decimal(70), Decimal(770))
+
+
 def test_sales_under_two_names_of_one_holding_are_refused() -> None:
     """One acquisition cannot be shared between two disposal rows.
 

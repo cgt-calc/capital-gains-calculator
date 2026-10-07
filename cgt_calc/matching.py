@@ -410,6 +410,10 @@ class Matcher:
         brought in here instead. Without this the pool a disposal reads is
         short of them, and where the day opened holding none it is empty.
 
+        A management fee recorded under that ticker beside them comes across
+        too. It is cost the pool carries, and no more part of what the day
+        bought than those shares are.
+
         What the day bought stays under the name its row put it under, so the
         same-day rule can still identify a disposal against it (see
         `_match_same_day`).
@@ -476,11 +480,10 @@ class Matcher:
                 # out of the wrong one leaves both wrong until then.
                 if ctx.cost_holder == ctx.identity.pool_name:
                     ctx.current_quantity -= available_quantity
+                    # Taking the last shares need not take the last of the
+                    # cost: a management fee's stays behind, pooled with no
+                    # shares, as it is when charged after a holding is sold.
                     ctx.current_amount -= acquisition_cost
-                    if ctx.current_quantity == 0:
-                        assert round_decimal(ctx.current_amount, 23) == 0, (
-                            f"current amount {ctx.current_amount}"
-                        )
                 else:
                     self.run.portfolio[ctx.cost_holder] -= Position(
                         available_quantity, acquisition_cost
@@ -1620,16 +1623,16 @@ class Matcher:
         disposal". So they are left out here, and reach a later disposal
         through the Section 104 pool instead, which is where s127 puts them.
 
-        A management fee is not an acquisition either, and is still counted
-        here. Leaving it out would change what an unrelated purchase costs on
-        a day it was charged, which is its own fix (see issue 1121).
+        A management fee is not an acquisition either: it brings in cost and
+        no shares. Counted here, a fee would be relieved in full against
+        whichever disposal is identified against that day's purchase, so it
+        too is left to the Section 104 pool (issue 1121).
         """
         if not has_key(self.history.acquisition_list, date_index, symbol):
             return HmrcTransactionData()
-        record = self.history.acquisition_list[date_index][symbol]
         # No spin-off correction is wanted: what a purchase cost is what its
         # own row said, settled when it was read.
-        return record.purchased + record.cost_only
+        return self.history.acquisition_list[date_index][symbol].purchased
 
     def _contending_acquisitions(
         self,
