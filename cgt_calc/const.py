@@ -257,11 +257,12 @@ ERI_TAX_DATE_DELTA: Final = relativedelta(months=6)
 # line, its London line in dollars.
 # Add a pair only once an export has shown the alias and both tickers are
 # confirmed for the ISIN from the exchange's or the issuer's own listing data.
-# Leave out an alias that is also the ticker of another security elsewhere. A
-# row with no ISIN is matched by its ticker alone, so another broker's holding
-# of that other security would be pooled with this one, with no error. Four
-# aliases an export has shown are left out for that reason: `GDX`, `SMH`,
-# `WCLD` and `DFNS`. `NVD` carries the same risk: it is also a fund in the US.
+# Leave out an alias that another security is known to use as its ticker on
+# an exchange a supported broker offers. A row with no ISIN is matched by its
+# ticker alone, so another broker's holding of that other security would be
+# pooled with this one, with no error. Four aliases an export has shown are
+# left out for that reason: `GDX`, `SMH`, `WCLD` and `DFNS`. `NVD` carries the
+# same risk: it is also a fund in the US.
 # Check the bundled ISIN list first: a row there that gives the reported
 # ticker a sibling the table does not name lets the sibling through as a
 # second holding, where without the new pair the run would have been refused.

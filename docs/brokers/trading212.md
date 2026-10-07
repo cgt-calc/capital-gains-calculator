@@ -126,11 +126,29 @@ row that names its ISIN, the rewrite is scoped to that ISIN: the same ticker cod
 security is left alone.
 
 The rewrite is not limited to Trading 212 rows. A row from another broker is rewritten too where it
-gives its ISIN, or where its ticker is in the bundled list of securities or in your
-[ISIN to ticker mapping](../extra-data-and-options.md#isin-to-ticker-translation): `CSPX` in an
-Interactive Brokers or RAW file is reported as `CSP1`. A row without an ISIN is matched by its
-ticker alone, so check that the holding is the security you expect. A ticker that cgt-calc cannot
-identify stays a holding of its own, without an error, until you add it to your mapping.
+gives its ISIN. A row without an ISIN is matched by its ticker alone: it takes the ISIN that another
+row in the run, the bundled list of securities or your
+[ISIN to ticker mapping](../extra-data-and-options.md#isin-to-ticker-translation) gives that ticker,
+so `CSPX` in an Interactive Brokers or RAW file is reported as `CSP1`. If that broker uses the
+ticker for a different security, cgt-calc cannot detect it: the holding is reported under the
+rewritten ticker and pooled with the other security. Check each holding and disposal in the report
+against your records. A ticker that cgt-calc cannot identify stays a holding of its own, without an
+error, until you add it to your mapping.
+
+Two things follow from reporting two listings as one holding:
+
+- **A stock split or consolidation.** No export seen so far shows one for a security held under two
+    tickers, and Trading 212 may state it once for each listing. Both statements then apply to the
+    one holding. If they fall on the same day, cgt-calc stops with **has more than one
+    reorganisation**. If they fall on different days, it applies the split twice, with no error. The
+    report lists each reorganisation with the counts either side of it, so check that the split
+    appears once. If it stops or appears twice, remove the `Stock split close` and
+    `Stock split open` rows of one listing from a copy of the export: the other listing's rows give
+    the ratio, and cgt-calc applies it to the whole holding.
+- **A distribution paid in two currencies.** If one broker pays a fund's distribution in dollars and
+    another pays it in pounds on the same day, cgt-calc stops with **Cannot combine amounts in
+    different currencies**. See
+    [Income reported in more than one currency](../extra-data-and-options.md#income-reported-in-more-than-one-currency).
 
 Only confirmed pairs are rewritten. Where your exports disagree about a security, cgt-calc refuses
 rather than guess: an unrecognised second ticker for one ISIN, or one ticker used for two ISINs.

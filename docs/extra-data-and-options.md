@@ -108,8 +108,9 @@ IE00B9F5YL18,VAPX,VDPX
 
 That row is already in the bundled list and only shows the format. When you write your own:
 
-- Write each ticker exactly as your broker file gives it. The report may show a supported pair under
-    one ticker, which is not always the one in your file.
+- Write each ticker exactly as your broker file gives it, or the current ticker where cgt-calc
+    [reads an old ticker as the current one](#ticker-renames), such as `META` for `FB`. The report
+    may show a supported pair under one ticker, which is not always the one in your file.
 - A Vanguard holding with no ticker goes under its fund name, on the row of its own ISIN. The **no
     ISIN mapping was found** warning lists the names as they must be written, each in double quotes
     where it contains a comma.
