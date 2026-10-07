@@ -65,6 +65,9 @@ ISIN_B = Isin("US5949181045")
 NVIDIA_ISIN = Isin("US67066G1040")
 BROADCOM_ISIN = Isin("US11135F1012")
 
+# An ISIN that is in the bundled translation data.
+VANGUARD_ISIN = Isin("IE00B3XXRP09")
+
 FigiData = list[dict[str, str | None]]
 
 
