@@ -206,15 +206,6 @@ def test_fetch_live_no_match(monkeypatch: pytest.MonkeyPatch) -> None:
     assert converter.get_symbols(ISIN_A) == set()
 
 
-def test_validate_data_rejects_conflicting_symbols() -> None:
-    """Reject the same ticker linked to two ISINs."""
-    converter = IsinConverter()
-    converter.data = {ISIN_A: {"FOO"}, ISIN_B: {"FOO"}}
-
-    with pytest.raises(IsinTranslationError, match="already linked"):
-        converter.validate_data()
-
-
 def test_add_from_transaction_rejects_two_transaction_symbols() -> None:
     """Reject a second, unrecognised ticker for an ISIN this run has seen.
 
@@ -512,7 +503,27 @@ def test_live_lookup_refuses_a_ticker_another_isin_owns(
         FakeSession([{"data": [{"ticker": "VUSA", "exchCode": "LN"}]}]),
     )
 
-    with pytest.raises(IsinTranslationError, match="already linked"):
+    with pytest.raises(
+        IsinTranslationError,
+        match=f"Ticker VUSA already linked to ISIN {VANGUARD_ISIN}; "
+        f"cannot also link to {UNKNOWN_ISIN}$",
+    ):
+        converter.get_symbols(UNKNOWN_ISIN)
+
+    assert not translation_file.exists()
+
+
+def test_live_lookup_refuses_an_empty_ticker_beside_a_real_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Refuse to cache a looked-up row that the next run would refuse to read."""
+    monkeypatch.setattr(cgt_calc.isin_converter, "CGT_MODE", RuntimeMode.PROD)
+    translation_file = tmp_path / "isin_translation.csv"
+    converter = IsinConverter(isin_translation_file=translation_file)
+    answer = [{"ticker": "", "exchCode": "LN"}, {"ticker": "FOO", "exchCode": "LN"}]
+    monkeypatch.setattr(converter, "session", FakeSession([{"data": answer}]))
+
+    with pytest.raises(IsinTranslationError, match="contains an empty value"):
         converter.get_symbols(UNKNOWN_ISIN)
 
     assert not translation_file.exists()
@@ -625,10 +636,10 @@ def test_translation_file_ignores_spaces_around_a_ticker(
 
 
 @pytest.mark.parametrize("ending", [",", ", "], ids=["comma", "comma and space"])
-def test_translation_row_with_an_empty_ticker_beside_a_real_one_is_refused(
+def test_translation_row_with_an_empty_ticker_beside_a_real_one_names_its_row(
     tmp_path: Path, ending: str
 ) -> None:
-    """A ticker left empty beside a real one is refused, with or without a space."""
+    """A ticker left empty beside a real one is refused at its row."""
     translation_file = tmp_path / "isin_translation.csv"
     translation_file.write_text(f"ISIN,symbol\n{ISIN_B},BAZ\n{ISIN_A},FOO{ending}\n")
 
@@ -684,6 +695,7 @@ def test_translation_file_ticker_under_two_isins_is_reported_at_its_row(
     with pytest.raises(ParsingError, match=re.escape(message)) as excinfo:
         IsinConverter(isin_translation_file=translation_file)
 
+    assert excinfo.value.file == translation_file
     assert excinfo.value.row_index == row_index
 
 

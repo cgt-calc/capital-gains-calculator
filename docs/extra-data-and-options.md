@@ -112,6 +112,10 @@ that is wrong. If the ticker is right for your ISIN and the clash is with the bu
 give the bundled ISIN a row that leaves that ticker out. If that was its only ticker, write the ISIN
 followed by a comma, such as `IE00B42WWV65,`.
 
+If the error names no row, a lookup found a ticker that another ISIN already has. Add a row for the
+ISIN that was looked up, which is the second one in the error, with its correct ticker. If that
+ticker is the one in the error, also give the first ISIN a row that leaves it out.
+
 ## When extra information is needed
 
 ### Missing share prices

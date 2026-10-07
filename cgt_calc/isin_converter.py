@@ -117,6 +117,12 @@ class IsinConverter:
             if symbols == {""}:
                 continue
             for symbol in symbols:
+                # Only a lookup can bring this: a row of a file that has it is
+                # refused where it is read.
+                if not symbol:
+                    raise IsinTranslationError(
+                        f"Ticker list for ISIN {isin} contains an empty value"
+                    )
                 existing_isin = reverse_cache.setdefault(symbol, isin)
                 if existing_isin == isin:
                     continue
@@ -125,6 +131,8 @@ class IsinConverter:
                 first, second = sorted(
                     (existing_isin, isin), key=lambda one: rows.get(one, 0)
                 )
+                # The file is never None where there are rows: that half is
+                # for the type checker.
                 if file is None or second not in rows:
                     raise IsinTranslationError(
                         f"Ticker {symbol} already linked to ISIN {first}; "
