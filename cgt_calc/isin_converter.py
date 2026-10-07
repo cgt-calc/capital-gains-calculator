@@ -58,7 +58,8 @@ class IsinTranslationEntry:
         if isin is None:
             raise ParsingError(file, f"Row contains invalid ISIN '{row[0]}'")
         self.isin = isin
-        self.symbols = set(row[1:])
+        # Spaces typed beside the comma are not part of a ticker.
+        self.symbols = {symbol.strip() for symbol in row[1:]}
 
 
 class IsinConverter:
@@ -287,23 +288,51 @@ class IsinConverter:
                 reading_as("utf-8-sig", file_label),
                 source.open(encoding="utf-8-sig") as csv_file,
             ):
-                lines = list(csv.reader(csv_file))
+                # A space after a comma is skipped here, not left to the trim
+                # below: a name in quotes is only read as quoted when the
+                # quote is the first thing in its cell.
+                lines = list(csv.reader(csv_file, skipinitialspace=True))
             if not lines:
                 return {}
             header = lines[0]
             if header != ISIN_TRANSLATION_HEADER:
                 raise UnexpectedHeaderError(header, ISIN_TRANSLATION_HEADER, file_label)
             entries: dict[Isin, set[str]] = {}
+            # The row each ISIN was first read from, to name it in the error.
+            first_rows: dict[Isin, int] = {}
             for index, row in enumerate(lines[1:], start=2):
                 # Skip harmless blank rows left by editors or tooling.
                 if not any(cell.strip() for cell in row):
                     continue
+                # No ticker spans lines: a cell that does is a quoted name
+                # left open, which has taken the following rows into itself.
+                if any("\n" in cell for cell in row):
+                    raise ParsingError(
+                        file_label,
+                        "This row has a double quote that is never closed, so the "
+                        "lines after it were read as part of one name. Add the "
+                        "closing quote.",
+                        row_index=index,
+                    )
                 try:
                     entry = IsinTranslationEntry(row, file_label)
                 except ParsingError as err:
                     err.add_row_context(index)
                     raise
+                # Keeping the later row would drop the earlier one's tickers
+                # without a word. The same tickers twice say nothing new.
+                earlier = entries.get(entry.isin)
+                if earlier is not None and earlier != entry.symbols:
+                    raise ParsingError(
+                        file_label,
+                        f"ISIN {entry.isin} is also on row "
+                        f"{first_rows[entry.isin]}, and the two rows do not list "
+                        "the same tickers. Keep one row for it, with every ticker "
+                        "that is right.",
+                        row_index=index,
+                    )
                 entries[entry.isin] = entry.symbols
+                first_rows.setdefault(entry.isin, index)
             return entries
 
         bundled_source = resources.files(RESOURCES_PACKAGE).joinpath(

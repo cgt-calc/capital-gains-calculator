@@ -206,15 +206,6 @@ def test_fetch_live_no_match(monkeypatch: pytest.MonkeyPatch) -> None:
     assert converter.get_symbols(ISIN_A) == set()
 
 
-def test_validate_data_rejects_empty_symbol() -> None:
-    """Reject ticker lists containing empty values."""
-    converter = IsinConverter()
-    converter.data = {ISIN_A: {"FOO", ""}}
-
-    with pytest.raises(IsinTranslationError, match="contains an empty value"):
-        converter.validate_data()
-
-
 def test_validate_data_rejects_conflicting_symbols() -> None:
     """Reject the same ticker linked to two ISINs."""
     converter = IsinConverter()
@@ -595,6 +586,121 @@ def test_translation_row_with_an_empty_ticker_is_not_a_blank_row(
     converter = IsinConverter(isin_translation_file=translation_file)
 
     assert converter.write_data == {ISIN_A: {""}}
+
+
+@pytest.mark.parametrize(
+    ("row", "symbols"),
+    [
+        pytest.param(f"{ISIN_A}, FOO, BAR", {"FOO", "BAR"}, id="space after a comma"),
+        pytest.param(f"{ISIN_A},FOO ,BAR", {"FOO", "BAR"}, id="space before a comma"),
+        # Still the empty ticker that records an ISIN as known without one.
+        pytest.param(f"{ISIN_A},  ", {""}, id="ticker of only spaces"),
+        # Only the ends are trimmed: a fund name has spaces of its own.
+        pytest.param(
+            f"{ISIN_A}, Foo Fund ,BAR", {"Foo Fund", "BAR"}, id="space inside a name"
+        ),
+        pytest.param(
+            f'{ISIN_A}, "Foo Fund, Acc"',
+            {"Foo Fund, Acc"},
+            id="space before a quoted name",
+        ),
+        # The reader's strict mode would refuse this one.
+        pytest.param(
+            f'{ISIN_A},"Foo Fund, Acc" ,BAR',
+            {"Foo Fund, Acc", "BAR"},
+            id="space after a quoted name",
+        ),
+    ],
+)
+def test_translation_file_ignores_spaces_around_a_ticker(
+    tmp_path: Path, row: str, symbols: set[str]
+) -> None:
+    """Spaces typed beside a comma are not part of a ticker."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"ISIN,symbol\n{row}\n")
+
+    converter = IsinConverter(isin_translation_file=translation_file)
+
+    assert converter.write_data == {ISIN_A: symbols}
+
+
+@pytest.mark.parametrize("ending", [",", ", "], ids=["comma", "comma and space"])
+def test_translation_row_with_an_empty_ticker_beside_a_real_one_is_refused(
+    tmp_path: Path, ending: str
+) -> None:
+    """A ticker left empty beside a real one is refused, with or without a space."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"ISIN,symbol\n{ISIN_A},FOO{ending}\n")
+
+    with pytest.raises(IsinTranslationError, match="contains an empty value"):
+        IsinConverter(isin_translation_file=translation_file)
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        pytest.param("FOO", "FOO,BAR", id="later row adds a ticker"),
+        pytest.param("FOO,BAR", "FOO", id="later row drops a ticker"),
+    ],
+)
+def test_translation_file_refuses_two_rows_that_disagree_about_an_isin(
+    tmp_path: Path, first: str, second: str
+) -> None:
+    """The first row's tickers are not dropped for the second's without a word."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(
+        f"ISIN,symbol\n{ISIN_A},{first}\n{ISIN_B},BAZ\n{ISIN_A},{second}\n"
+    )
+
+    with pytest.raises(
+        ParsingError,
+        match=f"ISIN {ISIN_A} is also on row 2, and the two rows do not list",
+    ) as excinfo:
+        IsinConverter(isin_translation_file=translation_file)
+
+    assert excinfo.value.row_index == 4
+
+
+@pytest.mark.parametrize(
+    "opening", [',"', ', "'], ids=["quote after the comma", "quote after a space"]
+)
+def test_translation_row_with_an_unclosed_quote_is_refused(
+    tmp_path: Path, opening: str
+) -> None:
+    """A name whose closing quote is missing does not take in the rows after it."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(
+        f"ISIN,symbol\n{ISIN_A}{opening}Foo Fund\n{ISIN_B},BAZ\n"
+    )
+
+    with pytest.raises(
+        ParsingError, match="double quote that is never closed"
+    ) as excinfo:
+        IsinConverter(isin_translation_file=translation_file)
+
+    assert excinfo.value.row_index == 2
+
+
+def test_translation_file_row_replaces_the_bundled_tickers(tmp_path: Path) -> None:
+    """A row for an ISIN the bundled list has is not a repeat of it."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"ISIN,symbol\n{VANGUARD_ISIN},FOO\n")
+
+    converter = IsinConverter(isin_translation_file=translation_file)
+
+    assert converter.data[VANGUARD_ISIN] == {"FOO"}
+
+
+def test_translation_file_accepts_a_row_repeated_with_the_same_tickers(
+    tmp_path: Path,
+) -> None:
+    """A second row that says what the first did is not an error."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"ISIN,symbol\n{ISIN_A},FOO,BAR\n{ISIN_A},BAR,FOO\n")
+
+    converter = IsinConverter(isin_translation_file=translation_file)
+
+    assert converter.write_data == {ISIN_A: {"FOO", "BAR"}}
 
 
 def test_translation_file_invalid_row(tmp_path: Path) -> None:
