@@ -254,7 +254,7 @@ ERI_TAX_DATE_DELTA: Final = relativedelta(months=6)
 # `ticker_renames.csv`.
 # A share is reported under the ticker of its home market. A fund is reported
 # under its London line traded in pounds or, where no export has shown that
-# line, its London line in dollars.
+# line, its London line in dollars, as `CON3` is.
 # Add a pair only once an export has shown the alias and both tickers are
 # confirmed for the ISIN from the exchange's or the issuer's own listing data.
 # Leave out an alias that another security is known to use as its ticker on
@@ -263,6 +263,10 @@ ERI_TAX_DATE_DELTA: Final = relativedelta(months=6)
 # pooled with this one, with no error. Four aliases an export has shown are
 # left out for that reason: `GDX`, `SMH`, `WCLD` and `DFNS`. `NVD` carries the
 # same risk: it is also a fund in the US.
+# The reported ticker is not held to that rule, though `TSLA`, `AMZN` and
+# `NVDA` also name trackers and depositary receipts on other exchanges. A row
+# with no ISIN under `TSLA` joins a Trading 212 `TSLA` holding without this
+# table; an entry only makes it join the shares exported as `TL0` too.
 # Check the bundled ISIN list first: a row there that gives the reported
 # ticker a sibling the table does not name lets the sibling through as a
 # second holding, where without the new pair the run would have been refused.

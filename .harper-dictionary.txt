@@ -65,6 +65,7 @@ CG59562
 CG78310
 CNH
 CNY
+CON3
 CSH2
 cgt
 classmethod
@@ -297,6 +298,7 @@ strptime
 subrow
 tablefinder
 TCGA
+TL0
 toml
 Trading212Column
 tranche's
@@ -304,6 +306,7 @@ TransactionDetails
 transferor
 transferor's
 TRL
+TSLA
 txn
 ty
 tzinfo

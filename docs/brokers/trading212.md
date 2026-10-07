@@ -129,11 +129,12 @@ The rewrite is not limited to Trading 212 rows. A row from another broker is rew
 gives its ISIN. A row without an ISIN is matched by its ticker alone: it takes the ISIN that another
 row in the run, the bundled list of securities or your
 [ISIN to ticker mapping](../extra-data-and-options.md#isin-to-ticker-translation) gives that ticker,
-so `CSPX` in an Interactive Brokers or RAW file is reported as `CSP1`. If that broker uses the
-ticker for a different security, cgt-calc cannot detect it: the holding is reported under the
-rewritten ticker and pooled with the other security. Check each holding and disposal in the report
-against your records. A ticker that cgt-calc cannot identify stays a holding of its own, without an
-error, until you add it to your mapping.
+so `CSPX` in an Interactive Brokers or RAW file is reported as `CSP1`. A row without an ISIN that is
+already under the reported ticker joins the holding as well: another broker's `TSLA` is pooled with
+Tesla shares that Trading 212 exported as `TL0`. If that broker uses the ticker for a different
+security, cgt-calc cannot detect it: its holding is pooled with the other security. Check each
+holding and disposal in the report against your records. A ticker that cgt-calc cannot identify
+stays a holding of its own, without an error, until you add it to your mapping.
 
 Two things follow from reporting two listings as one holding:
 
