@@ -116,7 +116,9 @@ class IsinConverter:
         for isin, symbols in self.data.items():
             if symbols == {""}:
                 continue
-            for symbol in symbols:
+            # In order, so that a row clashing on two tickers names the same
+            # one on every run.
+            for symbol in sorted(symbols):
                 # Only a lookup can bring this: a row of a file that has it is
                 # refused where it is read.
                 if not symbol:

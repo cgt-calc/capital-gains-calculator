@@ -513,6 +513,30 @@ def test_live_lookup_refuses_a_ticker_another_isin_owns(
     assert not translation_file.exists()
 
 
+def test_live_lookup_clash_with_a_row_of_the_file_names_no_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The looked-up ISIN has no row, and the file's ISIN is not a bundled one."""
+    monkeypatch.setattr(cgt_calc.isin_converter, "CGT_MODE", RuntimeMode.PROD)
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"ISIN,symbol\n{ISIN_A},FOO\n")
+    converter = IsinConverter(isin_translation_file=translation_file)
+    monkeypatch.setattr(
+        converter,
+        "session",
+        FakeSession([{"data": [{"ticker": "FOO", "exchCode": "LN"}]}]),
+    )
+
+    with pytest.raises(
+        IsinTranslationError,
+        match=f"^Ticker FOO already linked to ISIN {ISIN_A}; "
+        f"cannot also link to {UNKNOWN_ISIN}$",
+    ):
+        converter.get_symbols(UNKNOWN_ISIN)
+
+    assert translation_file.read_text() == f"ISIN,symbol\n{ISIN_A},FOO\n"
+
+
 def test_live_lookup_refuses_an_empty_ticker_beside_a_real_one(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -682,6 +706,14 @@ def test_translation_row_with_an_empty_ticker_beside_a_real_one_names_its_row(
             "Ticker VDJP already linked to ISIN IE00B95PGT31 in the bundled "
             f"list; cannot also link to {VANGUARD_ISIN}.",
             id="a bundled ISIN given the ticker of a later bundled one",
+        ),
+        # Tickers are read into a set, whose order changes from run to run.
+        pytest.param(
+            f"{ISIN_A},VUSD,VMID,VUSA,VGOV,VETY",
+            2,
+            "Ticker VETY already linked to ISIN IE00BZ163H91 in the bundled "
+            f"list; cannot also link to {ISIN_A}.",
+            id="several clashing tickers: the first in alphabetical order",
         ),
     ],
 )
