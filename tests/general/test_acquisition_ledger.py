@@ -161,9 +161,37 @@ def test_a_fee_is_not_part_of_the_purchase_a_sale_is_identified_against(
     assert entry.allowable_cost == Decimal(750)
     assert entry.gain == Decimal(250)
     assert calculator.portfolio["X"] == pool_left
-    # What the report last says the pool holds is what it holds.
-    stated = list(report.calculation_log[max(report.calculation_log)].values())[-1][-1]
-    assert Position(stated.new_quantity, stated.new_pool_cost) == pool_left
+
+
+def test_a_fee_has_a_line_of_its_own_when_a_30_day_claim_takes_every_share() -> None:
+    """The report still states the fee, and a pool with the fee in it.
+
+    The earlier sale claims all 50 bought, so no bought share is left for a
+    Section 104 line to carry the fee on. Without one the day's only line is
+    the claim's, which states a pool £100 short and no fee at all.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    report = get_report(
+        calculator,
+        [
+            _gbp_trade(EARLIER_DAY, ActionType.BUY, "X", 100, 1000),
+            _gbp_trade(DAY, ActionType.SELL, "X", 50, 1000),
+            _gbp_trade(LATER_DAY, ActionType.BUY, "X", 50, 750),
+            _gbp_fee(LATER_DAY, "X", 100),
+        ],
+    )
+
+    claimed, fee = report.calculation_log[LATER_DAY]["buy$X"]
+    assert claimed.rule_type is RuleType.BED_AND_BREAKFAST
+    assert claimed.quantity == Decimal(50)
+    assert fee.rule_type is RuleType.SECTION_104
+    assert fee.quantity == Decimal(0)
+    assert fee.amount == Decimal(-100)
+    assert fee.fees == Decimal(100)
+    assert Position(fee.new_quantity, fee.new_pool_cost) == Position(
+        Decimal(100), Decimal(1100)
+    )
 
 
 def test_a_vest_and_a_transfer_from_a_spouse_are_recorded_as_purchases() -> None:

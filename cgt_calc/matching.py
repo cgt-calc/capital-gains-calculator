@@ -413,9 +413,9 @@ class Matcher:
         brought in here instead. Without this the pool a disposal reads is
         short of them, and where the day opened holding none it is empty.
 
-        A management fee recorded under that ticker comes across the same
-        way, with or without a reorganisation beside it. It is cost the pool
-        carries, and no part of what the day bought.
+        A management fee recorded beside shares under such a ticker, bought or
+        spun off, comes across the same way. It is cost the pool carries, and
+        no part of what the day bought.
 
         What the day bought stays under the name its row put it under, so the
         same-day rule can still identify a disposal against it (see
