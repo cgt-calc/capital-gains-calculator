@@ -328,7 +328,7 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
         reader = csv.DictReader(lines)
         if reader.fieldnames is None:
             raise ParsingError(
-                file_path, f"{cls.pretty_name} {cls.format_name} doesn't have a header"
+                file_path, f"{cls.pretty_name} CSV doesn't have a header"
             )
         cls._validate_header(reader.fieldnames, file_path)
         expected_col_count = len(reader.fieldnames)
@@ -376,9 +376,7 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                 raise ParsingError(file_path, str(err), row_index=index) from err
 
         if not saw_row:
-            raise ParsingError(
-                file_path, f"{cls.pretty_name} {cls.format_name} file is empty"
-            )
+            raise ParsingError(file_path, f"{cls.pretty_name} CSV file is empty")
         return transactions
 
 
