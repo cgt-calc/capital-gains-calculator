@@ -304,6 +304,16 @@ class IsinConverter:
                 # Skip harmless blank rows left by editors or tooling.
                 if not any(cell.strip() for cell in row):
                     continue
+                # No ticker spans lines: a cell that does is a quoted name
+                # left open, which has taken the following rows into itself.
+                if any("\n" in cell for cell in row):
+                    raise ParsingError(
+                        file_label,
+                        "This row has a double quote that is never closed, so the "
+                        "lines after it were read as part of one name. Add the "
+                        "closing quote.",
+                        row_index=index,
+                    )
                 try:
                     entry = IsinTranslationEntry(row, file_label)
                 except ParsingError as err:

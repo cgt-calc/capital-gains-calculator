@@ -655,6 +655,26 @@ def test_translation_file_refuses_two_rows_that_disagree_about_an_isin(
     assert excinfo.value.row_index == 4
 
 
+@pytest.mark.parametrize(
+    "opening", [',"', ', "'], ids=["quote after the comma", "quote after a space"]
+)
+def test_translation_row_with_an_unclosed_quote_is_refused(
+    tmp_path: Path, opening: str
+) -> None:
+    """A name whose closing quote is missing does not take in the rows after it."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(
+        f"ISIN,symbol\n{ISIN_A}{opening}Foo Fund\n{ISIN_B},BAZ\n"
+    )
+
+    with pytest.raises(
+        ParsingError, match="double quote that is never closed"
+    ) as excinfo:
+        IsinConverter(isin_translation_file=translation_file)
+
+    assert excinfo.value.row_index == 2
+
+
 def test_translation_file_row_replaces_the_bundled_tickers(tmp_path: Path) -> None:
     """A row for an ISIN the bundled list has is not a repeat of it."""
     translation_file = tmp_path / "isin_translation.csv"
