@@ -48,6 +48,8 @@ class SpinOffHandler:
             self.spin_offs_file.open(encoding="utf-8-sig") as fin,
         ):
             csv_reader = csv.DictReader(fin)
+            # The row each new ticker was first read from, to name it in the error.
+            first_rows: dict[str, int] = {}
             header = csv_reader.fieldnames
             # Checked before any row: a file of one mapping and no header has
             # no row left to check, and would be read as empty.
@@ -79,7 +81,18 @@ class SpinOffHandler:
                         "it was spun off from.",
                         row_index=csv_reader.line_num,
                     )
+                # Keeping the later row would drop the earlier one's source
+                # without a word. The same row twice says nothing new.
+                earlier = cache.get(dst)
+                if earlier is not None and earlier != src:
+                    raise ParsingError(
+                        self.spin_offs_file,
+                        f"{dst} is also on row {first_rows[dst]}, spun off from "
+                        f"{earlier} there. Keep the row that is right.",
+                        row_index=csv_reader.line_num,
+                    )
                 cache[dst] = src
+                first_rows.setdefault(dst, csv_reader.line_num)
             return cache
 
     def _write_spin_off_file(self) -> None:
