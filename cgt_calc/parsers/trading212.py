@@ -125,6 +125,14 @@ UNSUPPORTED_ACTIONS: Final = frozenset(
 # rounding itself.
 TOTAL_ABS_TOLERANCE: Final = Decimal("0.01")
 
+# Trading 212 prints a total to two decimal places in every currency.
+TOTAL_UNIT: Final = Decimal("0.01")
+# The fewest decimal places it prints a price and an exchange rate to. A figure
+# with fewer has only lost trailing zeros to a spreadsheet or to typing, and is
+# as precise as before.
+PRICE_UNIT: Final = Decimal("0.01")
+RATE_UNIT: Final = Decimal("0.00001")
+
 # A value rebuilt from an exported price and exchange rate misses by a
 # proportion of itself rather than by a fixed step, so this bound has to be
 # relative. Measured across the fourteen rows of seven real reorganisations,
@@ -251,6 +259,17 @@ def decimal_or_none(
     if value is None or value in {"", "Not available"}:
         return None
     return parse_decimal(value, column.value)
+
+
+def last_digit(value: Decimal, coarsest: Decimal) -> Decimal:
+    """Return one unit of the last digit an exported figure is printed to.
+
+    Never more than `coarsest`, the unit Trading 212 prints that figure to at
+    the least.
+    """
+    exponent = value.as_tuple().exponent
+    assert isinstance(exponent, int), "an exported figure is a finite number"
+    return min(Decimal(1).scaleb(exponent), coarsest)
 
 
 def datetime_from_str(value: str) -> datetime:
@@ -443,6 +462,23 @@ class Trading212Transaction(BrokerTransaction):
             abs(amount + fees) / quantity if amount is not None and quantity else None
         )
 
+        # Shares times price, converted and with the fees, should give the
+        # total. Every figure in the row is printed to so many digits, so the
+        # two may differ by one unit of the last digit of the total, of the
+        # price for every share, and of the exchange rate across the whole
+        # value. A fixed allowance per share warned on small purchases of a
+        # share priced in pence, where a penny of rounding in the total is a
+        # large part of a penny a share. One unit and not half: the eight-place
+        # exchange rate of a current export is cut off, not rounded, and real
+        # rows are out by a whole unit of its last digit.
+        # A fee in the total's currency gets no allowance: the total is the
+        # rounded value and the rounded fee, so taking the fee off leaves the
+        # rounded value, as it does in every real row with a conversion fee,
+        # stamp duty, stamp duty reserve tax or French transaction tax. A fee
+        # in the price's currency is converted here at the row's rate, which
+        # may not be how it reached the total. No real row has one, so such a
+        # row is allowed a unit of the total: enough for three fees that were
+        # each rounded to a penny on their own.
         # Not on a dividend row of any kind: its price per share is after
         # foreign tax, and the exchange rate a current export gives on it runs
         # the other way.
@@ -456,16 +492,30 @@ class Trading212Transaction(BrokerTransaction):
             exchange_rate = self.exchange_rate or Decimal(1)
             check_fees = self._checkable_fees(fees, foreign_fees, exchange_rate)
             if check_fees is not None:
-                check_price = abs(amount + check_fees) / quantity
-                calculated_price_foreign = check_price * exchange_rate
-                discrepancy = self.price_foreign - calculated_price_foreign
-                if abs(discrepancy) > Decimal("0.015"):
+                price_unit = last_digit(self.price_foreign, PRICE_UNIT)
+                implied = quantity * self.price_foreign / exchange_rate
+                rounding = TOTAL_UNIT + quantity * price_unit / exchange_rate
+                # A price in the total's own currency is not converted, so its
+                # exchange rate of one is exact however it is printed.
+                if self.exchange_rate is not None and self.currency_foreign != currency:
+                    rate_unit = last_digit(self.exchange_rate, RATE_UNIT)
+                    rounding += implied * rate_unit / exchange_rate
+                if foreign_fees:
+                    rounding += TOTAL_UNIT
+                gap = abs(amount + check_fees) - implied
+                if abs(gap) > rounding:
+                    total = abs(amount)
                     LOGGER.warning(
-                        "The Price per Share for this transaction after converting "
-                        "and adding in the fees does not add up to the total amount. "
-                        "You can fix the CSV by reviewing the transaction in the UI. "
-                        "Discrepancy per Share: %.3f.",
-                        float(discrepancy),
+                        "The total of the %s %s on %s is %s %s, but its shares, "
+                        "price, exchange rate and fees come to %s %s. Check the "
+                        "transaction in Trading 212 before relying on the report.",
+                        symbol,
+                        self.raw_action,
+                        date,
+                        total,
+                        currency,
+                        (total - gap).quantize(TOTAL_UNIT),
+                        currency,
                     )
 
         # A dividend is recorded before foreign tax once overlapping exports are

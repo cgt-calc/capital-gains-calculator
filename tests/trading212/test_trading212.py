@@ -968,27 +968,201 @@ def _make_usd_fee_buy_row(total: str) -> list[str]:
 def test_read_trading212_transactions_foreign_fee_price_discrepancy(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Warn when the price does not add up for a foreign-fee row."""
+    """Warn when the total is not what the row's other figures give.
+
+    Two shares at $10.50 and a $0.20 fee, at 1.25 dollars to the pound, come
+    to 16.96 GBP. The warning names the transaction and gives both totals.
+    """
 
     folder = _prepare_file(tmp_path, [HEADER_2024, _make_usd_fee_buy_row("17.50")])
 
     with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
         Trading212Parser().load_from_dir(folder)
 
-    assert "does not add up" in caplog.text
+    assert (
+        "The total of the BAZ Market buy on 2024-01-01 is 17.50 GBP, but its "
+        "shares, price, exchange rate and fees come to 16.96 GBP. Check the "
+        "transaction in Trading 212 before relying on the report." in caplog.text
+    )
 
 
-def test_read_trading212_transactions_foreign_fee_price_consistent(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+def _make_trade_row(
+    shares: str,
+    price: str,
+    currency: str,
+    exchange_rate: str,
+    total: str,
+    overrides: Mapping[str | Trading212Column, str] | None = None,
+) -> list[str]:
+    """Build a pound-account buy from the figures the check reads."""
+    row: dict[str | Trading212Column, str] = {
+        Trading212Column.ACTION: "Market buy",
+        Trading212Column.TIME: "2024-01-01 16:10:05",
+        Trading212Column.ISIN: "GB0000000017",
+        Trading212Column.TICKER: "WID",
+        Trading212Column.NAME: "Widget plc",
+        Trading212Column.NO_OF_SHARES: shares,
+        Trading212Column.PRICE_PER_SHARE: price,
+        Trading212Column.CURRENCY_PRICE_PER_SHARE: currency,
+        Trading212Column.EXCHANGE_RATE: exchange_rate,
+        Trading212Column.TOTAL: total,
+        Trading212Column.CURRENCY_TOTAL: "GBP",
+        Trading212Column.TRANSACTION_ID: "trade-1",
+    }
+    row.update(overrides or {})
+    return _make_row(HEADER_2026, row)
+
+
+@pytest.mark.parametrize(
+    ("figures", "overrides"),
+    [
+        pytest.param(
+            ("3.0000000000", "512.3000000000", "GBX", "100.00000000", "15.37"),
+            {},
+            id="the total rounded to a penny",
+        ),
+        pytest.param(
+            ("7", "31.27", "GBP", "1.00000", "218.92"),
+            {},
+            id="the price printed to two places",
+        ),
+        pytest.param(
+            ("1000.0000000000", "150.0000000000", "USD", "1.25123", "119881.44"),
+            {},
+            id="the exchange rate out by most of its last digit",
+        ),
+        pytest.param(
+            ("383.0000000000", "10.3900000000", "USD", "1.25123456", "3180.20"),
+            {
+                Trading212Column.ACTION: "Market sell",
+                Trading212Column.FINRA_FEE: "0.07",
+                Trading212Column.CURRENCY_FINRA_FEE: "USD",
+                Trading212Column.TRANSACTION_FEE: "0.11",
+                Trading212Column.CURRENCY_TRANSACTION_FEE: "USD",
+            },
+            id="two fees in the price's currency",
+        ),
+    ],
+)
+def test_a_gap_the_printed_figures_allow_does_not_warn(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    figures: tuple[str, str, str, str, str],
+    overrides: Mapping[str | Trading212Column, str],
 ) -> None:
-    """Stay quiet when a foreign-fee row's price adds up."""
+    """Rounding in the total, the price, the exchange rate or a fee is no discrepancy.
 
-    folder = _prepare_file(tmp_path, [HEADER_2024, _make_usd_fee_buy_row("16.96")])
+    Three shares at 512.3p are 15.369 GBP, exported as 15.37: a thirtieth of
+    a penny a share, which a fixed allowance per share took for a wrong
+    price. Seven shares at a price printed as 31.27 may have cost 31.274
+    each. A thousand shares at $150 are 119,882.04 GBP at 1.25123, but a
+    rate that is cut off puts the total up to 96p below. Two dollar fees may
+    each have been rounded to a penny before they reached the total, and the
+    check converts them unrounded.
+    """
+    folder = _prepare_file(
+        tmp_path, [HEADER_2026, _make_trade_row(*figures, overrides)]
+    )
 
     with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
         Trading212Parser().load_from_dir(folder)
 
-    assert "does not add up" not in caplog.text
+    assert not caplog.text
+
+
+@pytest.mark.parametrize(
+    ("figures", "overrides", "action", "stated", "implied"),
+    [
+        pytest.param(
+            ("100.0000000000", "5.0000000000", "GBP", "1.00000000", "499.98"),
+            {},
+            "Market buy",
+            "499.98",
+            "500.00",
+            id="two pence short on a hundred shares",
+        ),
+        pytest.param(
+            ("20000.0000000000", "6.0000000000", "GBP", "1.00000", "120000.50"),
+            {},
+            "Market buy",
+            "120000.50",
+            "120000.00",
+            id="a rate of one is exact, however few places it is printed to",
+        ),
+        pytest.param(
+            ("100", "5", "GBP", "1", "590"),
+            {},
+            "Market buy",
+            "590",
+            "500.00",
+            id="figures that lost their trailing zeros",
+        ),
+        pytest.param(
+            ("1000.0000000000", "150.0000000000", "USD", "1.25123456", "119881.10"),
+            {},
+            "Market buy",
+            "119881.10",
+            "119881.60",
+            id="an eight-place exchange rate is read to eight places",
+        ),
+        pytest.param(
+            ("10", "150.00", "USD", "1.25", "1205.00"),
+            {},
+            "Market buy",
+            "1205.00",
+            "1200.00",
+            id="an exchange rate that lost its trailing zeros",
+        ),
+        pytest.param(
+            ("1000", "512.30", "GBX", "100.00000", "5123.14"),
+            {},
+            "Market buy",
+            "5123.14",
+            "5123.00",
+            id="a price in pence is allowed pence, not pounds",
+        ),
+        pytest.param(
+            ("10.0000000000", "15.0000000000", "USD", "1.25000000", "119.80"),
+            {
+                Trading212Column.ACTION: "Market sell",
+                Trading212Column.CURRENCY_CONVERSION_FEE: "0.18",
+                Trading212Column.CURRENCY_CURRENCY_CONVERSION_FEE: "GBP",
+            },
+            "Market sell",
+            "119.80",
+            "119.82",
+            id="a sale two pence short after a fee in pounds",
+        ),
+    ],
+)
+def test_a_total_out_by_more_than_the_figures_allow_warns(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    figures: tuple[str, str, str, str, str],
+    overrides: Mapping[str | Trading212Column, str],
+    action: str,
+    stated: str,
+    implied: str,
+) -> None:
+    """A gap that rounding cannot explain warns, however small it is a share.
+
+    Two pence on 100 shares is a fiftieth of a penny a share, far under the
+    old fixed allowance, and still wrong when the price is printed to ten
+    places. A fee in pounds earns no more allowance than that. The warning
+    gives the total in the row and the total its other figures come to,
+    after fees.
+    """
+    folder = _prepare_file(
+        tmp_path, [HEADER_2026, _make_trade_row(*figures, overrides)]
+    )
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
+        Trading212Parser().load_from_dir(folder)
+
+    assert (
+        f"The total of the WID {action} on 2024-01-01 is {stated} GBP, but its "
+        f"shares, price, exchange rate and fees come to {implied} GBP." in caplog.text
+    )
 
 
 def test_read_trading212_transactions_unconvertible_fee_skips_price_check(
@@ -1023,7 +1197,7 @@ def test_read_trading212_transactions_unconvertible_fee_skips_price_check(
     with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
         Trading212Parser().load_from_dir(folder)
 
-    assert "does not add up" not in caplog.text
+    assert not caplog.text
 
 
 @pytest.mark.parametrize(
