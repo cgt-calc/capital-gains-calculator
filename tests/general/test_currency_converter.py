@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, NoReturn
 import pytest
 from requests import exceptions as requests_exceptions
 
-from cgt_calc.const import RuntimeMode
+from cgt_calc.const import SHIPPED_RATES_YEARS, RuntimeMode
 import cgt_calc.currency_converter
 from cgt_calc.currency_converter import (
     CurrencyConverter,
@@ -21,8 +21,8 @@ from cgt_calc.currency_converter import (
 )
 from cgt_calc.exceptions import (
     CalculationError,
-    ExchangeRateMissingError,
     ExternalApiError,
+    HmrcRateMissingError,
     ParsingError,
 )
 from cgt_calc.model import CurrencyCode, ForeignCurrencyAmount
@@ -391,13 +391,17 @@ def test_cnh_is_treated_as_cny() -> None:
     assert converter.currency_to_gbp_rate(CurrencyCode("CNH"), DATE) == Decimal(9)
 
 
-def test_missing_currency_for_known_date() -> None:
-    """Raise when the date is cached but the currency is missing."""
+def test_missing_currency_for_known_date(tmp_path: Path) -> None:
+    """Raise when the date is cached but the currency is missing.
+
+    The message names the rates file, which is where the row goes.
+    """
     converter = CurrencyConverter(
-        initial_data={DATE: {CurrencyCode("USD"): Decimal(1)}}
+        exchange_rates_file=tmp_path / "rates.csv",
+        initial_data={DATE: {CurrencyCode("USD"): Decimal(1)}},
     )
 
-    with pytest.raises(ExchangeRateMissingError):
+    with pytest.raises(HmrcRateMissingError, match=r"Add it to .*rates\.csv: "):
         converter.currency_to_gbp_rate(CurrencyCode("EUR"), DATE)
 
 
@@ -484,22 +488,18 @@ def test_combine_amounts_refuses_two_foreign_currencies_with_opt_in(
             converter.combine_amounts(first, second, DATE, autoconvert=True)
 
 
-def test_query_hmrc_api_404_before_2015_says_how_to_add_the_rates(
+def test_a_date_before_february_2015_that_does_not_ship_is_not_asked_of_hmrc(
     tmp_path: Path,
 ) -> None:
-    """HMRC has no files before February 2015, so say which date to add and where."""
-    rates_file = tmp_path / "rates.csv"
-    converter = CurrencyConverter(exchange_rates_file=rates_file)
-    response = FakeResponse(ok=False, status_code=404, text="<!DOCTYPE html>")
-    converter.session = FakeSession(response)  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+    """HMRC serves no file for it, so the answer is the row to add, not a request.
 
-    with pytest.raises(
-        ExternalApiError,
-        match=r"HMRC publishes no exchange rates for June 2009 at this address; "
-        r"its monthly files start in February 2015\. Add the rates for 2009-06-01 "
-        r"to .*rates\.csv: a CSV file with the header 'month,currency,rate'",
-    ):
-        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2009, 6, 1))
+    March 2002 is before the first month that ships.
+    """
+    converter = CurrencyConverter(exchange_rates_file=tmp_path / "rates.csv")
+    converter.session = OfflineSession()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    with pytest.raises(HmrcRateMissingError, match=r"a row '2002-03-28,USD,<rate>'"):
+        converter.currency_to_gbp_rate(USD, datetime.date(2002, 3, 28))
 
 
 def _monthly_usd(rate: str) -> FakeSession:
@@ -540,6 +540,55 @@ def test_a_rate_hmrc_changed_during_the_month_applies_from_its_date(
     assert converter.cache == {}
 
 
+@pytest.mark.parametrize(
+    ("currency", "date", "rate"),
+    [
+        # Each checked by hand against HMRC's page for the month, one for each
+        # form HMRC published the months before February 2015 in.
+        pytest.param(
+            USD, datetime.date(2002, 4, 15), Decimal("1.4255"), id="first month"
+        ),
+        pytest.param(USD, datetime.date(2009, 6, 15), Decimal("1.5649"), id="web page"),
+        pytest.param(USD, datetime.date(2005, 6, 15), Decimal("1.8344"), id="PDF"),
+        pytest.param(
+            CurrencyCode("EUR"),
+            datetime.date(2006, 6, 15),
+            Decimal("1.4746"),
+            id="Word",
+        ),
+        pytest.param(USD, datetime.date(2015, 1, 15), Decimal("1.5562"), id="XML"),
+        # November 2008 opened at 1.6336 and HMRC changed it from the 19th.
+        pytest.param(
+            USD, datetime.date(2008, 11, 18), Decimal("1.6336"), id="before a change"
+        ),
+        pytest.param(
+            USD, datetime.date(2008, 11, 19), Decimal("1.5047"), id="from a change"
+        ),
+    ],
+)
+def test_rates_from_april_2002_come_with_cgt_calc(
+    currency: CurrencyCode, date: datetime.date, rate: Decimal
+) -> None:
+    """HMRC's download has no file for these months, so they are not asked for."""
+    converter = CurrencyConverter()
+    converter.session = OfflineSession()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    assert converter.currency_to_gbp_rate(currency, date) == rate
+
+
+@pytest.mark.parametrize("year", SHIPPED_RATES_YEARS)
+def test_every_year_of_shipped_rates_loads(year: int) -> None:
+    """A year's file is read whole on first use, so one bad row stops the year.
+
+    A correction is a hand edit to one of these files; a duplicate or mistyped
+    row would otherwise reach a user before any test opened that year.
+    """
+    converter = CurrencyConverter()
+    converter.session = OfflineSession()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    assert converter.currency_to_gbp_rate(USD, datetime.date(year, 4, 15))
+
+
 def test_a_currency_the_shipped_rates_lack_comes_from_the_rates_given() -> None:
     """HMRC lists no XAU in January 2016, so the rate supplied is the one used."""
     date = datetime.date(2016, 1, 27)
@@ -558,7 +607,7 @@ def test_a_month_that_ships_is_never_downloaded() -> None:
     converter = CurrencyConverter()
     converter.session = OfflineSession()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
-    with pytest.raises(ExchangeRateMissingError):
+    with pytest.raises(HmrcRateMissingError):
         converter.currency_to_gbp_rate(CurrencyCode("XAU"), datetime.date(2016, 1, 27))
 
 
@@ -602,6 +651,54 @@ def test_a_different_rate_on_file_is_overruled_and_reported_once(
         overruled("1.5003 USD per £1 for 2016-01-28", "1.4144"),
         overruled("1.5003 USD per £1 for 2016-01-29", "1.4144"),
         overruled("1.371 EUR per £1 for 2016-01-29", "1.2978"),
+    ]
+
+
+def test_a_row_typed_for_a_date_before_february_2015_is_used_and_reported_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Nothing could be downloaded for these dates, so a row on file was typed in.
+
+    It may match a return already made, so it is used. Where it differs from
+    HMRC's rate it is named with that rate, once however often it is read: the
+    row for the 20th was typed from November 2008's opening rate and misses
+    the change HMRC made on the 19th. From 1 February 2015 a row can be a
+    download from before such a change, and HMRC's rate is used.
+    """
+    rates_file = tmp_path / "rates.csv"
+    rates_file.write_text(
+        "month,currency,rate\n"
+        "2008-11-18,USD,1.6336\n"
+        "2008-11-20,USD,1.6336\n"
+        "2015-01-31,USD,1.5\n"
+        "2015-02-01,USD,1.5\n",
+        encoding="utf8",
+    )
+    converter = CurrencyConverter(exchange_rates_file=rates_file)
+
+    def rate(year: int, month: int, day: int) -> Decimal:
+        return converter.currency_to_gbp_rate(USD, datetime.date(year, month, day))
+
+    with caplog.at_level(logging.WARNING):
+        assert rate(2008, 11, 18) == Decimal("1.6336")
+        assert rate(2008, 11, 20) == rate(2008, 11, 20) == Decimal("1.6336")
+        assert rate(2015, 1, 31) == Decimal("1.5")
+        assert rate(2015, 2, 1) == Decimal("1.512")
+
+    def used(row: str, hmrc: str) -> str:
+        return (
+            f"{rates_file} gives {row}, and it is used instead of HMRC's rate for "
+            f"that date, {hmrc}. Remove that row to use HMRC's rate."
+        )
+
+    assert [record.getMessage() for record in caplog.records] == [
+        used("1.6336 USD per £1 for 2008-11-20", "1.5047"),
+        used("1.5 USD per £1 for 2015-01-31", "1.5562"),
+        (
+            f"{rates_file} gives 1.5 USD per £1 for 2015-02-01, but HMRC's rate "
+            "for that date is 1.512, which is used instead. Remove that row to "
+            "stop this warning."
+        ),
     ]
 
 

@@ -8,7 +8,6 @@ import csv
 import datetime
 from decimal import Decimal, InvalidOperation
 from functools import cache
-from http import HTTPStatus
 from importlib import resources
 import logging
 from pathlib import Path
@@ -20,12 +19,18 @@ from pyrate_limiter.abstracts.rate import Duration
 from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
 from requests.adapters import HTTPAdapter, Retry
 
-from .const import CGT_MODE, SHIPPED_RATES_RESOURCE, UK_CURRENCY, RuntimeMode
+from .const import (
+    CGT_MODE,
+    SHIPPED_RATES_FOLDER,
+    SHIPPED_RATES_YEARS,
+    UK_CURRENCY,
+    RuntimeMode,
+)
 from .dates import is_date
 from .exceptions import (
     CalculationError,
-    ExchangeRateMissingError,
     ExternalApiError,
+    HmrcRateMissingError,
     ParsingError,
     UnexpectedHeaderError,
     reading_as,
@@ -43,8 +48,10 @@ LOGGER = logging.getLogger(__name__)
 
 EXCHANGE_RATES_HEADER: Final = ["month", "currency", "rate"]
 NEW_ENDPOINT_FROM_YEAR: Final = 2021
-# The legacy HMRC endpoint has no monthly files before this month.
-FIRST_PUBLISHED_RATES_MONTH: Final = datetime.date(2015, 2, 1)
+# The first month HMRC's legacy endpoint has a file for at the address used.
+# Nothing is asked for an earlier date, and a row in the rates file for one was
+# typed in: no download wrote it.
+FIRST_DOWNLOADED_RATES_MONTH: Final = datetime.date(2015, 2, 1)
 
 type _StartingRates = dict[datetime.date, Decimal]
 
@@ -64,7 +71,7 @@ class CurrencyConverter:
             **read_data,
             **(initial_data or {}),
         }
-        self._overruled: set[tuple[datetime.date, CurrencyCode]] = set()
+        self._reported: set[tuple[datetime.date, CurrencyCode]] = set()
 
         # Limit borrowed from the Companies House API guidance:
         # https://developer-specs.company-information.service.gov.uk/guides/rateLimiting
@@ -209,19 +216,25 @@ class CurrencyConverter:
 
     @staticmethod
     @cache
-    def _shipped_rates() -> dict[datetime.date, dict[CurrencyCode, _StartingRates]]:
-        """Read the rates that ship with cgt-calc.
+    def _shipped_rates(
+        year: int,
+    ) -> dict[datetime.date, dict[CurrencyCode, _StartingRates]]:
+        """Read the rates that ship with cgt-calc for `year`, if any do.
 
         They are kept by month, named by its first day, then by currency, then by
         the day each rate starts.
         """
+        if year not in SHIPPED_RATES_YEARS:
+            return {}
+        name = f"{year}.csv"
         with (
             resources.files(RESOURCES_PACKAGE)
-            .joinpath(SHIPPED_RATES_RESOURCE)
+            .joinpath(SHIPPED_RATES_FOLDER)
+            .joinpath(name)
             .open(encoding="utf8") as fin
         ):
             by_date = CurrencyConverter._read_exchange_rates_data(
-                Path("resources") / SHIPPED_RATES_RESOURCE, fin
+                Path("resources") / SHIPPED_RATES_FOLDER / name, fin
             )
         rates: dict[datetime.date, dict[CurrencyCode, _StartingRates]] = {}
         for start, by_currency in by_date.items():
@@ -237,7 +250,7 @@ class CurrencyConverter:
         That is the latest of the month's rates starting on or before the date.
         """
         starts = (
-            CurrencyConverter._shipped_rates()
+            CurrencyConverter._shipped_rates(date.year)
             .get(date.replace(day=1), {})
             .get(currency, {})
         )
@@ -290,21 +303,6 @@ class CurrencyConverter:
             msg += f"Error: {err}"
             raise ExternalApiError(url, msg) from err
 
-        if (
-            response.status_code == HTTPStatus.NOT_FOUND
-            and date < FIRST_PUBLISHED_RATES_MONTH
-        ):
-            where = (
-                self.exchange_rates_file or "a file passed with --exchange-rates-file"
-            )
-            raise ExternalApiError(
-                url,
-                f"HMRC publishes no exchange rates for {date:%B %Y} at this "
-                "address; its monthly files start in February 2015. Add the rates "
-                f"for {date} to {where}: a CSV file with the header "
-                f"'month,currency,rate' and rows such as '{date},USD,1.5', each "
-                "rate being units of that currency per £1",
-            )
         if not response.ok:
             body = response.text.strip()
             extra = ""
@@ -369,37 +367,50 @@ class CurrencyConverter:
         shipped = self._shipped_rate(currency, date)
         if shipped is None:
             return self._recorded_rate(currency, date)
-        # The rates file is also the cache of what was downloaded, and the
-        # download never showed a change HMRC made during a month. So for a
-        # date the shipped table covers, a different rate on file is stale or
-        # mistyped, and saying so beats using it or dropping it unnoticed.
         on_file = self.cache.get(date, {}).get(currency)
-        if (
-            on_file is not None
-            and on_file != shipped
-            and (date, currency) not in self._overruled
-        ):
-            self._overruled.add((date, currency))
-            LOGGER.warning(
-                "%s gives %s %s per £1 for %s, but HMRC's rate for that date is "
-                "%s, which is used instead. Remove that row to stop this warning.",
-                self.exchange_rates_file,
-                on_file,
-                currency,
-                date,
-                shipped,
-            )
-        return shipped
+        if on_file is None or on_file == shipped:
+            return shipped
+        # A row on file that differs from the shipped rate. Before February
+        # 2015 it was typed in, perhaps to match a return already made, so it
+        # is used. From then on the file is also the cache of what was
+        # downloaded, and the download never showed a change HMRC made during
+        # a month: the row is stale, and HMRC's rate is used. Either way the
+        # row is named once, with HMRC's rate, so it can be checked or removed.
+        typed = date < FIRST_DOWNLOADED_RATES_MONTH
+        if (date, currency) not in self._reported:
+            self._reported.add((date, currency))
+            row = (self.exchange_rates_file, on_file, currency, date, shipped)
+            if typed:
+                LOGGER.warning(
+                    "%s gives %s %s per £1 for %s, and it is used instead of "
+                    "HMRC's rate for that date, %s. Remove that row to use HMRC's "
+                    "rate.",
+                    *row,
+                )
+            else:
+                LOGGER.warning(
+                    "%s gives %s %s per £1 for %s, but HMRC's rate for that date "
+                    "is %s, which is used instead. Remove that row to stop this "
+                    "warning.",
+                    *row,
+                )
+        return on_file if typed else shipped
 
     def _recorded_rate(self, currency: CurrencyCode, date: datetime.date) -> Decimal:
         """Get a rate from the rates file, downloading the month if it is new."""
-        # A month that ships has every rate HMRC published for it. Downloading
-        # it could add no currency: it would only put the rates the month opened
-        # with on file, to be overruled the next time they are read.
-        if date not in self.cache and date.replace(day=1) not in self._shipped_rates():
+        # At the address used, HMRC serves no file for a month before February
+        # 2015, and a month that ships is never downloaded: the download could
+        # add no currency, and would only put the rates the month opened with
+        # on file, to be overruled the next time they are read.
+        month = date.replace(day=1)
+        if (
+            date not in self.cache
+            and date >= FIRST_DOWNLOADED_RATES_MONTH
+            and month not in self._shipped_rates(date.year)
+        ):
             self._query_hmrc_api(date)
         if currency not in self.cache.get(date, {}):
-            raise ExchangeRateMissingError(currency, date)
+            raise HmrcRateMissingError(currency, date, self.exchange_rates_file)
 
         return self.cache[date][currency]
 

@@ -81,3 +81,7 @@
 ^trading212\.md:.*SpellCheck.*`s`
 # '-.tex' is the LaTeX source file `--output -` would have created.
 ^args_validators\.py:.*`tex`
+# "The others are minor currencies" is complete; MissingPreposition misfires.
+^extra-data-and-options\.md:.*MissingPreposition
+# "the Georgian lari at the rouble's rate" - Harper joins "lari at" into "lariat".
+^extra-data-and-options\.md:.*MergeWords

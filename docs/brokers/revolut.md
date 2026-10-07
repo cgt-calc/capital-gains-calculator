@@ -75,9 +75,8 @@ proceeds always agree with the total Revolut recorded. The statement has no sepa
 anything Revolut already included in the total, rather than charging as a separate `CUSTODY FEE`
 row, is part of the cost or proceeds.
 
-The `FX Rate` column is not used. cgt-calc converts foreign currency amounts using the
-[monthly exchange rates it downloads](../extra-data-and-options.md#exchange-rates), not the rate
-shown by Revolut.
+The `FX Rate` column is not used. cgt-calc converts foreign currency amounts using
+[HMRC's exchange rates](../extra-data-and-options.md#exchange-rates), not the rate shown by Revolut.
 
 A `STOCK SPLIT` row states the number of shares added, not the new total holding, and its
 `Total Amount` is zero. cgt-calc treats it as a share reorganisation: nothing is bought or sold, and

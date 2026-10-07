@@ -1,6 +1,7 @@
 ActionType
 ActionTypes
 ADR
+AED
 AG
 amd64
 Amundi
@@ -32,6 +33,8 @@ calc
 calc's
 CalculationEntry
 Center
+CFA
+CFP
 CG10246
 CG12313
 CG12920
@@ -60,6 +63,8 @@ CG57800
 CG57835
 CG59562
 CG78310
+CNH
+CNY
 CSH2
 cgt
 classmethod
@@ -87,6 +92,7 @@ dest
 dataclasses
 DictReader
 DictReader's
+dirham
 dprint
 DT14005
 DWS
@@ -146,8 +152,10 @@ KPMG
 KeyError
 jsonable
 Lansdown
+lari
 latex
 len
+leu
 LF
 LGIM
 lifecycle
@@ -164,6 +172,8 @@ MiKTeX
 MMM
 mojibake
 msg
+MXN
+MXV
 mypy
 NameChange
 nav
@@ -214,11 +224,14 @@ Revolut
 Revolut's
 Rheinmetall
 RKT
+ROL
+RON
 roundings
 RowIterator
 RunState
 RuntimeError
 RuntimeMode
+RUR
 s105
 s106A
 s115
@@ -287,6 +300,7 @@ tranche's
 TransactionDetails
 transferor
 transferor's
+TRL
 txn
 ty
 tzinfo
@@ -310,7 +324,10 @@ ValueError
 VanguardTransaction
 VTI
 worktree
+XCD
 Xetra
+XOF
+XPF
 xtrackers
 yfinance
 YYYY

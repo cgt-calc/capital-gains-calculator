@@ -326,6 +326,20 @@ class ExchangeRateMissingError(CalculationError):
         super().__init__(self.message)
 
 
+class HmrcRateMissingError(CalculationError):
+    """HMRC gives no rate cgt-calc can use for a currency on a date."""
+
+    def __init__(self, currency: str, date: datetime.date, rates_file: Path | None):
+        """Initialise with the rates file the row should go in, if there is one."""
+        where = rates_file or "a file passed with --exchange-rates-file"
+        super().__init__(
+            f"cgt-calc has no HMRC exchange rate for {currency} on {date}. Add it to "
+            f"{where}: a CSV file with the header 'month,currency,rate' and a row "
+            f"'{date},{currency},<rate>', the rate being units of {currency} per "
+            "£1. See https://cgt-calc.uk/extra-data-and-options/#exchange-rates"
+        )
+
+
 # What a prices file has to start with, said wherever one is asked for.
 _PRICES_FILE = "--prices-file (header 'date,symbol,price')"
 
