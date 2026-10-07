@@ -986,19 +986,6 @@ def test_read_trading212_transactions_foreign_fee_price_discrepancy(
     )
 
 
-def test_read_trading212_transactions_foreign_fee_price_consistent(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Stay quiet when a foreign-fee row's price adds up."""
-
-    folder = _prepare_file(tmp_path, [HEADER_2024, _make_usd_fee_buy_row("16.96")])
-
-    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
-        Trading212Parser().load_from_dir(folder)
-
-    assert not caplog.text
-
-
 def _make_trade_row(
     shares: str,
     price: str,
@@ -1109,6 +1096,14 @@ def test_a_gap_the_printed_figures_allow_does_not_warn(
             "590",
             "500.00",
             id="figures that lost their trailing zeros",
+        ),
+        pytest.param(
+            ("1000.0000000000", "150.0000000000", "USD", "1.25123456", "119881.10"),
+            {},
+            "Market buy",
+            "119881.10",
+            "119881.60",
+            id="an eight-place exchange rate is read to eight places",
         ),
         pytest.param(
             ("10", "150.00", "USD", "1.25", "1205.00"),

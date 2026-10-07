@@ -125,10 +125,11 @@ UNSUPPORTED_ACTIONS: Final = frozenset(
 # rounding itself.
 TOTAL_ABS_TOLERANCE: Final = Decimal("0.01")
 
-# The fewest decimal places Trading 212 prints a total, a price and an exchange
-# rate to. A figure with fewer has only lost trailing zeros to a spreadsheet or
-# to typing, and is as precise as before.
+# Trading 212 prints a total to two decimal places in every currency.
 TOTAL_UNIT: Final = Decimal("0.01")
+# The fewest decimal places it prints a price and an exchange rate to. A figure
+# with fewer has only lost trailing zeros to a spreadsheet or to typing, and is
+# as precise as before.
 PRICE_UNIT: Final = Decimal("0.01")
 RATE_UNIT: Final = Decimal("0.00001")
 
@@ -491,17 +492,16 @@ class Trading212Transaction(BrokerTransaction):
             exchange_rate = self.exchange_rate or Decimal(1)
             check_fees = self._checkable_fees(fees, foreign_fees, exchange_rate)
             if check_fees is not None:
-                total_unit = last_digit(amount, TOTAL_UNIT)
                 price_unit = last_digit(self.price_foreign, PRICE_UNIT)
                 implied = quantity * self.price_foreign / exchange_rate
-                rounding = total_unit + quantity * price_unit / exchange_rate
+                rounding = TOTAL_UNIT + quantity * price_unit / exchange_rate
                 # A price in the total's own currency is not converted, so its
                 # exchange rate of one is exact however it is printed.
                 if self.exchange_rate is not None and self.currency_foreign != currency:
                     rate_unit = last_digit(self.exchange_rate, RATE_UNIT)
                     rounding += implied * rate_unit / exchange_rate
                 if foreign_fees:
-                    rounding += total_unit
+                    rounding += TOTAL_UNIT
                 gap = abs(amount + check_fees) - implied
                 if abs(gap) > rounding:
                     total = abs(amount)
@@ -514,7 +514,7 @@ class Trading212Transaction(BrokerTransaction):
                         date,
                         total,
                         currency,
-                        (total - gap).quantize(total_unit),
+                        (total - gap).quantize(TOTAL_UNIT),
                         currency,
                     )
 
