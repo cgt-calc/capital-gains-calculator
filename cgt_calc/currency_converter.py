@@ -398,10 +398,10 @@ class CurrencyConverter:
 
     def _recorded_rate(self, currency: CurrencyCode, date: datetime.date) -> Decimal:
         """Get a rate from the rates file, downloading the month if it is new."""
-        # HMRC serves no file for a month before February 2015, and a month
-        # that ships is never downloaded: the download could add no currency,
-        # and would only put the rates the month opened with on file, to be
-        # overruled the next time they are read.
+        # At the address used, HMRC serves no file for a month before February
+        # 2015, and a month that ships is never downloaded: the download could
+        # add no currency, and would only put the rates the month opened with
+        # on file, to be overruled the next time they are read.
         month = date.replace(day=1)
         if (
             date not in self.cache

@@ -545,6 +545,9 @@ def test_a_rate_hmrc_changed_during_the_month_applies_from_its_date(
     [
         # Each checked by hand against HMRC's page for the month, one for each
         # form HMRC published the months before February 2015 in.
+        pytest.param(
+            USD, datetime.date(2002, 4, 15), Decimal("1.4255"), id="first month"
+        ),
         pytest.param(USD, datetime.date(2009, 6, 15), Decimal("1.5649"), id="web page"),
         pytest.param(USD, datetime.date(2005, 6, 15), Decimal("1.8344"), id="PDF"),
         pytest.param(

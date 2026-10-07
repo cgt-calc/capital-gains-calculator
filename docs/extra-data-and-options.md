@@ -34,8 +34,9 @@ every run until you remove the row:
 The rates are HMRC's as published, and cgt-calc cannot tell when HMRC's own figure is wrong. HMRC's
 tables give some less common currencies another currency's rate, for example the Georgian lari at
 the Russian rouble's rate until September 2013 and the Liberian dollar at the US dollar's. For a
-transaction in a currency like these, compare HMRC's rate with another source and add your own row
-if it is wrong.
+transaction in a currency like these before February 2015, compare HMRC's rate with another source
+and add your own row if it is wrong. From February 2015 to April 2016 HMRC's rate cannot be
+replaced.
 
 cgt-calc stops and names the currency and date when it has no rate for a transaction:
 
@@ -53,7 +54,8 @@ cgt-calc stops and names the currency and date when it has no rate for a transac
 
 To continue, add a row to the file yourself: the transaction's date in the `month` column, the
 currency code, and the rate as units of that currency per £1. Each date and currency needs one row.
-If the file does not exist yet, start it with the header line `month,currency,rate`.
+Offshore yuan (CNH) is converted at the CNY rate, so enter it as CNY. If the file does not exist
+yet, start it with the header line `month,currency,rate`.
 
 HMRC does not prescribe which exchange rate to use, only that the method is reasonable and
 consistent ([CG78310](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg78310)).
