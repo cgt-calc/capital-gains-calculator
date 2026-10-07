@@ -60,6 +60,12 @@ class IsinTranslationEntry:
         self.isin = isin
         # Spaces typed beside the comma are not part of a ticker.
         self.symbols = {symbol.strip() for symbol in row[1:]}
+        if "" in self.symbols and len(self.symbols) > 1:
+            raise ParsingError(
+                file,
+                "This row has an empty ticker beside a real one. Remove the extra "
+                "comma.",
+            )
 
 
 class IsinConverter:
@@ -95,28 +101,55 @@ class IsinConverter:
         # puts the ISIN in a dividend description but not in a trade one -
         # identifies the rest of them through this.
         self.exported_isins: dict[str, Isin] = {}
-        self._read_isin_translation_data()
-        self.validate_data()
+        self.validate_data(self._read_isin_translation_data())
 
-    def validate_data(self) -> None:
-        """Validate the current ISIN translation data."""
+    def validate_data(self, file_rows: dict[Isin, int] | None = None) -> None:
+        """Refuse a ticker that two ISINs claim.
 
+        ``file_rows`` holds the row of each ISIN in the user's file, so that the
+        error can name it. The check after a lookup passes none: a looked-up
+        ISIN has no row.
+        """
+        rows = file_rows or {}
+        file = self.isin_translation_file
         reverse_cache: dict[str, Isin] = {}
         for isin, symbols in self.data.items():
             if symbols == {""}:
                 continue
-            for symbol in symbols:
-                if not symbol:
+            # Only a lookup can bring this: a row of a file that has it is
+            # refused where it is read. Checked before the sort, which cannot
+            # order a null ticker.
+            if not all(symbols):
+                raise IsinTranslationError(
+                    f"Ticker list for ISIN {isin} contains an empty value"
+                )
+            # In order, so that a row clashing on two tickers names the same
+            # one on every run.
+            for symbol in sorted(symbols):
+                existing_isin = reverse_cache.setdefault(symbol, isin)
+                if existing_isin == isin:
+                    continue
+                # Whichever of the two was met first, report at the user's row,
+                # and at the later of two: the bundled list counts as row 0.
+                first, second = sorted(
+                    (existing_isin, isin), key=lambda one: rows.get(one, 0)
+                )
+                # The file is never None where there are rows: that half is
+                # for the type checker.
+                if file is None or second not in rows:
                     raise IsinTranslationError(
-                        f"Ticker list for ISIN {isin} contains an empty value"
+                        f"Ticker {symbol} already linked to ISIN {first}; "
+                        f"cannot also link to {second}"
                     )
-                existing_isin = reverse_cache.get(symbol)
-                if existing_isin and existing_isin != isin:
-                    raise IsinTranslationError(
-                        f"Ticker {symbol} already linked to ISIN {existing_isin}; "
-                        f"cannot also link to {isin}"
-                    )
-                reverse_cache[symbol] = isin
+                where = (
+                    f"on row {rows[first]}" if first in rows else "in the bundled list"
+                )
+                raise ParsingError(
+                    file,
+                    f"Ticker {symbol} already linked to ISIN {first} {where}; "
+                    f"cannot also link to {second}.",
+                    row_index=rows[second],
+                )
 
     def _isin_for_symbol(self, symbol: str) -> Isin | None:
         """Return the one reference ISIN a ticker is known under, if any.
@@ -276,11 +309,16 @@ class IsinConverter:
         symbol_to_isin.update(self.transaction_isins)
         return symbol_to_isin
 
-    def _read_isin_translation_data(self) -> None:
-        """Read ISIN translation data from bundled and user-provided sources."""
+    def _read_isin_translation_data(self) -> dict[Isin, int]:
+        """Read the bundled list, then the user's file on top of it.
 
-        def load(source: Traversable | Path) -> dict[Isin, set[str]]:
-            """Load ISIN translation data from a CSV source."""
+        Returns the row of each ISIN in the user's file.
+        """
+
+        def load(
+            source: Traversable | Path,
+        ) -> tuple[dict[Isin, set[str]], dict[Isin, int]]:
+            """Load a CSV source: its mappings, and the row of each ISIN."""
             file_label = (
                 source if isinstance(source, Path) else Path("resources") / source.name
             )
@@ -293,7 +331,7 @@ class IsinConverter:
                 # quote is the first thing in its cell.
                 lines = list(csv.reader(csv_file, skipinitialspace=True))
             if not lines:
-                return {}
+                return {}, {}
             header = lines[0]
             if header != ISIN_TRANSLATION_HEADER:
                 raise UnexpectedHeaderError(header, ISIN_TRANSLATION_HEADER, file_label)
@@ -333,19 +371,21 @@ class IsinConverter:
                     )
                 entries[entry.isin] = entry.symbols
                 first_rows.setdefault(entry.isin, index)
-            return entries
+            return entries, first_rows
 
         bundled_source = resources.files(RESOURCES_PACKAGE).joinpath(
             INITIAL_ISIN_TRANSLATION_RESOURCE
         )
-        self.data.update(load(bundled_source))
+        self.data.update(load(bundled_source)[0])
 
+        file_rows: dict[Isin, int] = {}
         if (
             self.isin_translation_file is not None
             and self.isin_translation_file.is_file()
         ):
-            self.write_data = load(self.isin_translation_file)
+            self.write_data, file_rows = load(self.isin_translation_file)
             self.data.update(self.write_data)
+        return file_rows
 
     def _write_isin_translation_file(self) -> None:
         # Over every reference source, not just the rows about to be written:

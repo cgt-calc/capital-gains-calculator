@@ -68,7 +68,7 @@ BROADCOM_ISIN = Isin("US11135F1012")
 # A bundled row listing one security under two tickers.
 VANGUARD_ISIN = Isin("IE00B3XXRP09")
 
-FigiData = list[dict[str, str]]
+FigiData = list[dict[str, str | None]]
 
 
 class FakeResponse:
@@ -204,15 +204,6 @@ def test_fetch_live_no_match(monkeypatch: pytest.MonkeyPatch) -> None:
     converter, _ = _converter_with_session(monkeypatch, [{"data": []}])
 
     assert converter.get_symbols(ISIN_A) == set()
-
-
-def test_validate_data_rejects_conflicting_symbols() -> None:
-    """Reject the same ticker linked to two ISINs."""
-    converter = IsinConverter()
-    converter.data = {ISIN_A: {"FOO"}, ISIN_B: {"FOO"}}
-
-    with pytest.raises(IsinTranslationError, match="already linked"):
-        converter.validate_data()
 
 
 def test_add_from_transaction_rejects_two_transaction_symbols() -> None:
@@ -512,7 +503,55 @@ def test_live_lookup_refuses_a_ticker_another_isin_owns(
         FakeSession([{"data": [{"ticker": "VUSA", "exchCode": "LN"}]}]),
     )
 
-    with pytest.raises(IsinTranslationError, match="already linked"):
+    with pytest.raises(
+        IsinTranslationError,
+        match=f"Ticker VUSA already linked to ISIN {VANGUARD_ISIN}; "
+        f"cannot also link to {UNKNOWN_ISIN}$",
+    ):
+        converter.get_symbols(UNKNOWN_ISIN)
+
+    assert not translation_file.exists()
+
+
+def test_live_lookup_clash_with_a_row_of_the_file_names_no_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The looked-up ISIN has no row, and the file's ISIN is not a bundled one."""
+    monkeypatch.setattr(cgt_calc.isin_converter, "CGT_MODE", RuntimeMode.PROD)
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"ISIN,symbol\n{ISIN_A},FOO\n")
+    converter = IsinConverter(isin_translation_file=translation_file)
+    monkeypatch.setattr(
+        converter,
+        "session",
+        FakeSession([{"data": [{"ticker": "FOO", "exchCode": "LN"}]}]),
+    )
+
+    with pytest.raises(
+        IsinTranslationError,
+        match=f"^Ticker FOO already linked to ISIN {ISIN_A}; "
+        f"cannot also link to {UNKNOWN_ISIN}$",
+    ):
+        converter.get_symbols(UNKNOWN_ISIN)
+
+    assert translation_file.read_text() == f"ISIN,symbol\n{ISIN_A},FOO\n"
+
+
+@pytest.mark.parametrize("empty", ["", None], ids=["empty", "null"])
+def test_live_lookup_refuses_an_empty_ticker_beside_a_real_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, empty: str | None
+) -> None:
+    """Refuse to cache a looked-up row that the next run would refuse to read."""
+    monkeypatch.setattr(cgt_calc.isin_converter, "CGT_MODE", RuntimeMode.PROD)
+    translation_file = tmp_path / "isin_translation.csv"
+    converter = IsinConverter(isin_translation_file=translation_file)
+    answer: FigiData = [
+        {"ticker": empty, "exchCode": "LN"},
+        {"ticker": "FOO", "exchCode": "LN"},
+    ]
+    monkeypatch.setattr(converter, "session", FakeSession([{"data": answer}]))
+
+    with pytest.raises(IsinTranslationError, match="contains an empty value"):
         converter.get_symbols(UNKNOWN_ISIN)
 
     assert not translation_file.exists()
@@ -625,15 +664,75 @@ def test_translation_file_ignores_spaces_around_a_ticker(
 
 
 @pytest.mark.parametrize("ending", [",", ", "], ids=["comma", "comma and space"])
-def test_translation_row_with_an_empty_ticker_beside_a_real_one_is_refused(
+def test_translation_row_with_an_empty_ticker_beside_a_real_one_names_its_row(
     tmp_path: Path, ending: str
 ) -> None:
-    """A ticker left empty beside a real one is refused, with or without a space."""
+    """A ticker left empty beside a real one is refused at its row."""
     translation_file = tmp_path / "isin_translation.csv"
-    translation_file.write_text(f"ISIN,symbol\n{ISIN_A},FOO{ending}\n")
+    translation_file.write_text(f"ISIN,symbol\n{ISIN_B},BAZ\n{ISIN_A},FOO{ending}\n")
 
-    with pytest.raises(IsinTranslationError, match="contains an empty value"):
+    with pytest.raises(ParsingError, match="empty ticker beside a real one") as excinfo:
         IsinConverter(isin_translation_file=translation_file)
+
+    assert excinfo.value.row_index == 3
+
+
+# The bundled list is read first, so the check meets a bundled ISIN before one
+# that is only in the file, whichever row of the file it is on.
+@pytest.mark.parametrize(
+    ("rows", "row_index", "message"),
+    [
+        pytest.param(
+            f"{ISIN_A},FOO\n{ISIN_B},FOO",
+            3,
+            f"Ticker FOO already linked to ISIN {ISIN_A} on row 2; "
+            f"cannot also link to {ISIN_B}.",
+            id="two rows",
+        ),
+        pytest.param(
+            f"{ISIN_A},FOO\n{VANGUARD_ISIN},FOO",
+            3,
+            f"Ticker FOO already linked to ISIN {ISIN_A} on row 2; "
+            f"cannot also link to {VANGUARD_ISIN}.",
+            id="two rows, the later one for a bundled ISIN",
+        ),
+        pytest.param(
+            f"{ISIN_A},VUSA",
+            2,
+            f"Ticker VUSA already linked to ISIN {VANGUARD_ISIN} in the bundled "
+            f"list; cannot also link to {ISIN_A}.",
+            id="a bundled ticker given to a new ISIN",
+        ),
+        # The bundled list has this ISIN above the one that owns VDJP.
+        pytest.param(
+            f"{VANGUARD_ISIN},VDJP",
+            2,
+            "Ticker VDJP already linked to ISIN IE00B95PGT31 in the bundled "
+            f"list; cannot also link to {VANGUARD_ISIN}.",
+            id="a bundled ISIN given the ticker of a later bundled one",
+        ),
+        # Tickers are read into a set, whose order changes from run to run.
+        pytest.param(
+            f"{ISIN_A},VUSD,VMID,VUSA,VGOV,VETY",
+            2,
+            "Ticker VETY already linked to ISIN IE00BZ163H91 in the bundled "
+            f"list; cannot also link to {ISIN_A}.",
+            id="several clashing tickers: the first in alphabetical order",
+        ),
+    ],
+)
+def test_translation_file_ticker_under_two_isins_is_reported_at_its_row(
+    tmp_path: Path, rows: str, row_index: int, message: str
+) -> None:
+    """The error names the user's row, and says where the other ISIN is."""
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"ISIN,symbol\n{rows}\n")
+
+    with pytest.raises(ParsingError, match=re.escape(message)) as excinfo:
+        IsinConverter(isin_translation_file=translation_file)
+
+    assert excinfo.value.file == translation_file
+    assert excinfo.value.row_index == row_index
 
 
 @pytest.mark.parametrize(
