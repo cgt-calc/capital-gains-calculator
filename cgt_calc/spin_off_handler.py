@@ -48,8 +48,6 @@ class SpinOffHandler:
             self.spin_offs_file.open(encoding="utf-8-sig") as fin,
         ):
             csv_reader = csv.DictReader(fin)
-            # The row each new ticker was first read from, to name it in the error.
-            first_rows: dict[str, int] = {}
             header = csv_reader.fieldnames
             # Checked before any row: a file of one mapping and no header has
             # no row left to check, and would be read as empty.
@@ -57,6 +55,8 @@ class SpinOffHandler:
                 raise UnexpectedHeaderError(
                     header, SPIN_OFFS_HEADER, self.spin_offs_file
                 )
+            # The row each new ticker was first read from, to name it in the error.
+            first_rows: dict[str, int] = {}
             for line in csv_reader:
                 # A value beyond the last column is filed under the key None.
                 extra = line.pop(None, None)
@@ -87,8 +87,8 @@ class SpinOffHandler:
                 if earlier is not None and earlier != src:
                     raise ParsingError(
                         self.spin_offs_file,
-                        f"{dst} is also on row {first_rows[dst]}, spun off from "
-                        f"{earlier} there. Keep the row that is right.",
+                        f"{dst} is spun off from {src} here but from {earlier} "
+                        f"on row {first_rows[dst]}. Keep the row that is right.",
                         row_index=csv_reader.line_num,
                     )
                 cache[dst] = src

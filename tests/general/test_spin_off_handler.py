@@ -125,14 +125,14 @@ def test_spin_offs_file_refuses_two_sources_for_one_ticker(tmp_path: Path) -> No
     spin_offs_file.write_text("dst,src\nNEW,OLD\nKID,MUM\nNEW,OTHER\n", encoding="utf8")
 
     with pytest.raises(
-        ParsingError, match="NEW is also on row 2, spun off from OLD there"
+        ParsingError, match="NEW is spun off from OTHER here but from OLD on row 2"
     ) as excinfo:
         SpinOffHandler(spin_offs_file)
 
     assert excinfo.value.row_index == 4
 
 
-def test_spin_offs_file_accepts_a_row_repeated_as_it_is(tmp_path: Path) -> None:
+def test_spin_offs_file_accepts_the_same_mapping_twice(tmp_path: Path) -> None:
     """A second row that says what the first did is not an error."""
     spin_offs_file = tmp_path / "spin_offs.csv"
     spin_offs_file.write_text("dst,src\nNEW,OLD\nNEW, OLD\n", encoding="utf8")

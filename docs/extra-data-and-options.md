@@ -163,6 +163,8 @@ dst,src
 NEWCO,ACME
 ```
 
+If two rows give the same new ticker different old tickers, cgt-calc stops and names both rows.
+
 An empty `--spin-offs-file` value disables the cache, so cgt-calc does not read or save spin-off
 mappings.
 
