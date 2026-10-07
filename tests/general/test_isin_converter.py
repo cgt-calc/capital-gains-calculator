@@ -657,13 +657,12 @@ def test_translation_file_refuses_two_rows_that_disagree_about_an_isin(
 
 def test_translation_file_row_replaces_the_bundled_tickers(tmp_path: Path) -> None:
     """A row for an ISIN the bundled list has is not a repeat of it."""
-    bundled = Isin("IE00B3XXRP09")
     translation_file = tmp_path / "isin_translation.csv"
-    translation_file.write_text(f"ISIN,symbol\n{bundled},FOO\n")
+    translation_file.write_text(f"ISIN,symbol\n{VANGUARD_ISIN},FOO\n")
 
     converter = IsinConverter(isin_translation_file=translation_file)
 
-    assert converter.data[bundled] == {"FOO"}
+    assert converter.data[VANGUARD_ISIN] == {"FOO"}
 
 
 def test_translation_file_accepts_a_row_repeated_with_the_same_tickers(
