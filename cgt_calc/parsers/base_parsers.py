@@ -335,8 +335,11 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
 
         transactions: list[T] = []
         saw_row = False
-        for index, row in enumerate(reader, start=header_row + 1):
+        for row in reader:
             saw_row = True
+            # Counted from the lines the reader has taken, not from the rows
+            # it has given: it skips an empty line without giving a row.
+            index = header_row + reader.line_num - 1
             try:
                 # A row with MORE fields than the header collects the extras
                 # under DictReader's `None` key (`restkey`), which changes
