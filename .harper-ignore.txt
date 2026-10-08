@@ -85,3 +85,5 @@
 ^extra-data-and-options\.md:.*MissingPreposition
 # "the Georgian lari at the rouble's rate" - Harper joins "lari at" into "lariat".
 ^extra-data-and-options\.md:.*MergeWords
+# The ticker SAEM, in the comment that stops codespell rewriting it as "SAME".
+^const\.py:.*SpellCheck.*`saem`

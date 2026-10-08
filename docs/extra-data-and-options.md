@@ -98,17 +98,19 @@ selects another path.
 
 To add or correct a mapping yourself, edit that file, or create it if it does not exist yet. It is a
 CSV file that starts with the header line `ISIN,symbol`. Each row after it gives one ISIN, then
-every ticker that security is known by, each in its own column. For a fund listed under both `VUSA`
-and `VUSD`:
+every ticker that security is known by, each in its own column. For a fund listed under both `VAPX`
+and `VDPX`:
 
 ```csv
 ISIN,symbol
-IE00B3XXRP09,VUSA,VUSD
+IE00B9F5YL18,VAPX,VDPX
 ```
 
 That row is already in the bundled list and only shows the format. When you write your own:
 
-- Write each ticker exactly as the cgt-calc report shows it.
+- Write each ticker exactly as your broker file gives it, or the current ticker where cgt-calc
+    [reads an old ticker as the current one](#ticker-renames), such as `META` for `FB`. The report
+    may show a supported pair under one ticker, which is not always the one in your file.
 - A Vanguard holding with no ticker goes under its fund name, on the row of its own ISIN. The **no
     ISIN mapping was found** warning lists the names as they must be written, each in double quotes
     where it contains a comma.

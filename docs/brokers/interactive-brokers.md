@@ -93,8 +93,10 @@ depending on whether a security is named:
 ### Tickers and exchange listings
 
 IBKR can report one security under different tickers. cgt-calc combines supported ticker pairs into
-one holding when it can identify the security by ISIN. An ISIN in a dividend description can also
-identify trades under that ticker, wherever the dividend appears in your input.
+one holding when it can identify the security by ISIN, from your file or from the bundled list of
+securities, and reports it under one ticker, which may not be the one you traded: `CSPX`, for
+example, is reported as `CSP1`. An ISIN in a dividend description can also identify trades under
+that ticker, wherever the dividend appears in your input.
 
 Without an ISIN or reference mapping, tickers can remain separate without an error. If your report
 shows one security twice, compare the ISINs in its dividend descriptions or IBKR's instrument

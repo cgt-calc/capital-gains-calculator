@@ -244,16 +244,46 @@ UK_TIMEZONE: Final = ZoneInfo("Europe/London")
 ERI_TAX_DATE_DELTA: Final = relativedelta(months=6)
 
 # Exchange-specific tickers for one security, mapped to the ticker the report
-# uses. Trading 212 lists the Xetra line of a US share under its German code,
-# so one holding arrives under two names and pools, matches and prices as two.
+# uses. Trading 212 lists the German line of a US share under its German code,
+# and a fund can have another code on each exchange and in each currency it
+# trades in, so one holding arrives under two names and pools, matches and
+# prices as two.
 # Keyed by ISIN as well as ticker: a ticker code belongs to an exchange rather
 # than to a security, so `NVD` is NVDA only under US67066G1040. These are
 # listings that trade side by side, not renames over time, which are in
-# `ticker_renames.csv`. Add a pair only once both listings are confirmed.
+# `ticker_renames.csv`.
+# A share is reported under the ticker of its home market. A fund is reported
+# under its London line traded in pounds or, where no export has shown that
+# line, its London line in dollars, as `CON3` is.
+# Add a pair only once an export has shown the alias and both tickers are
+# confirmed for the ISIN from the exchange's or the issuer's own listing data.
+# Leave out an alias that another security is known to use as its ticker on
+# an exchange a supported broker offers. A row with no ISIN is matched by its
+# ticker alone, so another broker's holding of that other security would be
+# pooled with this one, with no error. Four aliases an export has shown are
+# left out for that reason: `GDX`, `SMH`, `WCLD` and `DFNS`. `NVD` carries the
+# same risk: it is also a fund in the US.
+# The reported ticker is not held to that rule, though `TSLA`, `AMZN` and
+# `NVDA` also name trackers and depositary receipts on other exchanges. A row
+# with no ISIN under `TSLA` joins a Trading 212 `TSLA` holding without this
+# table; an entry only makes it join the shares exported as `TL0` too.
+# Check the bundled ISIN list first: a row there that gives the reported
+# ticker a sibling the table does not name lets the sibling through as a
+# second holding, where without the new pair the run would have been refused.
 ISIN_TICKER_ALIASES: Final[dict[tuple[Isin, str], str]] = {
     (Isin("US67066G1040"), "NVD"): "NVDA",
     (Isin("US11135F1012"), "1YD"): "AVGO",
     (Isin("DE0007030009"), "RHMd"): "RHM",
+    (Isin("US88160R1014"), "TL0"): "TSLA",
+    (Isin("US19260Q1076"), "1QZ"): "COIN",
+    (Isin("US0231351067"), "AMZ"): "AMZN",
+    (Isin("US5398301094"), "LOM"): "LMT",
+    (Isin("IE00B5BMR087"), "CSPX"): "CSP1",
+    (Isin("IE00B5BMR087"), "SXR8"): "CSP1",
+    (Isin("IE00B3XXRP09"), "VUSD"): "VUSA",
+    (Isin("IE00B4ND3602"), "IGLN"): "SGLN",
+    (Isin("IE00BFNM3P36"), "SAEM"): "SEGM",  # codespell:ignore saem
+    (Isin("XS2399367254"), "3CNE"): "CON3",
 }
 
 # For ActionType.RENAME: set symbol=new_ticker, description=f"{RENAME_DESCRIPTION_PREFIX}{old_ticker}"

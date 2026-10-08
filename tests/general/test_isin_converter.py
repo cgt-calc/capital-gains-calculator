@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, NoReturn
 import pytest
 from requests import exceptions as requests_exceptions
 
-from cgt_calc.const import RuntimeMode
+from cgt_calc.const import ISIN_TICKER_ALIASES, RuntimeMode
 from cgt_calc.exceptions import (
     ExternalApiError,
     InvalidTransactionError,
@@ -65,7 +65,7 @@ ISIN_B = Isin("US5949181045")
 NVIDIA_ISIN = Isin("US67066G1040")
 BROADCOM_ISIN = Isin("US11135F1012")
 
-# A bundled row listing one security under two tickers.
+# An ISIN that is in the bundled translation data.
 VANGUARD_ISIN = Isin("IE00B3XXRP09")
 
 FigiData = list[dict[str, str | None]]
@@ -389,20 +389,70 @@ def test_add_from_transaction_ignores_isin_less_unknown_ticker() -> None:
     assert converter.transaction_symbols == {}
 
 
-def test_add_from_transaction_accepts_a_bundled_multi_ticker_row() -> None:
-    """Accept every ticker of a bundled row listing a security under several.
+def test_add_from_transaction_accepts_a_multi_ticker_reference_row() -> None:
+    """Accept every ticker of a reference row listing a security under several.
 
-    IE00B3XXRP09 ships as VUSA and VUSD, and those holdings pool separately
-    today. That silent split predates the exchange-alias work and is not what
-    this check is for, so both tickers go through as they always have.
+    The bundled list has such rows, and those holdings pool separately today.
+    That silent split predates the exchange-alias work and is not what this
+    check is for, so both tickers go through as they always have. A pair the
+    alias table names is rewritten before it gets here.
     """
     converter = IsinConverter()
-    assert converter.data[VANGUARD_ISIN] == {"VUSA", "VUSD"}
+    converter.data[ISIN_A] = {"FOO", "BAR"}
 
-    converter.add_from_transaction(_transaction(VANGUARD_ISIN, "VUSA"))
-    converter.add_from_transaction(_transaction(VANGUARD_ISIN, "VUSD"))
+    converter.add_from_transaction(_transaction(ISIN_A, "FOO"))
+    converter.add_from_transaction(_transaction(ISIN_A, "BAR"))
 
-    assert converter.transaction_symbols[VANGUARD_ISIN] == {"VUSA", "VUSD"}
+    assert converter.transaction_symbols[ISIN_A] == {"FOO", "BAR"}
+
+
+def test_a_row_without_an_isin_takes_an_alias_through_the_bundled_list() -> None:
+    """A fund another broker exports without an ISIN is reported under one ticker.
+
+    The docs give this example: `CSPX` in an Interactive Brokers or RAW file
+    is reported as `CSP1`. The row has no ISIN, so it is identified by the
+    bundled row that lists `CSPX`, and then rewritten.
+    """
+    converter = IsinConverter()
+
+    bought = _transaction(None, "CSPX")
+    converter.add_from_transaction(bought)
+
+    assert bought.symbol == "CSP1"
+
+
+def test_the_alias_table_names_every_bundled_ticker_of_its_securities() -> None:
+    """A security in the table has no bundled ticker that the table leaves out.
+
+    Two tickers on one bundled row are let through as two holdings. So once
+    one of them is the ticker a pair is reported under, the other arrives as
+    a second holding, where without the pair the run was refused.
+    """
+    converter = IsinConverter()
+    named: dict[Isin, set[str]] = {}
+    for (isin, alias), ticker in ISIN_TICKER_ALIASES.items():
+        named.setdefault(isin, set()).update({alias, ticker})
+
+    left_out = {
+        isin: sorted(converter.data.get(isin, set()) - tickers)
+        for isin, tickers in named.items()
+        if converter.data.get(isin, set()) - tickers
+    }
+
+    assert left_out == {}
+
+
+def test_each_security_is_reported_under_one_ticker() -> None:
+    """Every alias of one ISIN names the same ticker.
+
+    A fund can have several aliases. Two that named different tickers, or one
+    that named another alias, would leave the security as two holdings.
+    """
+    reported: dict[Isin, set[str]] = {}
+    for (isin, _alias), ticker in ISIN_TICKER_ALIASES.items():
+        reported.setdefault(isin, set()).add(ticker)
+
+    assert [isin for isin, tickers in reported.items() if len(tickers) > 1] == []
 
 
 def test_add_from_transaction_ignores_rows_without_both_fields() -> None:

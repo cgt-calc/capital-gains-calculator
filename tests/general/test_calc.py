@@ -970,6 +970,7 @@ def _gbp_fee(date: datetime.date, symbol: str, amount: int) -> BrokerTransaction
     [
         (Isin("US67066G1040"), "NVD", "NVDA"),
         (Isin("US11135F1012"), "1YD", "AVGO"),
+        (Isin("IE00B3XXRP09"), "VUSD", "VUSA"),
     ],
 )
 def test_exchange_alias_pools_under_one_ticker(
@@ -978,9 +979,13 @@ def test_exchange_alias_pools_under_one_ticker(
     """One security bought under two of its listings is one Section 104 pool.
 
     Trading 212 exports the Xetra line of a US share under its German code,
-    so a history can hold both. Pooling and matching are keyed by ticker, so
+    and the dollar line of a fund under another code than its pound line, so
+    a history can hold both. Pooling and matching are keyed by ticker, so
     without normalisation the two halves never meet: the sale below has only
     half the units it needs under its own name.
+
+    The bundled list of securities names the fund's two tickers on one row,
+    which on its own lets both through as two holdings.
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     buy_alias = BrokerTransaction(

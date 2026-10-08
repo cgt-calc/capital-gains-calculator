@@ -65,6 +65,7 @@ CG59562
 CG78310
 CNH
 CNY
+CON3
 CSH2
 cgt
 classmethod
@@ -90,6 +91,7 @@ demerger
 depositary
 dest
 dataclasses
+DFNS
 DictReader
 DictReader's
 dirham
@@ -116,6 +118,7 @@ freetrade
 FX
 GA
 gbp
+GDX
 GE
 GIA
 GOOG
@@ -276,6 +279,7 @@ shtab
 SICAV
 SIPP
 SLF001
+SMH
 SOLV
 SortValue
 SpinOff
@@ -294,6 +298,7 @@ strptime
 subrow
 tablefinder
 TCGA
+TL0
 toml
 Trading212Column
 tranche's
@@ -301,6 +306,7 @@ TransactionDetails
 transferor
 transferor's
 TRL
+TSLA
 txn
 ty
 tzinfo
@@ -323,6 +329,7 @@ v2
 ValueError
 VanguardTransaction
 VTI
+WCLD
 worktree
 XCD
 Xetra
