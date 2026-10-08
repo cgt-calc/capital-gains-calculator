@@ -89,6 +89,7 @@ DayAcquisitions
 dataclass
 demerger
 depositary
+depositary's
 dest
 dataclasses
 DFNS

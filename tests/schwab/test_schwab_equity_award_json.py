@@ -277,7 +277,7 @@ def test_split_history_demands_a_price_floor_it_can_use() -> None:
         ("Foreign Tax Paid", ActionType.DIVIDEND_TAX),
         ("Tax Reversal", ActionType.DIVIDEND_TAX),
         ("Tax Withholding", ActionType.DIVIDEND_TAX),
-        ("ADR Mgmt Fee", ActionType.FEE),
+        ("ADR Mgmt Fee", ActionType.ADJUSTMENT),
         ("Adjustment", ActionType.ADJUSTMENT),
         ("IRS Withhold Adj", ActionType.ADJUSTMENT),
         ("Short Term Cap Gain", ActionType.CAPITAL_GAIN),

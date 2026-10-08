@@ -120,38 +120,50 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
 
         assert transactions[0].isin is None
 
-    def test_buy_foreign_currency_price(self, tmp_path: Path) -> None:
-        """Test that a buy with a foreign-currency price is converted to GBP correctly.
+    def test_foreign_currency_price_is_converted_for_a_buy_and_a_sell(
+        self, tmp_path: Path
+    ) -> None:
+        """A trade priced in a foreign currency has its price converted to GBP.
 
         In IBKR exports the Gross/Net Amount and Commission are always in the account's
         base currency (GBP), while Price can be in the instrument's trading currency.
         The parser must convert Price to GBP using the Exchange Rate so that the
         internal consistency check (quantity x price + fees ≈ |amount|) passes.
 
-        Transaction: Buy 217 IWDE at EUR 67.71, exchange rate 0.88542 EUR→GBP.
+        Buy 217 IWDE at EUR 67.71, exchange rate 0.88542 EUR→GBP.
         GBP gross = 217 x 67.71 x 0.88542 = 13009.5380394
         GBP commission = 6.5047690197
         GBP net = 13016.0428084197
+
+        Sell 217 IWDE at EUR 70.00, at the same rate.
+        GBP gross = 217 x 70.00 x 0.88542 = 13449.5298
+        GBP commission = 6.7247649
+        GBP net = 13449.5298 - 6.7247649 = 13442.8050351
         """
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
             self.base_header_with_foreign_currency
             + "Transaction History,Data,2023-02-10,U***9143,ISHARES MSCI WORLD EUR-H,Buy,IWDE,217,67.71,EUR,-13009.5380394,-6.5047690197,-13016.0428084197,0.88542\n"
+            + "Transaction History,Data,2023-03-10,U***9143,ISHARES MSCI WORLD EUR-H,Sell,IWDE,-217,70.00,EUR,13449.5298,-6.7247649,13442.8050351,0.88542\n"
         )
 
-        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+        buy, sell = InteractiveBrokersParser().load_from_file(csv_file)
 
-        assert len(transactions) == 1
-        txn = transactions[0]
-        expected_price_gbp = Decimal("67.71") * Decimal("0.88542")
-        assert txn.date == date(2023, 2, 10)
-        assert txn.action == ActionType.BUY
-        assert txn.symbol == "IWDE"
-        assert txn.quantity == Decimal(217)
-        assert txn.price == expected_price_gbp
-        assert txn.fees == Decimal("6.5047690197")
-        assert txn.amount == Decimal("-13016.0428084197")
-        assert txn.currency == "GBP"
+        assert buy.date == date(2023, 2, 10)
+        assert buy.action == ActionType.BUY
+        assert buy.symbol == "IWDE"
+        assert buy.quantity == Decimal(217)
+        assert buy.price == Decimal("67.71") * Decimal("0.88542")
+        assert buy.fees == Decimal("6.5047690197")
+        assert buy.amount == Decimal("-13016.0428084197")
+        assert buy.currency == "GBP"
+
+        assert sell.action == ActionType.SELL
+        assert sell.quantity == Decimal(217)
+        assert sell.price == Decimal("70.00") * Decimal("0.88542")
+        assert sell.fees == Decimal("6.7247649")
+        assert sell.amount == Decimal("13442.8050351")
+        assert sell.currency == "GBP"
 
     def test_run_with_interactive_brokers_file(
         self, request: pytest.FixtureRequest
@@ -270,17 +282,17 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert transactions[0].amount == Decimal("-0.01")
         assert transactions[0].symbol is None
 
-    def test_account_level_fee_opens_no_holding_in_the_report(
+    def test_an_other_fee_is_never_part_of_what_a_holding_cost(
         self, tmp_path: Path
     ) -> None:
-        """A market-data subscription is not a cost of any security.
+        """An "Other Fee" leaves the cash balance and adds to no holding's cost.
 
-        IBKR bills it as an "Other Fee" with "-" for the symbol, and FEE adds
-        to a named holding's pooled cost. The cost a fee opens is invisible in
-        the printed summary while the quantity is zero, so the rendered report
-        is what gives it away: on the fee path this file produces a
-        "Management fee for -" section for a holding that does not exist. An
-        ADR fee, which really is charged against a holding, keeps its meaning.
+        IBKR files a market-data subscription and a depositary's ADR fee the
+        same way, the second under the security's symbol. Neither is a cost
+        of acquiring or disposing of the shares (TCGA 1992 s38), so ARM bought
+        for 500 and sold for 600 makes a gain of 100 whatever was charged in
+        between. Read as a cost of the holding, the ADR fee reached the report
+        as a "Management fee for ARM" section and took its 0.09 off the gain.
         """
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
@@ -292,6 +304,8 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             "Global Snapshot for Aug 2025,Other Fee,-,-,-,-0.03,-,-0.03\n"
             + "Transaction History,Data,2025-09-09,U***00000,"
             "ARM(US0420682058) ADR Fee USD 0.02 per Share,Other Fee,ARM,-,-,-0.09,-,-0.09\n"
+            + "Transaction History,Data,2025-09-10,U***00000,"
+            "ARM STOCK,Sell,ARM,-10.0,60.0,600.0,-,600.0\n"
         )
 
         cmd = build_cmd(
@@ -306,13 +320,12 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         result = run_cli(cmd)
 
         assert stderr_alerts(result.stderr) == []
-        # Both fees leave the cash balance, but only the ADR fee is a cost of
-        # a holding, so the ARM pool carries 500.09 rather than 500.12.
-        assert "Final balance\n  Interactive Brokers: 499.88 (GBP)" in result.stdout
-        assert "ARM: 10.00, £500.09" in result.stdout
+        # Both fees leave the cash balance and neither reaches the gain.
+        assert "Final balance\n  Interactive Brokers: 1099.88 (GBP)" in result.stdout
+        assert re.search(r"Allowable costs:\s+£500\.00\n", result.stdout)
+        assert re.search(r"\n  Gain:\s+£100\.00\n", result.stdout)
         report = (tmp_path / "out.tex").read_text(encoding="utf-8")
-        assert "Management fee for ARM" in report
-        assert "Management fee for -" not in report
+        assert "Management fee" not in report
 
     def test_withholding_without_a_security_is_reported_as_interest_tax(
         self, tmp_path: Path
@@ -359,7 +372,6 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         conversion leaves more base currency behind and negative when it
         leaves less, and neither direction is a fee: a positive one is refused
         outright, and a negative one opens a pooled cost for a currency pair.
-        "Other Fee", which really is a charge on a holding, keeps its meaning.
         """
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
@@ -369,8 +381,6 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             + "Transaction History,Data,2025-10-02,U***00000,"
             "Net Amount in Base from Forex Trade: -800 GBP.USD,"
             "Forex Trade Component,GBP.USD,-800,1.32,-0.18,-,-0.18\n"
-            + "Transaction History,Data,2025-10-03,U***00000,"
-            "CNX1 ADR Fee,Other Fee,CNX1,-,-,-1.5,-,-1.5\n"
         )
 
         transactions = InteractiveBrokersParser().load_from_file(csv_file)
@@ -378,22 +388,19 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert [t.action for t in transactions] == [
             ActionType.ADJUSTMENT,
             ActionType.ADJUSTMENT,
-            ActionType.FEE,
         ]
         assert [t.amount for t in transactions] == [
             Decimal("0.14"),
             Decimal("-0.18"),
-            Decimal("-1.5"),
         ]
         # Neither direction keeps anything that could be read as a security,
         # and the description still names the pair the movement came from.
-        for component in transactions[:2]:
+        for component in transactions:
             assert component.symbol is None
             assert component.quantity is None
             assert component.price is None
             assert component.fees == Decimal(0)
             assert "GBP.USD" in component.description
-        assert transactions[2].symbol == "CNX1"
 
     def test_forex_trade_component_moves_the_base_currency_balance(
         self, tmp_path: Path
@@ -455,6 +462,10 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         Taking Price Currency as the transaction currency filed a GBP 100
         dividend as USD 100, moved a USD balance the account never held and
         converted the proceeds down to about GBP 73.
+
+        The row states a price as well and no rate to convert it with. Only
+        a Buy or Sell has its price read back, so the dividend is not refused
+        over one.
         """
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
@@ -462,7 +473,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             + "Transaction History,Data,2025-01-01,U***00000,"
             "Electronic Fund Transfer,Deposit,-,-,-,-,1000.0,-,1000.0,-\n"
             + "Transaction History,Data,2025-10-02,U***00000,"
-            "VT(US9220427424) Cash Dividend,Dividend,VT,-,-,USD,100.0,-,100.0,-\n"
+            "VT(US9220427424) Cash Dividend,Dividend,VT,-,0.50,USD,100.0,-,100.0,-\n"
         )
 
         cmd = build_cmd(
@@ -528,30 +539,6 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
 
         assert "Price is in EUR" in str(excinfo.value)
         assert "Exchange Rate" in str(excinfo.value)
-
-    def test_foreign_priced_fee_without_an_exchange_rate_is_not_refused(
-        self, tmp_path: Path
-    ) -> None:
-        """Only a Buy or Sell reads the price back to check it against the amount.
-
-        add_management_fee never reads a fee row's price, so a Price Currency
-        with no Exchange Rate to convert it is left as is rather than refusing
-        a row the calculation does not check it on.
-        """
-        csv_file = tmp_path / "transactions.csv"
-        csv_file.write_text(
-            self.base_header_with_foreign_currency
-            + "Transaction History,Data,2025-10-03,U***00000,"
-            "CNX1 ADR Fee,Other Fee,CNX1,-,1.5,USD,-1.5,-,-1.5,-\n"
-        )
-
-        transactions = InteractiveBrokersParser().load_from_file(csv_file)
-
-        assert len(transactions) == 1
-        assert transactions[0].action == ActionType.FEE
-        assert transactions[0].currency == CurrencyCode("GBP")
-        assert transactions[0].amount == Decimal("-1.5")
-        assert transactions[0].price == Decimal("1.5")
 
     def test_forex_trade_component_leaves_no_fee_in_the_report(
         self, tmp_path: Path

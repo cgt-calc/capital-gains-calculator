@@ -303,10 +303,9 @@ def action_from_str(label: str, file: Path) -> ActionType:
     }:
         return ActionType.DIVIDEND_TAX
 
-    if label == "ADR Mgmt Fee":
-        return ActionType.FEE
-
-    if label in {"Adjustment", "IRS Withhold Adj"}:
+    # An ADR fee is never a cost of the holding (TCGA 1992 s38), so the label
+    # sits with the adjustments. Rows of this group are refused further down.
+    if label in {"ADR Mgmt Fee", "Adjustment", "IRS Withhold Adj"}:
         return ActionType.ADJUSTMENT
 
     if label in {"Short Term Cap Gain", "Long Term Cap Gain"}:

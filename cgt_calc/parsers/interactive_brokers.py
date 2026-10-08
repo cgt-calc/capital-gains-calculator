@@ -77,8 +77,6 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
         return ActionType.SELL
     if action_type == "Foreign Tax Withholding":
         return ActionType.DIVIDEND_TAX
-    if action_type == "Other Fee":
-        return ActionType.FEE
     # "FX Translations P&L" arrives as an Adjustment: the revaluation of a
     # foreign currency balance. A "Forex Trade Component" is the base-currency
     # net of a conversion, filed under the currency pair. Neither is a trade in
@@ -89,17 +87,25 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
     # the currency pair.
     # "Debit Interest" is interest IBKR charges on a borrowed balance, and
     # "Sales Tax" the VAT on a service such as a market-data subscription.
-    # Both are costs of the account rather than of any one holding, so there
-    # is no symbol to attach them to and FEE, which adds to a holding's pooled
-    # cost, cannot take them. Filing them as an ADJUSTMENT moves the cash
-    # balance and leaves the interest report to the interest actually
-    # received: interest paid on margin is not deductible against it.
-    # Revolut's account-level custody fee is read the same way.
+    # Both are costs of the account rather than of any one holding. Filing
+    # them as an ADJUSTMENT moves the cash balance and leaves the interest
+    # report to the interest actually received: interest paid on margin is
+    # not deductible against it.
+    # "Other Fee" covers an account charge such as that subscription and a
+    # charge billed against a holding, such as a depositary's ADR fee. Neither
+    # is a cost of acquiring or disposing of shares (TCGA 1992 s38), so
+    # neither adds to a holding's cost, whichever symbol the row names.
+    # Revolut's custody fee is read the same way. IBKR's reporting reference
+    # lists a corporate action election fee under this type as well, which
+    # may be a cost of a trade. Nothing on the row says which trade, so what
+    # an Other Fee was paid for is not assessed and that one moves the cash
+    # alone too; the broker page says how to have it deducted.
     if action_type in {
         "Adjustment",
         "Forex Trade Component",
         "Debit Interest",
         "Sales Tax",
+        "Other Fee",
     }:
         return ActionType.ADJUSTMENT
 
@@ -164,22 +170,13 @@ class InteractiveBrokersTransaction(BrokerTransaction):
         if action is ActionType.DIVIDEND_TAX and symbol is None:
             action = ActionType.INTEREST_TAX
 
-        # "Other Fee" covers both a charge against a holding, such as an ADR
-        # fee, and an account-level charge with no security behind it, such as
-        # a market-data subscription. Only the first can be a FEE, which adds
-        # to a named holding's pooled cost; the second has nowhere to attach
-        # and moves the cash balance alone.
-        if action is ActionType.FEE and symbol is None:
-            action = ActionType.ADJUSTMENT
-
         # An adjustment moves the cash balance and nothing else: the calculator
         # reads its amount and never its symbol, quantity or price. IBKR files a
         # Forex Trade Component under the currency pair and gives it both a
         # quantity and a price, so clear the columns that describe a security
-        # rather than leave a currency pair looking like a holding. Dropping the
-        # price before it is converted also keeps a pair priced in a currency
-        # the row states no rate for from being refused over a price nothing
-        # reads.
+        # rather than leave a currency pair looking like a holding. An Other
+        # Fee that names a holding loses its symbol the same way: the charge is
+        # no part of what that holding cost.
         if action is ActionType.ADJUSTMENT:
             symbol = None
             quantity = None
@@ -188,16 +185,18 @@ class InteractiveBrokersTransaction(BrokerTransaction):
 
         # The Gross/Net Amount and Commission columns are always in the account's
         # base currency (GBP), so that is the transaction's currency whatever
-        # priced the leg. Price Currency describes the price alone: convert a
-        # foreign price to the base currency where a rate is given. Only a Buy
+        # priced the leg. Price Currency describes the price alone. Only a Buy
         # or Sell reads the price back, to check it against the amount
-        # (quantity x price + fees ≈ |amount|), so only those two are refused
-        # over a price nothing can convert; every other row's price is left
-        # foreign rather than blocking rows the calculator never checks it on.
-        if price is not None and price_currency != "GBP":
-            if exchange_rate is not None:
-                price = price * exchange_rate
-            elif action in {ActionType.BUY, ActionType.SELL}:
+        # (quantity x price + fees ≈ |amount|), so only those two have a foreign
+        # price converted, and are refused where no rate is given to convert it
+        # with; every other row's price is left as the row states it rather
+        # than blocking rows the calculator never checks it on.
+        if (
+            action in {ActionType.BUY, ActionType.SELL}
+            and price is not None
+            and price_currency != "GBP"
+        ):
+            if exchange_rate is None:
                 raise ParsingError(
                     file_path,
                     f"Price is in {price_currency} but the Exchange Rate column is "
@@ -208,6 +207,7 @@ class InteractiveBrokersTransaction(BrokerTransaction):
                     "needs a price, so clearing it only trades this error for a "
                     "missing-price one.",
                 )
+            price = price * exchange_rate
 
         super().__init__(
             date=date,

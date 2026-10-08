@@ -104,8 +104,20 @@ for the shares bought with it. Do not use the internal `REINVEST_DIVIDENDS` acti
 ignores it. Excess Reported Income uses the separate
 [ERI_RAW format](../custom-eri-data.md#eri_raw-format), not this file.
 
-A `FEE` adds the charge to that holding's cost, which reduces a later gain, so use it only where the
-charge is genuinely part of what that holding cost you rather than a charge for running the account.
+A `FEE` adds the charge to that holding's cost, which reduces a later gain, and takes it out of the
+cash balance. Choosing `FEE` does not make a charge an allowable cost. Use it only for an amount
+HMRC treats as spent on a holding you already have without giving you new shares, such as income
+reinvested in
+[accumulation units](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57707) of a UK
+fund. That income is taxable and never leaves your account, so record it as well, for the same
+amount on the same day: as a `DIVIDEND`, or as `INTEREST` where the fund pays interest
+distributions, as a bond fund does. With the `FEE` alone, the income goes unreported and the cash
+balance ends short. For anything else:
+
+- Put a commission or other cost of one purchase or sale in the `fees` column of that `BUY` or
+    `SELL` row, so that it counts towards that trade.
+- Record a custody, ADR, platform or account charge as an `ADJUSTMENT`.
+
 If you are unsure, use `ADJUSTMENT`: it takes the money out of the balance without touching any
 cost, which is the safer way to be wrong.
 
