@@ -2137,33 +2137,28 @@ def test_a_purchase_under_the_retired_name_is_there_to_sell_later(
     assert calculator.portfolio["BAR"] == Position()
 
 
-@pytest.mark.parametrize("eri_last", [False, True], ids=["ERI first", "ERI last"])
-def test_a_purchase_under_the_retired_name_survives_excess_reported_income(
-    *, eri_last: bool
-) -> None:
+def test_a_purchase_under_the_retired_name_survives_excess_reported_income() -> None:
     """Excess reported income on the rename day does not strand the purchase.
 
-    An ERI row stops the whole day's capacity being planned, and it is never
-    the row a day closes on, so it is tried on both sides of the day's others.
+    An ERI row stops the whole day's capacity being planned. It follows the
+    day's trades, where the command line puts it, and is never the row a day
+    closes on.
 
     150 shares cost 1000 and 750, and income of 1 a share adds 150 to that:
     1900. Sold for 3000, they leave a gain of 1100.
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     calculator.isin_converter.data[ERI_ISIN] = {"NEW"}
-    eri = ERITransaction(
-        date=RENAME_DAY,
-        isin=ERI_ISIN,
-        price=Decimal(1),
-        currency=CurrencyCode("GBP"),
-    )
-    day = [
-        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
-        _gbp_trade(RENAME_DAY, ActionType.BUY, "OLD", 50, 750),
-    ]
     transactions: list[BrokerTransaction] = [
         _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
-        *([*day, eri] if eri_last else [eri, *day]),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        _gbp_trade(RENAME_DAY, ActionType.BUY, "OLD", 50, 750),
+        ERITransaction(
+            date=RENAME_DAY,
+            isin=ERI_ISIN,
+            price=Decimal(1),
+            currency=CurrencyCode("GBP"),
+        ),
         _gbp_trade(datetime.date(2024, 5, 20), ActionType.SELL, "NEW", 150, 3000),
     ]
 
