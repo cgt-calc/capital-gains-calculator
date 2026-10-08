@@ -2635,7 +2635,9 @@ def test_a_custom_period_reaches_the_report_through_the_command_line(
     )
 
     assert result.returncode == 0, result.stderr
-    _, summary = result.stdout.split("Tax summary for period 2024-01-10 to 2024-03-31")
+    heading = "Tax summary for period 2024-01-10 to 2024-03-31"
+    assert heading in result.stdout, result.stdout
+    _, summary = result.stdout.split(heading)
     lines = [" ".join(line.split()) for line in summary.splitlines()]
     assert "Disposals: 1" in lines
     assert "Disposal proceeds: £120.00" in lines
@@ -2777,10 +2779,12 @@ def test_custom_period_narrows_reporting_window() -> None:
         SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
-        period_start=datetime.date(2024, 4, 6),
+        period_start=datetime.date(2024, 5, 1),
         period_end=datetime.date(2024, 10, 29),
     )
 
+    assert not calculator.date_in_tax_year(datetime.date(2024, 4, 30))
+    assert calculator.date_in_tax_year(datetime.date(2024, 5, 1))
     assert calculator.date_in_tax_year(datetime.date(2024, 10, 29))
     assert not calculator.date_in_tax_year(datetime.date(2024, 10, 30))
     assert calculator.tax_year_end_date == datetime.date(2024, 10, 29)
