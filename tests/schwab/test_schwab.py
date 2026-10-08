@@ -110,6 +110,27 @@ def test_award_price_with_thousands_separators_is_parsed(tmp_path: Path) -> None
     assert awards.award_prices[datetime.date(2023, 8, 15)]["BAR"] == Decimal("1250.00")
 
 
+def test_each_award_in_a_price_csv_keeps_its_own_price(tmp_path: Path) -> None:
+    """An award is two rows, and the price on the second belongs to the first above it."""
+    award_file = tmp_path / "awards.csv"
+    award_file.write_text(
+        "Date,Action,Symbol,Description,Quantity,FeesAndCommissions,"
+        "DisbursementElection,Amount,AwardDate,AwardId,FairMarketValuePrice,"
+        "SalePrice,SharesSoldWithheldForTaxes,NetSharesDeposited,Taxes\n"
+        "08/15/2023,Lapse,BAR,Restricted Stock Lapse,400,,,,,,,,,,\n"
+        ',,,,,,,,03/21/2022,101883189,$140.35,,200,200,"$13,192.90"\n'
+        "11/15/2023,Lapse,BAR,Restricted Stock Lapse,100,,,,,,,,,,\n"
+        ',,,,,,,,03/21/2022,101883189,$150.10,,50,50,"$3,752.50"\n'
+    )
+
+    awards = _read_award_file(award_file)
+
+    assert awards.award_prices == {
+        datetime.date(2023, 8, 15): {"BAR": Decimal("140.35")},
+        datetime.date(2023, 11, 15): {"BAR": Decimal("150.10")},
+    }
+
+
 def test_award_file_without_the_award_says_so() -> None:
     """A file that lacks this particular award is a different mistake."""
     path = Path("tests") / "schwab" / "data" / "rsu_settlement" / "transactions.csv"

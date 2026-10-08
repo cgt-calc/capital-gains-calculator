@@ -965,6 +965,66 @@ def _gbp_fee(date: datetime.date, symbol: str, amount: int) -> BrokerTransaction
     )
 
 
+def test_an_earlier_sale_gets_what_the_repurchase_day_s_own_sale_leaves() -> None:
+    """The 30-day rule reaches only the shares the same-day rule left unmatched.
+
+    Ten are sold. Nine days later ten are bought and four of them sold the
+    same day. The same-day rule comes before the 30-day rule (CG51560), so
+    those four are identified against that day's own sale, and the earlier
+    sale is left six of the purchase with its other four from the pool.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    earlier_sale = datetime.date(2024, 5, 7)
+    repurchase = datetime.date(2024, 5, 16)
+    transactions = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "FOO", 20, 200),
+        _gbp_trade(earlier_sale, ActionType.SELL, "FOO", 10, 120),
+        _gbp_trade(repurchase, ActionType.BUY, "FOO", 10, 150),
+        _gbp_trade(repurchase, ActionType.SELL, "FOO", 4, 64),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    bed_and_breakfast, section_104 = report.calculation_log[earlier_sale]["sell$FOO"]
+    assert bed_and_breakfast.rule_type is RuleType.BED_AND_BREAKFAST
+    assert bed_and_breakfast.quantity == Decimal(6)
+    # Six of the ten bought for £150.
+    assert bed_and_breakfast.allowable_cost == Decimal(90)
+    assert section_104.rule_type is RuleType.SECTION_104
+    assert section_104.quantity == Decimal(4)
+    # Four of the twenty pooled for £200.
+    assert section_104.allowable_cost == Decimal(40)
+    (same_day,) = report.calculation_log[repurchase]["sell$FOO"]
+    assert same_day.rule_type is RuleType.SAME_DAY
+    # Four of the ten bought for £150.
+    assert same_day.allowable_cost == Decimal(60)
+    # £120 against £130, then £64 against £60.
+    assert report.total_gain() == Decimal(-6)
+    assert calculator.portfolio["FOO"] == Position(Decimal(16), Decimal(160))
+
+
+def test_a_purchase_on_6_april_belongs_to_the_year_it_starts() -> None:
+    """The tax year runs from 6 April: that day's purchase is listed, 5 April's is not."""
+    calculator = create_calculator(tax_year=2023, balance_check=False)
+    day_before = datetime.date(2023, 4, 5)
+    first_day = datetime.date(2023, 4, 6)
+
+    report = get_report(
+        calculator,
+        [
+            _gbp_trade(day_before, ActionType.BUY, "FOO", 10, 100),
+            _gbp_trade(first_day, ActionType.BUY, "FOO", 10, 150),
+        ],
+    )
+
+    (entry,) = report.calculation_log[first_day]["buy$FOO"]
+    assert entry.quantity == Decimal(10)
+    # Both purchases are pooled, whichever year lists them.
+    assert entry.new_quantity == Decimal(20)
+    assert entry.new_pool_cost == Decimal(250)
+    assert "buy$FOO" not in report.calculation_log.get(day_before, {})
+
+
 @pytest.mark.parametrize(
     ("isin", "alias", "canonical"),
     [
@@ -2511,6 +2571,75 @@ def test_negative_balance_error_shows_short_history_in_full() -> None:
         "says to, or after you understand why the history cannot reconcile. "
         "See https://cgt-calc.uk/usage/#check-the-result"
     )
+
+
+RAW_HEADER = "date,action,symbol,quantity,price,fees,currency\n"
+
+
+def _run_raw_history(
+    tmp_path: Path, rows: str, *options: str
+) -> subprocess.CompletedProcess[str]:
+    """Run the command line over a RAW history, whatever it returns."""
+    history = tmp_path / "history.csv"
+    history.write_text(RAW_HEADER + rows, encoding="utf-8")
+    return subprocess.run(
+        build_cmd("--raw-file", str(history), "--no-report", *options),
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+
+def test_the_balance_check_is_on_unless_it_is_turned_off(tmp_path: Path) -> None:
+    """A purchase no deposit paid for stops the run until the check is switched off.
+
+    The check is how a user learns that an export is missing rows, so it has to
+    run without being asked for. The second run shows the history is refused
+    for its balance and nothing else.
+    """
+    rows = "2023-05-02,BUY,FOO,20,10,0,GBP\n"
+
+    refused = _run_raw_history(tmp_path, rows, "--year", "2023")
+    accepted = _run_raw_history(tmp_path, rows, "--year", "2023", "--no-balance-check")
+
+    assert refused.returncode == 1
+    # 20 shares at £10 with nothing paid in.
+    assert "Reached a negative balance of -200 GBP" in refused.stderr
+    assert accepted.returncode == 0
+
+
+def test_a_custom_period_reaches_the_report_through_the_command_line(
+    tmp_path: Path,
+) -> None:
+    """--from and --to decide what the summary counts.
+
+    All three sales fall in 2023/24: one before the period, one inside it and
+    one after. So one disposal is counted: 10 shares for £120, from 30 pooled
+    for £300.
+    """
+    rows = (
+        "2023-05-02,BUY,FOO,30,10,0,GBP\n"
+        "2023-06-01,SELL,FOO,10,15,0,GBP\n"
+        "2024-02-01,SELL,FOO,10,12,0,GBP\n"
+        "2024-04-02,SELL,FOO,10,14,0,GBP\n"
+    )
+
+    result = _run_raw_history(
+        tmp_path,
+        rows,
+        "--from",
+        "2024-01-10",
+        "--to",
+        "2024-03-31",
+        "--no-balance-check",
+    )
+
+    assert result.returncode == 0, result.stderr
+    _, summary = result.stdout.split("Tax summary for period 2024-01-10 to 2024-03-31")
+    lines = [" ".join(line.split()) for line in summary.splitlines()]
+    assert "Disposals: 1" in lines
+    assert "Disposal proceeds: £120.00" in lines
+    assert "Allowable costs: £100.00" in lines
 
 
 def test_negative_balance_error_shows_only_relevant_transactions() -> None:

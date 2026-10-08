@@ -369,6 +369,26 @@ def test_read_raw_transactions_reports_a_half_filled_row(tmp_path: Path) -> None
     assert exc.value.row_index == 3
 
 
+def test_read_raw_transactions_unknown_action_names_its_row(tmp_path: Path) -> None:
+    """A row the parser refuses outright is reported at its own line too.
+
+    The row above it is a good one, so an error dropped on the way out would
+    leave two transactions and no report at all.
+    """
+    raw_file = tmp_path / "raw_unknown_action.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2023-02-09,BUY,XYZ,10,2.50,0,USD\n"
+        "2023-02-10,NONSENSE,XYZ,10,2.50,0,USD\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ParsingError, match="Unknown action: NONSENSE") as exc:
+        RawParser().load_from_file(raw_file)
+
+    assert exc.value.row_index == 3
+
+
 @pytest.mark.parametrize(
     "content", ["", "\n   \n,,,,,,\n"], ids=["no bytes", "only blank rows"]
 )

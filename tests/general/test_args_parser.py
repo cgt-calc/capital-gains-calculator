@@ -11,13 +11,13 @@ import os
 from pathlib import Path
 import sys
 import threading
+from types import SimpleNamespace
 from typing import IO, TextIO, cast
 
 import pytest
 
 from cgt_calc.args_parser import (
     create_parser,
-    get_last_elapsed_tax_year,
     reject_duplicate_stdin,
     resolve_reporting_period,
 )
@@ -275,7 +275,7 @@ def test_broker_dir_arguments_accept_existing_directory(
     ],
 )
 def test_broker_dir_arguments_reject_invalid_paths(
-    tmp_path: Path, option: str, attr: str
+    tmp_path: Path, option: str, attr: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Ensure broker directory options reject missing directories or files."""
     parser = create_parser()
@@ -285,6 +285,7 @@ def test_broker_dir_arguments_reject_invalid_paths(
         parser.parse_args([option, str(missing_dir)])
 
     assert exc_info.value.code == 2
+    assert f"path does not exist: '{missing_dir}'" in capsys.readouterr().err
 
     file_path = tmp_path / "not_a_dir.csv"
     file_path.write_text("", encoding="utf-8")
@@ -293,6 +294,7 @@ def test_broker_dir_arguments_reject_invalid_paths(
         parser.parse_args([option, str(file_path)])
 
     assert exc_info.value.code == 2
+    assert f"expected directory path, got: '{file_path}'" in capsys.readouterr().err
 
     args = parser.parse_args([])
     assert getattr(args, attr) is None
@@ -381,7 +383,9 @@ def test_cache_path_arguments_allow_empty_string(option: str, attr: str) -> None
     "option",
     ["--exchange-rates-file", "--isin-translation-file", "--spin-offs-file"],
 )
-def test_cache_path_arguments_reject_directory(tmp_path: Path, option: str) -> None:
+def test_cache_path_arguments_reject_directory(
+    tmp_path: Path, option: str, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Ensure cache path arguments reject directories when they exist."""
     parser = create_parser()
     directory = tmp_path / "existing_dir"
@@ -391,6 +395,9 @@ def test_cache_path_arguments_reject_directory(tmp_path: Path, option: str) -> N
         parser.parse_args([option, str(directory)])
 
     assert exc_info.value.code == 2
+    assert (
+        f"expected file path, got directory: '{directory}'" in capsys.readouterr().err
+    )
 
 
 @pytest.mark.parametrize(
@@ -814,26 +821,61 @@ def test_old_prices_file_names_still_work_but_warn(
     )
 
 
-def test_resolve_period_from_to() -> None:
-    """Test that --from/--to resolve the tax year from the range."""
+@pytest.mark.parametrize(
+    ("period_from", "period_to", "tax_year"),
+    [
+        pytest.param(
+            datetime.date(2024, 4, 6),
+            datetime.date(2024, 10, 29),
+            2024,
+            id="from the first day of 2024/25",
+        ),
+        pytest.param(
+            datetime.date(2024, 1, 10),
+            datetime.date(2024, 4, 5),
+            2023,
+            id="to the last day of 2023/24",
+        ),
+    ],
+)
+def test_resolve_period_from_to(
+    period_from: datetime.date, period_to: datetime.date, tax_year: int
+) -> None:
+    """--from/--to resolve to the tax year the range falls in, which starts on 6 April."""
     parser = create_parser()
-    args = parser.parse_args(["--from", "2024-04-06", "--to", "2024-10-29"])
+    args = parser.parse_args(["--from", str(period_from), "--to", str(period_to)])
 
     resolve_reporting_period(parser, args)
 
-    assert args.year == 2024
-    assert args.period_from == datetime.date(2024, 4, 6)
-    assert args.period_to == datetime.date(2024, 10, 29)
+    assert args.year == tax_year
+    assert args.period_from == period_from
+    assert args.period_to == period_to
 
 
-def test_resolve_period_defaults_year_when_absent() -> None:
-    """Test that --year defaults to the last elapsed tax year."""
+@pytest.mark.parametrize(
+    ("today", "tax_year"),
+    [
+        pytest.param(datetime.date(2025, 4, 5), 2023, id="2024/25 has a day to run"),
+        pytest.param(datetime.date(2025, 4, 6), 2024, id="2024/25 ended yesterday"),
+    ],
+)
+def test_resolve_period_defaults_year_when_absent(
+    monkeypatch: pytest.MonkeyPatch, today: datetime.date, tax_year: int
+) -> None:
+    """--year defaults to the last tax year to have ended, and one ends on 5 April."""
+    stopped = datetime.datetime.combine(today, datetime.time())
+    monkeypatch.setattr(
+        "cgt_calc.args_parser.datetime",
+        SimpleNamespace(
+            datetime=SimpleNamespace(now=lambda: stopped), date=datetime.date
+        ),
+    )
     parser = create_parser()
     args = parser.parse_args([])
 
     resolve_reporting_period(parser, args)
 
-    assert args.year == get_last_elapsed_tax_year()
+    assert args.year == tax_year
 
 
 @pytest.mark.parametrize(
