@@ -225,21 +225,16 @@ def test_read_mssb_release_invalid_header(tmp_path: Path) -> None:
     assert "CSV header mismatch" in str(exc.value)
 
 
-def test_read_mssb_release_header_only_file(tmp_path: Path) -> None:
-    """Raise a clean 'file is empty' error for a header with zero data rows.
-
-    Regression test: `csv.DictReader` has no `__bool__`/`__len__`, so
-    `bool(reader)` is always truthy even when the file has no data rows,
-    which used to make the "file is empty" check dead code.
-    """
+def test_read_mssb_release_header_only_file(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Warn about a report that holds its header and no rows, and read nothing."""
 
     release_file = tmp_path / RELEASES_REPORT_FILENAME
     _write_csv(release_file, [COLUMNS_RELEASE])
 
-    with pytest.raises(ParsingError) as exc:
-        MSSBParser().load_from_dir(tmp_path)
-
-    assert "file is empty" in str(exc.value)
+    assert MSSBParser().load_from_dir(tmp_path) == []
+    assert f"No transactions detected in file {release_file}" in caplog.messages
 
 
 def test_read_mssb_withdrawal_short_row(tmp_path: Path) -> None:

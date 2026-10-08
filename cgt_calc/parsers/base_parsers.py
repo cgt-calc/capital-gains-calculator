@@ -379,7 +379,12 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                 raise ParsingError(file_path, str(err), row_index=index) from err
 
         if not saw_row:
-            raise ParsingError(file_path, f"{cls.pretty_name} CSV file is empty")
+            # A file passed on its own that holds nothing is most likely the
+            # wrong file. One of several reports in a directory can cover a
+            # period in which nothing happened.
+            if not issubclass(cls, BaseDirParser):
+                raise ParsingError(file_path, f"{cls.pretty_name} CSV file is empty")
+            LOGGER.warning("No transactions detected in file %s", file_path)
         return transactions
 
 

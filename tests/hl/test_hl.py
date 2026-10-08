@@ -188,13 +188,22 @@ def test_hl_blank_reference_skipped(tmp_path: Path) -> None:
     assert transactions == []
 
 
-def test_hl_file_with_a_header_and_no_rows_is_called_a_csv(tmp_path: Path) -> None:
-    """The error names the format of the file read, not both formats `--hl-dir` takes."""
-    csv_file = tmp_path / "hl-transaction-summary.csv"
-    csv_file.write_text(HL_CSV_HEADER, encoding="windows-1252")
+def test_load_from_dir_reads_past_a_report_with_no_transactions(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A report for a quiet period is warned about, and the others are still read."""
+    quiet = tmp_path / "2024.csv"
+    quiet.write_text(HL_CSV_HEADER, encoding="windows-1252")
+    (tmp_path / "2025.csv").write_text(
+        HL_CSV_HEADER
+        + '"01/03/2026","01/03/2026","Interest","Gross interest","n/a","n/a","12.34"\n',
+        encoding="windows-1252",
+    )
 
-    with pytest.raises(ParsingError, match="Hargreaves Lansdown CSV file is empty"):
-        HargreavesLansdownParser.load_from_dir(tmp_path)
+    transactions = HargreavesLansdownParser.load_from_dir(tmp_path)
+
+    assert [transaction.amount for transaction in transactions] == [Decimal("12.34")]
+    assert f"No transactions detected in file {quiet}" in caplog.messages
 
 
 def test_load_from_dir_accepts_uppercase_csv_extension(tmp_path: Path) -> None:

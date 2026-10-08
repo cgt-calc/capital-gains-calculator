@@ -23,7 +23,9 @@ non-overlapping periods so that the same transaction is not imported twice.
     and [fund trades](https://www.hl.co.uk/help/buying-selling-investments/funds/buy-funds) confirm
     where completed trades and their notes appear.
 4. Put all the Transaction Summary CSV files and their contract-note PDFs in one directory. Do not
-    put unrelated CSV files there; cgt-calc attempts to parse every CSV in the directory.
+    put unrelated CSV files there; cgt-calc attempts to parse every CSV in the directory. A
+    Transaction Summary that holds only its heading rows is read as having no transactions, and
+    cgt-calc warns **No transactions detected in file** with its name.
 
 Each trade has a reference such as `B302087054` or `S302087055`. Its PDF filename must begin with
 that complete reference followed by an underscore, for example:
