@@ -679,6 +679,24 @@ def test_parse_trade_report_unknown_action(tmp_path: Path) -> None:
     assert excinfo.value.row_index == 2
 
 
+def test_parse_trade_report_refuses_a_line_of_spaces_in_the_trades(
+    tmp_path: Path,
+) -> None:
+    """Only an empty row ends the trades list, so the trade below is not dropped."""
+    trade = ["NASDAQ", "FOO", "Foo Inc", "Buy", "01/02/2023", "10", "5.5", "1"]
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [TRADE_HEADER, ["   "], [*trade, "USD", "1", "44", ""]],
+    )
+
+    with pytest.raises(
+        ParsingError, match=f"This row has 1 columns, not {len(TRADE_HEADER)}"
+    ) as excinfo:
+        SharesightParser().load_from_dir(tmp_path)
+
+    assert excinfo.value.row_index == 2
+
+
 def test_parse_trade_report_fx_without_value(tmp_path: Path) -> None:
     """Raise on FX trades without a GBP value."""
     _write_csv(

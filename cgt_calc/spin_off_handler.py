@@ -14,7 +14,7 @@ from .exceptions import (
     UnexpectedHeaderError,
     reading_as,
 )
-from .util import open_with_parents
+from .util import is_blank_row, open_with_parents
 
 if TYPE_CHECKING:
     import datetime
@@ -68,7 +68,7 @@ class SpinOffHandler:
                         row_index=csv_reader.line_num,
                     )
                 # Skip harmless blank rows left by editors or tooling.
-                if not any((value or "").strip() for value in line.values()):
+                if is_blank_row(line.values()):
                     continue
                 # A short row leaves the missing column as None. Spaces typed
                 # beside the comma are not part of a ticker.

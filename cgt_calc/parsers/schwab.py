@@ -52,7 +52,7 @@ from cgt_calc.parsers.schwab_options import (
     reconcile_written_options,
 )
 from cgt_calc.ticker_renames import current_ticker
-from cgt_calc.util import parse_decimal
+from cgt_calc.util import is_blank_row, parse_decimal
 
 from .base_parsers import (
     BaseSingleFileParser,
@@ -1322,7 +1322,7 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
 
         transactions: list[SchwabTransaction] = []
         for index, row in enumerate(lines[1:], start=2):
-            if not any(row):
+            if is_blank_row(row):
                 continue
 
             if len(row) != len(header):

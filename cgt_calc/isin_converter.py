@@ -31,7 +31,7 @@ from .exceptions import (
 )
 from .model import Isin
 from .resources import RESOURCES_PACKAGE
-from .util import open_with_parents
+from .util import is_blank_row, open_with_parents
 
 if TYPE_CHECKING:
     from importlib.resources.abc import Traversable
@@ -340,7 +340,7 @@ class IsinConverter:
             first_rows: dict[Isin, int] = {}
             for index, row in enumerate(lines[1:], start=2):
                 # Skip harmless blank rows left by editors or tooling.
-                if not any(cell.strip() for cell in row):
+                if is_blank_row(row):
                     continue
                 # No ticker spans lines: a cell that does is a quoted name
                 # left open, which has taken the following rows into itself.

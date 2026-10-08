@@ -290,10 +290,20 @@ def test_read_transactions_empty_file() -> None:
         _read("")
 
 
-def test_read_transactions_skips_blank_lines() -> None:
-    """Skip blank lines in the file."""
-    content = SCHWAB_HEADER + ",,,,,,,\n"
-    assert _read(content) == []
+@pytest.mark.parametrize("line", [",,,,,,,", "   "], ids=["commas", "spaces"])
+def test_read_transactions_skips_blank_lines(line: str) -> None:
+    """Skip a blank line and read the row below it."""
+    content = (
+        SCHWAB_HEADER
+        + f"{line}\n"
+        + '01/15/2023,Credit Interest,,Interest,,,,"$1.00"\n'
+    )
+
+    transactions = _read(content)
+
+    assert [transaction.date for transaction in transactions] == [
+        datetime.date(2023, 1, 15)
+    ]
 
 
 def test_read_transactions_wrong_column_count() -> None:

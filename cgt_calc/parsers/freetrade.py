@@ -18,7 +18,7 @@ from cgt_calc.model import (
     Isin,
     TransactionSource,
 )
-from cgt_calc.util import parse_decimal
+from cgt_calc.util import is_blank_row, parse_decimal
 
 from .base_parsers import BaseSingleFileParser
 
@@ -270,7 +270,7 @@ class FreetradeParser(BaseSingleFileParser[BrokerTransaction]):
         for index, row_raw in indexed_rows:
             # Exports may end with a blank line, which csv reads as an
             # empty row rather than a transaction.
-            if not any(row_raw):
+            if is_blank_row(row_raw):
                 continue
             row = dict(zip(header, row_raw, strict=False))
             action_type = row.get(FreetradeColumn.TYPE)

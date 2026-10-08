@@ -22,6 +22,7 @@ from .exceptions import (
 )
 from .resources import RESOURCES_PACKAGE
 from .ticker_renames import current_ticker
+from .util import is_blank_row
 
 SHARE_PRICES_HEADER: Final = ["date", "symbol", "price"]
 SHARE_PRICES_COLUMNS_NUM: Final = len(SHARE_PRICES_HEADER)
@@ -133,7 +134,7 @@ class SharePrices:
         stated: dict[tuple[datetime.date, str], str] = {}
         for index, row in enumerate(lines, start=2):
             # Skip harmless blank rows left by editors or tooling.
-            if not any(cell.strip() for cell in row):
+            if is_blank_row(row):
                 continue
             try:
                 entry = SharePricesEntry(row, file)

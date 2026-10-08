@@ -18,7 +18,7 @@ from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import CurrencyCode, Isin, TransactionSource
 from cgt_calc.parsers.base_parsers import BaseSingleFileParser
 from cgt_calc.resources import RESOURCES_PACKAGE
-from cgt_calc.util import parse_decimal
+from cgt_calc.util import is_blank_row, parse_decimal
 
 from .model import ERITransaction
 
@@ -129,7 +129,7 @@ class ERIRawParser(BaseSingleFileParser[ERIRaw]):
 
         lines = list(csv.reader(file))
 
-        if not any(cell.strip() for row in lines for cell in row):
+        if all(is_blank_row(row) for row in lines):
             raise ParsingError(file_path, "ERI data file is empty")
 
         header = lines[0]
@@ -139,7 +139,7 @@ class ERIRawParser(BaseSingleFileParser[ERIRaw]):
         transactions: list[ERIRaw] = []
         for index, row in enumerate(lines[1:], start=2):
             # Skip harmless blank rows left by editors or tooling.
-            if not any(cell.strip() for cell in row):
+            if is_blank_row(row):
                 continue
             try:
                 transaction = ERIRaw(header, row, file_path)

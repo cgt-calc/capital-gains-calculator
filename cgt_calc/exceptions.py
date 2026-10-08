@@ -7,7 +7,7 @@ import csv
 import io
 from typing import TYPE_CHECKING
 
-from .util import display_str, strip_zeros
+from .util import display_str, is_blank_row, strip_zeros
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -268,11 +268,7 @@ class UnexpectedHeaderError(ParsingError):
         The line is shown as Python quotes a string, so that a space at the
         end of a name, or a character that cannot be seen, shows up.
         """
-        found = (
-            f":\n  {_as_csv(header)!r}"
-            if any(cell.strip() for cell in header)
-            else " blank."
-        )
+        found = " blank." if is_blank_row(header) else f":\n  {_as_csv(header)!r}"
         super().__init__(
             file,
             f"This line must be the header '{_as_csv(expected)}', but it is{found}",
