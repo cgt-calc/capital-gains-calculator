@@ -54,7 +54,7 @@ Capital loss to date is £\VAR{ event.loss_to_date|money }
     \BLOCK{ endif }
 }
 \BLOCK{ elif event.kind == "management_fee" }
-\subsubsection*{Management fee for \VAR{ event.symbol } of £\VAR{ event.cost|money }}
+\subsubsection*{Cost added to \VAR{ event.symbol } with no new shares: £\VAR{ event.cost|money }}
 \BLOCK{ elif event.kind == "spin_off" }
     \BLOCK{ if event.quantity > 0 }
 \subsubsection*{

@@ -292,7 +292,8 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         of acquiring or disposing of the shares (TCGA 1992 s38), so ARM bought
         for 500 and sold for 600 makes a gain of 100 whatever was charged in
         between. Read as a cost of the holding, the ADR fee reached the report
-        as a "Management fee for ARM" section and took its 0.09 off the gain.
+        as a "Cost added to ARM with no new shares" section and took its 0.09
+        off the gain.
         """
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
@@ -325,7 +326,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert re.search(r"Allowable costs:\s+£500\.00\n", result.stdout)
         assert re.search(r"\n  Gain:\s+£100\.00\n", result.stdout)
         report = (tmp_path / "out.tex").read_text(encoding="utf-8")
-        assert "Management fee" not in report
+        assert "Cost added to" not in report
 
     def test_withholding_without_a_security_is_reported_as_interest_tax(
         self, tmp_path: Path
@@ -547,8 +548,8 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
 
         The pooled cost a fee opens is invisible in the printed summary while
         the quantity is zero, so the rendered report is what gives it away: on
-        the fee path this file produces a "Management fee for GBP.USD" section
-        for a symbol that is not a security.
+        the fee path this file produces a "Cost added to GBP.USD with no new
+        shares" section for a symbol that is not a security.
         """
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
