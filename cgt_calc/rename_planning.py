@@ -54,7 +54,7 @@ RENAME_DAY_UNSUPPORTED_ACTIONS: Final = frozenset(
         ActionType.FULL_REDEMPTION,
     }
 )
-"""Actions that keep their component on the existing row-position path."""
+"""Actions that keep their component's rows on the existing row-position path."""
 
 
 UNNAMED_HOLDING_ACTIONS: Final = frozenset({ActionType.EXCESS_REPORTED_INCOME})
@@ -63,7 +63,7 @@ UNNAMED_HOLDING_ACTIONS: Final = frozenset({ActionType.EXCESS_REPORTED_INCOME})
 An excess reported income row names no ticker at all, only an ISIN, which is
 resolved to the holdings it adds cost to when that row is read. It cannot be
 matched to a rename component by anything on its own row, so a day carrying
-one is left to the row-position pool in its entirety.
+one has every row read against the row-position pool.
 
 A spin-off used to be read this way too, because the holding it draws from is
 chosen when the row is read rather than named on it. But the row does name the
@@ -78,14 +78,12 @@ the day no longer stops an unrelated rename being read as one holding.
 class RenameComponent:
     """One holding the day's renames spell under more than one ticker.
 
-    `names` is every ticker the day's renames connect, `closing_name` the one
-    they all end under, and `capacity` what the whole holding can give up that
-    day: what its names opened with, plus what the day's purchases add to any
-    of them.
+    `names` is every ticker the day's renames connect, and `capacity` what the
+    whole holding can give up that day: what its names opened with, plus what
+    the day's purchases add to any of them.
     """
 
     names: tuple[str, ...]
-    closing_name: str
     capacity: Decimal
 
 
@@ -177,7 +175,7 @@ def plan_renames(
     ):
         return
     planned: dict[str, RenameComponent] = {}
-    for names, renames in components:
+    for names, _ in components:
         rows = [
             transaction
             for transaction in day_transactions
@@ -189,7 +187,6 @@ def plan_renames(
             continue
         component = RenameComponent(
             names=tuple(sorted(names)),
-            closing_name=_closing_name(renames),
             capacity=sum(
                 (state.run.portfolio.get(name, Position()).quantity for name in names),
                 signed_quantity([row for row in rows if quantity_sign(row.action) > 0]),
@@ -226,21 +223,24 @@ def rename_day_units(
 def reconcile_rename_day(state: CalculatorState, date_index: datetime.date) -> None:
     """Move positions left under retired tickers into the closing ticker.
 
+    Every rename the day recorded, not only the components whose capacity was
+    planned: the second pass applies each of them at the day's close, whatever
+    else the day holds, and a holding this pass left split across two names
+    would be checked against the wrong count on every later day.
+
     This only reconciles provisional bookkeeping; it records no second rename
     and does not change the acquisition or disposal logs.
     """
-    for name, component in state.history.rename_components.get(date_index, {}).items():
-        if name == component.closing_name:
-            continue
-        position = state.run.portfolio.pop(name, None)
+    for old_name, new_name in state.history.rename_list.get(date_index, {}).items():
+        position = state.run.portfolio.pop(old_name, None)
         if position is not None:
-            state.run.portfolio[component.closing_name] += position
+            state.run.portfolio[new_name] += position
         # The units keep the accounts that put them there; only the name
         # changes. Which holdings have emptied is settled where every earlier
         # day has closed, in ``_open_transaction_day``.
-        moved = state.history.holding_sources.pop(name, set())
+        moved = state.history.holding_sources.pop(old_name, set())
         if moved:
-            state.history.holding_sources[component.closing_name] |= moved
+            state.history.holding_sources[new_name] |= moved
 
 
 def two_renames_message(
@@ -334,14 +334,3 @@ def _refuse_rename_chain(renames: dict[str, str], date_index: datetime.date) -> 
             raise CalculationError(
                 rename_chain_message(name, onward, renames[onward], date_index)
             )
-
-
-def _closing_name(renames: dict[str, str]) -> str:
-    """Return the one name this holding's renames leave it under.
-
-    One holding, one destination: a second one could only join this component
-    through a name that is both renamed and renamed to, which is the chain
-    ``_refuse_rename_chain`` has already ruled out.
-    """
-    (closing_name,) = set(renames.values())
-    return closing_name

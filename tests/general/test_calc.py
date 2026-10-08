@@ -2095,20 +2095,76 @@ def test_a_malformed_purchase_on_a_rename_day_blames_its_own_row(
     assert f"Buy {quantity} NEW" in str(excinfo.value)
 
 
-def test_a_purchase_under_the_retired_name_is_there_to_sell_later() -> None:
-    """A purchase under the retired ticker is available under NEW on a later day."""
+@pytest.mark.parametrize(
+    ("fee", "gain"),
+    [
+        # 150 NEW that cost 1000 and 750 sell for 3000, a gain of 1250, and
+        # 15 BAR that cost 200 and 150 sell for 600, a gain of 250.
+        pytest.param(None, 1500, id="trades only"),
+        # A fee on the day adds 5 to the cost of NEW. It is also one of
+        # RENAME_DAY_UNSUPPORTED_ACTIONS, so that holding's capacity is not
+        # planned and its purchase is read where the row sits, after the pool
+        # has left.
+        pytest.param(5, 1495, id="with a fee"),
+    ],
+)
+def test_a_purchase_under_the_retired_name_is_there_to_sell_later(
+    fee: int | None, gain: int
+) -> None:
+    """A purchase under the retired ticker is available under NEW on a later day.
+
+    Two holdings are renamed on the day, and each keeps what it bought.
+    """
     calculator = create_calculator(tax_year=2024, balance_check=False)
+    buy_day = datetime.date(2024, 5, 1)
+    sale_day = datetime.date(2024, 5, 20)
     transactions = [
+        _gbp_trade(buy_day, ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(buy_day, ActionType.BUY, "FOO", 10, 200),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        _rename_transaction(RENAME_DAY, "FOO", "BAR"),
+        *([] if fee is None else [_gbp_fee(RENAME_DAY, "NEW", fee)]),
+        _gbp_trade(RENAME_DAY, ActionType.BUY, "OLD", 50, 750),
+        _gbp_trade(RENAME_DAY, ActionType.BUY, "FOO", 5, 150),
+        _gbp_trade(sale_day, ActionType.SELL, "NEW", 150, 3000),
+        _gbp_trade(sale_day, ActionType.SELL, "BAR", 15, 600),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(gain)
+    assert calculator.portfolio["NEW"] == Position()
+    assert calculator.portfolio["BAR"] == Position()
+
+
+def test_a_purchase_under_the_retired_name_survives_excess_reported_income() -> None:
+    """Excess reported income on the rename day does not strand the purchase.
+
+    An ERI row stops the whole day's capacity being planned. It follows the
+    day's trades, where the command line puts it, and is never the row a day
+    closes on.
+
+    150 shares cost 1000 and 750, and income of 1 a share adds 150 to that:
+    1900. Sold for 3000, they leave a gain of 1100.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    calculator.isin_converter.data[ERI_ISIN] = {"NEW"}
+    transactions: list[BrokerTransaction] = [
         _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
         _gbp_trade(RENAME_DAY, ActionType.BUY, "OLD", 50, 750),
+        ERITransaction(
+            date=RENAME_DAY,
+            isin=ERI_ISIN,
+            price=Decimal(1),
+            currency=CurrencyCode("GBP"),
+        ),
         _gbp_trade(datetime.date(2024, 5, 20), ActionType.SELL, "NEW", 150, 3000),
     ]
 
     report = get_report(calculator, transactions)
 
-    assert report.total_gain() == Decimal(1250)
-    assert calculator.portfolio["NEW"] == Position()
+    assert report.total_gain() == Decimal(1100)
 
 
 def test_the_first_pass_leaves_a_rename_day_under_the_closing_ticker() -> None:
