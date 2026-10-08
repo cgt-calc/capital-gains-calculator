@@ -359,19 +359,20 @@ def test_read_raw_transactions_skips_a_blank_row(tmp_path: Path, blank: str) -> 
 @pytest.mark.parametrize(
     "row",
     [
-        "2024-01-02,BUY, XYZ ,10,2.50,0.10,USD",
-        " 2024-01-02 ,BUY,XYZ,10,2.50,0.10,USD",
-        "2024-01-02, BUY ,XYZ,10,2.50,0.10,USD",
+        "2024-01-02,BUY, BRK B ,10,2.50,0.10,USD",
+        " 2024-01-02 ,BUY,BRK B,10,2.50,0.10,USD",
+        "2024-01-02, BUY ,BRK B,10,2.50,0.10,USD",
+        '2024-01-02,BUY, "BRK B" ,10,2.50,0.10,USD',
     ],
-    ids=["symbol", "date", "action"],
+    ids=["symbol", "date", "action", "symbol in quotes"],
 )
 def test_read_raw_transactions_ignores_spaces_around_a_value(
     tmp_path: Path, row: str
 ) -> None:
-    """A space typed beside a comma is not part of the value.
+    """A space typed beside a comma is not part of the value; one inside it is.
 
-    A symbol kept with its space would be a holding of its own, apart from
-    the same symbol typed without one.
+    A symbol kept with its space, or with the quotes typed after one, would be
+    a holding of its own, apart from the same symbol typed without them.
     """
     raw_file = tmp_path / "raw_spaces.csv"
     raw_file.write_text(
@@ -382,7 +383,7 @@ def test_read_raw_transactions_ignores_spaces_around_a_value(
 
     assert transaction.date == datetime.date(2024, 1, 2)
     assert transaction.action == ActionType.BUY
-    assert transaction.symbol == "XYZ"
+    assert transaction.symbol == "BRK B"
 
 
 def test_read_raw_transactions_reads_a_cell_of_spaces_as_empty(tmp_path: Path) -> None:
