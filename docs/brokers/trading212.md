@@ -125,7 +125,7 @@ ones. cgt-calc cannot tell that the split is missing:
 
 - A sale of more shares than the old count holds stops the run with
     [`Tried to sell`](#tried-to-sell).
-- A smaller sale goes through with no error. It takes too large a share of the cost, so the report
+- Any other sale goes through with no error. It takes too large a share of the cost, so the report
     understates the gain or shows a loss you did not make.
 
 To find a missing split that gave no error, compare the final portfolio cgt-calc prints with your
@@ -137,7 +137,8 @@ Add the split yourself in a [RAW file](raw.md):
 1. Find the first day the shares traded at the new count, from the company's announcement of the
     split.
 2. Work out how many shares you held at the start of that day: add up `No. of shares` for your
-    purchases before it and take off your sales before it.
+    purchases before it and take off your sales before it. If an earlier split of the share has no
+    rows either, add a row for that one first and count the shares it added.
 3. Work out how many shares the split added. Two shares through a 10-for-1 split become 20, so the
     split added 18.
 4. Write one `STOCK_SPLIT` row with that date, the ticker and that number:
@@ -153,18 +154,22 @@ Add the split yourself in a [RAW file](raw.md):
     cgt-calc --year 2024 --trading212-dir trading212/ --raw-file splits.csv
     ```
 
-cgt-calc cannot check the number you write. Run it for the tax year of the split and find the share
-reorganisation in the report: its ratio should be the company's, 10 for this split.
+cgt-calc cannot check the number you write, so check it in two ways. Run it for the tax year of the
+split and find the share reorganisation in the report: its ratio should be the company's, 10 for
+this split. Then compare the final portfolio with your holdings in Trading 212 again: if it still
+shows fewer of the share than you hold, an earlier split is missing as well.
 [Share reorganisations](raw.md#share-reorganisations) covers a consolidation and a holding spread
 across brokers.
 
 If you also bought or sold the share on the day of the split, cgt-calc stops with **Cannot apply the
 reorganisation**, because the RAW row has no time to compare with the time of the trade. In a
 working copy of the export, move that day's trades of the share into the RAW file as `BUY` and
-`SELL` rows, in [the order they happened](raw.md#the-order-of-rows-on-one-date). Their cash is then
-kept on a balance separate from your Trading 212 cash. If either balance goes below zero, the run
-stops with `Reached a negative balance`; run it again with `--no-balance-check`, which turns the
-check off for every input in the run.
+`SELL` rows, in [the order they happened](raw.md#the-order-of-rows-on-one-date). For each, write the
+number of shares, the `Total` divided by that number as the `price`, and the currency of the
+`Total`, so that the trade keeps the amount Trading 212 gave it. Their cash is then kept on a
+balance separate from your Trading 212 cash. If either balance goes below zero, the run stops with
+`Reached a negative balance`; run it again with `--no-balance-check`, which turns the check off for
+every input in the run.
 
 ### Dates and time zones
 
