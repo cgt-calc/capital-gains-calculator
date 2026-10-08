@@ -120,38 +120,50 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
 
         assert transactions[0].isin is None
 
-    def test_buy_foreign_currency_price(self, tmp_path: Path) -> None:
-        """Test that a buy with a foreign-currency price is converted to GBP correctly.
+    def test_foreign_currency_price_is_converted_for_a_buy_and_a_sell(
+        self, tmp_path: Path
+    ) -> None:
+        """A trade priced in a foreign currency has its price converted to GBP.
 
         In IBKR exports the Gross/Net Amount and Commission are always in the account's
         base currency (GBP), while Price can be in the instrument's trading currency.
         The parser must convert Price to GBP using the Exchange Rate so that the
         internal consistency check (quantity x price + fees ≈ |amount|) passes.
 
-        Transaction: Buy 217 IWDE at EUR 67.71, exchange rate 0.88542 EUR→GBP.
+        Buy 217 IWDE at EUR 67.71, exchange rate 0.88542 EUR→GBP.
         GBP gross = 217 x 67.71 x 0.88542 = 13009.5380394
         GBP commission = 6.5047690197
         GBP net = 13016.0428084197
+
+        Sell 217 IWDE at EUR 70.00, at the same rate.
+        GBP gross = 217 x 70.00 x 0.88542 = 13449.5298
+        GBP commission = 6.7247649
+        GBP net = 13449.5298 - 6.7247649 = 13442.8050351
         """
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
             self.base_header_with_foreign_currency
             + "Transaction History,Data,2023-02-10,U***9143,ISHARES MSCI WORLD EUR-H,Buy,IWDE,217,67.71,EUR,-13009.5380394,-6.5047690197,-13016.0428084197,0.88542\n"
+            + "Transaction History,Data,2023-03-10,U***9143,ISHARES MSCI WORLD EUR-H,Sell,IWDE,-217,70.00,EUR,13449.5298,-6.7247649,13442.8050351,0.88542\n"
         )
 
-        transactions = InteractiveBrokersParser().load_from_file(csv_file)
+        buy, sell = InteractiveBrokersParser().load_from_file(csv_file)
 
-        assert len(transactions) == 1
-        txn = transactions[0]
-        expected_price_gbp = Decimal("67.71") * Decimal("0.88542")
-        assert txn.date == date(2023, 2, 10)
-        assert txn.action == ActionType.BUY
-        assert txn.symbol == "IWDE"
-        assert txn.quantity == Decimal(217)
-        assert txn.price == expected_price_gbp
-        assert txn.fees == Decimal("6.5047690197")
-        assert txn.amount == Decimal("-13016.0428084197")
-        assert txn.currency == "GBP"
+        assert buy.date == date(2023, 2, 10)
+        assert buy.action == ActionType.BUY
+        assert buy.symbol == "IWDE"
+        assert buy.quantity == Decimal(217)
+        assert buy.price == Decimal("67.71") * Decimal("0.88542")
+        assert buy.fees == Decimal("6.5047690197")
+        assert buy.amount == Decimal("-13016.0428084197")
+        assert buy.currency == "GBP"
+
+        assert sell.action == ActionType.SELL
+        assert sell.quantity == Decimal(217)
+        assert sell.price == Decimal("70.00") * Decimal("0.88542")
+        assert sell.fees == Decimal("6.7247649")
+        assert sell.amount == Decimal("13442.8050351")
+        assert sell.currency == "GBP"
 
     def test_run_with_interactive_brokers_file(
         self, request: pytest.FixtureRequest
@@ -450,6 +462,10 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         Taking Price Currency as the transaction currency filed a GBP 100
         dividend as USD 100, moved a USD balance the account never held and
         converted the proceeds down to about GBP 73.
+
+        The row states a price as well and no rate to convert it with. Only
+        a Buy or Sell has its price read back, so the dividend is not refused
+        over one.
         """
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
@@ -457,7 +473,7 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             + "Transaction History,Data,2025-01-01,U***00000,"
             "Electronic Fund Transfer,Deposit,-,-,-,-,1000.0,-,1000.0,-\n"
             + "Transaction History,Data,2025-10-02,U***00000,"
-            "VT(US9220427424) Cash Dividend,Dividend,VT,-,-,USD,100.0,-,100.0,-\n"
+            "VT(US9220427424) Cash Dividend,Dividend,VT,-,0.50,USD,100.0,-,100.0,-\n"
         )
 
         cmd = build_cmd(

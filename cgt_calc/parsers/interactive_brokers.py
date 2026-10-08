@@ -95,7 +95,11 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
     # charge billed against a holding, such as a depositary's ADR fee. Neither
     # is a cost of acquiring or disposing of shares (TCGA 1992 s38), so
     # neither adds to a holding's cost, whichever symbol the row names.
-    # Revolut's custody fee is read the same way.
+    # Revolut's custody fee is read the same way. IBKR's reporting reference
+    # lists a corporate action election fee under this type as well, which
+    # may be a cost of a trade. Nothing on the row says which trade, so what
+    # an Other Fee was paid for is not assessed and that one moves the cash
+    # alone too; the broker page says how to have it deducted.
     if action_type in {
         "Adjustment",
         "Forex Trade Component",

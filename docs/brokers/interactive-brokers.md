@@ -81,6 +81,15 @@ the account, and HMRC treats a fee as an
 [incidental cost](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg15250) you can
 deduct only where it was paid for a purchase or a sale.
 
+cgt-calc does not work out what an `Other Fee` was paid for. IBKR's
+[reporting reference](https://www.ibkrguides.com/reportingreference/reportguide/statement%20of%20fundsfq.htm)
+lists a corporate action election fee among its other fees too, and a fee like that may have been
+paid for a purchase or a sale. If one of yours was, the gain cgt-calc reports on those shares is too
+high by that fee. To have it deducted, delete the `Other Fee` row from a working copy of the export
+and add its amount to both the `Commission` and the `Net Amount` of the trade it was paid for: a
+-5.00 fee on a sale turns a `Commission` of -3.00 into -8.00 and a `Net Amount` of 597.00 into
+592.00.
+
 IBKR descriptions for dividends and payments in lieu can put an ISIN in parentheses immediately
 after the symbol. cgt-calc uses that identifier when deciding whether a supported double-taxation
 treaty applies.
