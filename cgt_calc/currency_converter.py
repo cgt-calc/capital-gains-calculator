@@ -353,7 +353,8 @@ class CurrencyConverter:
                     f"or non-finite rate: {rate_new_elem.text}",
                 )
             rates[currency] = rate
-        self.cache[date] = rates
+        # Rows already held for the date stay in use: one may have been typed in.
+        self.cache[date] = {**rates, **self.cache.get(date, {})}
         self._write_exchange_rates_file(self.exchange_rates_file, self.cache)
 
     def currency_to_gbp_rate(
@@ -397,14 +398,16 @@ class CurrencyConverter:
         return on_file if typed else shipped
 
     def _recorded_rate(self, currency: CurrencyCode, date: datetime.date) -> Decimal:
-        """Get a rate from the rates file, downloading the month if it is new."""
+        """Get a rate from the rates file, downloading the month if it lacks one."""
+        # The test is for the currency, not the date: a row typed in for one
+        # currency leaves the date's other currencies to be downloaded.
         # At the address used, HMRC serves no file for a month before February
         # 2015, and a month that ships is never downloaded: the download could
         # add no currency, and would only put the rates the month opened with
         # on file, to be overruled the next time they are read.
         month = date.replace(day=1)
         if (
-            date not in self.cache
+            currency not in self.cache.get(date, {})
             and date >= FIRST_DOWNLOADED_RATES_MONTH
             and month not in self._shipped_rates(date.year)
         ):
@@ -490,7 +493,7 @@ class TestCurrencyConverter(CurrencyConverter):
 
     @override
     def _recorded_rate(self, currency: CurrencyCode, date: datetime.date) -> Decimal:
-        """Get a rate from the rates file, downloading the month if it is new.
+        """Get a rate from the rates file, downloading the month if it lacks one.
 
         When the value is missing from the view of the test_file_cache, append it
         to the exchange rate CSV file.
