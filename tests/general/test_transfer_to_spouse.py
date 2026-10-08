@@ -85,6 +85,28 @@ def test_transfer_to_spouse_from_pool_is_no_gain_no_loss() -> None:
     assert calculator.portfolio["BAR"].quantity == Decimal(3)
 
 
+def test_a_transfer_on_6_april_belongs_to_the_year_it_starts() -> None:
+    """The tax year runs from 6 April: that day's transfer is listed, 5 April's is not."""
+    day_before = datetime.date(2024, 4, 5)
+    first_day = datetime.date(2024, 4, 6)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    report = get_report(
+        calculator,
+        [
+            _gbp_trade(datetime.date(2024, 3, 1), ActionType.BUY, "FOO", 30, 300),
+            transfer_to_spouse_transaction(day_before, "FOO", 10),
+            transfer_to_spouse_transaction(first_day, "FOO", 5),
+        ],
+    )
+
+    (entry,) = report.calculation_log[first_day]["transfer-to-spouse$FOO"]
+    assert entry.quantity == Decimal(5)
+    # Five of the twenty that 5 April left, pooled at £10 each.
+    assert entry.allowable_cost == Decimal(50)
+    assert "transfer-to-spouse$FOO" not in report.calculation_log.get(day_before, {})
+
+
 def test_transfer_to_spouse_matches_repurchase_within_30_days() -> None:
     """A purchase within 30 days after a transfer is matched first (s106A).
 

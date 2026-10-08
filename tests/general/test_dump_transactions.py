@@ -729,7 +729,10 @@ def test_cli_refuses_a_missing_parent_directory(tmp_path: Path) -> None:
     )
 
     assert result.returncode != 0
-    assert str(destination.parent) in result.stderr
+    assert (
+        f"--dump-transactions directory '{destination.parent}' does not exist."
+        in result.stderr
+    )
     assert not destination.parent.exists()
     assert "Saved" not in result.stderr
     assert "First pass complete" not in result.stderr
@@ -820,5 +823,6 @@ def test_cli_creates_no_file_when_parsing_fails(tmp_path: Path) -> None:
     )
 
     assert result.returncode != 0
-    assert result.stderr.count("ERROR") >= 1
+    assert "ERROR: While parsing" in result.stderr
+    assert "Unknown action: NONSENSE" in result.stderr
     assert not destination.exists()

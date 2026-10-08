@@ -172,6 +172,38 @@ def test_real_export_preserves_transaction_timestamp() -> None:
     )
 
 
+def test_a_day_s_rows_are_read_oldest_first(tmp_path: Path) -> None:
+    """Freetrade lists the newest row first, so a day's sale sits above its purchase.
+
+    Rows of one day keep the order the parser gives them, and a sale is checked
+    against the holding as it is read, so the export's own order would put this
+    sale before the shares it sells.
+    """
+    freetrade_file = _write_csv(
+        tmp_path,
+        COLUMNS,
+        [
+            _default_row(
+                {
+                    FreetradeColumn.TITLE.value: "Sell Apple",
+                    FreetradeColumn.BUY_SELL.value: "SELL",
+                    FreetradeColumn.TIMESTAMP.value: "2024-01-02T15:00:00",
+                }
+            ),
+            _default_row({FreetradeColumn.TIMESTAMP.value: "2024-01-02T10:00:00"}),
+        ],
+    )
+
+    transactions = FreetradeParser.load_from_file(
+        freetrade_file, show_parsing_msg=False
+    )
+
+    assert [transaction.action for transaction in transactions] == [
+        ActionType.BUY,
+        ActionType.SELL,
+    ]
+
+
 def test_read_freetrade_transactions_empty_file(tmp_path: Path) -> None:
     """Ensure parser raises when CSV is empty."""
     empty_file = tmp_path / "empty.csv"

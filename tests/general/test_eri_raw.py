@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import pytest
 
+from cgt_calc.args_parser import create_parser
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.parsers.eri.raw import ERIRawParser
 
@@ -19,6 +21,23 @@ HEADER = (
 )
 VALID_ISIN = "US5949181045"
 INVALID_ISIN = "US1234567890"
+
+
+def test_eri_raw_file_option_adds_its_rows_to_the_bundled_ones(tmp_path: Path) -> None:
+    """--eri-raw-file is read as well as the fund data cgt-calc ships with."""
+    file_path = tmp_path / "eri.csv"
+    file_path.write_text(
+        HEADER + f"{VALID_ISIN},01/02/2023,USD,1.23\n", encoding="utf8"
+    )
+    args = create_parser().parse_args(["--eri-raw-file", str(file_path)])
+
+    transactions = ERIRawParser.load_from_args(args)
+
+    given = [t for t in transactions if t.source and t.source.file == file_path]
+    assert [(t.isin, t.date, t.price) for t in given] == [
+        (VALID_ISIN, datetime.date(2023, 2, 1), Decimal("1.23"))
+    ]
+    assert len(transactions) > len(given)
 
 
 def test_read_eri_raw_raises_on_invalid_date(tmp_path: Path) -> None:
