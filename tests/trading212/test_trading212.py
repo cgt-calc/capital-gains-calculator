@@ -2054,9 +2054,13 @@ def test_a_currency_conversion_that_charged_no_fee_moves_only_the_amounts_conver
 
     Trading 212 writes the fee in the currency converted to, so the zero is
     read in that currency, ahead of the 50.00 GBP taken and the 58.00 EUR
-    received.
+    received. The row is stamped half past eleven at night UTC on 1 July,
+    which is 2 July in the UK, and its cash is dated with it.
     """
-    rows = [HEADER_2026, _make_conversion_row(HEADER_2026, "0.00")]
+    row = _make_conversion_row(
+        HEADER_2026, "0.00", overrides={Trading212Column.TIME: "2025-07-01 23:30:00"}
+    )
+    rows = [HEADER_2026, row]
 
     transactions = Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
 
@@ -2068,6 +2072,7 @@ def test_a_currency_conversion_that_charged_no_fee_moves_only_the_amounts_conver
         (Decimal("-50.00"), "GBP"),
         (Decimal("58.00"), "EUR"),
     ]
+    assert {transaction.date for transaction in transactions} == {date(2025, 7, 2)}
     # Each says which row of the export it was read from.
     assert transactions[0].source is not None
     assert [transaction.source for transaction in transactions[1:]] == [
@@ -2099,25 +2104,16 @@ def test_a_total_with_no_currency_to_read_is_refused(
         Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
 
 
-@pytest.mark.parametrize(
-    ("header", "action"),
-    [
-        pytest.param(
-            HEADER_2024, "Currency conversion", id="an export without the amounts"
-        ),
-        pytest.param(HEADER_2026, "Deposit", id="not a conversion"),
-    ],
-)
-def test_only_a_currency_conversion_that_gives_its_amounts_moves_them(
-    tmp_path: Path, header: list[str], action: str
+def test_a_currency_conversion_in_an_export_without_its_amounts_moves_only_the_fee(
+    tmp_path: Path,
 ) -> None:
-    """An older export has no columns for the amounts, and its total is read alone."""
+    """An export with no columns for the amounts converted gives only the fee."""
     row = _make_conversion_row(
-        header, "-0.10", action, overrides={Trading212Column.CURRENCY_TOTAL: "GBP"}
+        HEADER_2024, "-0.10", overrides={Trading212Column.CURRENCY_TOTAL: "GBP"}
     )
 
     transactions = Trading212Parser().load_from_dir(
-        _prepare_file(tmp_path, [header, row])
+        _prepare_file(tmp_path, [HEADER_2024, row])
     )
 
     assert _cash(transactions) == [(Decimal("-0.10"), "GBP")]
@@ -2133,6 +2129,19 @@ def test_only_a_currency_conversion_that_gives_its_amounts_moves_them(
         pytest.param(
             {Trading212Column.CURRENCY_CONVERSION_TO_AMOUNT: "0.00"},
             id="nothing converted to",
+        ),
+        pytest.param(
+            {Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: "-50.00"},
+            id="an amount below zero",
+        ),
+        pytest.param(
+            {
+                Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: "",
+                Trading212Column.CURRENCY_CURRENCY_CONVERSION_FROM_AMOUNT: "",
+                Trading212Column.CURRENCY_CONVERSION_TO_AMOUNT: "",
+                Trading212Column.CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT: "",
+            },
+            id="neither amount, in an export with columns for them",
         ),
         pytest.param(
             {Trading212Column.CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT: ""},

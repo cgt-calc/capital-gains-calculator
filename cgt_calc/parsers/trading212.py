@@ -604,7 +604,7 @@ class Trading212Transaction(BrokerTransaction):
         two amounts gives nothing to move, and the fee is read alone.
         """
         if self.raw_action != CONVERSION_ACTION or not any(
-            row.get(column) for pair in CONVERSION_COLUMNS for column in pair
+            column in row for pair in CONVERSION_COLUMNS for column in pair
         ):
             return []
         moved: list[tuple[Decimal, CurrencyCode]] = []
