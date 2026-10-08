@@ -135,6 +135,11 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
         HmrcRateMissingError("XAU", DATE, Path("rates.csv")),
         ["2023-01-01,XAU,<rate>", "rates.csv"],
     ),
+    # With no rates file, the option that names one.
+    (
+        HmrcRateMissingError("XAU", DATE, None),
+        ["Add it to a file passed with --exchange-rates-file: a CSV file"],
+    ),
     (SharePriceMissingError("FOO", DATE), ["FOO", "2023-01-01"]),
     (BundledPriceCurrencyError("FOO", DATE, "GBP"), ["FOO", "2023-01-01", "GBP"]),
     (LatexRenderError(Path("render.log")), ["render.log"]),
@@ -190,6 +195,13 @@ def test_error_message_contains_context(error: CgtError, fragments: list[str]) -
 
     for fragment in fragments:
         assert fragment in message
+
+
+def test_an_api_error_without_advice_is_one_line() -> None:
+    """Advice goes on a second line; without any, there is no second line."""
+    error = ExternalApiError("https://api.example.com/rates", "boom")
+
+    assert str(error) == "boom (source: https://api.example.com/rates)"
 
 
 def test_every_exception_has_a_context_case() -> None:

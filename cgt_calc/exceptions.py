@@ -322,17 +322,28 @@ class ExchangeRateMissingError(CalculationError):
         super().__init__(self.message)
 
 
+def rates_file_row(currency: str, date: datetime.date, rates_file: Path | None) -> str:
+    """Say which file a rate goes in, what its row looks like and where to read more.
+
+    The row is written with <rate> in it, so that pasting it unchanged is
+    refused rather than read as a rate.
+    """
+    where = rates_file or "a file passed with --exchange-rates-file"
+    return (
+        f"{where}: a CSV file with the header 'month,currency,rate' and a row "
+        f"'{date},{currency},<rate>', the rate being units of {currency} per £1. "
+        "See https://cgt-calc.uk/extra-data-and-options/#exchange-rates"
+    )
+
+
 class HmrcRateMissingError(CalculationError):
     """HMRC gives no rate cgt-calc can use for a currency on a date."""
 
     def __init__(self, currency: str, date: datetime.date, rates_file: Path | None):
         """Initialise with the rates file the row should go in, if there is one."""
-        where = rates_file or "a file passed with --exchange-rates-file"
         super().__init__(
             f"cgt-calc has no HMRC exchange rate for {currency} on {date}. Add it to "
-            f"{where}: a CSV file with the header 'month,currency,rate' and a row "
-            f"'{date},{currency},<rate>', the rate being units of {currency} per "
-            "£1. See https://cgt-calc.uk/extra-data-and-options/#exchange-rates"
+            f"{rates_file_row(currency, date, rates_file)}"
         )
 
 
@@ -402,9 +413,10 @@ class IsinTranslationError(CgtError):
 class ExternalApiError(CgtError):
     """Raised when an external API request fails or returns invalid data."""
 
-    def __init__(self, url: str, message: str):
-        """Initialise."""
-        super().__init__(f"{message} (source: {url})")
+    def __init__(self, url: str, message: str, advice: str = ""):
+        """Initialise; `advice`, what the user can do next, goes on its own line."""
+        text = f"{message} (source: {url})"
+        super().__init__(f"{text}\n{advice}" if advice else text)
 
 
 class InteractiveInputRequiredError(CgtError):

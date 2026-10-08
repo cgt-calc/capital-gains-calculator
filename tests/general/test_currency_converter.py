@@ -227,86 +227,14 @@ class FakeSession:
         return self._response
 
 
-def test_hmrc_response_missing_rate_element_raises_api_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A row without a rateNew element raises ExternalApiError."""
+def _monthly_usd(rate: str) -> FakeSession:
+    """Stand in for HMRC's monthly file, which gives one rate for the month."""
     xml = (
-        "<exchangeRateMonthList>"
-        "<exchangeRate><currencyCode>USD</currencyCode></exchangeRate>"
-        "</exchangeRateMonthList>"
+        "<exchangeRateMonthList><exchangeRate>"
+        f"<currencyCode>USD</currencyCode><rateNew>{rate}</rateNew>"
+        "</exchangeRate></exchangeRateMonthList>"
     )
-    converter = CurrencyConverter()
-    monkeypatch.setattr(
-        converter, "session", FakeSession(FakeResponse(ok=True, text=xml))
-    )
-
-    with pytest.raises(ExternalApiError, match="missing expected currency data"):
-        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
-
-
-def test_hmrc_response_invalid_rate_value_raises_api_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A rate value that is not a valid decimal raises ExternalApiError."""
-    xml = (
-        "<exchangeRateMonthList>"
-        "<exchangeRate>"
-        "<currencyCode>USD</currencyCode>"
-        "<rateNew>not-a-rate</rateNew>"
-        "</exchangeRate>"
-        "</exchangeRateMonthList>"
-    )
-    converter = CurrencyConverter()
-    monkeypatch.setattr(
-        converter, "session", FakeSession(FakeResponse(ok=True, text=xml))
-    )
-
-    with pytest.raises(ExternalApiError, match="contains invalid rate"):
-        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
-
-
-@pytest.mark.parametrize("rate", ["0", "-1.25", "NaN", "Infinity"])
-def test_hmrc_response_rejects_non_positive_or_non_finite_rate(
-    monkeypatch: pytest.MonkeyPatch, rate: str
-) -> None:
-    """Invalid numeric rates from the external service are reported as API errors."""
-    xml = (
-        "<exchangeRateMonthList>"
-        "<exchangeRate>"
-        "<currencyCode>USD</currencyCode>"
-        f"<rateNew>{rate}</rateNew>"
-        "</exchangeRate>"
-        "</exchangeRateMonthList>"
-    )
-    converter = CurrencyConverter()
-    monkeypatch.setattr(
-        converter, "session", FakeSession(FakeResponse(ok=True, text=xml))
-    )
-
-    with pytest.raises(ExternalApiError, match="non-positive or non-finite"):
-        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
-
-
-def test_hmrc_response_malformed_currency_code_raises_api_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A currency code that is not three uppercase letters raises ExternalApiError."""
-    xml = (
-        "<exchangeRateMonthList>"
-        "<exchangeRate>"
-        "<currencyCode>usd</currencyCode>"
-        "<rateNew>1.25</rateNew>"
-        "</exchangeRate>"
-        "</exchangeRateMonthList>"
-    )
-    converter = CurrencyConverter()
-    monkeypatch.setattr(
-        converter, "session", FakeSession(FakeResponse(ok=True, text=xml))
-    )
-
-    with pytest.raises(ExternalApiError, match="invalid currency code"):
-        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
+    return FakeSession(FakeResponse(ok=True, text=xml))
 
 
 DATE = datetime.date(2024, 1, 1)
@@ -348,24 +276,6 @@ def test_write_exchange_rates_file(tmp_path: Path) -> None:
     )
 
 
-def test_query_hmrc_api_old_endpoint_error_includes_https_url_and_rates_file(
-    tmp_path: Path,
-) -> None:
-    """Use HTTPS before 2021 and mention the rates file on errors."""
-    rates_file = tmp_path / "rates.csv"
-    rates_file.write_text("month,currency,rate\n", encoding="utf8")
-    converter = CurrencyConverter(exchange_rates_file=rates_file)
-
-    converter.session = OfflineSession()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
-
-    with pytest.raises(ExternalApiError, match=r"rates\.csv") as excinfo:
-        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2019, 5, 1))
-
-    message = str(excinfo.value)
-    assert "https://www.hmrc.gov.uk/" in message
-    assert "exrates-monthly-0519" in message
-
-
 def test_query_hmrc_api_http_error_includes_snippet() -> None:
     """Include a truncated response body in HTTP errors."""
     converter = CurrencyConverter()
@@ -380,6 +290,138 @@ def test_query_hmrc_api_http_error_includes_snippet() -> None:
     assert "..." in message
     # The full 300 character body must not leak into the message.
     assert "x" * 300 not in message
+
+
+# The last month asked of the legacy service and the first asked of the Trade
+# Tariff API.
+DECEMBER_2020 = datetime.date(2020, 12, 14)
+JANUARY_2021 = datetime.date(2021, 1, 11)
+RATES_ADDRESS = {
+    DECEMBER_2020: (
+        "https://www.hmrc.gov.uk/softwaredevelopers/rates/exrates-monthly-1220.xml"
+    ),
+    JANUARY_2021: (
+        "https://www.trade-tariff.service.gov.uk/uk/api/exchange_rates/files/"
+        "monthly_xml_2021-01.xml"
+    ),
+}
+
+
+def _reply(text: str, *, status: int = 200) -> FakeSession:
+    return FakeSession(FakeResponse(ok=status == 200, status_code=status, text=text))
+
+
+@pytest.mark.parametrize(
+    ("date", "session", "problem"),
+    [
+        pytest.param(
+            DECEMBER_2020,
+            OfflineSession(),
+            "Failed to retrieve HMRC exchange rates for 2020-12. Error: offline: "
+            f"{RATES_ADDRESS[DECEMBER_2020]}",
+            id="unreachable",
+        ),
+        # Not 502, 503 or 504: the session retries those and then raises, which
+        # is the row above.
+        pytest.param(
+            JANUARY_2021,
+            _reply("Not Found", status=404),
+            "HMRC API returned HTTP 404 for 2021-01. Response body: Not Found",
+            id="HTTP error",
+        ),
+        # A maintenance or sign-in page sent with status 200. Its lines are
+        # joined, so the reason stays on one.
+        pytest.param(
+            DECEMBER_2020,
+            _reply("<html>\n  <body>\n    Back at 18:00<br>\n  </body>\n</html>\n"),
+            "HMRC API response for 2020-12 cannot be read as XML. Response body: "
+            "<html> <body> Back at 18:00<br> </body> </html>",
+            id="not XML",
+        ),
+        pytest.param(
+            DECEMBER_2020,
+            _reply(""),
+            "HMRC API response for 2020-12 cannot be read as XML.",
+            id="empty reply",
+        ),
+        pytest.param(
+            DECEMBER_2020,
+            _reply('<!DOCTYPE r [<!ENTITY a "b">]><r>&a;</r>'),
+            "HMRC API response for 2020-12 cannot be read as XML. Response body: "
+            '<!DOCTYPE r [<!ENTITY a "b">]><r>&a;</r>',
+            id="XML that declares an entity",
+        ),
+        pytest.param(
+            DECEMBER_2020,
+            _reply("<exchangeRateMonthList/>"),
+            "HMRC API response for 2020-12 has no rates.",
+            id="no rows",
+        ),
+        pytest.param(
+            DECEMBER_2020,
+            _reply(
+                "<exchangeRateMonthList>"
+                "<exchangeRate><currencyCode>USD</currencyCode></exchangeRate>"
+                "</exchangeRateMonthList>"
+            ),
+            "HMRC API response for 2020-12 is missing expected currency data.",
+            id="row without a rate",
+        ),
+        pytest.param(
+            DECEMBER_2020,
+            _reply(
+                "<exchangeRateMonthList><exchangeRate>"
+                "<currencyCode>usd</currencyCode><rateNew>1.25</rateNew>"
+                "</exchangeRate></exchangeRateMonthList>"
+            ),
+            "HMRC API response for 2020-12 contains invalid currency code: 'usd'.",
+            id="code not three capitals",
+        ),
+        pytest.param(
+            DECEMBER_2020,
+            _monthly_usd("not-a-rate"),
+            "HMRC API response for 2020-12 contains invalid rate: not-a-rate.",
+            id="rate not a number",
+        ),
+        *(
+            pytest.param(
+                DECEMBER_2020,
+                _monthly_usd(rate),
+                "HMRC API response for 2020-12 contains a non-positive or "
+                f"non-finite rate: {rate}.",
+                id=f"rate {rate}",
+            )
+            for rate in ("0", "-1.25", "NaN", "Infinity")
+        ),
+    ],
+)
+def test_a_failed_download_says_what_went_wrong_and_what_to_do(
+    date: datetime.date, session: object, problem: str, tmp_path: Path
+) -> None:
+    """Every way the download fails gives the reason, then the same next step.
+
+    The reason comes with its address on one line; the next line names the
+    row for the currency wanted, with <rate> in it so that pasting it
+    unchanged is refused, and where to read more. A reply that is not XML
+    used to end in a traceback, one with no rows passed for a month without
+    the currency, and only an unreachable service said what to do.
+    """
+    rates_file = tmp_path / "rates.csv"
+    converter = CurrencyConverter(exchange_rates_file=rates_file)
+    converter.session = session  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    with pytest.raises(ExternalApiError) as excinfo:
+        converter.currency_to_gbp_rate(CurrencyCode("EUR"), date)
+
+    assert str(excinfo.value) == (
+        f"{problem} (source: {RATES_ADDRESS[date]})\n"
+        f"Try again later, or add the rate to {rates_file}: a CSV file with the "
+        f"header 'month,currency,rate' and a row '{date},EUR,<rate>', the rate "
+        "being units of EUR per £1. "
+        "See https://cgt-calc.uk/extra-data-and-options/#exchange-rates"
+    )
+    # A failed download leaves the rates file as it was: here, not yet written.
+    assert not rates_file.exists()
 
 
 def test_cnh_is_treated_as_cny() -> None:
@@ -436,7 +478,7 @@ def test_test_converter_records_new_rates(tmp_path: Path) -> None:
     rates_file.write_text("month,currency,rate\n", encoding="utf8")
     converter = RecordingCurrencyConverter(exchange_rates_file=rates_file)
 
-    def fake_query(date: datetime.date) -> None:
+    def fake_query(date: datetime.date, currency: CurrencyCode) -> None:
         converter.cache[date] = {CurrencyCode("USD"): Decimal("1.25")}
 
     converter._query_hmrc_api = fake_query  # type: ignore[method-assign]  # ty: ignore[invalid-assignment]  # noqa: SLF001
@@ -525,16 +567,6 @@ def test_a_date_before_february_2015_that_does_not_ship_is_not_asked_of_hmrc(
 
     with pytest.raises(HmrcRateMissingError, match=r"a row '2002-03-28,USD,<rate>'"):
         converter.currency_to_gbp_rate(USD, datetime.date(2002, 3, 28))
-
-
-def _monthly_usd(rate: str) -> FakeSession:
-    """Stand in for HMRC's monthly file, which gives one rate for the month."""
-    xml = (
-        "<exchangeRateMonthList><exchangeRate>"
-        f"<currencyCode>USD</currencyCode><rateNew>{rate}</rateNew>"
-        "</exchangeRate></exchangeRateMonthList>"
-    )
-    return FakeSession(FakeResponse(ok=True, text=xml))
 
 
 @pytest.mark.parametrize(
