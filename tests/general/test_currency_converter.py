@@ -292,16 +292,17 @@ def test_query_hmrc_api_http_error_includes_snippet() -> None:
     assert "x" * 300 not in message
 
 
-JUNE_2019 = datetime.date(2019, 6, 14)
-MARCH_2023 = datetime.date(2023, 3, 10)
-# The legacy service, used up to 2020, and the Trade Tariff API after it.
+# The last month asked of the legacy service and the first asked of the Trade
+# Tariff API.
+DECEMBER_2020 = datetime.date(2020, 12, 14)
+JANUARY_2021 = datetime.date(2021, 1, 11)
 RATES_ADDRESS = {
-    JUNE_2019: (
-        "https://www.hmrc.gov.uk/softwaredevelopers/rates/exrates-monthly-0619.xml"
+    DECEMBER_2020: (
+        "https://www.hmrc.gov.uk/softwaredevelopers/rates/exrates-monthly-1220.xml"
     ),
-    MARCH_2023: (
+    JANUARY_2021: (
         "https://www.trade-tariff.service.gov.uk/uk/api/exchange_rates/files/"
-        "monthly_xml_2023-03.xml"
+        "monthly_xml_2021-01.xml"
     ),
 }
 
@@ -314,76 +315,76 @@ def _reply(text: str, *, status: int = 200) -> FakeSession:
     ("date", "session", "problem", "detail"),
     [
         pytest.param(
-            JUNE_2019,
+            DECEMBER_2020,
             OfflineSession(),
-            f"Failed to retrieve HMRC exchange rates for 0619 from "
-            f"{RATES_ADDRESS[JUNE_2019]}.",
-            f" Error: offline: {RATES_ADDRESS[JUNE_2019]}",
+            f"Failed to retrieve HMRC exchange rates for 1220 from "
+            f"{RATES_ADDRESS[DECEMBER_2020]}.",
+            f" Error: offline: {RATES_ADDRESS[DECEMBER_2020]}",
             id="unreachable",
         ),
         pytest.param(
-            MARCH_2023,
+            JANUARY_2021,
             _reply("Service unavailable", status=503),
-            "HMRC API returned HTTP 503 for 2023-03.",
+            "HMRC API returned HTTP 503 for 2021-01.",
             " Response body: Service unavailable",
             id="HTTP error",
         ),
         # A maintenance or sign-in page sent with status 200.
         pytest.param(
-            JUNE_2019,
+            DECEMBER_2020,
             _reply("Service unavailable"),
-            "HMRC API response for 0619 cannot be read as XML.",
+            "HMRC API response for 1220 cannot be read as XML.",
             "",
             id="not XML",
         ),
         pytest.param(
-            JUNE_2019,
+            DECEMBER_2020,
             _reply('<!DOCTYPE r [<!ENTITY a "b">]><r>&a;</r>'),
-            "HMRC API response for 0619 cannot be read as XML.",
+            "HMRC API response for 1220 cannot be read as XML.",
             "",
             id="XML that declares an entity",
         ),
         pytest.param(
-            JUNE_2019,
+            DECEMBER_2020,
             _reply("<exchangeRateMonthList/>"),
-            "HMRC API response for 0619 has no rates.",
+            "HMRC API response for 1220 has no rates.",
             "",
             id="no rows",
         ),
         pytest.param(
-            JUNE_2019,
+            DECEMBER_2020,
             _reply(
                 "<exchangeRateMonthList>"
                 "<exchangeRate><currencyCode>USD</currencyCode></exchangeRate>"
                 "</exchangeRateMonthList>"
             ),
-            "HMRC API response for 0619 is missing expected currency data.",
+            "HMRC API response for 1220 is missing expected currency data.",
             "",
             id="row without a rate",
         ),
         pytest.param(
-            JUNE_2019,
+            DECEMBER_2020,
             _reply(
                 "<exchangeRateMonthList><exchangeRate>"
                 "<currencyCode>usd</currencyCode><rateNew>1.25</rateNew>"
                 "</exchangeRate></exchangeRateMonthList>"
             ),
-            "HMRC API response for 0619 contains invalid currency code: 'usd'.",
+            "HMRC API response for 1220 contains invalid currency code: 'usd'.",
             "",
             id="code not three capitals",
         ),
         pytest.param(
-            JUNE_2019,
+            DECEMBER_2020,
             _monthly_usd("not-a-rate"),
-            "HMRC API response for 0619 contains invalid rate: not-a-rate.",
+            "HMRC API response for 1220 contains invalid rate: not-a-rate.",
             "",
             id="rate not a number",
         ),
         *(
             pytest.param(
-                JUNE_2019,
+                DECEMBER_2020,
                 _monthly_usd(rate),
-                "HMRC API response for 0619 contains a non-positive or non-finite "
+                "HMRC API response for 1220 contains a non-positive or non-finite "
                 f"rate: {rate}.",
                 "",
                 id=f"rate {rate}",
@@ -415,6 +416,8 @@ def test_a_failed_download_says_what_went_wrong_and_what_to_do(
         f"the rate being units of EUR per £1.{detail} "
         f"(source: {RATES_ADDRESS[date]})"
     )
+    # A failed download leaves the rates file as it was: here, not yet written.
+    assert not rates_file.exists()
 
 
 def test_cnh_is_treated_as_cny() -> None:
