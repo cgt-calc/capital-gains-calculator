@@ -123,14 +123,24 @@ def test_read_revolut_transactions_missing_column(tmp_path: Path) -> None:
         RevolutParser().load_from_file(path)
 
 
-def test_read_revolut_transactions_unexpected_column(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("renamed", "shown"),
+    [
+        pytest.param("Exchange Rate", "'Exchange Rate'", id="another name"),
+        # A no-break space looks like a space, so the name is shown escaped.
+        pytest.param("FX\xa0Rate", "'FX\\xa0Rate'", id="a no-break space"),
+    ],
+)
+def test_read_revolut_transactions_unexpected_column(
+    tmp_path: Path, renamed: str, shown: str
+) -> None:
     """A renamed column triggers ParsingError naming both spellings."""
-    header = [*COLUMNS[:-1], "Exchange Rate"]
+    header = [*COLUMNS[:-1], renamed]
     path = _write_csv(tmp_path, header=header)
 
     with pytest.raises(
         ParsingError,
-        match=re.escape("Missing: 'FX Rate'. Extra: 'Exchange Rate'."),
+        match=re.escape(f"Missing: 'FX Rate'. Extra: {shown}."),
     ):
         RevolutParser().load_from_file(path)
 

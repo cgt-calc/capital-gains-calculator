@@ -290,10 +290,11 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
 def _column_names(columns: set[str]) -> str:
     """List column names for an error, in an order that is the same on every run.
 
-    Each name is quoted, so that a space at either end of it can be seen:
-    Interactive Brokers names a column "Gross Amount ".
+    Each name is shown as Python quotes a string, so that a space at either
+    end of it, or a character that cannot be seen, shows up: Interactive
+    Brokers names a column "Gross Amount ".
     """
-    names = (f"'{name}'" if name else "(no name)" for name in sorted(columns))
+    names = (repr(name) if name else "(no name)" for name in sorted(columns))
     return ", ".join(names) or "none"
 
 
