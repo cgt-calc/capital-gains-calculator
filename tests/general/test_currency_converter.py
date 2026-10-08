@@ -422,6 +422,9 @@ def test_a_failed_download_says_what_went_wrong_and_what_to_do(
         "being units of EUR per £1. "
         "See https://cgt-calc.uk/extra-data-and-options/#exchange-rates"
     )
+    # A failure is not remembered as the month's rates: the next lookup asks again.
+    with pytest.raises(ExternalApiError):
+        converter.currency_to_gbp_rate(CurrencyCode("EUR"), date)
     # A failed download leaves the rates file as it was: here, not yet written.
     assert not rates_file.exists()
 
@@ -440,7 +443,8 @@ def test_a_month_is_downloaded_once_however_many_of_its_dates_need_it(
 ) -> None:
     """HMRC publishes one file for a month, so a second date in it asks nothing.
 
-    Each date still gets its own row in the rates file.
+    Each date still gets its own row in the rates file, including the last one
+    here, which is served from memory after another month was downloaded.
     """
     rates_file = tmp_path / "rates.csv"
     converter = CurrencyConverter(exchange_rates_file=rates_file)
@@ -449,8 +453,8 @@ def test_a_month_is_downloaded_once_however_many_of_its_dates_need_it(
 
     for date in (
         datetime.date(2019, 6, 3),
-        datetime.date(2019, 6, 14),
         datetime.date(2019, 7, 1),
+        datetime.date(2019, 6, 14),
     ):
         assert converter.currency_to_gbp_rate(USD, date) == Decimal("1.2611")
 
