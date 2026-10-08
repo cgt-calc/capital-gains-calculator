@@ -2009,6 +2009,66 @@ def test_a_sale_with_only_a_zero_price_or_a_zero_total_is_a_sale(
     ]
 
 
+def _make_conversion_row(
+    header: list[str], total: str, action: str = "Currency conversion"
+) -> list[str]:
+    """Build a conversion of pounds into euros whose total names no currency."""
+    return _make_row(
+        header,
+        {
+            Trading212Column.ACTION: action,
+            Trading212Column.TIME: "2025-04-09 14:00:00",
+            Trading212Column.TOTAL: total,
+            Trading212Column.NOTES: "50.00 GBP -> 58.00 EUR",
+            Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: "50.00",
+            Trading212Column.CURRENCY_CURRENCY_CONVERSION_FROM_AMOUNT: "GBP",
+            Trading212Column.CURRENCY_CONVERSION_TO_AMOUNT: "58.00",
+            Trading212Column.CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT: "EUR",
+            Trading212Column.TRANSACTION_ID: "conversion-1",
+        },
+    )
+
+
+def test_a_currency_conversion_that_charged_no_fee_is_an_adjustment_of_zero(
+    tmp_path: Path,
+) -> None:
+    """A conversion's total is its fee, and with no fee it names no currency.
+
+    Trading 212 writes the fee in the currency converted to, so the zero is
+    read in that currency.
+    """
+    rows = [HEADER_2026, _make_conversion_row(HEADER_2026, "0.00")]
+
+    (conversion,) = Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
+
+    assert conversion.action is ActionType.ADJUSTMENT
+    assert conversion.amount == 0
+    assert conversion.currency == "EUR"
+
+
+@pytest.mark.parametrize(
+    ("header", "total", "action"),
+    [
+        pytest.param(HEADER_2026, "-0.10", "Currency conversion", id="a fee"),
+        pytest.param(
+            HEADER_2024,
+            "0.00",
+            "Currency conversion",
+            id="no column for the currency converted to",
+        ),
+        pytest.param(HEADER_2026, "0.00", "Deposit", id="not a conversion"),
+    ],
+)
+def test_a_total_with_no_currency_to_read_is_refused(
+    tmp_path: Path, header: list[str], total: str, action: str
+) -> None:
+    """A fee needs its own currency, and only a conversion's zero takes another."""
+    rows = [header, _make_conversion_row(header, total, action)]
+
+    with pytest.raises(ParsingError, match=r"row 2: Invalid currency code: ''$"):
+        Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
+
+
 def test_read_trading212_transactions_invalid_decimal(tmp_path: Path) -> None:
     """Raise ParsingError when a decimal value is invalid."""
 
