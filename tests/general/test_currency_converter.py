@@ -312,43 +312,48 @@ def _reply(text: str, *, status: int = 200) -> FakeSession:
 
 
 @pytest.mark.parametrize(
-    ("date", "session", "problem", "detail"),
+    ("date", "session", "problem"),
     [
         pytest.param(
             DECEMBER_2020,
             OfflineSession(),
-            f"Failed to retrieve HMRC exchange rates for 1220 from "
-            f"{RATES_ADDRESS[DECEMBER_2020]}.",
-            f" Error: offline: {RATES_ADDRESS[DECEMBER_2020]}",
+            "Failed to retrieve HMRC exchange rates for 2020-12. Error: offline: "
+            f"{RATES_ADDRESS[DECEMBER_2020]}",
             id="unreachable",
         ),
+        # Not 502, 503 or 504: the session retries those and then raises, which
+        # is the row above.
         pytest.param(
             JANUARY_2021,
-            _reply("Service unavailable", status=503),
-            "HMRC API returned HTTP 503 for 2021-01.",
-            " Response body: Service unavailable",
+            _reply("Not Found", status=404),
+            "HMRC API returned HTTP 404 for 2021-01. Response body: Not Found",
             id="HTTP error",
         ),
         # A maintenance or sign-in page sent with status 200.
         pytest.param(
             DECEMBER_2020,
-            _reply("Service unavailable"),
-            "HMRC API response for 1220 cannot be read as XML.",
-            "",
+            _reply("Back at 18:00"),
+            "HMRC API response for 2020-12 cannot be read as XML. Response body: "
+            "Back at 18:00",
             id="not XML",
         ),
         pytest.param(
             DECEMBER_2020,
+            _reply(""),
+            "HMRC API response for 2020-12 cannot be read as XML.",
+            id="empty reply",
+        ),
+        pytest.param(
+            DECEMBER_2020,
             _reply('<!DOCTYPE r [<!ENTITY a "b">]><r>&a;</r>'),
-            "HMRC API response for 1220 cannot be read as XML.",
-            "",
+            "HMRC API response for 2020-12 cannot be read as XML. Response body: "
+            '<!DOCTYPE r [<!ENTITY a "b">]><r>&a;</r>',
             id="XML that declares an entity",
         ),
         pytest.param(
             DECEMBER_2020,
             _reply("<exchangeRateMonthList/>"),
-            "HMRC API response for 1220 has no rates.",
-            "",
+            "HMRC API response for 2020-12 has no rates.",
             id="no rows",
         ),
         pytest.param(
@@ -358,8 +363,7 @@ def _reply(text: str, *, status: int = 200) -> FakeSession:
                 "<exchangeRate><currencyCode>USD</currencyCode></exchangeRate>"
                 "</exchangeRateMonthList>"
             ),
-            "HMRC API response for 1220 is missing expected currency data.",
-            "",
+            "HMRC API response for 2020-12 is missing expected currency data.",
             id="row without a rate",
         ),
         pytest.param(
@@ -369,24 +373,21 @@ def _reply(text: str, *, status: int = 200) -> FakeSession:
                 "<currencyCode>usd</currencyCode><rateNew>1.25</rateNew>"
                 "</exchangeRate></exchangeRateMonthList>"
             ),
-            "HMRC API response for 1220 contains invalid currency code: 'usd'.",
-            "",
+            "HMRC API response for 2020-12 contains invalid currency code: 'usd'.",
             id="code not three capitals",
         ),
         pytest.param(
             DECEMBER_2020,
             _monthly_usd("not-a-rate"),
-            "HMRC API response for 1220 contains invalid rate: not-a-rate.",
-            "",
+            "HMRC API response for 2020-12 contains invalid rate: not-a-rate.",
             id="rate not a number",
         ),
         *(
             pytest.param(
                 DECEMBER_2020,
                 _monthly_usd(rate),
-                "HMRC API response for 1220 contains a non-positive or non-finite "
-                f"rate: {rate}.",
-                "",
+                "HMRC API response for 2020-12 contains a non-positive or "
+                f"non-finite rate: {rate}.",
                 id=f"rate {rate}",
             )
             for rate in ("0", "-1.25", "NaN", "Infinity")
@@ -394,14 +395,15 @@ def _reply(text: str, *, status: int = 200) -> FakeSession:
     ],
 )
 def test_a_failed_download_says_what_went_wrong_and_what_to_do(
-    date: datetime.date, session: object, problem: str, detail: str, tmp_path: Path
+    date: datetime.date, session: object, problem: str, tmp_path: Path
 ) -> None:
-    """Every way the download fails gives the reason, then the same two ways on.
+    """Every way the download fails gives the reason, then the same next step.
 
-    The row for the currency wanted is spelt out with <rate> in it, so pasting
-    it unchanged is refused rather than read as a rate. A reply that is not
-    XML used to end in a traceback, one with no rows passed for a month
-    without the currency, and only an unreachable service said what to do.
+    The reason comes with its address on one line; the next line names the
+    row for the currency wanted, with <rate> in it so that pasting it
+    unchanged is refused, and where to read more. A reply that is not XML
+    used to end in a traceback, one with no rows passed for a month without
+    the currency, and only an unreachable service said what to do.
     """
     rates_file = tmp_path / "rates.csv"
     converter = CurrencyConverter(exchange_rates_file=rates_file)
@@ -411,10 +413,11 @@ def test_a_failed_download_says_what_went_wrong_and_what_to_do(
         converter.currency_to_gbp_rate(CurrencyCode("EUR"), date)
 
     assert str(excinfo.value) == (
-        f"{problem} Try again later, or add the rate to {rates_file}: a CSV file "
-        f"with the header 'month,currency,rate' and a row '{date},EUR,<rate>', "
-        f"the rate being units of EUR per £1.{detail} "
-        f"(source: {RATES_ADDRESS[date]})"
+        f"{problem} (source: {RATES_ADDRESS[date]})\n"
+        f"Try again later, or add the rate to {rates_file}: a CSV file with the "
+        f"header 'month,currency,rate' and a row '{date},EUR,<rate>', the rate "
+        "being units of EUR per £1. "
+        "See https://cgt-calc.uk/extra-data-and-options/#exchange-rates"
     )
     # A failed download leaves the rates file as it was: here, not yet written.
     assert not rates_file.exists()
