@@ -83,7 +83,9 @@ The Trading 212 parser currently handles:
 Trading 212 exports a share reorganisation as two rows: `Stock split close` states your complete
 position before it and `Stock split open` states your complete position after it. Both are needed,
 and cgt-calc combines them into one event. They can be written in either order, and they can fall in
-different exports, which is why the whole directory is read before they are paired.
+different exports, which is why the whole directory is read before they are paired. An older split
+may have no rows at all: see
+[A split with no rows in the export](#a-split-with-no-rows-in-the-export).
 
 Forward splits and consolidations are both supported, including fractional holdings and ratios that
 are not whole numbers. The event is not a sale or a purchase: no money moves, no gain or loss
@@ -113,6 +115,56 @@ they fall on different days, it applies the reorganisation twice, with no error.
 report shows it once. If cgt-calc stops or the report shows it twice, remove the `Stock split close`
 and `Stock split open` rows of one listing from a copy of the export: the other listing's rows give
 the ratio, and cgt-calc applies it to the whole holding.
+
+#### A split with no rows in the export
+
+Trading 212 does not export these rows for every split. In the exports examined, they first appear
+in December 2024, and the splits before then have none: NVIDIA's 10-for-1 split of 10 June 2024 is
+one. Your purchases before the split are then counted in old shares and your sales after it in new
+ones. cgt-calc cannot tell that the split is missing:
+
+- A sale of more shares than the old count holds stops the run with
+    [`Tried to sell`](#tried-to-sell).
+- A smaller sale goes through with no error. It takes too large a share of the cost, so the report
+    understates the gain or shows a loss you did not make.
+
+To find a missing split that gave no error, compare the final portfolio cgt-calc prints with your
+holdings in Trading 212. The portfolio shows fewer shares than you hold after a missing split, and
+more after a missing consolidation.
+
+Add the split yourself in a [RAW file](raw.md):
+
+1. Find the first day the shares traded at the new count, from the company's announcement of the
+    split.
+2. Work out how many shares you held at the start of that day: add up `No. of shares` for your
+    purchases before it and take off your sales before it.
+3. Work out how many shares the split added. Two shares through a 10-for-1 split become 20, so the
+    split added 18.
+4. Write one `STOCK_SPLIT` row with that date, the ticker and that number:
+
+    ```csv
+    date,action,symbol,quantity,price,fees,currency
+    2024-06-10,STOCK_SPLIT,NVDA,18,0.00,0.00,USD
+    ```
+
+5. Pass the file along with the export:
+
+    ```shell
+    cgt-calc --year 2024 --trading212-dir trading212/ --raw-file splits.csv
+    ```
+
+cgt-calc cannot check the number you write. Run it for the tax year of the split and find the share
+reorganisation in the report: its ratio should be the company's, 10 for this split.
+[Share reorganisations](raw.md#share-reorganisations) covers a consolidation and a holding spread
+across brokers.
+
+If you also bought or sold the share on the day of the split, cgt-calc stops with **Cannot apply the
+reorganisation**, because the RAW row has no time to compare with the time of the trade. In a
+working copy of the export, move that day's trades of the share into the RAW file as `BUY` and
+`SELL` rows, in [the order they happened](raw.md#the-order-of-rows-on-one-date). Their cash is then
+kept on a balance separate from your Trading 212 cash. If either balance goes below zero, the run
+stops with `Reached a negative balance`; run it again with `--no-balance-check`, which turns the
+check off for every input in the run.
 
 ### Dates and time zones
 
@@ -343,7 +395,13 @@ the wrong account, or an unsupported action listed above.
 ### `Tried to sell`
 
 The history does not hold the shares being sold. Check first for a missing date range or a missing
-file. If the shares came from a takeover paid in shares, the export may have no row for them: see
+file.
+
+If the company split its shares after you bought them, the export may have no rows for the split. A
+sale of exactly ten times the holding in the message, for example, points to a 10-for-1 split. See
+[A split with no rows in the export](#a-split-with-no-rows-in-the-export).
+
+If the shares came from a takeover paid in shares, the export may have no row for them: see
 [Known limitations](#known-limitations), and do not add a purchase for them to make the calculation
 run.
 

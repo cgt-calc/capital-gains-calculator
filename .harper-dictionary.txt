@@ -190,6 +190,7 @@ num
 NVD
 NVDA
 NVIDIA
+NVIDIA's
 OCC
 OCI
 off's
