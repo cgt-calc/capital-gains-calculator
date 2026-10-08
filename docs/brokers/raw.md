@@ -106,13 +106,9 @@ ignores it. Excess Reported Income uses the separate
 
 A `FEE` adds the charge to that holding's cost, which reduces a later gain, and takes it out of the
 cash balance. Choosing `FEE` does not make a charge an allowable cost. Use it only for an amount
-HMRC treats as spent on a holding you already have without giving you new shares, such as income
-reinvested in
-[accumulation units](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57707) of a UK
-fund. That income is taxable and never leaves your account, so record it as well, for the same
-amount on the same day: as a `DIVIDEND`, or as `INTEREST` where the fund pays interest
-distributions, as a bond fund does. With the `FEE` alone, the income goes unreported and the cash
-balance ends short. For anything else:
+HMRC treats as spent on a holding you already have without giving you new shares, such as
+[income reinvested in accumulation units](#income-reinvested-in-accumulation-units) of a UK fund.
+For anything else:
 
 - Put a commission or other cost of one purchase or sale in the `fees` column of that `BUY` or
     `SELL` row, so that it counts towards that trade.
@@ -137,6 +133,33 @@ old shares' price still includes the new ones. For example, GE paid out GE Healt
 January 2023, but normal trading in them began on 4 January, so the row belongs on 4 January. If you
 also bought or sold the old shares that day, cgt-calc stops, because it cannot tell whether the
 trade came before or after the spin-off.
+
+### Income reinvested in accumulation units
+
+A UK accumulation fund keeps its income and adds it to the value of the units you already hold. That
+income is taxable although it never leaves your account, and HMRC treats it as
+[an amount spent on the holding](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57707).
+Record both, for the same amount on the same day. For £20 of income on a holding of `FUND`:
+
+```csv
+2024-06-28,DIVIDEND,FUND,1,20.00,0.00,GBP
+2024-06-28,FEE,FUND,1,-20.00,0.00,GBP
+```
+
+- The `DIVIDEND` row reports the income. Where the fund pays interest distributions, as a bond fund
+    does, write `INTEREST` with a blank `symbol` instead.
+- The `FEE` row adds the same amount to the cost of the holding. Enter it as a negative `price`: a
+    positive one stops the run with `Fee amount must not be positive`.
+
+Together the two rows leave the cash balance unchanged. With the `FEE` alone, the income goes
+unreported and the cash balance ends short.
+
+To check the result, look for the income under dividends or interest, and in the report for an entry
+on that date headed “Cost added to FUND with no new shares: £20.00”. If you bought more of the fund
+the same day, the report shows the £20 as part of that purchase's fees instead.
+
+This is for a fund based in the UK. For an accumulating fund or ETF based elsewhere, such as an
+Irish one, see [Offshore Funds (ERI)](../offshore-funds.md).
 
 ## Known limitations
 
