@@ -571,7 +571,7 @@ class DuringTheSave(Decimal):
     """A rate that runs `act` when it is turned into text for its row.
 
     The csv writer does that as it writes the row, so a save has its temporary
-    file open and part written at that moment.
+    file open at that moment and has handed it the rows before this one.
     """
 
     act: Callable[[], None]
@@ -584,8 +584,10 @@ class DuringTheSave(Decimal):
 
 
 NOT_PART_WAY = (
-    "the rate became text before the save had its temporary file open; this "
-    "test needs that to happen as the rate's row is written"
+    "only the rates file was in its folder when the rate became text: either "
+    "the save no longer writes its temporary file there, or the rate became "
+    "text before the save began, which this test needs to happen as the rate's "
+    "row is written"
 )
 
 
@@ -594,8 +596,8 @@ def test_a_run_stopped_as_it_saves_leaves_the_rates_file_as_it_was(
 ) -> None:
     """Ctrl-C during a save loses no row that was on file, and leaves no other file.
 
-    The rows are saved in date order, so the save here has written the typed
-    row and July 2019's when it is stopped at the row for June 2020.
+    The rows are saved in date order, so the save here is stopped at the row
+    for June 2020, after the typed row and July 2019's.
     """
     rates_file = tmp_path / "rates.csv"
     rates_file.write_bytes(TYPED_ROW)
