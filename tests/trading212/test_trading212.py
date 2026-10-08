@@ -2929,6 +2929,60 @@ def test_restated_row_keeps_both_and_warns(
     assert "b.csv" in caplog.text
 
 
+@pytest.mark.parametrize(
+    ("printed", "taken", "warns"),
+    [
+        pytest.param(
+            "50.0000000000",
+            [Decimal("-50.00")],
+            False,
+            id="the same amount printed to more places",
+        ),
+        pytest.param(
+            "55.00",
+            [Decimal("-50.00"), Decimal("-55.00")],
+            True,
+            id="another amount",
+        ),
+    ],
+)
+def test_two_exports_of_a_conversion_are_one_only_if_its_amounts_agree(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    printed: str,
+    taken: list[Decimal],
+    warns: bool,
+) -> None:
+    """The cash is read from the amounts converted, so they decide whether two rows are one.
+
+    One export says 50.00 GBP was converted. A second that agrees is the same
+    conversion, however it prints the figure. One that says 55.00 GBP is a
+    restated row: both are kept and the double count is announced.
+    """
+    files = {
+        name: _export(
+            _make_conversion_row(
+                HEADER_2026,
+                "-0.10",
+                overrides={
+                    Trading212Column.CURRENCY_TOTAL: "EUR",
+                    Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: amount,
+                },
+            ),
+            header=HEADER_2026,
+        )
+        for name, amount in (("a.csv", "50.00"), ("b.csv", printed))
+    }
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
+        transactions = Trading212Parser.load_from_dir(_prepare_files(tmp_path, files))
+
+    assert [
+        amount for amount, currency in _cash(transactions) if currency == "GBP"
+    ] == taken
+    described_twice = "Transaction ID conversion-1 is described differently"
+    assert (described_twice in caplog.text) is warns
+
+
 def test_reused_id_across_buy_and_sell_does_not_warn(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

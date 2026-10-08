@@ -826,6 +826,8 @@ class Trading212Transaction(BrokerTransaction):
             self.isin,
             tuple(sorted(self.foreign_fees.items())),
             self.ambiguous_quantity,
+            # The cash a conversion moved is read from these, not from its total.
+            tuple(self.converted),
         )
         if not self.is_reorganisation:
             return recorded
