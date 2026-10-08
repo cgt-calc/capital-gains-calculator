@@ -182,10 +182,10 @@ def approx_equal_scaled(
 
 
 def is_blank_row(row: Iterable[str | None]) -> bool:
-    """Tell whether a row of a CSV file or table holds nothing but spaces.
+    """Tell whether a row of a CSV file or table holds nothing but whitespace.
 
-    An empty line, a line of commas and a line of spaces are all blank. A
-    cell that a short row leaves out arrives as None from some readers.
+    An empty line, a line of commas and a line of spaces are all blank. Some
+    readers give None for a cell with nothing in it.
     """
     return not any((cell or "").strip() for cell in row)
 

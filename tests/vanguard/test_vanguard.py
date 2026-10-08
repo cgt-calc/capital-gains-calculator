@@ -677,13 +677,16 @@ def test_read_vanguard_ignores_cosmetic_trailing_empty_cells(tmp_path: Path) -> 
     ]
 
 
-def test_read_vanguard_legacy_footer_is_ignored(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "below", ["", "   \n"], ids=["at the end", "above a line of spaces"]
+)
+def test_read_vanguard_legacy_footer_is_ignored(tmp_path: Path, below: str) -> None:
     """Ignore a single-cell footer after a legacy cash-only table."""
     vanguard_file = tmp_path / "legacy_footer.csv"
     vanguard_file.write_text(
         "Date,Details,Amount,Balance\n"
         "01/01/2022,Regular Deposit,100,100\n"
-        "This report is not advice\n",
+        "This report is not advice\n" + below,
         encoding="utf-8",
     )
 
