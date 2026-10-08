@@ -1545,7 +1545,7 @@ def test_a_cost_only_pool_under_a_renamed_name_is_refused() -> None:
         "own is recorded under NEW - a FEE row, most likely."
     )
     assert message.endswith(
-        "Record that row under the name the shares are held under, or work "
+        "Record the FEE row under the name the shares are held under, or work "
         "this day out by hand (consider professional advice)."
     )
 
