@@ -325,6 +325,66 @@ def test_parse_income_report_with_uppercase_csv_extension(tmp_path: Path) -> Non
     ]
 
 
+def test_parse_income_report_skips_an_empty_line_outside_a_dividend_list(
+    tmp_path: Path,
+) -> None:
+    """An empty line between the report's sections is not a row of any of them."""
+    _write_csv(
+        tmp_path / "Taxable Income Report.csv",
+        [
+            [],
+            ["Local Income"],
+            [],
+            ["Dividend Payments"],
+            LOCAL_DIVIDEND_HEADER,
+            ["ABC", "AB Corp", "01/02/2023", "90", "10", "0", "100", "local divi"],
+            ["Total"],
+            [],
+            ["Total Local Income"],
+            [],
+            ["Foreign Income"],
+            FOREIGN_DIVIDEND_HEADER,
+            ["XYZ", "X Corp", "03/04/2023", "1.2", "USD", "85", "15", "100", "foreign"],
+            ["Total"],
+            [],
+        ],
+    )
+
+    transactions = SharesightParser().load_from_dir(tmp_path)
+
+    assert [transaction.amount for transaction in transactions] == [
+        Decimal(100),
+        Decimal(-10),
+        Decimal(100),
+        Decimal(-15),
+    ]
+
+
+def test_parse_income_report_refuses_an_empty_line_in_a_dividend_list(
+    tmp_path: Path,
+) -> None:
+    """An empty line among the dividends is reported at its row, not skipped."""
+    _write_csv(
+        tmp_path / "Taxable Income Report.csv",
+        [
+            ["Foreign Income"],
+            FOREIGN_DIVIDEND_HEADER,
+            ["XYZ", "X Corp", "03/04/2023", "1.2", "USD", "85", "15", "100", "foreign"],
+            [],
+            ["XYZ", "X Corp", "03/05/2023", "1.2", "USD", "85", "15", "100", "foreign"],
+            ["Total"],
+        ],
+    )
+
+    with pytest.raises(
+        ParsingError,
+        match=f"This row has 1 columns, not {len(FOREIGN_DIVIDEND_HEADER)}",
+    ) as excinfo:
+        SharesightParser().load_from_dir(tmp_path)
+
+    assert excinfo.value.row_index == 4
+
+
 def test_parse_income_report_with_informational_columns(tmp_path: Path) -> None:
     """Ignore newer Taxable Income columns not used by the calculation."""
     _write_csv(

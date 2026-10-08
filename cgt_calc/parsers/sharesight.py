@@ -386,7 +386,9 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
         cls, file: TextIO, file_path: Path
     ) -> Iterable[SharesightTransaction]:
         """Parse the Taxable Income Report from Sharesight."""
-        rows = list(csv.reader(file))
+        # An empty line is read as a row with one empty cell: every section
+        # below looks at a row's first cell.
+        rows = [row or [""] for row in csv.reader(file)]
 
         # Use our custom iterator for error reporting
         rows_iter = RowIterator(rows)
