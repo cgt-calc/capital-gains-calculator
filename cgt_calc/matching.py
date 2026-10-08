@@ -424,14 +424,14 @@ class Matcher:
         for name in sorted(identity.names - {identity.pool_name}):
             matchable = self._matchable_acquisition(date_index, name)
             identifiable = self._identifiable_acquisition(date_index, name)
-            not_bought = Position(
+            carried = Position(
                 matchable.quantity - identifiable.quantity,
                 matchable.amount - identifiable.amount,
             )
-            if not not_bought.quantity and not not_bought.amount:
+            if not carried.quantity and not carried.amount:
                 continue
-            self.run.portfolio[name] -= not_bought
-            self.run.portfolio[identity.pool_name] += not_bought
+            self.run.portfolio[name] -= carried
+            self.run.portfolio[identity.pool_name] += carried
 
     def _match_same_day(self, ctx: DisposalContext) -> None:
         """Identify the disposal against the same day's acquisitions."""
