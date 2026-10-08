@@ -107,6 +107,8 @@ SPLIT_OPEN_ACTION: Final = "Stock split open"
 SPLIT_CLOSE_ACTION: Final = "Stock split close"
 SPLIT_ACTIONS: Final = frozenset({SPLIT_OPEN_ACTION, SPLIT_CLOSE_ACTION})
 
+CONVERSION_ACTION: Final = "Currency conversion"
+
 # Actions the Trading 212 page lists under its known limitations: share
 # distributions, and transfers of shares between accounts. A distribution
 # may be a stock dividend, a warrant issue, one side of a demerger or the
@@ -179,6 +181,20 @@ SPLIT_ZERO_COLUMNS: Final[tuple[Trading212Column, ...]] = (
     Trading212Column.CURRENCY_CONVERSION_FEE_GBP,
     Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT,
     Trading212Column.CURRENCY_CONVERSION_TO_AMOUNT,
+)
+
+
+# The amount a currency conversion took from one currency and the amount it
+# added to another, each with the column naming its currency.
+CONVERSION_COLUMNS: Final = (
+    (
+        Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT,
+        Trading212Column.CURRENCY_CURRENCY_CONVERSION_FROM_AMOUNT,
+    ),
+    (
+        Trading212Column.CURRENCY_CONVERSION_TO_AMOUNT,
+        Trading212Column.CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT,
+    ),
 )
 
 
@@ -354,7 +370,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
         return ActionType.SPIN_OFF
 
     if label in {
-        "Currency conversion",
+        CONVERSION_ACTION,
         "Result adjustment",
         "Spending cashback",
     }:
@@ -412,7 +428,7 @@ class Trading212Transaction(BrokerTransaction):
             # converted to. With no fee the total is zero, and Trading 212
             # leaves its currency blank.
             if (
-                self.raw_action == "Currency conversion"
+                self.raw_action == CONVERSION_ACTION
                 and amount == 0
                 and not currency_raw
             ):
@@ -561,6 +577,7 @@ class Trading212Transaction(BrokerTransaction):
         # than once, so neither the id nor the raw cells identify a
         # transaction across exports.
         self.exported_row = row
+        self.converted = self._converted(row)
         broker = "Trading212"
         super().__init__(
             date,
@@ -576,6 +593,55 @@ class Trading212Transaction(BrokerTransaction):
             isin,
             foreign_fees=foreign_fees,
         )
+
+    def _converted(
+        self, row: dict[Trading212Column, str]
+    ) -> list[tuple[Decimal, CurrencyCode]]:
+        """Return the cash a currency conversion moved: out of one currency, into another.
+
+        The row's total is only the fee: the amount received arrives in full
+        and the fee is charged on top of it. An export with no columns for the
+        two amounts gives nothing to move, and the fee is read alone.
+        """
+        if self.raw_action != CONVERSION_ACTION or not any(
+            row.get(column) for pair in CONVERSION_COLUMNS for column in pair
+        ):
+            return []
+        moved: list[tuple[Decimal, CurrencyCode]] = []
+        for sign, (amount_column, currency_column) in zip(
+            (-1, 1), CONVERSION_COLUMNS, strict=True
+        ):
+            amount = decimal_or_none(row, amount_column)
+            currency = row.get(currency_column)
+            if amount is None or amount <= 0 or not currency:
+                raise ValueError(
+                    "A currency conversion has to give the amount converted from "
+                    "and the amount converted to, each above zero and with its "
+                    "currency. Check this row against Trading 212 and export it "
+                    "again."
+                )
+            moved.append((sign * amount, CurrencyCode(currency)))
+        return moved
+
+    def conversion_cash(self) -> list[BrokerTransaction]:
+        """Return the cash this conversion moved, as one row for each currency."""
+        rows = []
+        for amount, currency in self.converted:
+            row = BrokerTransaction(
+                date=self.date,
+                action=ActionType.ADJUSTMENT,
+                symbol=None,
+                description=self.description,
+                quantity=None,
+                price=None,
+                fees=Decimal(0),
+                amount=amount,
+                currency=currency,
+                broker=self.broker,
+            )
+            row.source = self.source
+            rows.append(row)
+        return rows
 
     def separate_foreign_tax(self) -> BrokerTransaction | None:
         """Record this dividend before foreign tax; return the tax as its own row.
@@ -1412,11 +1478,13 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
     def finalize_transactions(
         cls, transactions: list[BrokerTransaction]
     ) -> list[BrokerTransaction]:
-        """Pair reorganisation rows, then record dividends before foreign tax.
+        """Pair reorganisation rows, then add the rows a dividend or a conversion implies.
 
-        Both need every export of the account, merged.
+        Each needs every export of the account, merged.
         """
-        return cls._add_foreign_tax(cls._pair_reorganisations(transactions))
+        return cls._add_conversion_cash(
+            cls._add_foreign_tax(cls._pair_reorganisations(transactions))
+        )
 
     @classmethod
     def _pair_reorganisations(
@@ -1470,6 +1538,22 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
                 tax = transaction.separate_foreign_tax()
                 if tax is not None:
                     result.append(tax)
+        return result
+
+    @staticmethod
+    def _add_conversion_cash(
+        transactions: list[BrokerTransaction],
+    ) -> list[BrokerTransaction]:
+        """Follow each currency conversion with the cash it moved.
+
+        This runs once overlapping exports are merged, as the foreign tax
+        does, so a conversion that two exports both report moves its cash once.
+        """
+        result: list[BrokerTransaction] = []
+        for transaction in transactions:
+            result.append(transaction)
+            if isinstance(transaction, Trading212Transaction):
+                result.extend(transaction.conversion_cash())
         return result
 
     @staticmethod

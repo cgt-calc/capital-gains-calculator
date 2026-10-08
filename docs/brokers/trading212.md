@@ -198,6 +198,16 @@ dividend's tax out of the dividend income and the tax at source, and its relief 
 relief. The `--income` estimate includes the extra income too, which makes the estimate slightly
 high.
 
+### Currency conversions
+
+A `Currency conversion` row moves cash between two currencies of your account. cgt-calc takes the
+amount in `Currency conversion from amount` off the balance of that currency, adds the amount in
+`Currency conversion to amount` to the balance of the other, and charges the fee, which is the row's
+`Total`. It does not treat the conversion as a disposal and reports no gain or loss on it.
+
+A conversion that gives only one of the two amounts, or an amount that is not above zero, is
+refused: check the row against Trading 212 and export it again.
+
 ### Known limitations
 
 - Some tax withheld is left in the amount received and does not appear separately in the report: tax
@@ -223,14 +233,12 @@ high.
     [Income reported in more than one currency](../extra-data-and-options.md#income-reported-in-more-than-one-currency).
 - Share transfers between accounts or brokers, labelled `Transfer in` or `Transfer out`, are not
     supported, and cgt-calc stops at the row.
-- Only the fee of a currency conversion is read. The amounts converted, in
-    `Currency conversion from amount` and `Currency conversion to amount`, are not moved between the
-    two currencies, so the balance cgt-calc keeps stays too high in the currency you converted from
-    and too low in the one you converted to. That balance is used only for the balance check and the
-    `Final balance` lines of the summary, so gains and income are not affected, but those lines will
-    not match Trading 212. If the run stops with `Reached a negative balance` in a currency you
-    funded by converting, run it again with `--no-balance-check`, which turns the check off for
-    every input in the run.
+- In an export with no `Currency conversion from amount` and `Currency conversion to amount`
+    columns, only the fee of a currency conversion is read, not the cash it moved. The balance
+    cgt-calc keeps then stays too high in the currency you converted from and too low in the one you
+    converted to. If the run stops with `Reached a negative balance` in a currency you funded by
+    converting, run it again with `--no-balance-check`, which turns the check off for every input in
+    the run.
 - One run covers one Trading 212 account. `--trading212-dir` takes a single directory and every file
     in it is read as one account, because nothing in the CSV identifies which account a row belongs
     to. If you hold the same security in two Trading 212 accounts, their exports cannot be combined
