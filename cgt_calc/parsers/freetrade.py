@@ -10,7 +10,11 @@ import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import UK_TIMEZONE
-from cgt_calc.exceptions import ParsingError, UnsupportedBrokerCurrencyError
+from cgt_calc.exceptions import (
+    ParsingError,
+    UnexpectedColumnCountError,
+    UnsupportedBrokerCurrencyError,
+)
 from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
@@ -272,7 +276,13 @@ class FreetradeParser(BaseSingleFileParser[BrokerTransaction]):
             # empty row rather than a transaction.
             if is_blank_row(row_raw):
                 continue
-            row = dict(zip(header, row_raw, strict=False))
+            # A short row would be read with columns missing, and a long
+            # one with its last cells dropped.
+            if len(row_raw) != len(header):
+                raise UnexpectedColumnCountError(
+                    row_raw, len(header), file_path, row_index=index
+                )
+            row = dict(zip(header, row_raw, strict=True))
             action_type = row.get(FreetradeColumn.TYPE)
             if action_type in IGNORED_TYPES:
                 LOGGER.debug(

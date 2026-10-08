@@ -95,7 +95,8 @@ promise to import its corporate-action rows directly.
     columns are accepted so ordinary rows can still be imported; an actual split row stops with
     `Unknown type`. Remove it in a working copy only together with a RAW
     [`STOCK_SPLIT` row](raw.md#share-reorganisations) stating the change to your whole pooled
-    holding.
+    holding. Delete the line in a text editor, not a spreadsheet; see
+    [Troubleshooting](#troubleshooting).
 - The importer supports a GBP account currency only. Changing the currency text in the CSV would not
     convert its amounts.
 - The export has no asset-class column, and the importer does not use one. Every `ORDER` is
@@ -112,8 +113,8 @@ The Activity Feed can contain queued orders and other items as well as executed 
 cgt-calc ignores the two document types described under [Supported activity](#supported-activity).
 Identify any other named row in Freetrade before deciding what to do with it:
 
-- a queued order should be replaced by its executed contract note if it later executed, or removed
-    if it was cancelled; and
+- a queued order should be replaced by its executed contract note if it later executed, or removed,
+    in a text editor, if it was cancelled; and
 - a transfer or corporate action may need the extra records described in
     [Check for missing activity](#check-for-missing-activity).
 
@@ -136,6 +137,18 @@ If an unchanged export still fails after upgrading cgt-calc, open a GitHub issue
 
 Do not upload an unredacted file: the export contains order identifiers, holdings and other
 sensitive financial information.
+
+### `This row has ... columns, not ...`
+
+A row has more or fewer cells than the header line. This can happen after a CSV file is edited or
+saved by another program: a spreadsheet program can drop the empty cells at the end of a row when it
+saves a CSV file. Download the export again and use it unchanged. If a fresh export still fails,
+report it as described under
+[`Missing columns` or `Unknown columns`](#missing-columns-or-unknown-columns), with the header and a
+sanitised failing row. If you have to remove a row, delete the whole line in a text editor.
+
+The message quotes the whole row. Remove the order identifier and anything else you would not
+publish before sharing it.
 
 ### `Reached a negative balance`
 
