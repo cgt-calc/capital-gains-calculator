@@ -697,6 +697,63 @@ def test_parse_trade_report_refuses_a_line_of_spaces_in_the_trades(
     assert excinfo.value.row_index == 2
 
 
+@pytest.mark.parametrize(
+    ("extra", "blank", "below"),
+    [
+        pytest.param([], [], "Buy", id="a buy below an empty line"),
+        # A column added on the left moves Type, which is found from the header.
+        pytest.param(
+            ["Portfolio"],
+            [""] * (len(TRADE_HEADER) + 1),
+            "Sell",
+            id="a sale below a line of commas",
+        ),
+    ],
+)
+def test_parse_trade_report_refuses_a_trade_below_a_blank_row(
+    tmp_path: Path, extra: list[str], blank: list[str], below: str
+) -> None:
+    """A blank row ends the trades list, so a trade under one would be left out."""
+    trade = ["NASDAQ", "FOO", "Foo Inc", "Buy", "01/02/2023", "10", "5.5", "1"]
+    trade += ["USD", "1", "44", ""]
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            [*extra, *TRADE_HEADER],
+            [*extra, *trade],
+            blank,
+            [*extra, *trade[:3], below, *trade[4:]],
+        ],
+    )
+
+    with pytest.raises(
+        ParsingError, match="below the blank row 3, where the trades list ends"
+    ) as excinfo:
+        SharesightParser().load_from_dir(tmp_path)
+
+    assert excinfo.value.row_index == 4
+
+
+def test_parse_trade_report_ignores_short_rows_below_the_trades(
+    tmp_path: Path,
+) -> None:
+    """A footnote or an empty line under the list is narrower than the table."""
+    trade = ["NASDAQ", "FOO", "Foo Inc", "Buy", "01/02/2023", "10", "5.5", "1"]
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            TRADE_HEADER,
+            [*trade, "USD", "1", "44", ""],
+            [],
+            # As wide as the columns to the left of Type, and no wider.
+            ["* Prices and brokerage are specified in market currency.", "", ""],
+            [],
+        ],
+    )
+
+    assert len(SharesightParser().load_from_dir(tmp_path)) == 1
+
+
 def test_parse_trade_report_fx_without_value(tmp_path: Path) -> None:
     """Raise on FX trades without a GBP value."""
     _write_csv(
