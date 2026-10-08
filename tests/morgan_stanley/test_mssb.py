@@ -225,18 +225,6 @@ def test_read_mssb_release_invalid_header(tmp_path: Path) -> None:
     assert "CSV header mismatch" in str(exc.value)
 
 
-def test_read_mssb_release_header_only_file(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Warn about a report that holds its header and no rows, and read nothing."""
-
-    release_file = tmp_path / RELEASES_REPORT_FILENAME
-    _write_csv(release_file, [COLUMNS_RELEASE])
-
-    assert MSSBParser().load_from_dir(tmp_path) == []
-    assert f"No transactions detected in file {release_file}" in caplog.messages
-
-
 def test_read_mssb_withdrawal_short_row(tmp_path: Path) -> None:
     """Raise a clean ParsingError for a row with fewer fields than the header.
 

@@ -19,11 +19,10 @@ Place the downloaded report files in one directory. Keep at least these files un
 - `Releases Report.csv`
 - `Withdrawals Report.csv`
 
-Their names are required, although matching is case-insensitive, including the `.csv` extension. A
-report that holds only its header line is read as having no transactions, and cgt-calc warns **No
-transactions detected in file** with its name. Other CSV files in the directory are ignored. In
-particular, cgt-calc does not read the `Releases Net Shares Report.csv` or
-`Withdrawal Wire Report.csv` files found in the original example export.
+Their names are required, although matching is case-insensitive, including the `.csv` extension.
+Other CSV files in the directory are ignored. In particular, cgt-calc does not read the
+`Releases Net Shares Report.csv` or `Withdrawal Wire Report.csv` files found in the original example
+export.
 
 Export from the first award or transaction through today, or at least 30 days after the end of the
 tax year you are calculating. Earlier vesting establishes the cost and quantity of shares sold
@@ -86,6 +85,13 @@ July 2022.
 Check that the directory passed to `--mssb-dir` directly contains `Releases Report.csv` and
 `Withdrawals Report.csv`. A parent directory, a Shareworks or E*TRADE export, or a directory
 containing only the ignored reports will not load any transactions.
+
+### `No transactions detected in file`
+
+The named report holds its header line and no rows. cgt-calc reads it as having no transactions and
+carries on with the other report. That is expected when you had no sales, or no releases, in the
+period you exported. If you had some, download the report again for the complete period: the
+calculation leaves them out otherwise.
 
 ### `Non-zero Net Cash Proceeds`
 
