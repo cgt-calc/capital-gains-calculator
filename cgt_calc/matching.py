@@ -1151,12 +1151,12 @@ class Matcher:
                 f"Cannot compute the disposal of {symbol} on {date_index}: the "
                 f"day's renames make {' and '.join(sorted(names))} one "
                 "holding, and pooled cost with no shares of its own is "
-                f"recorded under {' and '.join(cost_only)} - a management fee, "
-                "most likely. That cost belongs to the shares being disposed "
+                f"recorded under {' and '.join(cost_only)} - a FEE row, most "
+                "likely. That cost belongs to the shares being disposed "
                 "of here, but it only joins their pool when the day's renames "
                 "are applied, so whether this disposal's Section 104 cost "
                 "includes it turns on an order the input does not give. "
-                "Record the fee under the name the shares are held under, or "
+                "Record the FEE row under the name the shares are held under, or "
                 "work this day out by hand (consider professional advice)."
             )
         if after_renames:
@@ -1432,7 +1432,7 @@ class Matcher:
             if has_key(self.history.transfer_to_spouse_list, date_index, name):
                 activity.append("transferred to a spouse")
             if (date_index, name) in self.history.fee_days:
-                activity.append("charged a fee")
+                activity.append("given cost by a FEE row")
         if activity:
             raise CalculationError(
                 f"Cannot compute the spin-off of {dest} from {source} on "

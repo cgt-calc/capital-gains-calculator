@@ -163,7 +163,7 @@ def _spin_off() -> CapitalGainsReport:
 
 
 def _fee_and_income() -> CapitalGainsReport:
-    """Charge a management fee, pay UK interest and its tax, and a dividend with treaty relief."""
+    """Add a cost with no new shares, pay UK interest and its tax, and a dividend with treaty relief."""
     return get_report(
         create_calculator(tax_year=2024, balance_check=False),
         [
@@ -270,7 +270,7 @@ SCENARIOS: dict[str, tuple[Callable[[], CapitalGainsReport], list[str]]] = {
     "fee_and_income": (
         _fee_and_income,
         [
-            "Management fee for FOO",
+            "Cost added to FOO with no new shares",
             "Interest UK 1",
             "Interest tax UK 1",
             "tax treaty amount",

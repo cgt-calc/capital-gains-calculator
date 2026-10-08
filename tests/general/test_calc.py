@@ -1598,10 +1598,15 @@ def test_a_cost_only_pool_under_a_renamed_name_is_refused() -> None:
     with pytest.raises(CalculationError) as excinfo:
         get_report(calculator, transactions)
 
-    assert str(excinfo.value).startswith(
+    message = str(excinfo.value)
+    assert message.startswith(
         f"Cannot compute the disposal of OLD on {RENAME_DAY}: the day's renames "
         "make NEW and OLD one holding, and pooled cost with no shares of its "
-        "own is recorded under NEW"
+        "own is recorded under NEW - a FEE row, most likely."
+    )
+    assert message.endswith(
+        "Record the FEE row under the name the shares are held under, or work "
+        "this day out by hand (consider professional advice)."
     )
 
 
