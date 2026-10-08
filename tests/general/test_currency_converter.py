@@ -187,8 +187,13 @@ def test_read_exchange_rates_skips_comment_lines(tmp_path: Path) -> None:
 class OfflineSession:
     """Session stub that fails every request."""
 
+    def __init__(self) -> None:
+        """Start with nothing asked."""
+        self.urls: list[str] = []
+
     def get(self, url: str, timeout: int) -> NoReturn:
-        """Simulate a network failure."""
+        """Simulate a network failure, noting the address asked."""
+        self.urls.append(url)
         raise requests_exceptions.ConnectionError(f"offline: {url}")
 
 
@@ -229,14 +234,33 @@ class FakeSession:
         return self._response
 
 
-def _monthly_usd(rate: str) -> FakeSession:
+def _usd_file(rate: str) -> FakeResponse:
     """Stand in for HMRC's monthly file, which gives one rate for the month."""
     xml = (
         "<exchangeRateMonthList><exchangeRate>"
         f"<currencyCode>USD</currencyCode><rateNew>{rate}</rateNew>"
         "</exchangeRate></exchangeRateMonthList>"
     )
-    return FakeSession(FakeResponse(ok=True, text=xml))
+    return FakeResponse(ok=True, text=xml)
+
+
+def _monthly_usd(rate: str) -> FakeSession:
+    """Give the same monthly file whichever month is asked for."""
+    return FakeSession(_usd_file(rate))
+
+
+class MonthlyFiles:
+    """Session stub that gives each month's file its own USD rate."""
+
+    def __init__(self, rates: dict[str, str]) -> None:
+        """Store each file's rate by the MMYY in its name."""
+        self._rates = rates
+        self.urls: list[str] = []
+
+    def get(self, url: str, timeout: int) -> FakeResponse:
+        """Return the file for the month the address names."""
+        self.urls.append(url)
+        return _usd_file(self._rates[url.removesuffix(".xml")[-4:]])
 
 
 DATE = datetime.date(2024, 1, 1)
@@ -398,7 +422,10 @@ def _reply(text: str, *, status: int = 200) -> FakeSession:
     ],
 )
 def test_a_failed_download_says_what_went_wrong_and_what_to_do(
-    date: datetime.date, session: object, problem: str, tmp_path: Path
+    date: datetime.date,
+    session: FakeSession | OfflineSession,
+    problem: str,
+    tmp_path: Path,
 ) -> None:
     """Every way the download fails gives the reason, then the same next step.
 
@@ -410,6 +437,7 @@ def test_a_failed_download_says_what_went_wrong_and_what_to_do(
     """
     rates_file = tmp_path / "rates.csv"
     converter = CurrencyConverter(exchange_rates_file=rates_file)
+    session.urls.clear()  # the stub outlives one run of its row
     converter.session = session  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
     with pytest.raises(ExternalApiError) as excinfo:
@@ -422,9 +450,11 @@ def test_a_failed_download_says_what_went_wrong_and_what_to_do(
         "being units of EUR per £1. "
         "See https://cgt-calc.uk/extra-data-and-options/#exchange-rates"
     )
-    # A failure is not remembered as the month's rates: the next lookup asks again.
+    # A failure is not remembered, as rates or as an error: the next lookup
+    # asks again.
     with pytest.raises(ExternalApiError):
         converter.currency_to_gbp_rate(CurrencyCode("EUR"), date)
+    assert session.urls == [RATES_ADDRESS[date]] * 2
     # A failed download leaves the rates file as it was: here, not yet written.
     assert not rates_file.exists()
 
@@ -439,35 +469,46 @@ def test_cnh_is_treated_as_cny() -> None:
 
 
 def test_a_month_is_downloaded_once_however_many_of_its_dates_need_it(
-    tmp_path: Path,
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """HMRC publishes one file for a month, so a second date in it asks nothing.
 
-    Each date still gets its own row in the rates file, including the last one
-    here, which is served from memory after another month was downloaded.
+    Each month keeps its own rates: the next month's and the same month a year
+    on differ here. The last date is served from memory after both of those
+    were downloaded, and still gets June 2019's rate and its own row in the
+    rates file.
     """
     rates_file = tmp_path / "rates.csv"
     converter = CurrencyConverter(exchange_rates_file=rates_file)
-    session = _monthly_usd("1.2611")
+    session = MonthlyFiles({"0619": "1.2611", "0719": "1.2532", "0620": "1.2331"})
     converter.session = session  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
-    for date in (
-        datetime.date(2019, 6, 3),
-        datetime.date(2019, 7, 1),
-        datetime.date(2019, 6, 14),
-    ):
-        assert converter.currency_to_gbp_rate(USD, date) == Decimal("1.2611")
+    with caplog.at_level(logging.INFO):
+        for date, rate in (
+            (datetime.date(2019, 6, 3), "1.2611"),
+            (datetime.date(2019, 7, 1), "1.2532"),
+            (datetime.date(2020, 6, 1), "1.2331"),
+            (datetime.date(2019, 6, 14), "1.2611"),
+        ):
+            assert converter.currency_to_gbp_rate(USD, date) == Decimal(rate)
 
     legacy = "https://www.hmrc.gov.uk/softwaredevelopers/rates/"
     assert session.urls == [
         f"{legacy}exrates-monthly-0619.xml",
         f"{legacy}exrates-monthly-0719.xml",
+        f"{legacy}exrates-monthly-0620.xml",
+    ]
+    assert [record.getMessage() for record in caplog.records] == [
+        "Fetching HMRC exchange rates for 2019-06...",
+        "Fetching HMRC exchange rates for 2019-07...",
+        "Fetching HMRC exchange rates for 2020-06...",
     ]
     assert rates_file.read_text(encoding="utf8") == (
         "month,currency,rate\n"
         "2019-06-03,USD,1.2611\n"
         "2019-06-14,USD,1.2611\n"
-        "2019-07-01,USD,1.2611\n"
+        "2019-07-01,USD,1.2532\n"
+        "2020-06-01,USD,1.2331\n"
     )
 
 
@@ -477,9 +518,11 @@ def test_a_row_typed_for_one_currency_leaves_the_others_to_be_downloaded(
     """A date on file with one currency still has its month asked for another.
 
     The row was typed in while HMRC could not be reached. It is kept and still
-    used; the download fills in the date's other currencies beside it. A
+    used, also after the month is stored under the date a second time, from
+    memory; the download fills in the date's other currencies beside it. A
     currency the download lacks as well is refused, naming the file its row
-    goes in.
+    goes in. The typed rate stays on its own date: another date in the month
+    gets HMRC's.
     """
     date = datetime.date(2019, 6, 14)
     rates_file = tmp_path / "rates.csv"
@@ -497,17 +540,24 @@ def test_a_row_typed_for_one_currency_leaves_the_others_to_be_downloaded(
         "</exchangeRate>"
         "</exchangeRateMonthList>"
     )
-    converter.session = FakeSession(FakeResponse(ok=True, text=xml))  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+    session = FakeSession(FakeResponse(ok=True, text=xml))
+    converter.session = session  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
     assert converter.currency_to_gbp_rate(CurrencyCode("EUR"), date) == Decimal(
         "1.1307"
     )
+    # Asking for a currency the month lacks stores the month under the date
+    # again, this time from memory.
+    with pytest.raises(HmrcRateMissingError, match=r"Add it to .*rates\.csv: "):
+        converter.currency_to_gbp_rate(CurrencyCode("XAU"), date)
     assert converter.currency_to_gbp_rate(USD, date) == Decimal("1.2682")
     assert rates_file.read_text(encoding="utf8") == (
         "month,currency,rate\n2019-06-14,EUR,1.1307\n2019-06-14,USD,1.2682\n"
     )
-    with pytest.raises(HmrcRateMissingError, match=r"Add it to .*rates\.csv: "):
-        converter.currency_to_gbp_rate(CurrencyCode("XAU"), date)
+    assert converter.currency_to_gbp_rate(USD, datetime.date(2019, 6, 20)) == Decimal(
+        "1.2611"
+    )
+    assert len(session.urls) == 1
 
 
 def test_test_converter_records_new_rates(tmp_path: Path) -> None:
