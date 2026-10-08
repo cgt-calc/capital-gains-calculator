@@ -316,16 +316,26 @@ def test_halves_stamped_too_far_apart_do_not_pair(
     assert f"Stock split open={open_time}" in message
 
 
-def test_a_trade_between_the_two_halves_is_refused(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "trade_time",
+    ["2026-02-02 07:44:13", "2026-02-02 07:44:13.500", "2026-02-02 07:44:14"],
+    ids=["as the position closes", "between", "as it reopens"],
+)
+def test_a_trade_at_or_between_the_two_halves_is_refused(
+    tmp_path: Path, trade_time: str
+) -> None:
     """Its count is in neither unit system, and nothing says which."""
     with pytest.raises(ParsingError, match="stamped between the two halves"):
-        load_pair(
+        load(
             tmp_path,
-            [
-                close_row(time="2026-02-02 07:44:13"),
-                trade_row(time="2026-02-02 07:44:13.500"),
-                open_row(time="2026-02-02 07:44:14"),
-            ],
+            {
+                "export.csv": [
+                    HEADER_2026,
+                    close_row(time="2026-02-02 07:44:13"),
+                    trade_row(time=trade_time),
+                    open_row(time="2026-02-02 07:44:14"),
+                ]
+            },
         )
 
 
