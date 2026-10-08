@@ -211,6 +211,28 @@ def test_read_freetrade_transactions_invalid_decimal(tmp_path: Path) -> None:
         FreetradeParser().load_from_file(path)
 
 
+@pytest.mark.parametrize(
+    ("change", "found"),
+    [
+        pytest.param(-1, len(COLUMNS) - 1, id="a cell short"),
+        pytest.param(1, len(COLUMNS) + 1, id="a cell too many"),
+    ],
+)
+def test_read_freetrade_transactions_refuses_a_row_of_the_wrong_width(
+    tmp_path: Path, change: int, found: int
+) -> None:
+    """A row is not read against the wrong columns, nor its last cell dropped."""
+    row = _default_row()
+    row = row[:-1] if change < 0 else [*row, "extra"]
+    path = _write_csv(tmp_path, COLUMNS, [_default_row(), row])
+
+    with pytest.raises(
+        ParsingError,
+        match=f", row 3: This row has {found} columns, not {len(COLUMNS)}",
+    ):
+        FreetradeParser().load_from_file(path)
+
+
 def test_read_freetrade_transactions_unsupported_currency(tmp_path: Path) -> None:
     """Non-GBP account currencies raise a dedicated error."""
     overrides = {FreetradeColumn.ACCOUNT_CURRENCY.value: "USD"}
