@@ -96,7 +96,7 @@ promise to import its corporate-action rows directly.
     `Unknown type`. Remove it in a working copy only together with a RAW
     [`STOCK_SPLIT` row](raw.md#share-reorganisations) stating the change to your whole pooled
     holding. Delete the line in a text editor, not a spreadsheet; see
-    [`This row has ... columns, not ...`](#this-row-has-columns-not).
+    [Troubleshooting](#troubleshooting).
 - The importer supports a GBP account currency only. Changing the currency text in the CSV would not
     convert its amounts.
 - The export has no asset-class column, and the importer does not use one. Every `ORDER` is
