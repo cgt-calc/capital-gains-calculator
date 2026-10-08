@@ -54,7 +54,7 @@ RENAME_DAY_UNSUPPORTED_ACTIONS: Final = frozenset(
         ActionType.FULL_REDEMPTION,
     }
 )
-"""Actions that keep their component on the existing row-position path."""
+"""Actions that keep their component's rows on the existing row-position path."""
 
 
 UNNAMED_HOLDING_ACTIONS: Final = frozenset({ActionType.EXCESS_REPORTED_INCOME})
@@ -63,7 +63,7 @@ UNNAMED_HOLDING_ACTIONS: Final = frozenset({ActionType.EXCESS_REPORTED_INCOME})
 An excess reported income row names no ticker at all, only an ISIN, which is
 resolved to the holdings it adds cost to when that row is read. It cannot be
 matched to a rename component by anything on its own row, so a day carrying
-one is left to the row-position pool in its entirety.
+one has every row read against the row-position pool.
 
 A spin-off used to be read this way too, because the holding it draws from is
 chosen when the row is read rather than named on it. But the row does name the

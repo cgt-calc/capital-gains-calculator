@@ -1562,6 +1562,40 @@ def test_a_rename_carries_the_accounts_over_with_the_units() -> None:
         )
 
 
+def test_a_purchase_after_the_rename_row_keeps_its_account_in_the_holding() -> None:
+    """Shares bought under the retired ticker bring their account with them.
+
+    The fee keeps the day's rows read where they sit, so account B's purchase
+    is recorded under OLD after the pool has left for NEW. Its five shares end
+    the day in the renamed holding, and so does its account: account A's own
+    split row is then a change to ten of the fifteen shares, not to the pool.
+    """
+    with pytest.raises(CalculationError, match=r"this holding also has units from B\."):
+        run(
+            [
+                trade(
+                    POOL_DAY,
+                    ActionType.BUY,
+                    "OLD",
+                    "10",
+                    "10",
+                    source=elsewhere(0, account="A"),
+                ),
+                rename(EVENT_DAY, "OLD", "NEW"),
+                transaction(EVENT_DAY, ActionType.FEE, "NEW", amount=-5, currency=GBP),
+                trade(
+                    EVENT_DAY,
+                    ActionType.BUY,
+                    "OLD",
+                    "5",
+                    "12",
+                    source=elsewhere(1, account="B"),
+                ),
+                legacy_split(LATER_DAY, "NEW", "15", source=elsewhere(2, account="A")),
+            ]
+        )
+
+
 # ===== more than one row for one event =====
 
 

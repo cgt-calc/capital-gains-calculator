@@ -85,10 +85,9 @@ class PreparedHistory:
         default_factory=lambda: defaultdict(dict)
     )
     # What a day's renames say is one holding, by date and by each of the
-    # names that holding is spelled under. Only the days and holdings this
-    # pass reads that way: a name a split restates or a spin-off apportions
-    # from is absent, and keeps the pool the RENAME row's own position
-    # leaves it under until the day closes.
+    # names that holding is spelled under. Only the days and holdings
+    # `plan_renames` reads that way: any other name is absent, and keeps the
+    # pool the RENAME row's own position leaves it under until the day closes.
     rename_components: dict[datetime.date, dict[str, RenameComponent]] = field(
         default_factory=dict
     )
