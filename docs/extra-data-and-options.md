@@ -33,6 +33,7 @@ every run until you remove the row:
 
 A row you add for a date from May 2016 is used as it stands, without a comparison. When that date
 needs another currency, cgt-calc downloads the month and saves the other currencies beside your row.
+Remove the row to use HMRC's rate instead.
 
 The rates are HMRC's as published, and cgt-calc cannot tell when HMRC's own figure is wrong. HMRC's
 tables give some less common currencies another currency's rate, for example the Georgian lari at

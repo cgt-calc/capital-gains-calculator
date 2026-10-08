@@ -353,7 +353,7 @@ class CurrencyConverter:
                     f"or non-finite rate: {rate_new_elem.text}",
                 )
             rates[currency] = rate
-        # A row already held for the date was typed in, and stays in use.
+        # Rows already held for the date stay in use: one may have been typed in.
         self.cache[date] = {**rates, **self.cache.get(date, {})}
         self._write_exchange_rates_file(self.exchange_rates_file, self.cache)
 
@@ -493,7 +493,7 @@ class TestCurrencyConverter(CurrencyConverter):
 
     @override
     def _recorded_rate(self, currency: CurrencyCode, date: datetime.date) -> Decimal:
-        """Get a rate from the rates file, downloading the month if it is new.
+        """Get a rate from the rates file, downloading the month if it lacks one.
 
         When the value is missing from the view of the test_file_cache, append it
         to the exchange rate CSV file.
