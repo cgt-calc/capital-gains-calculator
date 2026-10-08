@@ -166,7 +166,7 @@ def _source_activity(kind: str, symbol: str) -> BrokerTransaction:
 
 
 @pytest.mark.parametrize(
-    "kind", ["sold", "bought", "transferred to a spouse", "charged a fee"]
+    "kind", ["sold", "bought", "transferred to a spouse", "given a FEE row"]
 )
 @SPELLING
 def test_a_source_traded_on_the_spin_off_day_is_refused_under_either_name(

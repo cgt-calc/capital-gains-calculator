@@ -1432,7 +1432,7 @@ class Matcher:
             if has_key(self.history.transfer_to_spouse_list, date_index, name):
                 activity.append("transferred to a spouse")
             if (date_index, name) in self.history.fee_days:
-                activity.append("charged a fee")
+                activity.append("given a FEE row")
         if activity:
             raise CalculationError(
                 f"Cannot compute the spin-off of {dest} from {source} on "
