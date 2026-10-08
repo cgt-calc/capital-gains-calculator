@@ -188,6 +188,15 @@ def test_hl_blank_reference_skipped(tmp_path: Path) -> None:
     assert transactions == []
 
 
+def test_hl_file_with_a_header_and_no_rows_is_called_a_csv(tmp_path: Path) -> None:
+    """The error names the format of the file read, not both formats `--hl-dir` takes."""
+    csv_file = tmp_path / "hl-transaction-summary.csv"
+    csv_file.write_text(HL_CSV_HEADER, encoding="windows-1252")
+
+    with pytest.raises(ParsingError, match="Hargreaves Lansdown CSV file is empty"):
+        HargreavesLansdownParser.load_from_dir(tmp_path)
+
+
 def test_load_from_dir_accepts_uppercase_csv_extension(tmp_path: Path) -> None:
     """Discover an HL transaction report whose CSV extension is uppercase."""
     csv_file = tmp_path / "hl-transaction-summary.CSV"
