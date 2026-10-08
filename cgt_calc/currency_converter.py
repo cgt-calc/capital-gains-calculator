@@ -74,6 +74,8 @@ class CurrencyConverter:
             **(initial_data or {}),
         }
         self._reported: set[tuple[datetime.date, CurrencyCode]] = set()
+        # The rates of each month downloaded in this run, by its first day.
+        self._downloaded: dict[datetime.date, dict[CurrencyCode, Decimal]] = {}
 
         # Limit borrowed from the Companies House API guidance:
         # https://developer-specs.company-information.service.gov.uk/guides/rateLimiting
@@ -277,6 +279,21 @@ class CurrencyConverter:
             writer.writerows([EXCHANGE_RATES_HEADER, *data_rows])
 
     def _query_hmrc_api(self, date: datetime.date, currency: CurrencyCode) -> None:
+        """Store the month's rates under `date`; `currency` is the one wanted.
+
+        HMRC publishes one file for a month, so it is downloaded once in a run
+        however many of the month's dates need it.
+        """
+        first = date.replace(day=1)
+        if first not in self._downloaded:
+            self._downloaded[first] = self._download_month(date, currency)
+        # Rows already held for the date stay in use: one may have been typed in.
+        self.cache[date] = {**self._downloaded[first], **self.cache.get(date, {})}
+        self._write_exchange_rates_file(self.exchange_rates_file, self.cache)
+
+    def _download_month(
+        self, date: datetime.date, currency: CurrencyCode
+    ) -> dict[CurrencyCode, Decimal]:
         """Download the month's rates for `date`; `currency` is the one wanted."""
         month = f"{date:%Y-%m}"
         LOGGER.info("Fetching HMRC exchange rates for %s...", month)
@@ -364,9 +381,7 @@ class CurrencyConverter:
             rates[listed] = rate
         if not rates:
             raise failed(f"HMRC API response for {month} has no rates.")
-        # Rows already held for the date stay in use: one may have been typed in.
-        self.cache[date] = {**rates, **self.cache.get(date, {})}
-        self._write_exchange_rates_file(self.exchange_rates_file, self.cache)
+        return rates
 
     def currency_to_gbp_rate(
         self, currency: CurrencyCode, date: datetime.date
