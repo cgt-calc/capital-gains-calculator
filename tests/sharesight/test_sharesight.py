@@ -358,6 +358,11 @@ def test_parse_income_report_skips_an_empty_line_outside_a_dividend_list(
         Decimal(100),
         Decimal(-15),
     ]
+    # A skipped line is still a line of the file: the rows below keep theirs.
+    assert [
+        transaction.source.row if transaction.source else None
+        for transaction in transactions
+    ] == [6, 6, 13, 13]
 
 
 def test_parse_income_report_refuses_an_empty_line_in_a_dividend_list(
