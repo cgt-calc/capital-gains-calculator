@@ -298,7 +298,7 @@ class CurrencyConverter:
                 f"{err.strerror}. Close the file if another program has it open, "
                 "and check that it and its folder can be written to. To run "
                 "without saving the rates, pass --exchange-rates-file= with "
-                "nothing after it."
+                "nothing after the = sign."
             ) from err
         finally:
             # Already gone once it has been moved into place.

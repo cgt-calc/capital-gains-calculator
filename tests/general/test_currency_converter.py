@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 import stat
 import sys
-from typing import NoReturn, override
+from typing import TYPE_CHECKING, NoReturn, override
 
 import pytest
 from requests import exceptions as requests_exceptions
@@ -31,6 +31,9 @@ from cgt_calc.exceptions import (
     ParsingError,
 )
 from cgt_calc.model import CurrencyCode, ForeignCurrencyAmount
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def test_read_exchange_rates_handles_empty_file(tmp_path: Path) -> None:
@@ -564,37 +567,58 @@ def test_a_row_typed_for_one_currency_leaves_the_others_to_be_downloaded(
 TYPED_ROW = b"month,currency,rate\r\n2019-06-14,USD,1.2682\r\n"
 
 
-class Unwritable(Decimal):
-    """A rate whose text cannot be written as UTF-8, so a save fails at its row."""
+class DuringTheSave(Decimal):
+    """A rate that runs `act` when it is turned into text for its row.
+
+    The csv writer does that as it writes the row, so a save has its temporary
+    file open and part written at that moment.
+    """
+
+    act: Callable[[], None]
 
     @override
     def __str__(self) -> str:
-        """Give half of a character pair, which no file can hold by itself."""
-        return "\ud800"
+        """Run `act`, then give the rate's text."""
+        self.act()
+        return super().__str__()
 
 
-def test_a_save_that_fails_part_way_leaves_the_rates_file_as_it_was(
+NOT_PART_WAY = (
+    "the rate became text before the save had its temporary file open; this "
+    "test needs that to happen as the rate's row is written"
+)
+
+
+def test_a_run_stopped_as_it_saves_leaves_the_rates_file_as_it_was(
     tmp_path: Path,
 ) -> None:
-    """A save that stops after it has begun writing loses no row that was on file.
+    """Ctrl-C during a save loses no row that was on file, and leaves no other file.
 
     The rows are saved in date order, so the save here has written the typed
-    row and July 2019's when it fails at the row for June 2020. Ctrl-C at that
-    moment leaves the same.
+    row and July 2019's when it is stopped at the row for June 2020.
     """
     rates_file = tmp_path / "rates.csv"
     rates_file.write_bytes(TYPED_ROW)
+    files_when_stopped: list[int] = []
+
+    def stop() -> None:
+        files_when_stopped.append(len(list(tmp_path.iterdir())))
+        raise KeyboardInterrupt
+
+    rate = DuringTheSave("1.2331")
+    rate.act = stop
     converter = CurrencyConverter(
         exchange_rates_file=rates_file,
-        initial_data={datetime.date(2020, 6, 1): {USD: Unwritable(1)}},
+        initial_data={datetime.date(2020, 6, 1): {USD: rate}},
     )
     converter.session = _monthly_usd("1.2532")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
-    with pytest.raises(UnicodeEncodeError):
+    with pytest.raises(KeyboardInterrupt):
         converter.currency_to_gbp_rate(USD, datetime.date(2019, 7, 1))
 
     assert rates_file.read_bytes() == TYPED_ROW
     assert list(tmp_path.iterdir()) == [rates_file]
+    assert files_when_stopped == [2], NOT_PART_WAY
 
 
 def test_two_runs_that_save_at_once_both_finish(tmp_path: Path) -> None:
@@ -607,32 +631,27 @@ def test_two_runs_that_save_at_once_both_finish(tmp_path: Path) -> None:
     rates_file.write_bytes(TYPED_ROW)
     second = CurrencyConverter(exchange_rates_file=rates_file)
     second.session = _monthly_usd("1.2331")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
-    files_when_the_second_saved = []
+    files_when_the_second_saved: list[int] = []
 
-    class SecondRunSavesNow(Decimal):
-        """A rate that has the second run save as this one's row is written."""
+    def second_run_saves() -> None:
+        files_when_the_second_saved.append(len(list(tmp_path.iterdir())))
+        second.currency_to_gbp_rate(USD, datetime.date(2020, 6, 1))
 
-        @override
-        def __str__(self) -> str:
-            """Save from the second run, then give the rate's text."""
-            files_when_the_second_saved.append(len(list(tmp_path.iterdir())))
-            second.currency_to_gbp_rate(USD, datetime.date(2020, 6, 1))
-            return super().__str__()
-
+    rate = DuringTheSave("1.4166")
+    rate.act = second_run_saves
     first = CurrencyConverter(
         exchange_rates_file=rates_file,
-        initial_data={datetime.date(2021, 6, 1): {USD: SecondRunSavesNow("1.4166")}},
+        initial_data={datetime.date(2021, 6, 1): {USD: rate}},
     )
     first.session = _monthly_usd("1.2532")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
     first.currency_to_gbp_rate(USD, datetime.date(2019, 7, 1))
 
-    # The first run's own file was there, part written, when the second saved.
-    assert files_when_the_second_saved == [2]
     assert rates_file.read_bytes() == (
         TYPED_ROW + b"2019-07-01,USD,1.2532\r\n2021-06-01,USD,1.4166\r\n"
     )
     assert list(tmp_path.iterdir()) == [rates_file]
+    assert files_when_the_second_saved == [2], NOT_PART_WAY
 
 
 def test_a_rates_file_that_cannot_be_written_is_reported_and_left_alone(
@@ -659,7 +678,7 @@ def test_a_rates_file_that_cannot_be_written_is_reported_and_left_alone(
         "Cannot save exchange rates to rates.csv: Permission denied. Close the file "
         "if another program has it open, and check that it and its folder can be "
         "written to. To run without saving the rates, pass --exchange-rates-file= "
-        "with nothing after it."
+        "with nothing after the = sign."
     )
     assert rates_file.read_bytes() == TYPED_ROW
     assert list(tmp_path.iterdir()) == [tmp_path / "rates.csv"]
