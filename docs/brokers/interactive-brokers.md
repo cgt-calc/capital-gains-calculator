@@ -76,8 +76,10 @@ Net Amount to the cash balance and reports no gain or loss on the conversion its
 
 An `Other Fee` only changes the tracked cash balance, whether it names a security, as an ADR fee
 does, or none, as a market-data subscription does. cgt-calc does not add it to the allowable cost of
-any holding: a charge for holding shares or running the account is not one of the
-[costs you can deduct from a gain](https://www.gov.uk/tax-sell-shares/work-out-your-gain).
+any holding. An ADR fee is a charge for holding the shares and a subscription a charge for running
+the account, and HMRC treats a fee as an
+[incidental cost](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg15250) you can
+deduct only where it was paid for a purchase or a sale.
 
 IBKR descriptions for dividends and payments in lieu can put an ISIN in parentheses immediately
 after the symbol. cgt-calc uses that identifier when deciding whether a supported double-taxation

@@ -303,9 +303,8 @@ def action_from_str(label: str, file: Path) -> ActionType:
     }:
         return ActionType.DIVIDEND_TAX
 
-    # A depositary's ADR fee is a charge for holding the shares, not a cost of
-    # acquiring or disposing of them (TCGA 1992 s38), so it moves the cash
-    # balance and adds to no holding's cost.
+    # An ADR fee is never a cost of the holding (TCGA 1992 s38), so the label
+    # sits with the adjustments. Rows of this group are refused further down.
     if label in {"ADR Mgmt Fee", "Adjustment", "IRS Withhold Adj"}:
         return ActionType.ADJUSTMENT
 

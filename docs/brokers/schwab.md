@@ -132,8 +132,9 @@ Otherwise, it is treated as dividend tax.
 
 `ADR Mgmt Fee` only changes the tracked cash balance; cgt-calc does not add it to the allowable cost
 of the holding. It is a charge for holding the shares rather than a cost of buying or selling them,
-so it is not one of the
-[costs you can deduct from a gain](https://www.gov.uk/tax-sell-shares/work-out-your-gain).
+and HMRC treats a fee as an
+[incidental cost](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg15250) you can
+deduct only where it was paid for the purchase or the sale.
 
 For `Reinvest Dividend`, check the Schwab statement and the finished report. Confirm that the
 dividend income and reinvested purchase were recorded by other rows; do not assume the ignored row

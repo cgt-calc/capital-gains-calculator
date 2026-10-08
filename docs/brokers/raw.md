@@ -108,8 +108,10 @@ A `FEE` adds the charge to that holding's cost, which reduces a later gain, and 
 cash balance. Choosing `FEE` does not make a charge an allowable cost. Use it only for an amount
 HMRC treats as spent on a holding you already have without giving you new shares, such as income
 reinvested in
-[accumulation units](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57707). For
-anything else:
+[accumulation units](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57707) of a UK
+fund. That income is taxable and never leaves your account, so record it as a `DIVIDEND` of the same
+amount on the same day as well: with the `FEE` alone, the income goes unreported and the cash
+balance ends short. For anything else:
 
 - Put a commission or other cost of one purchase or sale in the `fees` column of that `BUY` or
     `SELL` row, so that it counts towards that trade.

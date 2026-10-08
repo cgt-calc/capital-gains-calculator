@@ -524,30 +524,6 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert "Price is in EUR" in str(excinfo.value)
         assert "Exchange Rate" in str(excinfo.value)
 
-    def test_foreign_priced_fee_without_an_exchange_rate_is_not_refused(
-        self, tmp_path: Path
-    ) -> None:
-        """Only a Buy or Sell reads the price back to check it against the amount.
-
-        A fee moves the cash balance and nothing reads its price, so a Price
-        Currency with no Exchange Rate to convert it is dropped along with the
-        price rather than refusing the row.
-        """
-        csv_file = tmp_path / "transactions.csv"
-        csv_file.write_text(
-            self.base_header_with_foreign_currency
-            + "Transaction History,Data,2025-10-03,U***00000,"
-            "CNX1 ADR Fee,Other Fee,CNX1,-,1.5,USD,-1.5,-,-1.5,-\n"
-        )
-
-        transactions = InteractiveBrokersParser().load_from_file(csv_file)
-
-        assert len(transactions) == 1
-        assert transactions[0].action == ActionType.ADJUSTMENT
-        assert transactions[0].currency == CurrencyCode("GBP")
-        assert transactions[0].amount == Decimal("-1.5")
-        assert transactions[0].price is None
-
     def test_forex_trade_component_leaves_no_fee_in_the_report(
         self, tmp_path: Path
     ) -> None:

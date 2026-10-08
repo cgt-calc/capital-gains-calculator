@@ -170,10 +170,9 @@ class InteractiveBrokersTransaction(BrokerTransaction):
         # reads its amount and never its symbol, quantity or price. IBKR files a
         # Forex Trade Component under the currency pair and gives it both a
         # quantity and a price, so clear the columns that describe a security
-        # rather than leave a currency pair looking like a holding. Dropping the
-        # price before it is converted also keeps a pair priced in a currency
-        # the row states no rate for from being refused over a price nothing
-        # reads.
+        # rather than leave a currency pair looking like a holding. An Other
+        # Fee that names a holding loses its symbol the same way: the charge is
+        # no part of what that holding cost.
         if action is ActionType.ADJUSTMENT:
             symbol = None
             quantity = None
@@ -182,16 +181,18 @@ class InteractiveBrokersTransaction(BrokerTransaction):
 
         # The Gross/Net Amount and Commission columns are always in the account's
         # base currency (GBP), so that is the transaction's currency whatever
-        # priced the leg. Price Currency describes the price alone: convert a
-        # foreign price to the base currency where a rate is given. Only a Buy
+        # priced the leg. Price Currency describes the price alone. Only a Buy
         # or Sell reads the price back, to check it against the amount
-        # (quantity x price + fees ≈ |amount|), so only those two are refused
-        # over a price nothing can convert; every other row's price is left
-        # foreign rather than blocking rows the calculator never checks it on.
-        if price is not None and price_currency != "GBP":
-            if exchange_rate is not None:
-                price = price * exchange_rate
-            elif action in {ActionType.BUY, ActionType.SELL}:
+        # (quantity x price + fees ≈ |amount|), so only those two have a foreign
+        # price converted, and are refused where no rate is given to convert it
+        # with; every other row's price is left as the row states it rather
+        # than blocking rows the calculator never checks it on.
+        if (
+            action in {ActionType.BUY, ActionType.SELL}
+            and price is not None
+            and price_currency != "GBP"
+        ):
+            if exchange_rate is None:
                 raise ParsingError(
                     file_path,
                     f"Price is in {price_currency} but the Exchange Rate column is "
@@ -202,6 +203,7 @@ class InteractiveBrokersTransaction(BrokerTransaction):
                     "needs a price, so clearing it only trades this error for a "
                     "missing-price one.",
                 )
+            price = price * exchange_rate
 
         super().__init__(
             date=date,
