@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from contextlib import suppress
 from copy import deepcopy
 import csv
 import datetime
@@ -11,6 +12,7 @@ from functools import cache
 from importlib import resources
 import logging
 from pathlib import Path
+import shutil
 from typing import TYPE_CHECKING, Final, override
 
 from defusedxml import ElementTree as ET
@@ -30,6 +32,7 @@ from .const import (
 from .dates import is_date
 from .exceptions import (
     CalculationError,
+    CgtError,
     ExternalApiError,
     HmrcRateMissingError,
     ParsingError,
@@ -268,15 +271,36 @@ class CurrencyConverter:
     ) -> None:
         if not exchange_rates_file:
             return
-        with open_with_parents(exchange_rates_file) as fout:
-            data_rows = [
-                [month, symbol, str(rate)]
-                for month, rates in data.items()
-                for symbol, rate in rates.items()
-            ]
-            data_rows.sort()
-            writer = csv.writer(fout)
-            writer.writerows([EXCHANGE_RATES_HEADER, *data_rows])
+        data_rows = sorted(
+            [month, symbol, rate]
+            for month, rates in data.items()
+            for symbol, rate in rates.items()
+        )
+        # Written beside the file and then moved into its place, so a run that
+        # stops part way leaves the old file, not an empty or half-written one.
+        # A symbolic link stays one: it is the file it names that is replaced.
+        file = exchange_rates_file.resolve()
+        temporary = file.with_name(f"{file.name}.tmp")
+        try:
+            with open_with_parents(temporary) as fout:
+                csv.writer(fout).writerows([EXCHANGE_RATES_HEADER, *data_rows])
+            if file.exists():
+                # The move would succeed over a read-only file: refuse it here.
+                with file.open("r+"):
+                    pass
+                shutil.copymode(file, temporary)
+            temporary.replace(file)
+        except OSError as err:
+            raise CgtError(
+                f"Cannot save exchange rates to {exchange_rates_file}: "
+                f"{err.strerror}. Check that the file and its folder can be "
+                "written to, or pass --exchange-rates-file '' to run without "
+                "saving them."
+            ) from err
+        finally:
+            # Already gone once it has been moved into place.
+            with suppress(OSError):
+                temporary.unlink()
 
     def _query_hmrc_api(self, date: datetime.date, currency: CurrencyCode) -> None:
         """Store the month's rates under `date`; `currency` is the one wanted.
