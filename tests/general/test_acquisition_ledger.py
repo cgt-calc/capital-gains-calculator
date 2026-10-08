@@ -4,7 +4,8 @@ The acquisition log used to add a purchase, a spin-off's shares and a
 management fee into one figure per day and ticker, and matching worked out
 what it was made of by subtracting the parts it could find recorded
 elsewhere. These pin what each part is recorded as, so a later change can ask
-for the day's genuine acquisitions directly.
+for the day's genuine acquisitions directly. A fee is also followed through to
+what a sale is then identified against.
 """
 
 from __future__ import annotations
@@ -12,12 +13,16 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 
+import pytest
+
 from cgt_calc.model import (
     AcquisitionLog,
     ActionType,
     BrokerTransaction,
     CurrencyCode,
     HmrcTransactionData,
+    Position,
+    RuleType,
 )
 
 from .calc_test_data import GBP, transaction
@@ -27,6 +32,7 @@ from .test_stock_splits import legacy_split
 
 DAY = datetime.date(2024, 5, 10)
 EARLIER_DAY = datetime.date(2024, 5, 1)
+LATER_DAY = datetime.date(2024, 5, 20)
 
 
 def _ledger(transactions: list[BrokerTransaction]) -> AcquisitionLog:
@@ -96,6 +102,96 @@ def test_a_purchase_and_a_fee_on_one_day_stay_separately_recorded() -> None:
     assert record.purchased.amount == Decimal(750)
     assert record.cost_only.amount == Decimal(100)
     assert record.total.amount == Decimal(850)
+
+
+@pytest.mark.parametrize(
+    ("transactions", "rule_type", "pool_left"),
+    [
+        pytest.param(
+            [
+                _gbp_trade(EARLIER_DAY, ActionType.BUY, "X", 100, 1000),
+                _gbp_trade(DAY, ActionType.BUY, "X", 50, 750),
+                _gbp_fee(DAY, "X", 100),
+                _gbp_trade(DAY, ActionType.SELL, "X", 50, 1000),
+            ],
+            RuleType.SAME_DAY,
+            Position(Decimal(100), Decimal(1100)),
+            id="same day",
+        ),
+        pytest.param(
+            [
+                _gbp_trade(EARLIER_DAY, ActionType.BUY, "X", 100, 1000),
+                _gbp_trade(DAY, ActionType.SELL, "X", 50, 1000),
+                _gbp_trade(LATER_DAY, ActionType.BUY, "X", 50, 750),
+                _gbp_fee(LATER_DAY, "X", 100),
+            ],
+            RuleType.BED_AND_BREAKFAST,
+            Position(Decimal(100), Decimal(1100)),
+            id="30 days",
+        ),
+        pytest.param(
+            [
+                _gbp_trade(DAY, ActionType.BUY, "X", 50, 750),
+                _gbp_fee(DAY, "X", 100),
+                _gbp_trade(DAY, ActionType.SELL, "X", 50, 1000),
+            ],
+            RuleType.SAME_DAY,
+            Position(Decimal(0), Decimal(100)),
+            id="same day, nothing else held",
+        ),
+    ],
+)
+def test_a_fee_is_not_part_of_the_purchase_a_sale_is_identified_against(
+    transactions: list[BrokerTransaction], rule_type: RuleType, pool_left: Position
+) -> None:
+    """The 50 sold cost what the 50 bought cost, and the fee stays in the pool.
+
+    A fee is not an acquisition of shares, so the same-day and 30-day rules
+    have nothing of it to identify a sale against. Counted in with that day's
+    purchase, the whole £100 was relieved against whichever sale matched it.
+    Where the sale leaves no shares behind, the pool keeps the fee's cost
+    alone, as it does for a fee charged after a holding is sold out.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    report = get_report(calculator, transactions)
+
+    (entry,) = report.calculation_log[DAY]["sell$X"]
+    assert entry.rule_type is rule_type
+    assert entry.allowable_cost == Decimal(750)
+    assert entry.gain == Decimal(250)
+    assert calculator.portfolio["X"] == pool_left
+
+
+def test_a_fee_has_a_line_of_its_own_when_a_30_day_claim_takes_every_share() -> None:
+    """The report still states the fee, and a pool with the fee in it.
+
+    The earlier sale claims all 50 bought, so no bought share is left for a
+    Section 104 line to carry the fee on. Without one the day's only line is
+    the claim's, which states a pool £100 short and no fee at all.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    report = get_report(
+        calculator,
+        [
+            _gbp_trade(EARLIER_DAY, ActionType.BUY, "X", 100, 1000),
+            _gbp_trade(DAY, ActionType.SELL, "X", 50, 1000),
+            _gbp_trade(LATER_DAY, ActionType.BUY, "X", 50, 750),
+            _gbp_fee(LATER_DAY, "X", 100),
+        ],
+    )
+
+    claimed, fee = report.calculation_log[LATER_DAY]["buy$X"]
+    assert claimed.rule_type is RuleType.BED_AND_BREAKFAST
+    assert claimed.quantity == Decimal(50)
+    assert fee.rule_type is RuleType.SECTION_104
+    assert fee.quantity == Decimal(0)
+    assert fee.amount == Decimal(-100)
+    assert fee.fees == Decimal(100)
+    assert Position(fee.new_quantity, fee.new_pool_cost) == Position(
+        Decimal(100), Decimal(1100)
+    )
 
 
 def test_a_vest_and_a_transfer_from_a_spouse_are_recorded_as_purchases() -> None:

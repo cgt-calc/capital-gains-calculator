@@ -52,6 +52,9 @@
 # "every one of them is claimed by both ends" counts the names one at a time;
 # the Everyone rule misfires.
 ^ingestion\.py:.*Everyone
+# "has taken every one of them" counts the day's shares one at a time; the
+# Everyone rule misfires.
+^matching\.py:.*Everyone
 # "how many candidates there are" is correct; ThereIsAgreement expects the noun
 # after the verb, but this construction puts it first.
 ^trading212\.py:.*ThereIsAgreement
