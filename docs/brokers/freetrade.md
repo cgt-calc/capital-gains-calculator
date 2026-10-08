@@ -137,6 +137,16 @@ If an unchanged export still fails after upgrading cgt-calc, open a GitHub issue
 Do not upload an unredacted file: the export contains order identifiers, holdings and other
 sensitive financial information.
 
+### `This row has ... columns, not ...`
+
+A row has more or fewer cells than the header line. An export straight from Freetrade does not, so
+the file was probably changed after it was downloaded: a spreadsheet program can drop the empty
+cells at the end of a row when it saves a CSV file. Download the export again and use it unchanged.
+If you have to remove a row, delete the whole line in a text editor.
+
+The message quotes the whole row. Remove the order identifier and anything else you would not
+publish before sharing it.
+
 ### `Reached a negative balance`
 
 Check that **All Activity** was selected and that the file contains the top ups, withdrawals and

@@ -212,23 +212,19 @@ def test_read_freetrade_transactions_invalid_decimal(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("change", "found"),
-    [
-        pytest.param(-1, len(COLUMNS) - 1, id="a cell short"),
-        pytest.param(1, len(COLUMNS) + 1, id="a cell too many"),
-    ],
+    "row",
+    [_default_row()[:-1], [*_default_row(), "extra"]],
+    ids=["a cell short", "a cell too many"],
 )
 def test_read_freetrade_transactions_refuses_a_row_of_the_wrong_width(
-    tmp_path: Path, change: int, found: int
+    tmp_path: Path, row: list[str]
 ) -> None:
-    """A row is not read against the wrong columns, nor its last cell dropped."""
-    row = _default_row()
-    row = row[:-1] if change < 0 else [*row, "extra"]
+    """A row is not read with a cell missing, nor with its extra cell dropped."""
     path = _write_csv(tmp_path, COLUMNS, [_default_row(), row])
 
     with pytest.raises(
         ParsingError,
-        match=f", row 3: This row has {found} columns, not {len(COLUMNS)}",
+        match=f", row 3: This row has {len(row)} columns, not {len(COLUMNS)}",
     ):
         FreetradeParser().load_from_file(path)
 
