@@ -612,7 +612,7 @@ def test_a_share_row_settles_an_assignment_up_to_seven_days_later() -> None:
     """The window is the "on or within 7 days" that the refusal states.
 
     Assigned early on Monday 13 May 2024, so day 7 is Monday 20 May and day 8
-    is Tuesday 21 May. No settlement calendar gives either gap. The rows are
+    is Tuesday 21 May. Neither gap is a real settlement of that week. The rows are
     here for the figure the user is told, so that a narrower or a wider window
     cannot pass unnoticed.
     """
