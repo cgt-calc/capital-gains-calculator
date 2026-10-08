@@ -110,10 +110,16 @@ def test_read_revolut_transactions_empty_file(tmp_path: Path, content: str) -> N
 
 
 def test_read_revolut_transactions_missing_column(tmp_path: Path) -> None:
-    """A header that drops a column triggers ParsingError naming it."""
-    path = _write_csv(tmp_path, header=COLUMNS[:-1])
+    """A header that drops columns is refused, naming them in alphabetical order."""
+    path = _write_csv(tmp_path, header=COLUMNS[:2])
 
-    with pytest.raises(ParsingError, match=re.escape("Missing: {'FX Rate'}")):
+    with pytest.raises(
+        ParsingError,
+        match=re.escape(
+            "Missing: Currency, FX Rate, Price per share, Quantity, Total Amount, "
+            "Type. Extra: none."
+        ),
+    ):
         RevolutParser().load_from_file(path)
 
 
@@ -124,7 +130,7 @@ def test_read_revolut_transactions_unexpected_column(tmp_path: Path) -> None:
 
     with pytest.raises(
         ParsingError,
-        match=re.escape("Missing: {'FX Rate'}, Extra: {'Exchange Rate'}"),
+        match=re.escape("Missing: FX Rate. Extra: Exchange Rate."),
     ):
         RevolutParser().load_from_file(path)
 

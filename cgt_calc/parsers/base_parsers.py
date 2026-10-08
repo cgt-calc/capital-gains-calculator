@@ -287,6 +287,11 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
         return transactions
 
 
+def _column_names(columns: set[str]) -> str:
+    """List column names for an error, in an order that is the same on every run."""
+    return ", ".join(sorted(name or "(no name)" for name in columns)) or "none"
+
+
 class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
     """Base parser for CSV files with a fixed set of expected columns."""
 
@@ -302,8 +307,8 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
         if missing or extra:
             raise ParsingError(
                 file_path,
-                f"CSV header mismatch. "
-                f"Missing: {missing or 'none'}, Extra: {extra or 'none'}",
+                f"CSV header mismatch. Missing: {_column_names(missing)}. "
+                f"Extra: {_column_names(extra)}.",
             )
 
     @classmethod
