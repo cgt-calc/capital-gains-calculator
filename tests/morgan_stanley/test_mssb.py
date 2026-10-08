@@ -216,13 +216,17 @@ def test_read_mssb_release_invalid_header(tmp_path: Path) -> None:
     """Error when release report header differs from expected schema."""
 
     release_file = tmp_path / RELEASES_REPORT_FILENAME
-    invalid_header = ["Vest date", *COLUMNS_RELEASE[1:]]
+    invalid_header = ["Vest date", *COLUMNS_RELEASE[1:], ""]
     _write_csv(release_file, [invalid_header])
 
     with pytest.raises(ParsingError) as exc:
         MSSBParser().load_from_dir(tmp_path)
 
-    assert "CSV header mismatch" in str(exc.value)
+    # A column with no heading, as a line ending in a comma gives, is named too.
+    assert (
+        "CSV header mismatch. Missing: 'Vest Date'. Extra: (no name), 'Vest date'."
+        in str(exc.value)
+    )
 
 
 def test_read_mssb_release_header_only_file(tmp_path: Path) -> None:

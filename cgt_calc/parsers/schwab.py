@@ -1318,10 +1318,11 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 award_headers = {column.value for column in RequiredAwardColumn}
                 if award_headers.issubset(header):
                     directory_help += " Pass it with --schwab-award-file instead."
+            missing = ", ".join(sorted(required_headers.difference(header)))
             raise ParsingError(
                 file_path,
-                "Missing columns in Schwab transaction file: "
-                f"{required_headers.difference(header)}.{directory_help}",
+                f"Missing columns in Schwab transaction file: {missing}."
+                f"{directory_help}",
                 row_index=1,
             )
 

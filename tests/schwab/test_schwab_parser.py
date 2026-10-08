@@ -121,17 +121,19 @@ def test_parse_row_tolerates_formatting(tmp_path: Path) -> None:
 
 
 def test_missing_column_raises_parsing_error(tmp_path: Path) -> None:
-    """Missing required columns raise ParsingError pointing at the header."""
+    """Missing required columns are named, in sorted order, at the header."""
 
     header = [col.value for col in RequiredTransactionsColumn]
     row = list(_build_row().values())
     csv_path = tmp_path / "missing_column.csv"
-    _write_csv(csv_path, header[:-1], [row[:-1]])
+    _write_csv(csv_path, header[:2], [row[:2]])
 
     with pytest.raises(ParsingError) as exc:
         SchwabParser.load_from_file(csv_path)
 
     message = str(exc.value)
-    assert "Missing columns" in message
-    assert "Amount" in message
+    assert (
+        "Missing columns in Schwab transaction file: Amount, Description, "
+        "Fees & Comm, Price, Quantity, Symbol." in message
+    )
     assert "row 1" in message
