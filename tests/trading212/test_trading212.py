@@ -2009,10 +2009,10 @@ def test_a_sale_with_only_a_zero_price_or_a_zero_total_is_a_sale(
     ]
 
 
-def _make_conversion_row(total: str) -> list[str]:
+def _make_conversion_row(header: list[str], total: str) -> list[str]:
     """Build a conversion of pounds into euros whose total names no currency."""
     return _make_row(
-        HEADER_2026,
+        header,
         {
             Trading212Column.ACTION: "Currency conversion",
             Trading212Column.TIME: "2025-04-09 14:00:00",
@@ -2027,7 +2027,7 @@ def _make_conversion_row(total: str) -> list[str]:
     )
 
 
-def test_a_currency_conversion_that_charged_no_fee_changes_nothing(
+def test_a_currency_conversion_that_charged_no_fee_is_an_adjustment_of_zero(
     tmp_path: Path,
 ) -> None:
     """A conversion's total is its fee, and with no fee it names no currency.
@@ -2035,7 +2035,7 @@ def test_a_currency_conversion_that_charged_no_fee_changes_nothing(
     Trading 212 writes the fee in the currency converted to, so the zero is
     read in that currency.
     """
-    rows = [HEADER_2026, _make_conversion_row("0.00")]
+    rows = [HEADER_2026, _make_conversion_row(HEADER_2026, "0.00")]
 
     (conversion,) = Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
 
@@ -2044,9 +2044,18 @@ def test_a_currency_conversion_that_charged_no_fee_changes_nothing(
     assert conversion.currency == "EUR"
 
 
-def test_a_currency_conversion_fee_with_no_currency_is_refused(tmp_path: Path) -> None:
-    """Only a total of zero is read without its currency."""
-    rows = [HEADER_2026, _make_conversion_row("-0.10")]
+@pytest.mark.parametrize(
+    ("header", "total"),
+    [
+        pytest.param(HEADER_2026, "-0.10", id="a fee"),
+        pytest.param(HEADER_2024, "0.00", id="no column for the currency converted to"),
+    ],
+)
+def test_a_currency_conversion_with_no_currency_to_read_is_refused(
+    tmp_path: Path, header: list[str], total: str
+) -> None:
+    """A fee needs its own currency, and a zero the currency converted to."""
+    rows = [header, _make_conversion_row(header, total)]
 
     with pytest.raises(ParsingError, match=r"row 2: Invalid currency code: ''$"):
         Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))

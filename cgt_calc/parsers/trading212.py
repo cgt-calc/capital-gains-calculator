@@ -411,7 +411,11 @@ class Trading212Transaction(BrokerTransaction):
             # The total of a currency conversion is its fee, in the currency
             # converted to. With no fee the total is zero, and Trading 212
             # leaves its currency blank.
-            if amount == 0 and not currency_raw:
+            if (
+                self.raw_action == "Currency conversion"
+                and amount == 0
+                and not currency_raw
+            ):
                 currency_raw = row.get(
                     Trading212Column.CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT, ""
                 )
