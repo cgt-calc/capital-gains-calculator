@@ -38,7 +38,13 @@ from tests.utils import (
     stderr_alerts,
 )
 
-from .test_trading212 import HEADER_2026, HEADER_2026_UTC, _make_row, _write_csv
+from .test_trading212 import (
+    HEADER_2026,
+    HEADER_2026_UTC,
+    _make_conversion_row,
+    _make_row,
+    _write_csv,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -235,6 +241,29 @@ def test_the_two_rows_combine_whichever_order_they_are_written_in(
     # Nothing was bought, sold or paid for.
     assert event.amount == Decimal(0)
     assert event.fees == Decimal(0)
+
+
+def test_a_currency_conversion_in_the_same_export_is_read(tmp_path: Path) -> None:
+    """The cash of a conversion is added once the two halves are paired.
+
+    Pairing sorts by a time only a row read from the export has, which the two
+    cash rows are not.
+    """
+    conversion = _make_conversion_row(
+        HEADER_2026, "-0.10", overrides={Trading212Column.CURRENCY_TOTAL: "EUR"}
+    )
+
+    transactions = load(
+        tmp_path, {"a.csv": [HEADER_2026, close_row(), open_row(), conversion]}
+    )
+
+    # The conversion of April 2025 comes before the reorganisation of February 2026.
+    assert [transaction.action for transaction in transactions] == [
+        ActionType.ADJUSTMENT,
+        ActionType.ADJUSTMENT,
+        ActionType.ADJUSTMENT,
+        ActionType.STOCK_SPLIT,
+    ]
 
 
 def test_a_close_row_can_be_the_first_row_in_the_file(tmp_path: Path) -> None:

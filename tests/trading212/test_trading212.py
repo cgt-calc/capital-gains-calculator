@@ -144,6 +144,13 @@ def _prepare_file(tmp_path: Path, rows: list[list[str]]) -> Path:
     return folder
 
 
+def _cash(
+    transactions: Sequence[BrokerTransaction],
+) -> list[tuple[Decimal | None, str]]:
+    """Return what each transaction does to the cash balance, and in which currency."""
+    return [(transaction.amount, transaction.currency) for transaction in transactions]
+
+
 def test_load_from_dir_accepts_uppercase_csv_extension(tmp_path: Path) -> None:
     """Discover a Trading 212 export whose CSV extension is uppercase."""
     rows = [
@@ -454,6 +461,8 @@ def test_read_trading212_transactions_supports_2026_export(tmp_path: Path) -> No
         ActionType.SELL,
         ActionType.TRANSFER,
         ActionType.ADJUSTMENT,
+        ActionType.ADJUSTMENT,
+        ActionType.ADJUSTMENT,
         ActionType.TRANSFER,
         ActionType.ADJUSTMENT,
     ]
@@ -494,15 +503,20 @@ def test_read_trading212_transactions_supports_2026_export(tmp_path: Path) -> No
     assert conversion.amount == Decimal("-0.10")
     assert conversion.currency == "GBP"
     assert conversion.conversion_fee == Decimal("0.10")
+    # The fee is followed by the cash converted: 10.00 USD out, 8.00 GBP in.
+    assert _cash(transactions[5:7]) == [
+        (Decimal("-10.00"), "USD"),
+        (Decimal("8.00"), "GBP"),
+    ]
 
-    refund = transactions[5]
+    refund = transactions[7]
     assert isinstance(refund, Trading212Transaction)
     assert refund.action == ActionType.TRANSFER
     assert refund.amount == Decimal("5.00")
     assert refund.currency == "GBP"
     assert refund.notes == "Latte refund"
 
-    cashback = transactions[6]
+    cashback = transactions[8]
     assert isinstance(cashback, Trading212Transaction)
     assert cashback.action == ActionType.ADJUSTMENT
     assert cashback.amount == Decimal("0.50")
@@ -2010,9 +2024,12 @@ def test_a_sale_with_only_a_zero_price_or_a_zero_total_is_a_sale(
 
 
 def _make_conversion_row(
-    header: list[str], total: str, action: str = "Currency conversion"
+    header: list[str],
+    total: str,
+    action: str = "Currency conversion",
+    overrides: Mapping[str | Trading212Column, str] | None = None,
 ) -> list[str]:
-    """Build a conversion of pounds into euros whose total names no currency."""
+    """Build a conversion of 50.00 GBP into 58.00 EUR whose total names no currency."""
     return _make_row(
         header,
         {
@@ -2025,48 +2042,208 @@ def _make_conversion_row(
             Trading212Column.CURRENCY_CONVERSION_TO_AMOUNT: "58.00",
             Trading212Column.CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT: "EUR",
             Trading212Column.TRANSACTION_ID: "conversion-1",
+            **(overrides or {}),
         },
     )
 
 
-def test_a_currency_conversion_that_charged_no_fee_is_an_adjustment_of_zero(
+def test_a_currency_conversion_that_charged_no_fee_moves_only_the_amounts_converted(
     tmp_path: Path,
 ) -> None:
     """A conversion's total is its fee, and with no fee it names no currency.
 
     Trading 212 writes the fee in the currency converted to, so the zero is
-    read in that currency.
+    read in that currency, ahead of the 50.00 GBP taken and the 58.00 EUR
+    received. The row is stamped half past eleven at night UTC on 1 July,
+    which is 2 July in the UK, and its cash is dated with it.
     """
-    rows = [HEADER_2026, _make_conversion_row(HEADER_2026, "0.00")]
+    row = _make_conversion_row(
+        HEADER_2026, "0.00", overrides={Trading212Column.TIME: "2025-07-01 23:30:00"}
+    )
+    rows = [HEADER_2026, row]
 
-    (conversion,) = Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
+    transactions = Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
 
-    assert conversion.action is ActionType.ADJUSTMENT
-    assert conversion.amount == 0
-    assert conversion.currency == "EUR"
+    assert {transaction.action for transaction in transactions} == {
+        ActionType.ADJUSTMENT
+    }
+    assert _cash(transactions) == [
+        (Decimal(0), "EUR"),
+        (Decimal("-50.00"), "GBP"),
+        (Decimal("58.00"), "EUR"),
+    ]
+    assert {transaction.date for transaction in transactions} == {date(2025, 7, 2)}
+    # Each says which row of the export it was read from, and the two cash
+    # rows say what they are, which a message about the balance then shows.
+    assert transactions[0].source is not None
+    assert [transaction.source for transaction in transactions[1:]] == [
+        transactions[0].source,
+        transactions[0].source,
+    ]
+    assert [transaction.description for transaction in transactions[1:]] == [
+        "Currency conversion",
+        "Currency conversion",
+    ]
+
+
+def test_a_currency_conversion_too_small_to_show_what_was_received_is_read(
+    tmp_path: Path,
+) -> None:
+    """Converting a little of a currency worth little prints 0.00 received.
+
+    1.00 HUF is taken, 0.00 EUR received and no fee charged.
+    """
+    row = _make_conversion_row(
+        HEADER_2026,
+        "0.00",
+        overrides={
+            Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: "1.00",
+            Trading212Column.CURRENCY_CURRENCY_CONVERSION_FROM_AMOUNT: "HUF",
+            Trading212Column.CURRENCY_CONVERSION_TO_AMOUNT: "0.00",
+        },
+    )
+
+    transactions = Trading212Parser().load_from_dir(
+        _prepare_file(tmp_path, [HEADER_2026, row])
+    )
+
+    assert _cash(transactions) == [
+        (Decimal(0), "EUR"),
+        (Decimal("-1.00"), "HUF"),
+        (Decimal(0), "EUR"),
+    ]
 
 
 @pytest.mark.parametrize(
-    ("header", "total", "action"),
+    ("total", "action"),
     [
-        pytest.param(HEADER_2026, "-0.10", "Currency conversion", id="a fee"),
-        pytest.param(
-            HEADER_2024,
-            "0.00",
-            "Currency conversion",
-            id="no column for the currency converted to",
-        ),
-        pytest.param(HEADER_2026, "0.00", "Deposit", id="not a conversion"),
+        pytest.param("-0.10", "Currency conversion", id="a fee"),
+        pytest.param("0.00", "Deposit", id="not a conversion"),
     ],
 )
 def test_a_total_with_no_currency_to_read_is_refused(
-    tmp_path: Path, header: list[str], total: str, action: str
+    tmp_path: Path, total: str, action: str
 ) -> None:
     """A fee needs its own currency, and only a conversion's zero takes another."""
-    rows = [header, _make_conversion_row(header, total, action)]
+    rows = [HEADER_2026, _make_conversion_row(HEADER_2026, total, action)]
 
     with pytest.raises(ParsingError, match=r"row 2: Invalid currency code: ''$"):
         Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
+
+
+@pytest.mark.parametrize(
+    ("header", "overrides"),
+    [
+        pytest.param(
+            HEADER_2026,
+            {Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: ""},
+            id="no amount converted from",
+        ),
+        pytest.param(
+            HEADER_2026,
+            {Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: "-50.00"},
+            id="an amount below zero",
+        ),
+        pytest.param(
+            HEADER_2026,
+            {
+                Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: "",
+                Trading212Column.CURRENCY_CURRENCY_CONVERSION_FROM_AMOUNT: "",
+                Trading212Column.CURRENCY_CONVERSION_TO_AMOUNT: "",
+                Trading212Column.CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT: "",
+            },
+            id="neither amount, in an export with columns for them",
+        ),
+        pytest.param(
+            HEADER_2026,
+            {Trading212Column.CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT: ""},
+            id="no currency for the amount converted to",
+        ),
+        pytest.param(HEADER_2024, {}, id="an export with no columns for the amounts"),
+    ],
+)
+def test_half_a_currency_conversion_is_refused(
+    tmp_path: Path, header: list[str], overrides: Mapping[str | Trading212Column, str]
+) -> None:
+    """The cash a conversion moved cannot be read from one of its two amounts."""
+    row = _make_conversion_row(
+        header,
+        "-0.10",
+        overrides={Trading212Column.CURRENCY_TOTAL: "EUR", **overrides},
+    )
+    message = (
+        "row 2: A currency conversion has to give the amount converted from and "
+        "the amount converted to, each with its currency and neither below zero. "
+        "Check this row against Trading 212 and export it again."
+    )
+
+    with pytest.raises(ParsingError, match=re.escape(message) + "$"):
+        Trading212Parser().load_from_dir(_prepare_file(tmp_path, [header, row]))
+
+
+def test_cash_converted_into_another_currency_can_be_spent(tmp_path: Path) -> None:
+    """A conversion funds the currency converted to, so a purchase in it is covered.
+
+    1,000.00 GBP is deposited and 500.00 of it converted into 580.00 EUR for
+    a fee of 0.87 EUR, then shares are bought for 500.00 EUR. That leaves
+    1,000.00 - 500.00 = 500.00 GBP and 580.00 - 0.87 - 500.00 = 79.13 EUR.
+    """
+    rows = [
+        HEADER_2026,
+        _make_row(
+            HEADER_2026,
+            {
+                Trading212Column.ACTION: "Deposit",
+                Trading212Column.TIME: "2024-08-01 09:00:00",
+                Trading212Column.TOTAL: "1000.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "deposit-1",
+            },
+        ),
+        _make_conversion_row(
+            HEADER_2026,
+            "-0.87",
+            overrides={
+                Trading212Column.TIME: "2024-08-01 10:00:00",
+                Trading212Column.CURRENCY_TOTAL: "EUR",
+                Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: "500.00",
+                Trading212Column.CURRENCY_CONVERSION_TO_AMOUNT: "580.00",
+                Trading212Column.CURRENCY_CONVERSION_FEE: "-0.87",
+                Trading212Column.CURRENCY_CURRENCY_CONVERSION_FEE: "EUR",
+            },
+        ),
+        _make_row(
+            HEADER_2026,
+            {
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.TIME: "2024-08-01 11:00:00",
+                Trading212Column.ISIN: "US0000000010",
+                Trading212Column.TICKER: "FOO",
+                Trading212Column.NAME: "Foo Inc",
+                Trading212Column.NO_OF_SHARES: "10",
+                Trading212Column.PRICE_PER_SHARE: "50.00",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "EUR",
+                Trading212Column.TOTAL: "500.00",
+                Trading212Column.CURRENCY_TOTAL: "EUR",
+                Trading212Column.TRANSACTION_ID: "buy-1",
+            },
+        ),
+    ]
+    cmd = build_cmd(
+        "--year",
+        "2024",
+        "--trading212-dir",
+        str(_prepare_file(tmp_path, rows)),
+        "--no-report",
+    )
+
+    result = run_cli(cmd)
+
+    assert stderr_alerts(result.stderr) == []
+    assert (
+        "Final balance\n  Trading212: 500.00 (GBP)\n  Trading212: 79.13 (EUR)\n"
+        in result.stdout
+    )
 
 
 def test_read_trading212_transactions_invalid_decimal(tmp_path: Path) -> None:
@@ -2778,6 +2955,76 @@ def test_restated_row_keeps_both_and_warns(
     assert "Transaction ID X is described differently" in caplog.text
     assert "a.csv" in caplog.text
     assert "b.csv" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("column", "value", "copies"),
+    [
+        pytest.param(
+            Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT,
+            "50.0000000000",
+            1,
+            id="the same amount printed to more places",
+        ),
+        pytest.param(
+            Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT,
+            "55.00",
+            2,
+            id="another amount taken",
+        ),
+        pytest.param(
+            Trading212Column.CURRENCY_CURRENCY_CONVERSION_FROM_AMOUNT,
+            "USD",
+            2,
+            id="another currency taken",
+        ),
+        pytest.param(
+            Trading212Column.CURRENCY_CONVERSION_TO_AMOUNT,
+            "60.00",
+            2,
+            id="another amount received",
+        ),
+        pytest.param(
+            Trading212Column.CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT,
+            "CHF",
+            2,
+            id="another currency received",
+        ),
+    ],
+)
+def test_two_exports_of_a_conversion_are_one_only_if_its_amounts_agree(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    column: Trading212Column,
+    value: str,
+    copies: int,
+) -> None:
+    """The cash is read from the amounts converted, so they decide whether two rows are one.
+
+    One export says 50.00 GBP became 58.00 EUR. A second that agrees is the
+    same conversion, however it prints a figure. One that differs in either
+    amount or either currency is a restated row: both are kept, each with its
+    fee and its two cash rows, and the double count is announced.
+    """
+    unchanged: Mapping[str | Trading212Column, str] = {}
+    changed: Mapping[str | Trading212Column, str] = {column: value}
+    files = {
+        name: _export(
+            _make_conversion_row(
+                HEADER_2026,
+                "-0.10",
+                overrides={Trading212Column.CURRENCY_TOTAL: "EUR", **overrides},
+            ),
+            header=HEADER_2026,
+        )
+        for name, overrides in (("a.csv", unchanged), ("b.csv", changed))
+    }
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
+        transactions = Trading212Parser.load_from_dir(_prepare_files(tmp_path, files))
+
+    assert len(transactions) == 3 * copies
+    described_twice = "Transaction ID conversion-1 is described differently"
+    assert (described_twice in caplog.text) is (copies == 2)
 
 
 def test_reused_id_across_buy_and_sell_does_not_warn(
