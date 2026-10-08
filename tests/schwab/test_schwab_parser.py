@@ -121,7 +121,7 @@ def test_parse_row_tolerates_formatting(tmp_path: Path) -> None:
 
 
 def test_missing_column_raises_parsing_error(tmp_path: Path) -> None:
-    """Missing required columns are named, in alphabetical order, at the header."""
+    """Missing required columns are named, in sorted order, at the header."""
 
     header = [col.value for col in RequiredTransactionsColumn]
     row = list(_build_row().values())
