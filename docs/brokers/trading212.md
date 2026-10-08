@@ -231,11 +231,6 @@ cgt-calc does not treat the conversion as a disposal and reports no gain or loss
     [Income reported in more than one currency](../extra-data-and-options.md#income-reported-in-more-than-one-currency).
 - Share transfers between accounts or brokers, labelled `Transfer in` or `Transfer out`, are not
     supported, and cgt-calc stops at the row.
-- In an export with no `Currency conversion from amount` and `Currency conversion to amount`
-    columns, only the fee of a currency conversion is read, not the cash it moved. Export the period
-    again: the exports examined have those columns whenever they hold a conversion. Gains and income
-    are not affected, because the balance is used only for the balance check and the `Final balance`
-    lines of the summary.
 - One run covers one Trading 212 account. `--trading212-dir` takes a single directory and every file
     in it is read as one account, because nothing in the CSV identifies which account a row belongs
     to. If you hold the same security in two Trading 212 accounts, their exports cannot be combined

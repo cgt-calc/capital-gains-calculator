@@ -412,6 +412,7 @@ class Trading212Transaction(BrokerTransaction):
         date = self.datetime.astimezone(UK_TIMEZONE).date()
         self.raw_action = row[Trading212Column.ACTION]
         action = action_from_str(self.raw_action, file)
+        self.converted = self._converted(row)
 
         symbol = row[Trading212Column.TICKER] or None
         description = row[Trading212Column.NAME]
@@ -425,16 +426,10 @@ class Trading212Transaction(BrokerTransaction):
             amount = decimal_or_none(row, Trading212Column.TOTAL)
             currency_raw = row[Trading212Column.CURRENCY_TOTAL]
             # The total of a currency conversion is its fee, in the currency
-            # converted to. With no fee the total is zero, and Trading 212
-            # leaves its currency blank.
-            if (
-                self.raw_action == CONVERSION_ACTION
-                and amount == 0
-                and not currency_raw
-            ):
-                currency_raw = row.get(
-                    Trading212Column.CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT, ""
-                )
+            # received. With no fee the total is zero, and Trading 212 leaves
+            # its currency blank.
+            if self.converted and amount == 0 and not currency_raw:
+                currency_raw = self.converted[-1][1]
             currency = CurrencyCode(currency_raw)
         else:
             amount = decimal_or_none(row, Trading212Column.TOTAL_GBP)
@@ -577,7 +572,6 @@ class Trading212Transaction(BrokerTransaction):
         # than once, so neither the id nor the raw cells identify a
         # transaction across exports.
         self.exported_row = row
-        self.converted = self._converted(row)
         broker = "Trading212"
         super().__init__(
             date,
@@ -600,12 +594,9 @@ class Trading212Transaction(BrokerTransaction):
         """Return the cash a currency conversion moved: out of one currency, into another.
 
         The row's total is only the fee: the amount received arrives in full
-        and the fee is charged on top of it. An export with no columns for the
-        two amounts gives nothing to move, and the fee is read alone.
+        and the fee is charged on top of it.
         """
-        if self.raw_action != CONVERSION_ACTION or not any(
-            column in row for pair in CONVERSION_COLUMNS for column in pair
-        ):
+        if self.raw_action != CONVERSION_ACTION:
             return []
         moved: list[tuple[Decimal, CurrencyCode]] = []
         for sign, (amount_column, currency_column) in zip(

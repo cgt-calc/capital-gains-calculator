@@ -2082,59 +2082,42 @@ def test_a_currency_conversion_that_charged_no_fee_moves_only_the_amounts_conver
 
 
 @pytest.mark.parametrize(
-    ("header", "total", "action"),
+    ("total", "action"),
     [
-        pytest.param(HEADER_2026, "-0.10", "Currency conversion", id="a fee"),
-        pytest.param(
-            HEADER_2024,
-            "0.00",
-            "Currency conversion",
-            id="no column for the currency converted to",
-        ),
-        pytest.param(HEADER_2026, "0.00", "Deposit", id="not a conversion"),
+        pytest.param("-0.10", "Currency conversion", id="a fee"),
+        pytest.param("0.00", "Deposit", id="not a conversion"),
     ],
 )
 def test_a_total_with_no_currency_to_read_is_refused(
-    tmp_path: Path, header: list[str], total: str, action: str
+    tmp_path: Path, total: str, action: str
 ) -> None:
     """A fee needs its own currency, and only a conversion's zero takes another."""
-    rows = [header, _make_conversion_row(header, total, action)]
+    rows = [HEADER_2026, _make_conversion_row(HEADER_2026, total, action)]
 
     with pytest.raises(ParsingError, match=r"row 2: Invalid currency code: ''$"):
         Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
 
 
-def test_a_currency_conversion_in_an_export_without_its_amounts_moves_only_the_fee(
-    tmp_path: Path,
-) -> None:
-    """An export with no columns for the amounts converted gives only the fee."""
-    row = _make_conversion_row(
-        HEADER_2024, "-0.10", overrides={Trading212Column.CURRENCY_TOTAL: "GBP"}
-    )
-
-    transactions = Trading212Parser().load_from_dir(
-        _prepare_file(tmp_path, [HEADER_2024, row])
-    )
-
-    assert _cash(transactions) == [(Decimal("-0.10"), "GBP")]
-
-
 @pytest.mark.parametrize(
-    "overrides",
+    ("header", "overrides"),
     [
         pytest.param(
+            HEADER_2026,
             {Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: ""},
             id="no amount converted from",
         ),
         pytest.param(
+            HEADER_2026,
             {Trading212Column.CURRENCY_CONVERSION_TO_AMOUNT: "0.00"},
             id="nothing converted to",
         ),
         pytest.param(
+            HEADER_2026,
             {Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: "-50.00"},
             id="an amount below zero",
         ),
         pytest.param(
+            HEADER_2026,
             {
                 Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: "",
                 Trading212Column.CURRENCY_CURRENCY_CONVERSION_FROM_AMOUNT: "",
@@ -2144,17 +2127,19 @@ def test_a_currency_conversion_in_an_export_without_its_amounts_moves_only_the_f
             id="neither amount, in an export with columns for them",
         ),
         pytest.param(
+            HEADER_2026,
             {Trading212Column.CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT: ""},
             id="no currency for the amount converted to",
         ),
+        pytest.param(HEADER_2024, {}, id="an export with no columns for the amounts"),
     ],
 )
 def test_half_a_currency_conversion_is_refused(
-    tmp_path: Path, overrides: Mapping[str | Trading212Column, str]
+    tmp_path: Path, header: list[str], overrides: Mapping[str | Trading212Column, str]
 ) -> None:
     """The cash a conversion moved cannot be read from one of its two amounts."""
     row = _make_conversion_row(
-        HEADER_2026,
+        header,
         "-0.10",
         overrides={Trading212Column.CURRENCY_TOTAL: "EUR", **overrides},
     )
@@ -2165,7 +2150,7 @@ def test_half_a_currency_conversion_is_refused(
     )
 
     with pytest.raises(ParsingError, match=re.escape(message) + "$"):
-        Trading212Parser().load_from_dir(_prepare_file(tmp_path, [HEADER_2026, row]))
+        Trading212Parser().load_from_dir(_prepare_file(tmp_path, [header, row]))
 
 
 def test_cash_converted_into_another_currency_can_be_spent(tmp_path: Path) -> None:
