@@ -221,9 +221,11 @@ class FakeSession:
     def __init__(self, response: FakeResponse) -> None:
         """Store the canned response."""
         self._response = response
+        self.urls: list[str] = []
 
     def get(self, url: str, timeout: int) -> FakeResponse:
-        """Return the canned response."""
+        """Return the canned response, noting the address asked."""
+        self.urls.append(url)
         return self._response
 
 
@@ -431,6 +433,38 @@ def test_cnh_is_treated_as_cny() -> None:
     )
 
     assert converter.currency_to_gbp_rate(CurrencyCode("CNH"), DATE) == Decimal(9)
+
+
+def test_a_month_is_downloaded_once_however_many_of_its_dates_need_it(
+    tmp_path: Path,
+) -> None:
+    """HMRC publishes one file for a month, so a second date in it asks nothing.
+
+    Each date still gets its own row in the rates file.
+    """
+    rates_file = tmp_path / "rates.csv"
+    converter = CurrencyConverter(exchange_rates_file=rates_file)
+    session = _monthly_usd("1.2611")
+    converter.session = session  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    for date in (
+        datetime.date(2019, 6, 3),
+        datetime.date(2019, 6, 14),
+        datetime.date(2019, 7, 1),
+    ):
+        assert converter.currency_to_gbp_rate(USD, date) == Decimal("1.2611")
+
+    legacy = "https://www.hmrc.gov.uk/softwaredevelopers/rates/"
+    assert session.urls == [
+        f"{legacy}exrates-monthly-0619.xml",
+        f"{legacy}exrates-monthly-0719.xml",
+    ]
+    assert rates_file.read_text(encoding="utf8") == (
+        "month,currency,rate\n"
+        "2019-06-03,USD,1.2611\n"
+        "2019-06-14,USD,1.2611\n"
+        "2019-07-01,USD,1.2611\n"
+    )
 
 
 def test_a_row_typed_for_one_currency_leaves_the_others_to_be_downloaded(
