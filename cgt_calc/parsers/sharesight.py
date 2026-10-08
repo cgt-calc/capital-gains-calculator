@@ -529,6 +529,10 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
 
         # Use our custom iterator for error reporting
         rows_iter = RowIterator(rows)
+        # The blank row the last trades list ended at, and where that list's
+        # Type column is.
+        list_end: int | None = None
+        type_column = 0
         for row in rows_iter:
             # Skip everything until we find the header
             if (
@@ -546,3 +550,19 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
                     raise ParsingError(
                         file_path, str(err), row_index=rows_iter.line
                     ) from err
+                list_end = rows_iter.line
+                type_column = cls._trade_header_columns(header).index(TradeColumn.TYPE)
+            # Every other row is skipped, and a trade must not be: one below
+            # the blank row would be left out of the report without a word.
+            elif (
+                list_end is not None
+                and len(row) > type_column
+                and row[type_column] in {"Buy", "Sell"}
+            ):
+                raise ParsingError(
+                    file_path,
+                    f"This trade is below the blank row {list_end}, where the "
+                    "trades list ends, so it would be left out. Remove the blank "
+                    "row.",
+                    row_index=rows_iter.line,
+                )

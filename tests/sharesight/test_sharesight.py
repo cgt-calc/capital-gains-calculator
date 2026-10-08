@@ -697,6 +697,82 @@ def test_parse_trade_report_refuses_a_line_of_spaces_in_the_trades(
     assert excinfo.value.row_index == 2
 
 
+@pytest.mark.parametrize(
+    ("blank", "below"),
+    [
+        pytest.param([], "Buy", id="a buy below an empty line"),
+        pytest.param(
+            [""] * len(TRADE_HEADER), "Sell", id="a sale below a line of commas"
+        ),
+    ],
+)
+def test_parse_trade_report_refuses_a_trade_below_a_blank_row(
+    tmp_path: Path, blank: list[str], below: str
+) -> None:
+    """A blank row ends the trades list, so a trade under one would be left out."""
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            TRADE_HEADER,
+            [
+                "NASDAQ",
+                "FOO",
+                "Foo Inc",
+                "Buy",
+                "01/02/2023",
+                "10",
+                "5.5",
+                "1",
+                "USD",
+                "1",
+                "44",
+                "",
+            ],
+            blank,
+            [
+                "NASDAQ",
+                "FOO",
+                "Foo Inc",
+                below,
+                "02/02/2023",
+                "5",
+                "6",
+                "",
+                "USD",
+                "1",
+                "30",
+                "",
+            ],
+        ],
+    )
+
+    with pytest.raises(
+        ParsingError, match="below the blank row 3, where the trades list ends"
+    ) as excinfo:
+        SharesightParser().load_from_dir(tmp_path)
+
+    assert excinfo.value.row_index == 4
+
+
+def test_parse_trade_report_ignores_short_rows_below_the_trades(
+    tmp_path: Path,
+) -> None:
+    """A footnote or an empty line under the list is narrower than the table."""
+    trade = ["NASDAQ", "FOO", "Foo Inc", "Buy", "01/02/2023", "10", "5.5", "1"]
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [
+            TRADE_HEADER,
+            [*trade, "USD", "1", "44", ""],
+            [],
+            ["* Prices and brokerage are specified in market currency."],
+            [],
+        ],
+    )
+
+    assert len(SharesightParser().load_from_dir(tmp_path)) == 1
+
+
 def test_parse_trade_report_fx_without_value(tmp_path: Path) -> None:
     """Raise on FX trades without a GBP value."""
     _write_csv(
