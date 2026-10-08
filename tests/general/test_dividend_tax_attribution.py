@@ -582,13 +582,18 @@ def test_each_dividend_keeps_its_own_withholding(
     assert _unattributed_warnings(transactions, caplog) == []
 
 
+@pytest.mark.parametrize(
+    "tax_date",
+    [LIMIT_DATE, DIVIDEND_DATE - datetime.timedelta(days=5)],
+    ids=["thirty days after", "five days before"],
+)
 def test_withholding_at_the_limit_is_attributed(
-    caplog: pytest.LogCaptureFixture,
+    caplog: pytest.LogCaptureFixture, tax_date: datetime.date
 ) -> None:
-    """Thirty days away is still near enough to belong to the dividend."""
+    """The last day of the window on either side still belongs to the dividend."""
     transactions = [
         dividend_transaction(DIVIDEND_DATE, "FOO", 100),
-        dividend_tax_transaction(LIMIT_DATE, "FOO", 15),
+        dividend_tax_transaction(tax_date, "FOO", 15),
     ]
 
     assert _reported(transactions) == [
