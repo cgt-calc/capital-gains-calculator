@@ -437,7 +437,6 @@ def test_a_failed_download_says_what_went_wrong_and_what_to_do(
     """
     rates_file = tmp_path / "rates.csv"
     converter = CurrencyConverter(exchange_rates_file=rates_file)
-    session.urls.clear()  # the stub outlives one run of its row
     converter.session = session  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
     with pytest.raises(ExternalApiError) as excinfo:
