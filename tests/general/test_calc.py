@@ -2095,20 +2095,46 @@ def test_a_malformed_purchase_on_a_rename_day_blames_its_own_row(
     assert f"Buy {quantity} NEW" in str(excinfo.value)
 
 
-def test_a_purchase_under_the_retired_name_is_there_to_sell_later() -> None:
-    """A purchase under the retired ticker is available under NEW on a later day."""
+@pytest.mark.parametrize(
+    ("fee", "gain"),
+    [
+        # 150 NEW that cost 1000 and 750 sell for 3000, a gain of 1250, and
+        # 15 BAR that cost 200 and 150 sell for 600, a gain of 250.
+        pytest.param(None, 1500, id="trades only"),
+        # A fee on the day adds 5 to the cost of NEW. It is also one of
+        # RENAME_DAY_UNSUPPORTED_ACTIONS, so that holding's capacity is not
+        # planned and its purchase is read where the row sits, after the pool
+        # has left.
+        pytest.param(5, 1495, id="with a fee"),
+    ],
+)
+def test_a_purchase_under_the_retired_name_is_there_to_sell_later(
+    fee: int | None, gain: int
+) -> None:
+    """A purchase under the retired ticker is available under NEW on a later day.
+
+    Two holdings are renamed on the day, and each keeps what it bought.
+    """
     calculator = create_calculator(tax_year=2024, balance_check=False)
+    buy_day = datetime.date(2024, 5, 1)
+    sale_day = datetime.date(2024, 5, 20)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(buy_day, ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(buy_day, ActionType.BUY, "FOO", 10, 200),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        _rename_transaction(RENAME_DAY, "FOO", "BAR"),
+        *([] if fee is None else [_gbp_fee(RENAME_DAY, "NEW", fee)]),
         _gbp_trade(RENAME_DAY, ActionType.BUY, "OLD", 50, 750),
-        _gbp_trade(datetime.date(2024, 5, 20), ActionType.SELL, "NEW", 150, 3000),
+        _gbp_trade(RENAME_DAY, ActionType.BUY, "FOO", 5, 150),
+        _gbp_trade(sale_day, ActionType.SELL, "NEW", 150, 3000),
+        _gbp_trade(sale_day, ActionType.SELL, "BAR", 15, 600),
     ]
 
     report = get_report(calculator, transactions)
 
-    assert report.total_gain() == Decimal(1250)
+    assert report.total_gain() == Decimal(gain)
     assert calculator.portfolio["NEW"] == Position()
+    assert calculator.portfolio["BAR"] == Position()
 
 
 def test_the_first_pass_leaves_a_rename_day_under_the_closing_ticker() -> None:

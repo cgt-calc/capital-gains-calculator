@@ -2555,19 +2555,51 @@ def test_a_reorganisation_is_not_a_disposal_row_of_its_own(
     )
 
 
-def test_a_reorganised_holding_s_rename_day_is_still_read_row_by_row() -> None:
-    """A split day keeps the existing row-position handling of renames.
+def test_a_purchase_recorded_after_the_rename_row_joins_the_renamed_holding() -> None:
+    """Where a purchase sits among the day's rows does not strand its shares.
 
-    The later purchase stays under OLD, so selling 25 NEW exceeds the 20
-    shares carried across by the rename.
+    On the day of a reorganisation the pool moves where the RENAME row sits,
+    so a purchase listed after that row is recorded under the ticker the
+    holding has just left. The rename holds for the whole day, and the shares
+    are there to sell under the new ticker afterwards.
+
+    Ten shares bought for 100 are twenty after the 2-for-1, and five more for
+    60 make 25 that cost 160. Sold for 400, they leave a gain of 240.
     """
-    with pytest.raises(InvalidTransactionError, match=r"the holding is 20\."):
+    calculator = create_calculator(tax_year=2023, balance_check=False)
+    report = get_report(
+        calculator,
+        [
+            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+            legacy_split(EVENT_DAY, "OLD", "10"),
+            rename(EVENT_DAY, "OLD", "NEW"),
+            trade(EVENT_DAY, ActionType.BUY, "OLD", "5", "12"),
+            trade(LATER_DAY, ActionType.SELL, "NEW", "25", "16"),
+        ],
+    )
+    (entry,) = report.calculation_log[LATER_DAY]["sell$NEW"]
+    assert entry.rule_type is RuleType.SECTION_104
+    assert entry.allowable_cost == Decimal(160)
+    assert entry.gain == Decimal(240)
+
+
+def test_a_sale_recorded_after_the_rename_row_leaves_the_renamed_holding() -> None:
+    """Shares sold under the retired ticker are not there to sell again.
+
+    Twenty shares after the 2-for-1, less the five sold that day under the
+    old ticker, leave 15 under the new one. A later sale of 20 is refused for
+    the five it does not have.
+    """
+    with pytest.raises(
+        InvalidTransactionError,
+        match=r"^Tried to sell 20 NEW on 2023-06-10, but the holding is 15\.",
+    ):
         run(
             [
                 trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
                 legacy_split(EVENT_DAY, "OLD", "10"),
                 rename(EVENT_DAY, "OLD", "NEW"),
-                trade(EVENT_DAY, ActionType.BUY, "OLD", "5", "10"),
-                trade(LATER_DAY, ActionType.SELL, "NEW", "25", "10"),
+                trade(EVENT_DAY, ActionType.SELL, "OLD", "5", "16"),
+                trade(LATER_DAY, ActionType.SELL, "NEW", "20", "16"),
             ]
         )

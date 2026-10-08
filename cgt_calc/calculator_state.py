@@ -88,7 +88,7 @@ class PreparedHistory:
     # names that holding is spelled under. Only the days and holdings this
     # pass reads that way: a name a split restates or a spin-off apportions
     # from is absent, and keeps the pool the RENAME row's own position
-    # leaves it under.
+    # leaves it under until the day closes.
     rename_components: dict[datetime.date, dict[str, RenameComponent]] = field(
         default_factory=dict
     )
