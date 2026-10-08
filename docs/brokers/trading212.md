@@ -320,9 +320,9 @@ cgt-calc does not treat the conversion as a disposal and reports no gain or loss
     are outside the range it searches, and one of those applied to a holding of around a
     hundred-thousandth of a share is a narrow edge case where the nearest ratio within range may be
     used instead of the event being reported as unrecoverable.
-- A trade of the same security stamped between the two halves of a reorganisation is refused: there
-    is no telling whether its count is in the units before it or after it. The same applies to a
-    same-day trade from another input that carries no comparable time.
+- A trade of the same security stamped at or between the two halves of a reorganisation is refused:
+    there is no telling whether its count is in the units before it or after it. The same applies to
+    a same-day trade from another input that carries no comparable time.
 - A consolidation paid for partly in cash needs checking by hand. Where the cash is a return of
     value rather than income it is a capital distribution, and the event is a part disposal
     ([TCGA 1992 s122](https://www.legislation.gov.uk/ukpga/1992/12/section/122)) rather than a
