@@ -2009,12 +2009,14 @@ def test_a_sale_with_only_a_zero_price_or_a_zero_total_is_a_sale(
     ]
 
 
-def _make_conversion_row(header: list[str], total: str) -> list[str]:
+def _make_conversion_row(
+    header: list[str], total: str, action: str = "Currency conversion"
+) -> list[str]:
     """Build a conversion of pounds into euros whose total names no currency."""
     return _make_row(
         header,
         {
-            Trading212Column.ACTION: "Currency conversion",
+            Trading212Column.ACTION: action,
             Trading212Column.TIME: "2025-04-09 14:00:00",
             Trading212Column.TOTAL: total,
             Trading212Column.NOTES: "50.00 GBP -> 58.00 EUR",
@@ -2045,17 +2047,23 @@ def test_a_currency_conversion_that_charged_no_fee_is_an_adjustment_of_zero(
 
 
 @pytest.mark.parametrize(
-    ("header", "total"),
+    ("header", "total", "action"),
     [
-        pytest.param(HEADER_2026, "-0.10", id="a fee"),
-        pytest.param(HEADER_2024, "0.00", id="no column for the currency converted to"),
+        pytest.param(HEADER_2026, "-0.10", "Currency conversion", id="a fee"),
+        pytest.param(
+            HEADER_2024,
+            "0.00",
+            "Currency conversion",
+            id="no column for the currency converted to",
+        ),
+        pytest.param(HEADER_2026, "0.00", "Deposit", id="not a conversion"),
     ],
 )
-def test_a_currency_conversion_with_no_currency_to_read_is_refused(
-    tmp_path: Path, header: list[str], total: str
+def test_a_total_with_no_currency_to_read_is_refused(
+    tmp_path: Path, header: list[str], total: str, action: str
 ) -> None:
-    """A fee needs its own currency, and a zero the currency converted to."""
-    rows = [header, _make_conversion_row(header, total)]
+    """A fee needs its own currency, and only a conversion's zero takes another."""
+    rows = [header, _make_conversion_row(header, total, action)]
 
     with pytest.raises(ParsingError, match=r"row 2: Invalid currency code: ''$"):
         Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
