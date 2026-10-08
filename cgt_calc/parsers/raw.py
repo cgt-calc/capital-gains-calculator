@@ -16,7 +16,7 @@ from cgt_calc.model import (
     CurrencyCode,
     TransactionSource,
 )
-from cgt_calc.util import parse_decimal
+from cgt_calc.util import is_blank_row, parse_decimal
 
 from .base_parsers import BaseSingleFileParser
 
@@ -203,7 +203,7 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
         """Read Raw transactions from file."""
         lines = list(csv.reader(file))
 
-        if not any(cell.strip() for row in lines for cell in row):
+        if all(is_blank_row(row) for row in lines):
             raise ParsingError(file_path, "RAW CSV file is empty")
 
         data_rows = lines
@@ -221,7 +221,7 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
         transactions: list[RawTransaction] = []
         for index, row in enumerate(data_rows, start=start_index):
             # Skip harmless blank rows left by editors or tooling.
-            if not any(cell.strip() for cell in row):
+            if is_blank_row(row):
                 continue
             try:
                 transaction = RawTransaction(row, file_path)

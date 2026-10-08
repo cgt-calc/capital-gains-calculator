@@ -424,7 +424,9 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
 
         for row in rows:
             if not any(row):
-                # There is an empty row at the end of the trades list
+                # There is an empty row at the end of the trades list. Not
+                # is_blank_row: a line of spaces is not that row, and taking
+                # it for one would drop the trades below it without a word.
                 break
 
             if len(row) != len(header):

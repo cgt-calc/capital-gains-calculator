@@ -18,7 +18,7 @@ from cgt_calc.model import (
     CurrencyCode,
     TransactionSource,
 )
-from cgt_calc.util import parse_decimal
+from cgt_calc.util import is_blank_row, parse_decimal
 
 from .base_parsers import BaseSingleFileParser
 
@@ -421,7 +421,7 @@ def _trailing_decoration(lines: list[tuple[int, list[str]]]) -> set[int]:
     below_last_row = True
     for position in reversed(range(len(lines))):
         row = lines[position][1]
-        if not any(cell.strip() for cell in row):
+        if is_blank_row(row):
             continue
         if _is_table_boundary(row):
             below_last_row = True
@@ -498,7 +498,7 @@ class _TableSplitter:
             self._start_table(TableType.INVESTMENT, row, row_index)
         elif section_type is not None:
             self._start_section(section_type, row_index)
-        elif not any(cell.strip() for cell in row):
+        elif is_blank_row(row):
             return
         elif self.current_type is not None:
             self._add_row(row, position, row_index, first)

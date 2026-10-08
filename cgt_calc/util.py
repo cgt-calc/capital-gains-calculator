@@ -1,6 +1,6 @@
 """Utility functions."""
 
-from collections.abc import Generator
+from collections.abc import Generator, Iterable
 from contextlib import contextmanager
 import decimal
 from decimal import Decimal, InvalidOperation
@@ -179,6 +179,15 @@ def approx_equal_scaled(
     fixed rounding on top of it.
     """
     return abs(val_a - val_b) < abs_tolerance + rel_tolerance * abs(reference)
+
+
+def is_blank_row(row: Iterable[str | None]) -> bool:
+    """Tell whether a row of a CSV file or table holds nothing but spaces.
+
+    An empty line, a line of commas and a line of spaces are all blank. A
+    cell that a short row leaves out arrives as None from some readers.
+    """
+    return not any((cell or "").strip() for cell in row)
 
 
 def open_with_parents(path: Path, *, clear_content: bool = True) -> TextIO:

@@ -37,7 +37,7 @@ from .exceptions import (
 )
 from .model import CurrencyCode, ForeignCurrencyAmount
 from .resources import RESOURCES_PACKAGE
-from .util import exclusive_lock, open_with_parents
+from .util import exclusive_lock, is_blank_row, open_with_parents
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -144,7 +144,7 @@ class CurrencyConverter:
             }
 
             # Skip harmless blank lines left by editors or tooling.
-            if not any(normalized_values.values()):
+            if is_blank_row(normalized_values.values()):
                 continue
 
             # Missing values mean we cannot trust the rate entry.

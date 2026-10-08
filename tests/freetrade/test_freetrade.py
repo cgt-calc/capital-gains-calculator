@@ -368,10 +368,13 @@ def test_read_freetrade_ignores_document_rows(
 
 
 def test_read_freetrade_skips_blank_rows(tmp_path: Path) -> None:
-    """Blank and comma-only lines in an export are not transactions."""
+    """Blank, comma-only and space-only lines in an export are not transactions."""
     blank_row: list[str] = []
     empty_fields_row = [""] * len(COLUMNS)
-    path = _write_csv(tmp_path, COLUMNS, [_default_row(), blank_row, empty_fields_row])
+    spaces_row = ["   "]
+    path = _write_csv(
+        tmp_path, COLUMNS, [_default_row(), blank_row, empty_fields_row, spaces_row]
+    )
 
     transactions = FreetradeParser().load_from_file(path)
 

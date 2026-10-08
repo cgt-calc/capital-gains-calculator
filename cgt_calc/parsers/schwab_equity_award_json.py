@@ -37,7 +37,7 @@ from cgt_calc.model import (
     TransactionSource,
 )
 from cgt_calc.ticker_renames import current_ticker
-from cgt_calc.util import round_decimal
+from cgt_calc.util import is_blank_row, round_decimal
 
 from .base_parsers import BaseSingleFileParser
 
@@ -1586,7 +1586,7 @@ def _read_csv_transactions(content: str, file_path: Path) -> list[JsonRowType]:
     # The lots of the transaction being read, and None until one is open.
     lots: list[JsonRowType] | None = None
     for row_index, row in enumerate(reader, start=2):
-        if not any(cell.strip() for cell in row):
+        if is_blank_row(row):
             continue
         if len(row) != len(header):
             raise UnexpectedColumnCountError(

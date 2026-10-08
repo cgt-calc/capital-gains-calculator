@@ -290,9 +290,10 @@ def test_read_transactions_empty_file() -> None:
         _read("")
 
 
-def test_read_transactions_skips_blank_lines() -> None:
+@pytest.mark.parametrize("line", [",,,,,,,", "   "], ids=["commas", "spaces"])
+def test_read_transactions_skips_blank_lines(line: str) -> None:
     """Skip blank lines in the file."""
-    content = SCHWAB_HEADER + ",,,,,,,\n"
+    content = SCHWAB_HEADER + f"{line}\n"
     assert _read(content) == []
 
 

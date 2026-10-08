@@ -13,7 +13,7 @@ import pdfplumber
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import CurrencyCode, Isin
 from cgt_calc.parsers.eri.model import ERITransaction
-from cgt_calc.util import round_decimal
+from cgt_calc.util import is_blank_row, round_decimal
 
 from .model import ERIImporter, ERIImporterOutput
 
@@ -171,7 +171,7 @@ class XtrackersImporter(ERIImporter):
     ) -> list[ERITransaction]:
         transactions = []
         for row_num, raw_row in enumerate(data_table, 1):
-            if not any((cell or "").strip() for cell in raw_row):
+            if is_blank_row(raw_row):
                 continue
             row = {}
             for col, pos in colmap.items():
