@@ -317,14 +317,28 @@ def test_halves_stamped_too_far_apart_do_not_pair(
 
 
 @pytest.mark.parametrize(
-    "trade_time",
-    ["2026-02-02 07:44:13", "2026-02-02 07:44:13.500", "2026-02-02 07:44:14"],
-    ids=["as the position closes", "between", "as it reopens"],
+    ("trade_time", "open_time"),
+    [
+        ("2026-02-02 07:44:13", "2026-02-02 07:44:14"),
+        ("2026-02-02 07:44:13.500", "2026-02-02 07:44:14"),
+        ("2026-02-02 07:44:14", "2026-02-02 07:44:14"),
+        ("2026-02-02 07:44:13", "2026-02-02 07:44:13"),
+    ],
+    ids=[
+        "as the position closes",
+        "between",
+        "as it reopens",
+        "as it closes and reopens at once",
+    ],
 )
 def test_a_trade_at_or_between_the_two_halves_is_refused(
-    tmp_path: Path, trade_time: str
+    tmp_path: Path, trade_time: str, open_time: str
 ) -> None:
-    """Its count is in neither unit system, and nothing says which."""
+    """Its count is in neither unit system, and nothing says which.
+
+    The close is stamped 07:44:13 in every row. When the reopening carries the
+    same stamp, a trade at that instant is the only one there is to refuse.
+    """
     with pytest.raises(ParsingError, match="stamped between the two halves"):
         load(
             tmp_path,
@@ -333,7 +347,7 @@ def test_a_trade_at_or_between_the_two_halves_is_refused(
                     HEADER_2026,
                     close_row(time="2026-02-02 07:44:13"),
                     trade_row(time=trade_time),
-                    open_row(time="2026-02-02 07:44:14"),
+                    open_row(time=open_time),
                 ]
             },
         )
