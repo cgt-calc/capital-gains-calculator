@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final, override
 
 from defusedxml import ElementTree as ET
-from defusedxml.common import DefusedXmlException
 from pyrate_limiter import limiter_factory
 from pyrate_limiter.abstracts.rate import Duration
 from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
@@ -34,6 +33,7 @@ from .exceptions import (
     HmrcRateMissingError,
     ParsingError,
     UnexpectedHeaderError,
+    rates_file_row,
     reading_as,
 )
 from .model import CurrencyCode, ForeignCurrencyAmount
@@ -275,7 +275,8 @@ class CurrencyConverter:
             writer = csv.writer(fout)
             writer.writerows([EXCHANGE_RATES_HEADER, *data_rows])
 
-    def _query_hmrc_api(self, date: datetime.date) -> None:
+    def _query_hmrc_api(self, date: datetime.date, currency: CurrencyCode) -> None:
+        """Download the month's rates for `date`; `currency` is the one wanted."""
         LOGGER.info("Fetching HMRC exchange rates for %s...", date.strftime("%Y-%m"))
         # Pre 2021 we need to use the old HMRC endpoint
         if date.year < NEW_ENDPOINT_FROM_YEAR:
@@ -290,16 +291,13 @@ class CurrencyConverter:
                 "https://www.trade-tariff.service.gov.uk/uk/api/"
                 f"exchange_rates/files/monthly_xml_{month_str}.xml"
             )
-        where = self.exchange_rates_file or "a file passed with --exchange-rates-file"
+        where_to_add = rates_file_row(currency, date, self.exchange_rates_file)
 
         def failed(problem: str, detail: str = "") -> ExternalApiError:
             """Say what went wrong, then what to do, the same way for every failure."""
             return ExternalApiError(
                 url,
-                f"{problem} Try again later, or add the rates you need for {date} "
-                f"to {where}: a CSV file with the header 'month,currency,rate' and "
-                f"rows such as '{date},USD,1.5', each rate being units of that "
-                f"currency per £1.{detail}",
+                f"{problem} Try again later, or add the rate to {where_to_add}{detail}",
             )
 
         try:
@@ -325,8 +323,10 @@ class CurrencyConverter:
 
         try:
             tree = ET.fromstring(response.text)
-        except (ET.ParseError, DefusedXmlException) as err:
+        except (ET.ParseError, ValueError) as err:
             # A maintenance or sign-in page sent with status 200, for example.
+            # ValueError is defusedxml refusing an entity, or text that cannot
+            # be decoded.
             raise failed(
                 f"HMRC API response for {month_str} cannot be read as XML."
             ) from err
@@ -344,8 +344,8 @@ class CurrencyConverter:
                     f"HMRC API response for {month_str} is missing expected currency "
                     "data."
                 )
-            currency = CurrencyCode.parse(currency_code_elem.text)
-            if currency is None:
+            listed = CurrencyCode.parse(currency_code_elem.text)
+            if listed is None:
                 raise failed(
                     f"HMRC API response for {month_str} contains invalid currency code: "
                     f"{currency_code_elem.text!r}."
@@ -362,7 +362,9 @@ class CurrencyConverter:
                     f"HMRC API response for {month_str} contains a non-positive "
                     f"or non-finite rate: {rate_new_elem.text}."
                 )
-            rates[currency] = rate
+            rates[listed] = rate
+        if not rates:
+            raise failed(f"HMRC API response for {month_str} has no rates.")
         # Rows already held for the date stay in use: one may have been typed in.
         self.cache[date] = {**rates, **self.cache.get(date, {})}
         self._write_exchange_rates_file(self.exchange_rates_file, self.cache)
@@ -421,7 +423,7 @@ class CurrencyConverter:
             and date >= FIRST_DOWNLOADED_RATES_MONTH
             and month not in self._shipped_rates(date.year)
         ):
-            self._query_hmrc_api(date)
+            self._query_hmrc_api(date, currency)
         if currency not in self.cache.get(date, {}):
             raise HmrcRateMissingError(currency, date, self.exchange_rates_file)
 
@@ -554,7 +556,7 @@ class StrictTestCurrencyConverter(CurrencyConverter):
     """Sandboxed variant of CurrencyConverter that is used to run tests in CI."""
 
     @override
-    def _query_hmrc_api(self, date: datetime.date) -> None:
+    def _query_hmrc_api(self, date: datetime.date, currency: CurrencyCode) -> None:
         raise RuntimeError(
             f"HMRC values missing for {date:%Y-%m}! "
             "Run `pytest` (once) to populate them from HMRC data"

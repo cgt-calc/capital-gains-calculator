@@ -322,17 +322,28 @@ class ExchangeRateMissingError(CalculationError):
         super().__init__(self.message)
 
 
+def rates_file_row(currency: str, date: datetime.date, rates_file: Path | None) -> str:
+    """Say which file a rate goes in and what its row looks like.
+
+    The row is written with <rate> in it, so that pasting it unchanged is
+    refused rather than read as a rate.
+    """
+    where = rates_file or "a file passed with --exchange-rates-file"
+    return (
+        f"{where}: a CSV file with the header 'month,currency,rate' and a row "
+        f"'{date},{currency},<rate>', the rate being units of {currency} per £1."
+    )
+
+
 class HmrcRateMissingError(CalculationError):
     """HMRC gives no rate cgt-calc can use for a currency on a date."""
 
     def __init__(self, currency: str, date: datetime.date, rates_file: Path | None):
         """Initialise with the rates file the row should go in, if there is one."""
-        where = rates_file or "a file passed with --exchange-rates-file"
         super().__init__(
             f"cgt-calc has no HMRC exchange rate for {currency} on {date}. Add it to "
-            f"{where}: a CSV file with the header 'month,currency,rate' and a row "
-            f"'{date},{currency},<rate>', the rate being units of {currency} per "
-            "£1. See https://cgt-calc.uk/extra-data-and-options/#exchange-rates"
+            f"{rates_file_row(currency, date, rates_file)} "
+            "See https://cgt-calc.uk/extra-data-and-options/#exchange-rates"
         )
 
 

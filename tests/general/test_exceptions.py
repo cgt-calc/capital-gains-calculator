@@ -135,6 +135,11 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
         HmrcRateMissingError("XAU", DATE, Path("rates.csv")),
         ["2023-01-01,XAU,<rate>", "rates.csv"],
     ),
+    # With no rates file, the option that names one.
+    (
+        HmrcRateMissingError("XAU", DATE, None),
+        ["Add it to a file passed with --exchange-rates-file: a CSV file"],
+    ),
     (SharePriceMissingError("FOO", DATE), ["FOO", "2023-01-01"]),
     (BundledPriceCurrencyError("FOO", DATE, "GBP"), ["FOO", "2023-01-01", "GBP"]),
     (LatexRenderError(Path("render.log")), ["render.log"]),

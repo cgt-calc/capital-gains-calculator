@@ -87,6 +87,7 @@ currentPrice
 cusip
 DayAcquisitions
 dataclass
+defusedxml
 demerger
 depositary
 dest
