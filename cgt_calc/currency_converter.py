@@ -12,6 +12,7 @@ from functools import cache
 from importlib import resources
 import logging
 from pathlib import Path
+import secrets
 import shutil
 from typing import TYPE_CHECKING, Final, override
 
@@ -280,12 +281,13 @@ class CurrencyConverter:
         # stops part way leaves the old file, not an empty or half-written one.
         # A symbolic link stays one: it is the file it names that is replaced.
         file = exchange_rates_file.resolve()
-        temporary = file.with_name(f"{file.name}.tmp")
+        # No two saves share a name, or two runs at once would write one file.
+        temporary = file.with_name(f"{file.name}.{secrets.token_hex(4)}.tmp")
         try:
             with open_with_parents(temporary) as fout:
                 csv.writer(fout).writerows([EXCHANGE_RATES_HEADER, *data_rows])
             if file.exists():
-                # The move would succeed over a read-only file: refuse it here.
+                # A move can succeed over a read-only file: refuse it here.
                 with file.open("r+"):
                     pass
                 shutil.copymode(file, temporary)
@@ -293,9 +295,10 @@ class CurrencyConverter:
         except OSError as err:
             raise CgtError(
                 f"Cannot save exchange rates to {exchange_rates_file}: "
-                f"{err.strerror}. Check that the file and its folder can be "
-                "written to, or pass --exchange-rates-file '' to run without "
-                "saving them."
+                f"{err.strerror}. Close the file if another program has it open, "
+                "and check that it and its folder can be written to. To run "
+                "without saving the rates, pass --exchange-rates-file= with "
+                "nothing after it."
             ) from err
         finally:
             # Already gone once it has been moved into place.
