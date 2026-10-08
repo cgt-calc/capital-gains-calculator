@@ -1151,12 +1151,12 @@ class Matcher:
                 f"Cannot compute the disposal of {symbol} on {date_index}: the "
                 f"day's renames make {' and '.join(sorted(names))} one "
                 "holding, and pooled cost with no shares of its own is "
-                f"recorded under {' and '.join(cost_only)} - a management fee, "
-                "most likely. That cost belongs to the shares being disposed "
+                f"recorded under {' and '.join(cost_only)} - a FEE row, most "
+                "likely. That cost belongs to the shares being disposed "
                 "of here, but it only joins their pool when the day's renames "
                 "are applied, so whether this disposal's Section 104 cost "
                 "includes it turns on an order the input does not give. "
-                "Record the fee under the name the shares are held under, or "
+                "Record that row under the name the shares are held under, or "
                 "work this day out by hand (consider professional advice)."
             )
         if after_renames:
