@@ -63,8 +63,9 @@ Offshore yuan (CNH) is converted at the CNY rate, so enter it as CNY. If the fil
 yet, start it with the header line `month,currency,rate`.
 
 For a date from May 2016, cgt-calc also stops when HMRC's rates cannot be downloaded, and says why.
-Try again later first. Adding the rate yourself works too, but each run stops at the first date and
-currency without a row, so a history with many dates needs as many rows before it completes.
+Try again later first. Adding the rate yourself works too: read it from the HMRC pages linked under
+“May 2016 onwards” above. Each run stops at the first date and currency without a row, though, so a
+history with many dates needs as many rows before it completes.
 
 HMRC does not prescribe which exchange rate to use, only that the method is reasonable and
 consistent ([CG78310](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg78310)).
