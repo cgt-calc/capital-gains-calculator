@@ -197,6 +197,13 @@ def test_error_message_contains_context(error: CgtError, fragments: list[str]) -
         assert fragment in message
 
 
+def test_an_api_error_without_advice_is_one_line() -> None:
+    """Advice goes on a second line; without any, there is no second line."""
+    error = ExternalApiError("https://api.example.com/rates", "boom")
+
+    assert str(error) == "boom (source: https://api.example.com/rates)"
+
+
 def test_every_exception_has_a_context_case() -> None:
     """Every exception in the module is exercised by the context sweep.
 

@@ -329,12 +329,13 @@ def _reply(text: str, *, status: int = 200) -> FakeSession:
             "HMRC API returned HTTP 404 for 2021-01. Response body: Not Found",
             id="HTTP error",
         ),
-        # A maintenance or sign-in page sent with status 200.
+        # A maintenance or sign-in page sent with status 200. Its lines are
+        # joined, so the reason stays on one.
         pytest.param(
             DECEMBER_2020,
-            _reply("Back at 18:00"),
+            _reply("<html>\n  <body>\n    Back at 18:00<br>\n  </body>\n</html>\n"),
             "HMRC API response for 2020-12 cannot be read as XML. Response body: "
-            "Back at 18:00",
+            "<html> <body> Back at 18:00<br> </body> </html>",
             id="not XML",
         ),
         pytest.param(

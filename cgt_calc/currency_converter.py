@@ -308,7 +308,9 @@ class CurrencyConverter:
 
         def reply_start() -> str:
             """Give the start of what the service sent, to follow a line about it."""
-            body = response.text.strip()
+            # On one line, however many the reply has: a page of markup would
+            # otherwise push the address and the advice out of sight.
+            body = " ".join(response.text.split())
             if not body:
                 return ""
             limit = 200
