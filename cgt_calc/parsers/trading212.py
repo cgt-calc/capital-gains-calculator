@@ -604,12 +604,13 @@ class Trading212Transaction(BrokerTransaction):
         ):
             amount = decimal_or_none(row, amount_column)
             currency = row.get(currency_column)
-            if amount is None or amount <= 0 or not currency:
+            # A conversion too small to show on one side prints 0.00 there.
+            if amount is None or amount < 0 or not currency:
                 raise ValueError(
                     "A currency conversion has to give the amount converted from "
-                    "and the amount converted to, each above zero and with its "
-                    "currency. Check this row against Trading 212 and export it "
-                    "again."
+                    "and the amount converted to, each with its currency and "
+                    "neither below zero. Check this row against Trading 212 and "
+                    "export it again."
                 )
             moved.append((sign * amount, CurrencyCode(currency)))
         return moved

@@ -2081,6 +2081,34 @@ def test_a_currency_conversion_that_charged_no_fee_moves_only_the_amounts_conver
     ]
 
 
+def test_a_currency_conversion_too_small_to_show_what_was_received_is_read(
+    tmp_path: Path,
+) -> None:
+    """Converting a little of a currency worth little prints 0.00 received.
+
+    1.00 HUF is taken, 0.00 EUR received and no fee charged.
+    """
+    row = _make_conversion_row(
+        HEADER_2026,
+        "0.00",
+        overrides={
+            Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: "1.00",
+            Trading212Column.CURRENCY_CURRENCY_CONVERSION_FROM_AMOUNT: "HUF",
+            Trading212Column.CURRENCY_CONVERSION_TO_AMOUNT: "0.00",
+        },
+    )
+
+    transactions = Trading212Parser().load_from_dir(
+        _prepare_file(tmp_path, [HEADER_2026, row])
+    )
+
+    assert _cash(transactions) == [
+        (Decimal(0), "EUR"),
+        (Decimal("-1.00"), "HUF"),
+        (Decimal(0), "EUR"),
+    ]
+
+
 @pytest.mark.parametrize(
     ("total", "action"),
     [
@@ -2105,11 +2133,6 @@ def test_a_total_with_no_currency_to_read_is_refused(
             HEADER_2026,
             {Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: ""},
             id="no amount converted from",
-        ),
-        pytest.param(
-            HEADER_2026,
-            {Trading212Column.CURRENCY_CONVERSION_TO_AMOUNT: "0.00"},
-            id="nothing converted to",
         ),
         pytest.param(
             HEADER_2026,
@@ -2145,8 +2168,8 @@ def test_half_a_currency_conversion_is_refused(
     )
     message = (
         "row 2: A currency conversion has to give the amount converted from and "
-        "the amount converted to, each above zero and with its currency. Check "
-        "this row against Trading 212 and export it again."
+        "the amount converted to, each with its currency and neither below zero. "
+        "Check this row against Trading 212 and export it again."
     )
 
     with pytest.raises(ParsingError, match=re.escape(message) + "$"):
@@ -2930,57 +2953,73 @@ def test_restated_row_keeps_both_and_warns(
 
 
 @pytest.mark.parametrize(
-    ("printed", "taken", "warns"),
+    ("column", "value", "copies"),
     [
         pytest.param(
+            Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT,
             "50.0000000000",
-            [Decimal("-50.00")],
-            False,
+            1,
             id="the same amount printed to more places",
         ),
         pytest.param(
+            Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT,
             "55.00",
-            [Decimal("-50.00"), Decimal("-55.00")],
-            True,
-            id="another amount",
+            2,
+            id="another amount taken",
+        ),
+        pytest.param(
+            Trading212Column.CURRENCY_CURRENCY_CONVERSION_FROM_AMOUNT,
+            "USD",
+            2,
+            id="another currency taken",
+        ),
+        pytest.param(
+            Trading212Column.CURRENCY_CONVERSION_TO_AMOUNT,
+            "60.00",
+            2,
+            id="another amount received",
+        ),
+        pytest.param(
+            Trading212Column.CURRENCY_CURRENCY_CONVERSION_TO_AMOUNT,
+            "CHF",
+            2,
+            id="another currency received",
         ),
     ],
 )
 def test_two_exports_of_a_conversion_are_one_only_if_its_amounts_agree(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
-    printed: str,
-    taken: list[Decimal],
-    warns: bool,
+    column: Trading212Column,
+    value: str,
+    copies: int,
 ) -> None:
     """The cash is read from the amounts converted, so they decide whether two rows are one.
 
-    One export says 50.00 GBP was converted. A second that agrees is the same
-    conversion, however it prints the figure. One that says 55.00 GBP is a
-    restated row: both are kept and the double count is announced.
+    One export says 50.00 GBP became 58.00 EUR. A second that agrees is the
+    same conversion, however it prints a figure. One that differs in either
+    amount or either currency is a restated row: both are kept, each with its
+    fee and its two cash rows, and the double count is announced.
     """
+    unchanged: Mapping[str | Trading212Column, str] = {}
+    changed: Mapping[str | Trading212Column, str] = {column: value}
     files = {
         name: _export(
             _make_conversion_row(
                 HEADER_2026,
                 "-0.10",
-                overrides={
-                    Trading212Column.CURRENCY_TOTAL: "EUR",
-                    Trading212Column.CURRENCY_CONVERSION_FROM_AMOUNT: amount,
-                },
+                overrides={Trading212Column.CURRENCY_TOTAL: "EUR", **overrides},
             ),
             header=HEADER_2026,
         )
-        for name, amount in (("a.csv", "50.00"), ("b.csv", printed))
+        for name, overrides in (("a.csv", unchanged), ("b.csv", changed))
     }
     with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.trading212"):
         transactions = Trading212Parser.load_from_dir(_prepare_files(tmp_path, files))
 
-    assert [
-        amount for amount, currency in _cash(transactions) if currency == "GBP"
-    ] == taken
+    assert len(transactions) == 3 * copies
     described_twice = "Transaction ID conversion-1 is described differently"
-    assert (described_twice in caplog.text) is warns
+    assert (described_twice in caplog.text) is (copies == 2)
 
 
 def test_reused_id_across_buy_and_sell_does_not_warn(
