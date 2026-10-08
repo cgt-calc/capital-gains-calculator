@@ -61,7 +61,7 @@ The importer recognises these literal values from the CSV's `Transaction Type` c
 | `Credit Interest`             | Interest income                                                   |
 | `Debit Interest`              | Interest charged on a borrowed balance; balance only              |
 | `Deposit`, `Withdrawal`       | Cash movements used by the balance check                          |
-| `Other Fee`                   | A charge against a holding, added to its pooled cost              |
+| `Other Fee`                   | A charge such as an ADR fee or market data; balance only          |
 | `Sales Tax`                   | VAT on an account-level service such as market data; balance only |
 | `Adjustment`                  | Cash-balance adjustments such as `FX Translations P&L`            |
 | `Forex Trade Component`       | The base-currency net of a currency conversion; balance only      |
@@ -74,6 +74,11 @@ price to GBP before calculating the acquisition or disposal.
 cgt-calc does not treat a currency conversion as a disposal. It applies the `Forex Trade Component`
 Net Amount to the cash balance and reports no gain or loss on the conversion itself.
 
+An `Other Fee` only changes the tracked cash balance, whether it names a security, as an ADR fee
+does, or none, as a market-data subscription does. cgt-calc does not add it to the allowable cost of
+any holding: a charge for holding shares or running the account is not one of the
+[costs you can deduct from a gain](https://www.gov.uk/tax-sell-shares/work-out-your-gain).
+
 IBKR descriptions for dividends and payments in lieu can put an ISIN in parentheses immediately
 after the symbol. cgt-calc uses that identifier when deciding whether a supported double-taxation
 treaty applies.
@@ -81,14 +86,10 @@ treaty applies.
 ### Rows with no symbol
 
 IBKR writes `-` in the `Symbol` column on a row that names no security. cgt-calc reads that as no
-symbol, rather than as a holding called `-`, so two of the types above are handled differently
-depending on whether a security is named:
-
-- An `Other Fee` naming a security, such as an ADR fee, is added to that holding's pooled cost. One
-    naming no symbol is an account charge, such as a market-data subscription. It changes your cash
-    balance and is added to no holding.
-- A `Foreign Tax Withholding` naming a security is dividend tax. One naming no symbol is tax
-    withheld from your cash interest, so it is reported as interest tax.
+symbol, rather than as a holding called `-`, so one of the types above is handled differently
+depending on whether a security is named. A `Foreign Tax Withholding` naming a security is dividend
+tax. One naming no symbol is tax withheld from your cash interest, so it is reported as interest
+tax.
 
 ### Tickers and exchange listings
 

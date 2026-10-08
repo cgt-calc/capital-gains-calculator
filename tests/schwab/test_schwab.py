@@ -254,7 +254,7 @@ def _read(content: str) -> list[BrokerTransaction]:
         ("NRA Withholding", ActionType.DIVIDEND_TAX),
         ("NRA Withhold", ActionType.DIVIDEND_TAX),
         ("Foreign Tax Paid", ActionType.DIVIDEND_TAX),
-        ("ADR Mgmt Fee", ActionType.FEE),
+        ("ADR Mgmt Fee", ActionType.ADJUSTMENT),
         ("Adjustment", ActionType.ADJUSTMENT),
         ("IRS Withhold Adj", ActionType.ADJUSTMENT),
         ("Wire Funds Adj", ActionType.ADJUSTMENT),

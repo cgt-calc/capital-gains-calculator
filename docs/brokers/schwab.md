@@ -108,7 +108,7 @@ The importer recognises these exact values from the main CSV's `Action` column:
 | `NRA Tax Adj`, `NRA Withholding`, `NRA Withhold`, `Foreign Tax Paid` | Tax deducted from a dividend                                                        |
 | `Credit Interest`, `Bond Interest`                                   | Interest income                                                                     |
 | `Short Term Cap Gain`, `Long Term Cap Gain`                          | A fund distribution reported with dividend income                                   |
-| `ADR Mgmt Fee`                                                       | A charge added to the holding's pooled cost and deducted from cash                  |
+| `ADR Mgmt Fee`                                                       | A charge deducted from cash; not an allowable cost                                  |
 | `Adjustment`, `IRS Withhold Adj`, `Wire Funds Adj`                   | A cash-balance correction                                                           |
 | `MoneyLink Transfer`, `MoneyLink Deposit`, `MoneyLink Adj`           | A cash movement only                                                                |
 | `Wire Funds`, `Wire Sent`, `Wire Funds Received`, `Funds Received`   | A cash movement only                                                                |
@@ -129,6 +129,11 @@ The importer recognises these exact values from the main CSV's `Action` column:
 An `NRA Tax Adj`, `NRA Withholding`, `NRA Withhold` or `Foreign Tax Paid` row is treated as tax on
 account interest only when its `Symbol` is blank and its `Description` contains `SCHWAB1 INT`.
 Otherwise, it is treated as dividend tax.
+
+`ADR Mgmt Fee` only changes the tracked cash balance; cgt-calc does not add it to the allowable cost
+of the holding. It is a charge for holding the shares rather than a cost of buying or selling them,
+so it is not one of the
+[costs you can deduct from a gain](https://www.gov.uk/tax-sell-shares/work-out-your-gain).
 
 For `Reinvest Dividend`, check the Schwab statement and the finished report. Confirm that the
 dividend income and reinvested purchase were recorded by other rows; do not assume the ignored row

@@ -12,6 +12,9 @@
 ^schwab\.md:.*FeelFell
 # "Section 106A" - Harper reads the trailing "A" as an indefinite article.
 ^raw\.md:.*AnA
+# "without giving you new shares" is correct; the PronounKnew rule reads
+# "you new" as a slip for "you knew".
+^raw\.md:.*PronounKnew
 # An example commit hash in a comment about `git describe` output.
 ^version\.py:.*`g3473d67`
 # "a backup tag" is a compound noun; Harper reads it as the verb "back up".
