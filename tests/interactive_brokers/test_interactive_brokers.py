@@ -91,6 +91,19 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert txn.currency == expected.currency
         assert txn.broker == expected.broker
 
+    def test_header_with_a_trimmed_column_name_shows_the_missing_space(
+        self, tmp_path: Path
+    ) -> None:
+        """The export names a column "Gross Amount ", with a space at its end."""
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(self.base_header.replace("Gross Amount ,", "Gross Amount,"))
+
+        with pytest.raises(
+            ParsingError,
+            match=re.escape("Missing: 'Gross Amount '. Extra: 'Gross Amount'."),
+        ):
+            InteractiveBrokersParser().load_from_file(csv_file)
+
     def test_isin_is_read_from_the_description(self, tmp_path: Path) -> None:
         """Dividend rows name the security as TICKER(ISIN); trades do not."""
         csv_file = tmp_path / "transactions.csv"

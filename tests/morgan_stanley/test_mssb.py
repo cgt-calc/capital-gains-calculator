@@ -224,7 +224,7 @@ def test_read_mssb_release_invalid_header(tmp_path: Path) -> None:
 
     # A column with no heading, as a line ending in a comma gives, is named too.
     assert (
-        "CSV header mismatch. Missing: Vest Date. Extra: (no name), Vest date."
+        "CSV header mismatch. Missing: 'Vest Date'. Extra: (no name), 'Vest date'."
         in str(exc.value)
     )
 

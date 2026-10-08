@@ -116,8 +116,8 @@ def test_read_revolut_transactions_missing_column(tmp_path: Path) -> None:
     with pytest.raises(
         ParsingError,
         match=re.escape(
-            "Missing: Currency, FX Rate, Price per share, Quantity, Total Amount, "
-            "Type. Extra: none."
+            "Missing: 'Currency', 'FX Rate', 'Price per share', 'Quantity', "
+            "'Total Amount', 'Type'. Extra: none."
         ),
     ):
         RevolutParser().load_from_file(path)
@@ -130,7 +130,7 @@ def test_read_revolut_transactions_unexpected_column(tmp_path: Path) -> None:
 
     with pytest.raises(
         ParsingError,
-        match=re.escape("Missing: FX Rate. Extra: Exchange Rate."),
+        match=re.escape("Missing: 'FX Rate'. Extra: 'Exchange Rate'."),
     ):
         RevolutParser().load_from_file(path)
 
