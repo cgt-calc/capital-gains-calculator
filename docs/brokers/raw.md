@@ -137,26 +137,32 @@ trade came before or after the spin-off.
 ### Income reinvested in accumulation units
 
 A UK accumulation fund keeps its income and adds it to the value of the units you already hold. That
-income is taxable although it never leaves your account, and HMRC treats it as
+income is taxable although it is never paid out to you, and HMRC treats it as
 [an amount spent on the holding](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57707).
-Record both, for the same amount on the same day. For £20 of income on a holding of `FUND`:
+Record both, for the amount of income on the fund's tax voucher, on its distribution date for that
+income. That is the day the income is treated as paid. It can be up to four months after the end of
+the period the income covers, and so in a later tax year. For £20 of income on a holding of `FUND`
+with a distribution date of 28 June 2024:
 
 ```csv
 2024-06-28,DIVIDEND,FUND,1,20.00,0.00,GBP
 2024-06-28,FEE,FUND,1,-20.00,0.00,GBP
 ```
 
-- The `DIVIDEND` row reports the income. Where the fund pays interest distributions, as a bond fund
-    does, write `INTEREST` with a blank `symbol` instead.
+- The `DIVIDEND` row reports the income. Where the
+    [tax voucher](https://www.gov.uk/hmrc-internal-manuals/savings-and-investment-manual/saim2200)
+    shows an interest distribution, as a bond fund's does, write `INTEREST` with a blank `symbol`
+    instead.
 - The `FEE` row adds the same amount to the cost of the holding. Enter it as a negative `price`: a
     positive one stops the run with `Fee amount must not be positive`.
 
 Together the two rows leave the cash balance unchanged. With the `FEE` alone, the income goes
 unreported and the cash balance ends short.
 
-To check the result, look for the income under dividends or interest, and in the report for an entry
-on that date headed “Cost added to FUND with no new shares: £20.00”. If you bought more of the fund
-the same day, the report shows the £20 as part of that purchase's fees instead.
+To check the result, run cgt-calc for the tax year that date falls in. The summary lists the income
+under Dividends or Interest, and the PDF report has an entry on that date headed “Cost added to FUND
+with no new shares: £20.00”. If you bought more of the fund the same day, the PDF shows the £20 as
+part of that purchase's fees instead.
 
 This is for a fund based in the UK. For an accumulating fund or ETF based elsewhere, such as an
 Irish one, see [Offshore Funds (ERI)](../offshore-funds.md).
