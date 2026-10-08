@@ -425,8 +425,8 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
         for row in rows:
             if not any(row):
                 # There is an empty row at the end of the trades list. Not
-                # is_blank_row: a line of spaces is not that row, and taking
-                # it for one would drop the trades below it without a word.
+                # is_blank_row: a line of spaces is not that row, and the
+                # column count check below refuses it.
                 break
 
             if len(row) != len(header):
@@ -562,7 +562,7 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
                 raise ParsingError(
                     file_path,
                     f"This trade is below the blank row {list_end}, where the "
-                    "trades list ends, so it would be left out. Remove the blank "
-                    "row.",
+                    "trades list ends, so it would be left out. Move it above "
+                    "that row, or remove the blank row.",
                     row_index=rows_iter.line,
                 )

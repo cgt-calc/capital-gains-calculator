@@ -698,51 +698,31 @@ def test_parse_trade_report_refuses_a_line_of_spaces_in_the_trades(
 
 
 @pytest.mark.parametrize(
-    ("blank", "below"),
+    ("extra", "blank", "below"),
     [
-        pytest.param([], "Buy", id="a buy below an empty line"),
+        pytest.param([], [], "Buy", id="a buy below an empty line"),
+        # A column added on the left moves Type, which is found from the header.
         pytest.param(
-            [""] * len(TRADE_HEADER), "Sell", id="a sale below a line of commas"
+            ["Portfolio"],
+            [""] * (len(TRADE_HEADER) + 1),
+            "Sell",
+            id="a sale below a line of commas",
         ),
     ],
 )
 def test_parse_trade_report_refuses_a_trade_below_a_blank_row(
-    tmp_path: Path, blank: list[str], below: str
+    tmp_path: Path, extra: list[str], blank: list[str], below: str
 ) -> None:
     """A blank row ends the trades list, so a trade under one would be left out."""
+    trade = ["NASDAQ", "FOO", "Foo Inc", "Buy", "01/02/2023", "10", "5.5", "1"]
+    trade += ["USD", "1", "44", ""]
     _write_csv(
         tmp_path / "All Trades Report.csv",
         [
-            TRADE_HEADER,
-            [
-                "NASDAQ",
-                "FOO",
-                "Foo Inc",
-                "Buy",
-                "01/02/2023",
-                "10",
-                "5.5",
-                "1",
-                "USD",
-                "1",
-                "44",
-                "",
-            ],
+            [*extra, *TRADE_HEADER],
+            [*extra, *trade],
             blank,
-            [
-                "NASDAQ",
-                "FOO",
-                "Foo Inc",
-                below,
-                "02/02/2023",
-                "5",
-                "6",
-                "",
-                "USD",
-                "1",
-                "30",
-                "",
-            ],
+            [*extra, *trade[:3], below, *trade[4:]],
         ],
     )
 
@@ -765,7 +745,8 @@ def test_parse_trade_report_ignores_short_rows_below_the_trades(
             TRADE_HEADER,
             [*trade, "USD", "1", "44", ""],
             [],
-            ["* Prices and brokerage are specified in market currency."],
+            # As wide as the columns to the left of Type, and no wider.
+            ["* Prices and brokerage are specified in market currency.", "", ""],
             [],
         ],
     )
