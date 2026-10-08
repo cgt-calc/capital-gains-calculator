@@ -106,8 +106,10 @@ class RawTransaction(BrokerTransaction):
         if len(row) != CSV_COLUMNS_NUM:
             raise UnexpectedColumnCountError(row, CSV_COLUMNS_NUM, file)
 
+        # A space typed beside a comma is not part of the value: kept on a
+        # symbol, it would make a holding of its own.
         row_values: dict[RawColumn, str] = {
-            column: row[i] for i, column in enumerate(RawColumn)
+            column: row[i].strip() for i, column in enumerate(RawColumn)
         }
 
         date_str = row_values[RawColumn.DATE]
