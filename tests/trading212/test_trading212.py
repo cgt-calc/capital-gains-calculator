@@ -2073,11 +2073,16 @@ def test_a_currency_conversion_that_charged_no_fee_moves_only_the_amounts_conver
         (Decimal("58.00"), "EUR"),
     ]
     assert {transaction.date for transaction in transactions} == {date(2025, 7, 2)}
-    # Each says which row of the export it was read from.
+    # Each says which row of the export it was read from, and the two cash
+    # rows say what they are, which a message about the balance then shows.
     assert transactions[0].source is not None
     assert [transaction.source for transaction in transactions[1:]] == [
         transactions[0].source,
         transactions[0].source,
+    ]
+    assert [transaction.description for transaction in transactions[1:]] == [
+        "Currency conversion",
+        "Currency conversion",
     ]
 
 

@@ -623,7 +623,9 @@ class Trading212Transaction(BrokerTransaction):
                 date=self.date,
                 action=ActionType.ADJUSTMENT,
                 symbol=None,
-                description=self.description,
+                # The export names no security, so a message about the balance
+                # would otherwise show an adjustment with nothing to say what.
+                description=CONVERSION_ACTION,
                 quantity=None,
                 price=None,
                 fees=Decimal(0),
