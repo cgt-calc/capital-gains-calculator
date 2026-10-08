@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final, override
 
 from defusedxml import ElementTree as ET
+from defusedxml.common import DefusedXmlException
 from pyrate_limiter import limiter_factory
 from pyrate_limiter.abstracts.rate import Duration
 from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
@@ -289,19 +290,25 @@ class CurrencyConverter:
                 "https://www.trade-tariff.service.gov.uk/uk/api/"
                 f"exchange_rates/files/monthly_xml_{month_str}.xml"
             )
+        where = self.exchange_rates_file or "a file passed with --exchange-rates-file"
+
+        def failed(problem: str, detail: str = "") -> ExternalApiError:
+            """Say what went wrong, then what to do, the same way for every failure."""
+            return ExternalApiError(
+                url,
+                f"{problem} Try again later, or add the rates you need for {date} "
+                f"to {where}: a CSV file with the header 'month,currency,rate' and "
+                f"rows such as '{date},USD,1.5', each rate being units of that "
+                f"currency per £1.{detail}",
+            )
+
         try:
             response = self.session.get(url, timeout=10)
         except Exception as err:
-            msg = f"Failed to retrieve HMRC exchange rates for {month_str} from {url}. "
-            if self.exchange_rates_file:
-                msg += (
-                    "Try again later or record the rates manually in "
-                    f"{self.exchange_rates_file}. "
-                )
-            else:
-                msg += "Try again later or provide the rates manually. "
-            msg += f"Error: {err}"
-            raise ExternalApiError(url, msg) from err
+            raise failed(
+                f"Failed to retrieve HMRC exchange rates for {month_str} from {url}.",
+                f" Error: {err}",
+            ) from err
 
         if not response.ok:
             body = response.text.strip()
@@ -312,12 +319,17 @@ class CurrencyConverter:
                 if len(body) > snippet_length_limit:
                     snippet += "..."
                 extra = f" Response body: {snippet}"
-            raise ExternalApiError(
-                url,
-                f"HMRC API returned HTTP {response.status_code} for {month_str}.{extra}",
+            raise failed(
+                f"HMRC API returned HTTP {response.status_code} for {month_str}.", extra
             )
 
-        tree = ET.fromstring(response.text)
+        try:
+            tree = ET.fromstring(response.text)
+        except (ET.ParseError, DefusedXmlException) as err:
+            # A maintenance or sign-in page sent with status 200, for example.
+            raise failed(
+                f"HMRC API response for {month_str} cannot be read as XML."
+            ) from err
         rates: dict[CurrencyCode, Decimal] = {}
         for row in tree:
             currency_code_elem = row.find("currencyCode")
@@ -328,29 +340,27 @@ class CurrencyConverter:
                 or rate_new_elem is None
                 or rate_new_elem.text is None
             ):
-                raise ExternalApiError(
-                    url,
-                    f"HMRC API response for {month_str} is missing expected currency data",
+                raise failed(
+                    f"HMRC API response for {month_str} is missing expected currency "
+                    "data."
                 )
             currency = CurrencyCode.parse(currency_code_elem.text)
             if currency is None:
-                raise ExternalApiError(
-                    url,
+                raise failed(
                     f"HMRC API response for {month_str} contains invalid currency code: "
-                    f"{currency_code_elem.text!r}",
+                    f"{currency_code_elem.text!r}."
                 )
             try:
                 rate = Decimal(rate_new_elem.text)
             except (InvalidOperation, ValueError) as err:
-                raise ExternalApiError(
-                    url,
-                    f"HMRC API response for {month_str} contains invalid rate: {rate_new_elem.text}",
+                raise failed(
+                    f"HMRC API response for {month_str} contains invalid rate: "
+                    f"{rate_new_elem.text}."
                 ) from err
             if not rate.is_finite() or rate <= 0:
-                raise ExternalApiError(
-                    url,
+                raise failed(
                     f"HMRC API response for {month_str} contains a non-positive "
-                    f"or non-finite rate: {rate_new_elem.text}",
+                    f"or non-finite rate: {rate_new_elem.text}."
                 )
             rates[currency] = rate
         # Rows already held for the date stay in use: one may have been typed in.

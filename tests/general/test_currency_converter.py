@@ -227,24 +227,6 @@ class FakeSession:
         return self._response
 
 
-def test_hmrc_response_missing_rate_element_raises_api_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A row without a rateNew element raises ExternalApiError."""
-    xml = (
-        "<exchangeRateMonthList>"
-        "<exchangeRate><currencyCode>USD</currencyCode></exchangeRate>"
-        "</exchangeRateMonthList>"
-    )
-    converter = CurrencyConverter()
-    monkeypatch.setattr(
-        converter, "session", FakeSession(FakeResponse(ok=True, text=xml))
-    )
-
-    with pytest.raises(ExternalApiError, match="missing expected currency data"):
-        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
-
-
 def test_hmrc_response_invalid_rate_value_raises_api_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -380,6 +362,72 @@ def test_query_hmrc_api_http_error_includes_snippet() -> None:
     assert "..." in message
     # The full 300 character body must not leak into the message.
     assert "x" * 300 not in message
+
+
+@pytest.mark.parametrize(
+    ("session", "problem"),
+    [
+        pytest.param(
+            OfflineSession(),
+            "Failed to retrieve HMRC exchange rates for 0619 from https://",
+            id="unreachable",
+        ),
+        pytest.param(
+            FakeSession(
+                FakeResponse(ok=False, status_code=503, text="Service unavailable")
+            ),
+            "HMRC API returned HTTP 503 for 0619.",
+            id="HTTP error",
+        ),
+        # A maintenance or sign-in page sent with status 200.
+        pytest.param(
+            FakeSession(FakeResponse(ok=True, text="Service unavailable")),
+            "HMRC API response for 0619 cannot be read as XML.",
+            id="not XML",
+        ),
+        pytest.param(
+            FakeSession(
+                FakeResponse(ok=True, text='<!DOCTYPE r [<!ENTITY a "b">]><r>&a;</r>')
+            ),
+            "HMRC API response for 0619 cannot be read as XML.",
+            id="XML that declares an entity",
+        ),
+        pytest.param(
+            FakeSession(
+                FakeResponse(
+                    ok=True,
+                    text="<exchangeRateMonthList>"
+                    "<exchangeRate><currencyCode>USD</currencyCode></exchangeRate>"
+                    "</exchangeRateMonthList>",
+                )
+            ),
+            "HMRC API response for 0619 is missing expected currency data.",
+            id="row without a rate",
+        ),
+    ],
+)
+def test_a_failed_download_says_what_went_wrong_and_what_to_do(
+    session: object, problem: str, tmp_path: Path
+) -> None:
+    """Whatever stops the download, the message gives the same two ways on.
+
+    A reply that is not XML used to end in a traceback, and only an
+    unreachable service said what to do next.
+    """
+    rates_file = tmp_path / "rates.csv"
+    converter = CurrencyConverter(exchange_rates_file=rates_file)
+    converter.session = session  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    with pytest.raises(ExternalApiError) as excinfo:
+        converter.currency_to_gbp_rate(USD, datetime.date(2019, 6, 14))
+
+    message = str(excinfo.value)
+    assert problem in message
+    assert (
+        f"Try again later, or add the rates you need for 2019-06-14 to {rates_file}: "
+        "a CSV file with the header 'month,currency,rate' and rows such as "
+        "'2019-06-14,USD,1.5', each rate being units of that currency per £1."
+    ) in message
 
 
 def test_cnh_is_treated_as_cny() -> None:
