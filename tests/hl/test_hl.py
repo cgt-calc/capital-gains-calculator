@@ -234,10 +234,10 @@ def test_real_preamble_preserves_physical_row_numbers(tmp_path: Path) -> None:
     assert rows["2026-03-09"] == 8
 
 
-def test_a_blank_line_does_not_shift_the_numbers_of_the_rows_below(
+def test_an_empty_line_does_not_shift_the_numbers_of_the_rows_below(
     tmp_path: Path,
 ) -> None:
-    """A row is numbered by its line in the file, the blank lines above included."""
+    """A row is numbered by its line in the file, the empty lines above included."""
     csv_file = tmp_path / "hl-transaction-summary.csv"
     csv_file.write_text(
         HL_CSV_HEADER
@@ -250,7 +250,7 @@ def test_a_blank_line_does_not_shift_the_numbers_of_the_rows_below(
     with pytest.raises(ParsingError, match="Invalid date") as excinfo:
         HargreavesLansdownParser.load_from_file(csv_file)
 
-    # The header is on line 6 and the blank line on line 8.
+    # The header is on line 6 and the empty line on line 8.
     assert excinfo.value.row_index == 9
 
 
