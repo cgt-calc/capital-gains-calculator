@@ -608,6 +608,32 @@ def test_settlement_posted_after_a_long_weekend_is_matched() -> None:
     assert sales[0].quantity == Decimal(100)
 
 
+def test_a_share_row_settles_an_assignment_up_to_seven_days_later() -> None:
+    """The window is the "on or within 7 days" that the refusal states.
+
+    Assigned early on Monday 13 May 2024, so day 7 is Monday 20 May and day 8
+    is Tuesday 21 May. No settlement calendar gives either gap. The rows are
+    here for the figure the user is told, so that a narrower or a wider window
+    cannot pass unnoticed.
+    """
+    history = (
+        "05/13/2024,Assigned,META 05/17/2024 350.00 C,Assignment,,1,,",
+        "05/02/2024,Sell to Open,META 05/17/2024 350.00 C,Open,$2.00,1,$0.65,$199.35",
+        "05/01/2024,Buy,META,META PLATFORMS INC,$300.00,100,,-$30000.00",
+    )
+
+    transactions = _read(
+        "05/20/2024,Sell,META,META PLATFORMS INC,$350.00,100,,$35000.00", *history
+    )
+
+    sales = [row for row in transactions if row.action is ActionType.SELL]
+    assert [sale.date for sale in sales] == [datetime.date(2024, 5, 13)]
+    with pytest.raises(ParsingError, match="on or within 7 days of the assignment"):
+        _read(
+            "05/21/2024,Sell,META,META PLATFORMS INC,$350.00,100,,$35000.00", *history
+        )
+
+
 def test_two_assignments_of_one_contract_on_one_day_are_refused() -> None:
     """Each assignment settles separately, and pairing them up is guesswork."""
     with pytest.raises(ParsingError, match="more than one assignment"):
