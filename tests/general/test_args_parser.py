@@ -853,6 +853,29 @@ def test_an_option_given_twice_is_refused(
 
 
 @pytest.mark.parametrize(
+    ("option", "default", "other"),
+    [
+        ("--output", str(DEFAULT_REPORT_PATH), "mine.pdf"),
+        ("--exchange-rates-file", str(DEFAULT_EXCHANGE_RATES_FILE), "mine.csv"),
+        # No tickers, which is what the option holds when it is not given.
+        ("--interest-fund-tickers", "", "AAA"),
+    ],
+)
+def test_a_first_value_that_equals_the_default_still_counts(
+    option: str, default: str, other: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Typing the default out is giving the option, so a second value is refused."""
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args([option, default, option, other])
+
+    assert exc_info.value.code == 2
+    assert (
+        f"error: {option} gives a second value for an option that takes one."
+        in " ".join(capsys.readouterr().err.split())
+    )
+
+
+@pytest.mark.parametrize(
     ("first", "second"),
     [("--raw", "--raw-file"), ("--raw-file", "--raw")],
 )

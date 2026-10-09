@@ -1024,9 +1024,8 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         )
         # Named when it read only JSON, and replaced by --schwab-award-file,
         # which reads every layout. It keeps a destination of its own rather
-        # than sharing schwab_award_file: a deprecated alias overwrites its
-        # destination, so given both, one file would be dropped in silence.
-        # _load_award_file refuses that instead.
+        # than sharing schwab_award_file, so that given both, _load_award_file
+        # refuses the pair and says how to choose between the two files.
         arg_group.add_argument(
             "--schwab-equity-award-json",
             "--schwab_equity_award_json",
