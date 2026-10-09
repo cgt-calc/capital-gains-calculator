@@ -444,7 +444,7 @@ def test_invalid_management_fee_has_a_transaction_error(
 
 
 def test_zero_management_fee_is_accepted() -> None:
-    """A zero fee is valid input: only a positive or non-finite amount is refused.
+    """A zero fee is valid input, whatever is held under its name.
 
     It adds no cost, so it needs no units to carry any: nothing is held under
     FOO here, and the whole calculation still runs.
@@ -1777,6 +1777,9 @@ FEE_DAY = datetime.date(2024, 5, 3)
                     datetime.date(2024, 5, 1), ActionType.BUY, "FUND", 100, 1000
                 ),
                 _gbp_fee(FEE_DAY, "FUNDX", 20),
+                # A rename still to come excuses a fee under either of its own
+                # two names, and FUNDX is neither.
+                _rename_transaction(datetime.date(2024, 5, 4), "FUND", "FUNDY"),
             ],
             "FUNDX",
             id="a name nothing is held under",
@@ -1820,15 +1823,41 @@ def test_a_fee_for_a_holding_with_no_units_is_refused(
     with pytest.raises(CalculationError) as excinfo:
         get_report(calculator, transactions)
 
-    message = str(excinfo.value)
-    assert message.startswith(
+    assert str(excinfo.value) == (
         f"Cannot add the cost of the FEE row for {symbol} on {FEE_DAY}: no "
-        f"units of {symbol} are held that day."
+        f"units of {symbol} are held that day. Check the row's symbol and "
+        "date. If the holding is recorded under another name, write the FEE "
+        "row under that name. If you had disposed of all of it by then, "
+        "whether this cost belongs to the units disposed of cannot be "
+        "established: record the amount as an ADJUSTMENT instead, which adds "
+        "it to no cost (consider professional advice)."
     )
-    assert message.endswith(
-        "record the amount as an ADJUSTMENT instead, which adds it to no cost "
-        "(consider professional advice)."
+
+
+def test_a_fee_on_the_day_the_whole_holding_is_sold_is_part_of_what_it_cost() -> None:
+    """The holding still has its units when the day's cost is pooled.
+
+    100 bought for £1,000 are all sold for £1,200 on the day a £20 fee is
+    recorded. The sale carries £1,000 + £20 = £1,020, so the gain is £180 and
+    the pool is left with nothing. Sold the day before, the same fee is
+    refused.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    report = get_report(
+        calculator,
+        [
+            _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "FUND", 100, 1000),
+            _gbp_fee(FEE_DAY, "FUND", 20),
+            _gbp_trade(FEE_DAY, ActionType.SELL, "FUND", 100, 1200),
+        ],
     )
+
+    (entry,) = report.calculation_log[FEE_DAY]["sell$FUND"]
+    assert entry.rule_type is RuleType.SECTION_104
+    assert entry.allowable_cost == Decimal(1020)
+    assert entry.gain == Decimal(180)
+    assert calculator.portfolio["FUND"] == Position(Decimal(0), Decimal(0))
 
 
 def test_sales_under_two_names_of_one_holding_are_refused() -> None:

@@ -177,7 +177,10 @@ day, the PDF shows the £20 as part of that purchase's fees instead.
 If you hold no units under the `FEE` row's `symbol` on that date, cgt-calc stops with
 `Cannot add the cost of the FEE row for FUND on 2024-06-28: no units of FUND are held that day`:
 
-- If the report names the holding differently, write that name as the `symbol` of the `FEE` row.
+- If the report names the holding differently, write that name as the `symbol` of the `FEE` row. A
+    run that stops writes no report, so take the name from a run without the `FEE` row.
+- If the date is before the first purchase in your files, check the date and that no earlier
+    purchase is missing.
 - If you had sold the whole holding before that date, cgt-calc does not work out whether the income
     adds to the cost of the units you sold. Replace the `FEE` with an `ADJUSTMENT` of the same
     amount and a blank `symbol`, which keeps the balance right without adding the cost anywhere, and
