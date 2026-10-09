@@ -6,8 +6,12 @@ import datetime
 from decimal import Decimal
 from itertools import permutations
 import logging
+import os
+from pathlib import Path
 import re
-from typing import TYPE_CHECKING, NoReturn
+import stat
+import sys
+from typing import TYPE_CHECKING, NoReturn, override
 
 import pytest
 from requests import exceptions as requests_exceptions
@@ -21,6 +25,7 @@ from cgt_calc.currency_converter import (
 )
 from cgt_calc.exceptions import (
     CalculationError,
+    CgtError,
     ExternalApiError,
     HmrcRateMissingError,
     ParsingError,
@@ -28,7 +33,7 @@ from cgt_calc.exceptions import (
 from cgt_calc.model import CurrencyCode, ForeignCurrencyAmount
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from collections.abc import Callable
 
 
 def test_read_exchange_rates_handles_empty_file(tmp_path: Path) -> None:
@@ -557,6 +562,165 @@ def test_a_row_typed_for_one_currency_leaves_the_others_to_be_downloaded(
         "1.2611"
     )
     assert len(session.urls) == 1
+
+
+def test_a_first_save_makes_the_folder_for_the_rates_file(tmp_path: Path) -> None:
+    """On a first run the folder the rates file goes in may not be there yet."""
+    rates_file = tmp_path / "out" / "rates.csv"
+    converter = CurrencyConverter(exchange_rates_file=rates_file)
+    converter.session = _monthly_usd("1.2532")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    converter.currency_to_gbp_rate(USD, datetime.date(2019, 7, 1))
+
+    assert (
+        rates_file.read_bytes() == b"month,currency,rate\r\n2019-07-01,USD,1.2532\r\n"
+    )
+
+
+TYPED_ROW = b"month,currency,rate\r\n2019-06-14,USD,1.2682\r\n"
+
+
+class DuringTheSave(Decimal):
+    """A rate that runs `act` when it is turned into text for its row.
+
+    The csv writer does that as it writes the row, so a save has its temporary
+    file open at that moment and has handed it the rows before this one.
+    """
+
+    act: Callable[[], None]
+
+    @override
+    def __str__(self) -> str:
+        """Run `act`, then give the rate's text."""
+        self.act()
+        return super().__str__()
+
+
+NOT_PART_WAY = (
+    "only the rates file was in its folder when the rate became text: either "
+    "the save no longer writes its temporary file there, or the rate became "
+    "text before the save began, which this test needs to happen as the rate's "
+    "row is written"
+)
+
+
+def test_a_run_stopped_as_it_saves_leaves_the_rates_file_as_it_was(
+    tmp_path: Path,
+) -> None:
+    """Ctrl-C during a save loses no row that was on file, and leaves no other file.
+
+    The rows are saved in date order, so the save here is stopped at the row
+    for June 2020, after the typed row and July 2019's.
+    """
+    rates_file = tmp_path / "rates.csv"
+    rates_file.write_bytes(TYPED_ROW)
+    files_when_stopped: list[int] = []
+
+    def stop() -> None:
+        files_when_stopped.append(len(list(tmp_path.iterdir())))
+        raise KeyboardInterrupt
+
+    rate = DuringTheSave("1.2331")
+    rate.act = stop
+    converter = CurrencyConverter(
+        exchange_rates_file=rates_file,
+        initial_data={datetime.date(2020, 6, 1): {USD: rate}},
+    )
+    converter.session = _monthly_usd("1.2532")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    with pytest.raises(KeyboardInterrupt):
+        converter.currency_to_gbp_rate(USD, datetime.date(2019, 7, 1))
+
+    assert rates_file.read_bytes() == TYPED_ROW
+    assert list(tmp_path.iterdir()) == [rates_file]
+    assert files_when_stopped == [2], NOT_PART_WAY
+
+
+def test_two_runs_that_save_at_once_both_finish(tmp_path: Path) -> None:
+    """A run that saves while another is part way through a save stops neither.
+
+    The second run saves as the first writes its last row. The file is left
+    whole, with the rows of the run that finished last.
+    """
+    rates_file = tmp_path / "rates.csv"
+    rates_file.write_bytes(TYPED_ROW)
+    second = CurrencyConverter(exchange_rates_file=rates_file)
+    second.session = _monthly_usd("1.2331")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+    files_when_the_second_saved: list[int] = []
+
+    def second_run_saves() -> None:
+        files_when_the_second_saved.append(len(list(tmp_path.iterdir())))
+        second.currency_to_gbp_rate(USD, datetime.date(2020, 6, 1))
+
+    rate = DuringTheSave("1.4166")
+    rate.act = second_run_saves
+    first = CurrencyConverter(
+        exchange_rates_file=rates_file,
+        initial_data={datetime.date(2021, 6, 1): {USD: rate}},
+    )
+    first.session = _monthly_usd("1.2532")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    first.currency_to_gbp_rate(USD, datetime.date(2019, 7, 1))
+
+    assert rates_file.read_bytes() == (
+        TYPED_ROW + b"2019-07-01,USD,1.2532\r\n2021-06-01,USD,1.4166\r\n"
+    )
+    assert list(tmp_path.iterdir()) == [rates_file]
+    assert files_when_the_second_saved == [2], NOT_PART_WAY
+
+
+def test_a_rates_file_that_cannot_be_written_is_reported_and_left_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A read-only rates file stops the run with what to do, and stays as it is.
+
+    The message names the file as it was given, here relative to the folder
+    the run is in.
+    """
+    monkeypatch.chdir(tmp_path)
+    rates_file = Path("rates.csv")
+    rates_file.write_bytes(TYPED_ROW)
+    rates_file.chmod(0o444)
+    if os.access(rates_file, os.W_OK):
+        pytest.skip("this user may write to a read-only file")
+    converter = CurrencyConverter(exchange_rates_file=rates_file)
+    converter.session = _monthly_usd("1.2532")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    with pytest.raises(CgtError) as raised:
+        converter.currency_to_gbp_rate(USD, datetime.date(2019, 7, 1))
+
+    assert str(raised.value) == (
+        "Cannot save exchange rates to rates.csv: Permission denied. Close the file "
+        "if another program has it open, and check that it and its folder can be "
+        "written to. To run without reading or saving the rates file, pass "
+        "--exchange-rates-file= with nothing after the = sign."
+    )
+    assert rates_file.read_bytes() == TYPED_ROW
+    assert list(tmp_path.iterdir()) == [tmp_path / "rates.csv"]
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Windows needs a privilege to make a link and has no such permissions",
+)
+def test_a_save_keeps_a_linked_rates_file_and_its_permissions(tmp_path: Path) -> None:
+    """A rates file that is a symbolic link stays one, and the file keeps its mode."""
+    kept = tmp_path / "kept.csv"
+    kept.write_bytes(TYPED_ROW)
+    # No new file gets permission to execute, whatever the user's settings.
+    kept.chmod(0o700)
+    rates_file = tmp_path / "rates.csv"
+    rates_file.symlink_to(kept)
+    converter = CurrencyConverter(exchange_rates_file=rates_file)
+    converter.session = _monthly_usd("1.2532")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    assert converter.currency_to_gbp_rate(USD, datetime.date(2019, 7, 1)) == Decimal(
+        "1.2532"
+    )
+
+    assert rates_file.is_symlink()
+    assert kept.read_bytes() == TYPED_ROW + b"2019-07-01,USD,1.2532\r\n"
+    assert stat.S_IMODE(kept.stat().st_mode) == 0o700
 
 
 def test_test_converter_records_new_rates(tmp_path: Path) -> None:
