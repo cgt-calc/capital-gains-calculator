@@ -2475,6 +2475,35 @@ def test_same_day_sale_funding_purchase_survives_sort() -> None:
     assert report.total_gain() == Decimal(50)  # 5 * (20 - 10)
 
 
+@pytest.mark.parametrize(
+    "action",
+    [ActionType.STOCK_ACTIVITY, ActionType.TRANSFER_FROM_SPOUSE],
+    ids=["vest", "transfer from a spouse"],
+)
+def test_shares_that_arrive_without_a_payment_are_valued_to_the_penny(
+    action: ActionType,
+) -> None:
+    """A sterling arrival's value, quantity times price, is rounded to the penny.
+
+    Three shares at £10.018 come to £30.054, which is £30.05. Two such arrivals
+    put £60.10 in the pool, so selling all six for £100 gains £39.90. Valued
+    to a tenth of a penny the gain would be £39.89, to ten pence £39.80 and to
+    the pound £40.00; with the price rounded before it is multiplied, £39.88.
+    """
+    transactions = [
+        transaction(day, action, "SYM", 3, price=10.018, currency=GBP)
+        for day in (datetime.date(2024, 6, 3), datetime.date(2024, 6, 4))
+    ]
+    transactions.append(
+        _gbp_trade(datetime.date(2024, 9, 2), ActionType.SELL, "SYM", 6, 100)
+    )
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal("39.90")
+
+
 def test_disposal_debug_log_keeps_fractional_quantity(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -3576,6 +3605,15 @@ def _who_pays_each_rate(
     ]
 
 
+def _note_to_add_income(year: str, added: str = "the dividends and interest") -> str:
+    """Return the note saying how to get one figure, as the terminal words it."""
+    return (
+        f"To get a single figure, add --income with your income for {year} before "
+        f"the Personal Allowance, such as the pay on your P60. cgt-calc adds {added} "
+        "in these files."
+    )
+
+
 HIGHEST_RATE_FIRST_NOTE = (
     "Losses and the annual exempt amount are deducted from the gains taxed at the "
     "highest rate first."
@@ -3597,11 +3635,7 @@ NOTES_FOR_2024 = [
         "£37,700",
     ),
     HIGHEST_RATE_FIRST_NOTE,
-    (
-        "To get a single figure, add --income with your income for 2024/2025 "
-        "before the Personal Allowance, such as the pay on your P60. cgt-calc adds "
-        "the dividends and interest in these files."
-    ),
+    _note_to_add_income("2024/2025"),
     ESTIMATE_NOTE,
 ]
 
@@ -3655,11 +3689,7 @@ NOTES_FOR_2024 = [
                 ),
                 HIGHEST_RATE_FIRST_NOTE,
                 GAINS_BEFORE_23_JUNE_2010_NOTE,
-                (
-                    "To get a single figure, add --income with your income for "
-                    "2010/2011 before the Personal Allowance, such as the pay on "
-                    "your P60. cgt-calc adds the interest in these files."
-                ),
+                _note_to_add_income("2010/2011", "the interest"),
                 ESTIMATE_NOTE,
             ],
             id="only gains from 23 June 2010 count towards the limit",
@@ -3672,6 +3702,34 @@ NOTES_FOR_2024 = [
             ],
             ["Tax at 18%: £1,782.00", ESTIMATE_NOTE],
             id="one rate when the exempt amount covers the gains from 23 June 2010",
+        ),
+        # The rates were cut from 6 April 2016, the first day of 2016/2017. In each
+        # of the next two rows the gain is 22,100 - 1,000 = 21,100, less the exempt
+        # amount of 11,100, so 10,000 is taxed. On 5 April 2016 the tax is 1,800 at
+        # 18% or 2,800 at 28%; on 6 April 2016 it is 1,000 at 10% or 2,000 at 20%.
+        pytest.param(
+            2015,
+            [(datetime.date(2016, 4, 5), 1000, 22100)],
+            [
+                "Tax at basic rate: £1,800.00",
+                "Tax at higher rate: £2,800.00",
+                *_who_pays_each_rate("2015/2016", "18%", "28%", "£31,785"),
+                _note_to_add_income("2015/2016", "the interest"),
+                ESTIMATE_NOTE,
+            ],
+            id="18% and 28% until 5 April 2016",
+        ),
+        pytest.param(
+            2016,
+            [(datetime.date(2016, 4, 6), 1000, 22100)],
+            [
+                "Tax at basic rate: £1,000.00",
+                "Tax at higher rate: £2,000.00",
+                *_who_pays_each_rate("2016/2017", "10%", "20%", "£32,000"),
+                _note_to_add_income("2016/2017"),
+                ESTIMATE_NOTE,
+            ],
+            id="10% and 20% from 6 April 2016",
         ),
         pytest.param(
             2009,
@@ -3696,7 +3754,9 @@ def test_tax_is_shown_at_the_basic_and_the_higher_rate(
     figures are given. Where the rates changed during the year, losses and the
     annual exempt amount come off the gains taxed at the highest rate first,
     whenever the loss arose (TCGA 1992 s1F and s1K(5), s4B before 2019/20). A
-    year with one pair of rates is owned by the command-line golden outputs.
+    year with one pair of rates is owned by the command-line golden outputs;
+    the 2015/2016 and 2016/2017 rows are here only for the two sides of the day
+    the rates were cut.
     """
     calculator = create_calculator(tax_year=tax_year, balance_check=False)
 
