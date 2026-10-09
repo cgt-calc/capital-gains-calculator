@@ -227,9 +227,7 @@ def test_read_freetrade_transactions_refuses_a_row_that_runs_over_several_lines(
     path = tmp_path / "freetrade.csv"
     path.write_text("\n".join([",".join(COLUMNS), *rows]) + "\n", encoding="utf-8")
 
-    with pytest.raises(
-        ParsingError, match=", row 2: A cell on this row runs on to row 3,"
-    ):
+    with pytest.raises(ParsingError, match=", row 2: This row runs on to row 3,"):
         FreetradeParser().load_from_file(path)
 
 

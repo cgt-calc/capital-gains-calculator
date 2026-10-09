@@ -71,9 +71,11 @@ def read_csv_rows(
         if end > start:
             raise ParsingError(
                 file_path,
-                f"A cell on this row runs on to row {end}, so every row down to "
-                'there was read as part of it. Look for a double quote (") that '
-                "is opened and not closed, and close or remove it.",
+                f"This row runs on to row {end}, because one of its cells holds "
+                'a line break. If a double quote (") is opened on it and not '
+                "closed, every row down to there was read as part of that cell: "
+                "close or remove the double quote. Otherwise take the line break "
+                "out of the cell.",
                 row_index=start,
             )
         rows.append(row)

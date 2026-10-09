@@ -192,9 +192,9 @@ def test_read_revolut_transactions_invalid_decimal(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("header", "found"),
     [
-        ([",".join(COLUMNS)], ", row 3: A cell on this row runs on to row 5,"),
+        ([",".join(COLUMNS)], ", row 3: This row runs on to row 5,"),
         # A file without a header has its rows one line higher.
-        ([], ", row 2: A cell on this row runs on to row 4,"),
+        ([], ", row 2: This row runs on to row 4,"),
     ],
     ids=["with a header", "without a header"],
 )

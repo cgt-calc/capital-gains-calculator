@@ -419,9 +419,7 @@ def test_read_raw_transactions_refuses_a_row_that_runs_over_several_lines(
         encoding="utf-8",
     )
 
-    with pytest.raises(
-        ParsingError, match=", row 2: A cell on this row runs on to row 5,"
-    ):
+    with pytest.raises(ParsingError, match=", row 2: This row runs on to row 5,"):
         RawParser().load_from_file(raw_file)
 
 
