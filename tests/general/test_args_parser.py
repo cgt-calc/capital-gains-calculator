@@ -875,6 +875,20 @@ def test_a_first_value_that_equals_the_default_still_counts(
     )
 
 
+def test_the_same_value_given_twice_is_refused(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A repeat is refused whether or not it agrees with the first value."""
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(["--year", "2021", "--year", "2021"])
+
+    assert exc_info.value.code == 2
+    assert (
+        "error: --year gives a second value for an option that takes one."
+        in " ".join(capsys.readouterr().err.split())
+    )
+
+
 @pytest.mark.parametrize(
     ("first", "second"),
     [("--raw", "--raw-file"), ("--raw-file", "--raw")],

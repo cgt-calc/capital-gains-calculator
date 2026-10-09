@@ -61,8 +61,8 @@ cgt-calc --year 2024 \
   --mssb-dir morgan_stanley/
 ```
 
-Give each option that takes a value once. cgt-calc stops if you repeat one, because it takes a
-single value and the first would otherwise go unread.
+An option that takes a value can be given only once. cgt-calc stops if you repeat one, because the
+option holds a single value and the first would otherwise go unread.
 
 See the [broker instructions](brokers/index.md) for the correct option and export format for each
 source. If your broker is not listed, you can convert its transactions to the generic

@@ -217,7 +217,10 @@ class StoreOnceAction(argparse.Action):
         """Store the value unless the option already has one."""
         # Until an option is given, the namespace holds the parser's own
         # default object for its destination. A deprecated alias shares the
-        # destination, so it counts as the same option.
+        # destination, so it counts as the same option. This holds only while
+        # no type returns that default object itself, as one returning None,
+        # a small int or an enum member could: an option like that needs
+        # another way to tell.
         if getattr(namespace, self.dest) is not parser.get_default(self.dest):
             parser.error(
                 f"{option_string} gives a second value for an option that takes "

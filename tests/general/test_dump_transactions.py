@@ -759,8 +759,8 @@ def test_cli_refuses_a_destination_it_would_overwrite(
     directory = tmp_path / "out"
     directory.mkdir()
     caches = [argument.format(directory=directory) for argument in extra]
-    # An option is given once, so a case naming its own rates file is the only
-    # one to pass it.
+    # An option is given once, so the shared rates file is added only when the
+    # case does not name its own.
     if "--exchange-rates-file" not in caches:
         caches += ["--exchange-rates-file", "tests/exchange_rates_data.csv"]
 
