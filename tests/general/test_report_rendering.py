@@ -215,21 +215,18 @@ def test_a_name_with_every_escaped_character_compiles(tmp_path: Path) -> None:
             id="the PDF is read-only",
         ),
         pytest.param(
+            False,
+            "out/report.pdf",
+            "out/report",
+            "out/report.pdf",
+            id="the PDF is read-only and --output does not end in .pdf",
+        ),
+        pytest.param(
             True,
             "out",
             "out/new/report.pdf",
             "out/new/report.tex",
             id="the folder cannot be made",
-        ),
-        pytest.param(
-            False,
-            "out",
-            "out/report.pdf",
-            "out/report.pdf",
-            id="the LaTeX log cannot be opened",
-            marks=pytest.mark.skipif(
-                not os.getenv("ENABLE_PDFLATEX"), reason="needs pdflatex"
-            ),
         ),
     ],
 )
@@ -244,15 +241,16 @@ def test_a_report_that_cannot_be_saved_says_why(
 ) -> None:
     """A report that cannot be written stops the run with the reason and what to do.
 
-    `locked` is the file or folder that cannot be written, and `named` the file
-    the message gives: the LaTeX source when that is the report, else the PDF.
-    The read-only PDF is found before pdflatex is looked for.
+    `locked` is made read-only: a file where the name has a suffix, else a
+    folder. `named` is the file the message gives: the LaTeX source when that is
+    the report, else the PDF, which pdflatex names after the output's stem. A
+    read-only PDF is found before pdflatex is looked for.
     """
     monkeypatch.chdir(tmp_path)
     blocked = Path(locked)
     if blocked.suffix:
         blocked.parent.mkdir()
-        blocked.write_bytes(b"as it was")
+        blocked.write_bytes(b"an earlier report")
         blocked.chmod(0o444)
     else:
         blocked.mkdir()
@@ -274,8 +272,32 @@ def test_a_report_that_cannot_be_saved_says_why(
         "if another program has it open, and check that it and its folder can be "
         "written to. To save it somewhere else, pass --output."
     )
-    if blocked.is_file():
-        assert blocked.read_bytes() == b"as it was"
+
+
+@pytest.mark.skipif(not os.getenv("ENABLE_PDFLATEX"), reason="needs pdflatex")
+def test_a_latex_log_that_cannot_be_opened_is_named(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the log of the pdflatex run is the file in the way, the message names it.
+
+    A folder of the log's name stands in for a log that cannot be written. It
+    stops root as well, which the one CI job with pdflatex runs as.
+    """
+    monkeypatch.chdir(tmp_path)
+    log = Path("out/report.latex.log")
+    log.mkdir(parents=True)
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False), TRANSACTIONS
+    )
+
+    with pytest.raises(CgtError) as raised:
+        render_pdf(report, Path("out/report.pdf"))
+
+    assert str(raised.value) == (
+        f"Cannot save the report's log to {log}: Is a directory. Close the file if "
+        "another program has it open, and check that it and its folder can be "
+        "written to. To save it somewhere else, pass --output."
+    )
 
 
 def test_checking_an_earlier_pdf_leaves_it_as_it_was(

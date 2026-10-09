@@ -91,18 +91,20 @@ def render_pdf(
         strip_zeros=strip_zeros,
     )
 
+    # pdflatex names the PDF after the output's stem, whatever its suffix.
+    pdf_path = out_dir / f"{jobname}.pdf"
     elsewhere = "To save it somewhere else, pass --output."
-    with saving("the report", tex_path if skip_pdflatex else output_path, elsewhere):
+    with saving("the report", tex_path if skip_pdflatex else pdf_path, elsewhere):
         output_path.parent.mkdir(parents=True, exist_ok=True)
         # Without pdflatex the LaTeX source is the report: save it for the user
         # instead of producing a PDF.
         if skip_pdflatex:
             tex_path.write_text(output_text, encoding="utf-8")
             return
-        if output_path.exists():
+        if pdf_path.exists():
             # pdflatex stops at a PDF it cannot write, and the error for that
             # only points at its log.
-            with output_path.open("r+b"):
+            with pdf_path.open("r+b"):
                 pass
 
     with tempfile.NamedTemporaryFile(
@@ -125,7 +127,9 @@ def render_pdf(
             f"-jobname={jobname}",
             str(tmp_path),
         ]
-        with saving("the report", output_path, elsewhere):
+        # Opened apart from the run that follows, so that a failure to start
+        # pdflatex is not reported as a failure to save.
+        with saving("the report's log", log_path, elsewhere):
             log = log_path.open("w", encoding="utf-8")
         with log:
             subprocess.run(cmd, check=True, stdout=log, stderr=subprocess.STDOUT)
