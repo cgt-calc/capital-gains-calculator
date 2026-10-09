@@ -114,7 +114,8 @@ Follow the cgt-calc [offshore funds guide](../offshore-funds.md) and check that 
 covers the fund and reporting period you need. Vanguard rows do not contain an ISIN, so cgt-calc can
 attach ERI only when the parsed symbol maps to an ISIN. If a `NameChange` row in the export records
 a change of ticker, a mapping for either ticker is enough: cgt-calc attaches ERI to the holding
-before and after the change. The bundled translations contain exchange tickers, but not Vanguard's
+before and after the change. If the other ticker is mapped to a different ISIN, cgt-calc attaches
+only that ISIN's ERI to it. The bundled translations contain exchange tickers, but not Vanguard's
 complete fund names.
 
 For a holding whose parsed symbol is a fund name, create an ISIN translation CSV. The symbol must
