@@ -137,12 +137,14 @@ trade came before or after the spin-off.
 ### Income reinvested in accumulation units
 
 A UK accumulation fund keeps its income and adds it to the value of the units you already hold. That
-income is taxable although it is never paid out to you, and HMRC treats it as
-[an amount spent on the holding](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57707).
-Record both, for the amount of income on the fund's tax voucher, on its distribution date for that
-income. That is the day the income is treated as paid. It can be up to four months after the end of
-the period the income covers, and so in a later tax year. For £20 of income on a holding of `FUND`
-with a distribution date of 28 June 2024:
+income is taxable although it is never paid out to you, and it counts as an amount spent on the
+holding ([TCGA 1992 s99B](https://www.legislation.gov.uk/ukpga/1992/12/section/99B),
+[CG57707](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg57707)). Record the income
+and the spending as two rows, each for the amount of income on the fund's tax voucher and dated on
+the fund's [distribution date](https://www.gov.uk/hmrc-internal-manuals/investment-funds/ifm02220)
+for that income. That is the day the income is treated as paid and the amount as spent. It can be up
+to four months after the end of the period the income covers, and so in a later tax year. For £20 of
+income on a holding of `FUND` with a distribution date of 28 June 2024:
 
 ```csv
 2024-06-28,DIVIDEND,FUND,1,20.00,0.00,GBP
@@ -154,15 +156,31 @@ with a distribution date of 28 June 2024:
     shows an interest distribution, as a bond fund's does, write `INTEREST` with a blank `symbol`
     instead.
 - The `FEE` row adds the same amount to the cost of the holding. Enter it as a negative `price`: a
-    positive one stops the run with `Fee amount must not be positive`.
+    positive one stops the run with `Fee amount must not be positive`. Write its `symbol` exactly as
+    the report names the holding.
+- A voucher for an interest distribution before 6 April 2017 can show
+    [income tax deducted](https://www.gov.uk/hmrc-internal-manuals/investment-funds/ifm02222). Only
+    the amount after tax was reinvested: enter the gross interest on the `INTEREST` row, the tax on
+    an `INTEREST_TAX` row and the net amount on the `FEE` row.
 
-Together the two rows leave the cash balance unchanged. With the `FEE` alone, the income goes
-unreported and the cash balance ends short.
+Together the rows leave the cash balance unchanged. With the `FEE` alone, the income goes unreported
+and the cash balance is £20 short, which can stop the run with `Reached a negative balance`.
 
 To check the result, run cgt-calc for the tax year that date falls in. The summary lists the income
 under Dividends or Interest, and the PDF report has an entry on that date headed “Cost added to FUND
-with no new shares: £20.00”. If you bought more of the fund the same day, the PDF shows the £20 as
-part of that purchase's fees instead.
+with no new shares: £20.00”. Under that heading, “Number of units in the pool” should be the units
+you hold and “new pool cost” £20 more than the cost before. If you bought more of the fund the same
+day, the PDF shows the £20 as part of that purchase's fees instead.
+
+If the entry reads “Number of units in the pool: 0”, the £20 has not been added to anything you
+hold, and cgt-calc gives no warning:
+
+- If the `symbol` on the `FEE` row is not the name the report uses for the holding, correct it.
+- If you had sold the whole holding before that date, cgt-calc does not work the case out: it adds
+    the £20 to your next purchase under that symbol. Replace the `FEE` with an `ADJUSTMENT` of the
+    same amount and a blank `symbol`, which keeps the balance right without adding the cost
+    anywhere, and consider professional advice on whether the income adds to the cost of the units
+    you sold.
 
 This is for a fund based in the UK. For an accumulating fund or ETF based elsewhere, such as an
 Irish one, see [Offshore Funds (ERI)](../offshore-funds.md).
