@@ -480,9 +480,9 @@ def test_a_month_is_downloaded_once_however_many_of_its_dates_need_it(
     Each month keeps its own rates: the next month's and the same month a year
     on differ here. The last date is served from memory after both of those
     were downloaded, and still gets June 2019's rate and its own row in the
-    rates file. As on a first run, the folder for that file is not there yet.
+    rates file.
     """
-    rates_file = tmp_path / "out" / "rates.csv"
+    rates_file = tmp_path / "rates.csv"
     converter = CurrencyConverter(exchange_rates_file=rates_file)
     session = MonthlyFiles({"0619": "1.2611", "0719": "1.2532", "0620": "1.2331"})
     converter.session = session  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
@@ -562,6 +562,19 @@ def test_a_row_typed_for_one_currency_leaves_the_others_to_be_downloaded(
         "1.2611"
     )
     assert len(session.urls) == 1
+
+
+def test_a_first_save_makes_the_folder_for_the_rates_file(tmp_path: Path) -> None:
+    """On a first run the folder the rates file goes in may not be there yet."""
+    rates_file = tmp_path / "out" / "rates.csv"
+    converter = CurrencyConverter(exchange_rates_file=rates_file)
+    converter.session = _monthly_usd("1.2532")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+    converter.currency_to_gbp_rate(USD, datetime.date(2019, 7, 1))
+
+    assert (
+        rates_file.read_bytes() == b"month,currency,rate\r\n2019-07-01,USD,1.2532\r\n"
+    )
 
 
 TYPED_ROW = b"month,currency,rate\r\n2019-06-14,USD,1.2682\r\n"
@@ -679,8 +692,8 @@ def test_a_rates_file_that_cannot_be_written_is_reported_and_left_alone(
     assert str(raised.value) == (
         "Cannot save exchange rates to rates.csv: Permission denied. Close the file "
         "if another program has it open, and check that it and its folder can be "
-        "written to. To run without saving the rates, pass --exchange-rates-file= "
-        "with nothing after the = sign."
+        "written to. To run without reading or saving the rates file, pass "
+        "--exchange-rates-file= with nothing after the = sign."
     )
     assert rates_file.read_bytes() == TYPED_ROW
     assert list(tmp_path.iterdir()) == [tmp_path / "rates.csv"]

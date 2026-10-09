@@ -99,6 +99,10 @@ missing months to the selected file, so retain the version used for the final re
 come with cgt-calc are not written to the file. Keeping it does not preserve other fetched data,
 such as Yahoo Finance prices.
 
+If a run is stopped abruptly while it saves the rates, for example by closing the terminal, it can
+leave a file such as `exchange_rates.csv.3f9a1c2b.tmp` beside the rates file. The rates file itself
+is complete, and you can delete the leftover.
+
 ### ISIN to ticker translation
 
 When an ERI row identifies a fund only by its ISIN, cgt-calc maps it to ticker symbols. It checks
