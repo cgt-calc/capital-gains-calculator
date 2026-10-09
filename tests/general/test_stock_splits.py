@@ -575,24 +575,39 @@ def test_a_same_day_row_from_another_input_is_refused() -> None:
         )
 
 
-def test_a_row_between_the_two_halves_of_a_reorganisation_is_refused() -> None:
-    """Its unit system is exactly what cannot be told."""
+@pytest.mark.parametrize(
+    "stamp",
+    [
+        datetime.datetime(2023, 5, 15, 7, 44, 13, tzinfo=datetime.UTC),
+        datetime.datetime(2023, 5, 15, 7, 44, 13, 500000, tzinfo=datetime.UTC),
+        datetime.datetime(2023, 5, 15, 7, 44, 14, tzinfo=datetime.UTC),
+    ],
+    ids=["at the first half", "between", "at the second half"],
+)
+def test_a_row_at_or_between_the_two_halves_of_a_reorganisation_is_refused(
+    stamp: datetime.datetime,
+) -> None:
+    """Its unit system is exactly what cannot be told.
+
+    The halves are stamped 07:44:13 and 07:44:14. A row stamped at either is
+    no more before or after the reorganisation than one stamped between them.
+    """
     opened = datetime.datetime(2023, 5, 15, 7, 44, 13, tzinfo=datetime.UTC)
     closed = datetime.datetime(2023, 5, 15, 7, 44, 14, tzinfo=datetime.UTC)
-    between = TransactionSource(
+    stamped = TransactionSource(
         parser="Testing",
         account="Other account",
         file=Path("other.csv"),
         index=0,
-        timestamp=datetime.datetime(
-            2023, 5, 15, 7, 44, 13, 500000, tzinfo=datetime.UTC
-        ),
+        timestamp=stamp,
     )
-    with pytest.raises(CalculationError, match="cannot be placed either side"):
+    with pytest.raises(
+        CalculationError, match="the row falls at or between the two halves"
+    ):
         run(
             [
                 trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
-                trade(EVENT_DAY, ActionType.BUY, "FOO", "2", "10", source=between),
+                trade(EVENT_DAY, ActionType.BUY, "FOO", "2", "10", source=stamped),
                 paired_split(
                     EVENT_DAY,
                     "FOO",

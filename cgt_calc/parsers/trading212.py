@@ -1891,7 +1891,7 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
                     f"(No. of shares={other.quantity}, "
                     f"Time={_stated_times(other)}); the reorganisation at "
                     f"{first} and {last}. Check this row against Trading 212; "
-                    "if it really was dealt while the reorganisation was in "
-                    f"flight, leave {event.symbol} out and work it out by hand "
-                    "(consider professional advice).",
+                    "if it really was dealt at the time it states, leave "
+                    f"{event.symbol} out and work it out by hand (consider "
+                    "professional advice).",
                 )

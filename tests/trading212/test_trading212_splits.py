@@ -383,19 +383,24 @@ def test_a_trade_at_or_between_the_two_halves_is_refused(
 
 
 def test_a_trade_outside_the_two_halves_is_left_alone(tmp_path: Path) -> None:
-    """Only a row stamped at or between them is ambiguous."""
+    """Only a row stamped at or between them is ambiguous.
+
+    One trade is a millisecond before the position closes and one a millisecond
+    after it reopens. Both load, beside the reorganisation itself.
+    """
     transactions = load(
         tmp_path,
         {
             "export.csv": [
                 HEADER_2026,
-                trade_row(time="2026-02-02 06:00:00"),
+                trade_row(time="2026-02-02 07:44:12.999"),
                 close_row(time="2026-02-02 07:44:13"),
                 open_row(time="2026-02-02 07:44:14"),
+                trade_row(time="2026-02-02 07:44:14.001", transaction_id="trade-2"),
             ]
         },
     )
-    assert len(transactions) == 2
+    assert len(transactions) == 3
 
 
 def test_the_current_header_and_an_offset_timestamp_pair(tmp_path: Path) -> None:
