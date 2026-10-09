@@ -24,6 +24,7 @@ from cgt_calc.parsers.schwab import SchwabParser
 from cgt_calc.parsers.sharesight import SharesightParser
 from cgt_calc.parsers.trading212 import Trading212Parser
 from cgt_calc.parsers.vanguard import VanguardParser, VanguardTransaction
+from cgt_calc.rename_planning import connected_names
 
 if TYPE_CHECKING:
     import argparse
@@ -47,9 +48,9 @@ def _resolve_isins(
 
     A symbol is matchable when any row carries its ISIN or the cache maps it,
     even a row from another broker: warning about the Vanguard rows for it
-    would send the user after a mapping that changes nothing. A rename moves
-    the holding to the new symbol, so a mapping for the new name covers the
-    rows still carrying the old one.
+    would send the user after a mapping that changes nothing. A renamed
+    holding is one fund under two symbols, so a mapping for either covers the
+    rows carrying the other.
     """
     isins: set[Isin] = set()
     resolved: set[str] = set()
@@ -77,7 +78,7 @@ def _resolve_isins(
     unmapped = sorted(
         symbol
         for symbol in vanguard_symbols
-        if symbol not in resolved and renamed_to.get(symbol) not in resolved
+        if not connected_names(renamed_to, symbol) & resolved
     )
     return isins, unmapped
 

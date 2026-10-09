@@ -64,7 +64,7 @@ from .util import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
     import datetime
 
     from .calculator_state import CalculatorState
@@ -1274,6 +1274,7 @@ class TransactionIngester:
     def add_eri(
         self,
         transaction: BrokerTransaction,
+        renames: Mapping[str, str],
     ) -> None:
         """Add an Excess Reported Income to the list.
 
@@ -1324,6 +1325,10 @@ class TransactionIngester:
         allows for pro rata reporting when you buy the fund shares within a
         reporting period.
 
+        A report names an ISIN, and is applied to the ticker holding the shares
+        on its date. ``renames`` is every rename of the run, so that a fund
+        whose ISIN is known by one of its tickers is still found on the dates
+        it was held under another.
         """
         distribution_date = transaction.date + ERI_TAX_DATE_DELTA
 
@@ -1345,8 +1350,17 @@ class TransactionIngester:
             transaction,
         )
 
-        symbols = self.isin_converter.get_symbols(transaction.isin)
-        for symbol in symbols:
+        known = self.isin_converter.get_symbols(transaction.isin)
+        # A name with an ISIN of its own keeps that fund's reports: what the
+        # ISIN data states outranks what a rename row implies.
+        owners = self.isin_converter.get_symbol_to_isin_map()
+        renamed = {
+            name
+            for symbol in known
+            for name in connected_names(renames, symbol)
+            if name not in owners
+        }
+        for symbol in known | renamed:
             # For some funds we don't have symbol translation
             if not symbol:
                 continue
@@ -1572,11 +1586,19 @@ class TransactionIngester:
             if transaction.action is not ActionType.EXCESS_REPORTED_INCOME
         }
 
+        # Read from the whole run, not a day at a time: a report dated before
+        # its fund's rename is read before the day of the rename opens.
+        run_renames = dict(
+            rename_pair(transaction)
+            for transaction in transactions
+            if transaction.action is ActionType.RENAME
+        )
+
         for i, transaction in enumerate(transactions):
             self._open_transaction_day(transaction, days, planned)
             self._convert_foreign_fees(transaction)
             if transaction.action == ActionType.EXCESS_REPORTED_INCOME:
-                self.add_eri(transaction)
+                self.add_eri(transaction, run_renames)
                 balance_history.append(
                     Decimal(0)
                 )  # dummy value, this will get filtered out

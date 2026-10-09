@@ -2167,6 +2167,81 @@ def test_a_purchase_under_the_retired_name_survives_excess_reported_income() -> 
     assert report.total_gain() == Decimal(1100)
 
 
+def _eri(date: datetime.date, isin: Isin, price: int) -> BrokerTransaction:
+    """Build a fund's report of excess income, in pounds a share."""
+    return ERITransaction(
+        date=date, isin=isin, price=Decimal(price), currency=CurrencyCode("GBP")
+    )
+
+
+@pytest.mark.parametrize(
+    "report_date",
+    [datetime.date(2024, 5, 9), RENAME_DAY, datetime.date(2024, 5, 11)],
+    ids=["day before", "rename day", "day after"],
+)
+@pytest.mark.parametrize("known_name", ["OLD", "NEW"])
+def test_excess_reported_income_finds_a_renamed_fund_under_either_name(
+    known_name: str, report_date: datetime.date
+) -> None:
+    """A report reaches the holding whichever of its tickers the ISIN is known by.
+
+    The holding is OLD until the rename day closes and NEW from then on, and a
+    report is applied to the name the shares have on its date.
+
+    100 shares cost 1000, and income of 2 a share adds 200 to that: 1200. Sold
+    for 3000, they leave a gain of 1800. QUIET is renamed too and no report
+    names it: 10 shares cost 100 and sell for 350, a gain of 250. Together
+    2050, on income of 200.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    calculator.isin_converter.data[ERI_ISIN] = {known_name}
+    transactions: list[BrokerTransaction] = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "QUIET", 10, 100),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        _rename_transaction(datetime.date(2024, 5, 15), "QUIET", "QUIETER"),
+        _gbp_trade(datetime.date(2024, 5, 20), ActionType.SELL, "NEW", 100, 3000),
+        _gbp_trade(datetime.date(2024, 5, 20), ActionType.SELL, "QUIETER", 10, 350),
+        _eri(report_date, ERI_ISIN, 2),
+    ]
+    # Where the command line puts a report: after its day's other rows.
+    transactions.sort(key=_transaction_sort_key)
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(2050)
+    assert report.total_eri_amount(is_interest=False) == Decimal(200)
+
+
+def test_excess_reported_income_stays_off_a_name_another_isin_owns() -> None:
+    """A renamed fund's report is not applied to a ticker with an ISIN of its own.
+
+    OLD and NEW are mapped to two ISINs, and both funds report for the day
+    before the rename, when the shares are OLD. Only the report for OLD's
+    ISIN is theirs.
+
+    100 shares cost 1000, and income of 3 a share adds 300 to that: 1300. Sold
+    for 3000, they leave a gain of 1700.
+    """
+    other_isin = Isin("IE00BK5BQT80")
+    report_date = datetime.date(2024, 5, 9)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    calculator.isin_converter.data[ERI_ISIN] = {"NEW"}
+    calculator.isin_converter.data[other_isin] = {"OLD"}
+    transactions: list[BrokerTransaction] = [
+        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _eri(report_date, ERI_ISIN, 2),
+        _eri(report_date, other_isin, 3),
+        _rename_transaction(RENAME_DAY, "OLD", "NEW"),
+        _gbp_trade(datetime.date(2024, 5, 20), ActionType.SELL, "NEW", 100, 3000),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(1700)
+    assert report.total_eri_amount(is_interest=False) == Decimal(300)
+
+
 def test_the_first_pass_leaves_a_rename_day_under_the_closing_ticker() -> None:
     """Reconciliation carries both shares and their source accounts to NEW."""
     calculator = create_calculator(tax_year=2024, balance_check=False)

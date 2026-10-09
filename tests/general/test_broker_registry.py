@@ -270,8 +270,11 @@ def _unmapped(
     return _resolve_isins(transactions, isin_map)[1]
 
 
-def test_vanguard_symbol_renamed_to_a_mapped_symbol_does_not_warn() -> None:
-    """A mapping for the new name also covers rows carrying the old one."""
+@pytest.mark.parametrize("mapped_name", ["VGER", "VDXX"])
+def test_vanguard_symbol_renamed_with_either_name_mapped_does_not_warn(
+    mapped_name: str,
+) -> None:
+    """A mapping for either name of a renamed holding covers rows under both."""
     pre_rename = VanguardTransaction.from_fields(
         date=datetime.date(2022, 3, 9),
         action=ActionType.BUY,
@@ -293,7 +296,7 @@ def test_vanguard_symbol_renamed_to_a_mapped_symbol_does_not_warn() -> None:
         is_reversal=False,
         description=f"{RENAME_DESCRIPTION_PREFIX}VDXX",
     )
-    mapped = {"VGER": Isin("IE00BK5BQT80")}
+    mapped = {mapped_name: Isin("IE00BK5BQT80")}
 
     assert _unmapped([pre_rename, rename], mapped) == []
     # Without the mapping both names are genuinely unmatchable.
