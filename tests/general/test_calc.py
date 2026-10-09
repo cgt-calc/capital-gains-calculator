@@ -1777,9 +1777,10 @@ FEE_DAY = datetime.date(2024, 5, 3)
                     datetime.date(2024, 5, 1), ActionType.BUY, "FUND", 100, 1000
                 ),
                 _gbp_fee(FEE_DAY, "FUNDX", 20),
-                # A rename still to come excuses a fee under either of its own
-                # two names, and FUNDX is neither.
-                _rename_transaction(datetime.date(2024, 5, 4), "FUND", "FUNDY"),
+                # A rename that day or still to come excuses a fee under either
+                # of its own two names, and FUNDX is neither.
+                _rename_transaction(FEE_DAY, "FUND", "FUNDY"),
+                _rename_transaction(datetime.date(2024, 5, 4), "FUNDY", "FUNDZ"),
             ],
             "FUNDX",
             id="a name nothing is held under",
