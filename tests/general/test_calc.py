@@ -2216,22 +2216,21 @@ def test_excess_reported_income_finds_a_renamed_fund_under_either_name(
 def test_excess_reported_income_stays_off_a_name_another_isin_owns() -> None:
     """A renamed fund's report is not applied to a ticker with an ISIN of its own.
 
-    OLD and NEW are mapped to two ISINs, and both funds report for the day
-    before the rename, when the shares are OLD. Only the report for OLD's
-    ISIN is theirs.
+    OLD and NEW are mapped to two ISINs, and both funds report before the
+    rename, a day apart, when the shares are OLD. Only the report for OLD's
+    ISIN, of 3 a share, is theirs.
 
     100 shares cost 1000, and income of 3 a share adds 300 to that: 1300. Sold
     for 3000, they leave a gain of 1700.
     """
     other_isin = Isin("IE00BK5BQT80")
-    report_date = datetime.date(2024, 5, 9)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     calculator.isin_converter.data[ERI_ISIN] = {"NEW"}
     calculator.isin_converter.data[other_isin] = {"OLD"}
     transactions: list[BrokerTransaction] = [
         _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
-        _eri(report_date, ERI_ISIN, 2),
-        _eri(report_date, other_isin, 3),
+        _eri(datetime.date(2024, 5, 8), ERI_ISIN, 2),
+        _eri(datetime.date(2024, 5, 9), other_isin, 3),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
         _gbp_trade(datetime.date(2024, 5, 20), ActionType.SELL, "NEW", 100, 3000),
     ]

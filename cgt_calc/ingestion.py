@@ -1360,7 +1360,7 @@ class TransactionIngester:
             for name in connected_names(renames, symbol)
             if name not in owners
         }
-        for symbol in known | renamed:
+        for symbol in sorted(known | renamed):
             # For some funds we don't have symbol translation
             if not symbol:
                 continue
