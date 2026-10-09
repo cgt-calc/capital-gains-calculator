@@ -83,7 +83,9 @@ The Trading 212 parser currently handles:
 Trading 212 exports a share reorganisation as two rows: `Stock split close` states your complete
 position before it and `Stock split open` states your complete position after it. Both are needed,
 and cgt-calc combines them into one event. They can be written in either order, and they can fall in
-different exports, which is why the whole directory is read before they are paired.
+different exports, which is why the whole directory is read before they are paired. An older split
+may have no rows at all: see
+[A split with no rows in the export](#a-split-with-no-rows-in-the-export).
 
 Forward splits and consolidations are both supported, including fractional holdings and ratios that
 are not whole numbers. The event is not a sale or a purchase: no money moves, no gain or loss
@@ -113,6 +115,71 @@ they fall on different days, it applies the reorganisation twice, with no error.
 report shows it once. If cgt-calc stops or the report shows it twice, remove the `Stock split close`
 and `Stock split open` rows of one listing from a copy of the export: the other listing's rows give
 the ratio, and cgt-calc applies it to the whole holding.
+
+#### A split with no rows in the export
+
+Trading 212 does not export `Stock split close` and `Stock split open` rows for every split. In the
+exports examined, they first appear in December 2024, and an earlier split has neither them nor the
+older single `Stock Split` row: NVIDIA's 10-for-1 split of 10 June 2024 is one. Your purchases
+before the split are then counted in old shares and your sales after it in new ones. cgt-calc cannot
+tell that the split is missing:
+
+- A sale of more shares than the old count holds stops the run with
+    [`Tried to sell`](#tried-to-sell).
+- Any other sale goes through with no error. It takes too large a share of the cost, so the report
+    understates the gain or shows a loss you did not make.
+- A missing consolidation gives no error at all. Each sale takes too small a share of the cost, so
+    the report overstates the gain.
+
+To find one that gave no error, compare the final portfolio cgt-calc prints with your holdings in
+the account you exported. The final portfolio is the position after the last row of your exports, so
+the two can be compared when the exports run to today. A share with fewer shares in the portfolio
+than you hold may have a missing split, and one with more a missing consolidation: check whether the
+company has split or consolidated its shares since you first bought them.
+
+Add the split yourself in a [RAW file](raw.md):
+
+1. Find the first day the shares traded at the new count, from the company's announcement of the
+    split.
+2. Work out how many shares you held at the start of that day: add up `No. of shares` for your
+    purchases before it and take off your sales before it. If an earlier split of the share has no
+    rows either, add a row for that one first and count the shares it added.
+3. Work out how many shares the split added. Two shares through a 10-for-1 split become 20, so the
+    split added 18. A consolidation takes shares away, so its number is negative.
+4. Write one `STOCK_SPLIT` row with that date, the ticker and that number:
+
+    ```csv
+    date,action,symbol,quantity,price,fees,currency
+    2024-06-10,STOCK_SPLIT,NVDA,18,0.00,0.00,USD
+    ```
+
+5. Pass the file along with the export. cgt-calc reads only one RAW file, so if you already pass
+    one, add the row to that file instead.
+
+    ```shell
+    cgt-calc --year 2024 --trading212-dir trading212/ --raw-file splits.csv
+    ```
+
+cgt-calc cannot check the number you write, so check it in two ways. Run it for the tax year of the
+split and find the share reorganisation in the report: its ratio should be the company's, 10 for
+this split. Then compare the final portfolio with your holdings again: if the count of the share
+still differs, look for another split with no rows. If you hold the share at another broker as well,
+see [Holdings spread across brokers](raw.md#holdings-spread-across-brokers).
+
+If you also bought or sold the share on the day of the split, cgt-calc stops with
+[`cannot be placed either side of it`](raw.md#cannot-be-placed-either-side-of-it), because the RAW
+row has no time to compare with the time of the trade. Take the row out of the RAW file and add the
+split to a working copy of the export instead, as a row with only these cells filled, each under its
+column of the header:
+
+- `Action`: `Stock Split`
+- `Time`: a time on that day before your first trade at the new count, such as `2024-06-10 00:00:00`
+- `Ticker`: the ticker
+- `No. of shares`: the number of shares the split added
+- `Currency (Total)`: the currency of your account, such as `GBP`
+
+cgt-calc reads every trade after that time as made at the new count. It still stops at a trade
+earlier that day; the entry linked above says what to do then.
 
 ### Dates and time zones
 
@@ -338,12 +405,20 @@ check that you passed the directory itself to `--trading212-dir`, not the path t
 ### The balance or portfolio looks wrong
 
 Re-export the history with all data categories selected. Check for a missing date range, files from
-the wrong account, or an unsupported action listed above.
+the wrong account, or an unsupported action listed above. A share with fewer shares in the final
+portfolio than you hold may have a split the export has no rows for: see
+[A split with no rows in the export](#a-split-with-no-rows-in-the-export).
 
 ### `Tried to sell`
 
 The history does not hold the shares being sold. Check first for a missing date range or a missing
-file. If the shares came from a takeover paid in shares, the export may have no row for them: see
+file.
+
+If the company split its shares after you bought them, the export may have no rows for the split. A
+sale of exactly ten times the holding in the message, for example, points to a 10-for-1 split. See
+[A split with no rows in the export](#a-split-with-no-rows-in-the-export).
+
+If the shares came from a takeover paid in shares, the export may have no row for them: see
 [Known limitations](#known-limitations), and do not add a purchase for them to make the calculation
 run.
 
