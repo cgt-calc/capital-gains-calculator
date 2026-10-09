@@ -1630,8 +1630,13 @@ def test_a_row_between_the_halves_says_what_to_do_about_it(tmp_path: Path) -> No
     # The offending row, named the way every other split error names one.
     assert "Market buy at" in message
     assert "Time=2026-02-02 07:44:13.500" in message
-    # And somewhere to go next.
-    assert "work it out by hand (consider professional advice)" in message
+    # And somewhere to go next, if the row is right about when it was dealt.
+    assert (
+        "the reorganisation at 2026-02-02 07:44:13+00:00 and 2026-02-02 "
+        "07:44:14+00:00. Check this row against Trading 212; if it really was "
+        "dealt at or between those two times, leave FOO out and work it out by "
+        "hand (consider professional advice)."
+    ) in message
 
 
 def test_a_legacy_split_on_the_close_halfs_date_is_refused(tmp_path: Path) -> None:

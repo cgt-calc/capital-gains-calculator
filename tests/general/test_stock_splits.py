@@ -575,13 +575,13 @@ def test_a_same_day_row_from_another_input_is_refused() -> None:
         )
 
 
+FIRST_HALF = datetime.datetime(2023, 5, 15, 7, 44, 13, tzinfo=datetime.UTC)
+SECOND_HALF = datetime.datetime(2023, 5, 15, 7, 44, 14, tzinfo=datetime.UTC)
+
+
 @pytest.mark.parametrize(
     "stamp",
-    [
-        datetime.datetime(2023, 5, 15, 7, 44, 13, tzinfo=datetime.UTC),
-        datetime.datetime(2023, 5, 15, 7, 44, 13, 500000, tzinfo=datetime.UTC),
-        datetime.datetime(2023, 5, 15, 7, 44, 14, tzinfo=datetime.UTC),
-    ],
+    [FIRST_HALF, FIRST_HALF + datetime.timedelta(milliseconds=500), SECOND_HALF],
     ids=["at the first half", "between", "at the second half"],
 )
 def test_a_row_at_or_between_the_two_halves_of_a_reorganisation_is_refused(
@@ -589,11 +589,9 @@ def test_a_row_at_or_between_the_two_halves_of_a_reorganisation_is_refused(
 ) -> None:
     """Its unit system is exactly what cannot be told.
 
-    The halves are stamped 07:44:13 and 07:44:14. A row stamped at either is
-    no more before or after the reorganisation than one stamped between them.
+    The halves are stamped a second apart. A row stamped at either is no more
+    before or after the reorganisation than one stamped between them.
     """
-    opened = datetime.datetime(2023, 5, 15, 7, 44, 13, tzinfo=datetime.UTC)
-    closed = datetime.datetime(2023, 5, 15, 7, 44, 14, tzinfo=datetime.UTC)
     stamped = TransactionSource(
         parser="Testing",
         account="Other account",
@@ -614,7 +612,7 @@ def test_a_row_at_or_between_the_two_halves_of_a_reorganisation_is_refused(
                     "12",
                     "24",
                     Fraction(2),
-                    instants=(opened, closed),
+                    instants=(FIRST_HALF, SECOND_HALF),
                 ),
             ]
         )
