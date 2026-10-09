@@ -118,19 +118,24 @@ the ratio, and cgt-calc applies it to the whole holding.
 
 #### A split with no rows in the export
 
-Trading 212 does not export these rows for every split. In the exports examined, they first appear
-in December 2024, and the splits before then have none: NVIDIA's 10-for-1 split of 10 June 2024 is
-one. Your purchases before the split are then counted in old shares and your sales after it in new
-ones. cgt-calc cannot tell that the split is missing:
+Trading 212 does not export `Stock split close` and `Stock split open` rows for every split. In the
+exports examined, they first appear in December 2024, and an earlier split has neither them nor the
+older single `Stock Split` row: NVIDIA's 10-for-1 split of 10 June 2024 is one. Your purchases
+before the split are then counted in old shares and your sales after it in new ones. cgt-calc cannot
+tell that the split is missing:
 
 - A sale of more shares than the old count holds stops the run with
     [`Tried to sell`](#tried-to-sell).
 - Any other sale goes through with no error. It takes too large a share of the cost, so the report
     understates the gain or shows a loss you did not make.
+- A missing consolidation gives no error at all. Each sale takes too small a share of the cost, so
+    the report overstates the gain.
 
-To find a missing split that gave no error, compare the final portfolio cgt-calc prints with your
-holdings in Trading 212. The portfolio shows fewer shares than you hold after a missing split, and
-more after a missing consolidation.
+To find one that gave no error, compare the final portfolio cgt-calc prints with your holdings in
+that Trading 212 account. The final portfolio is the position after the last row of your exports, so
+the two can be compared when the exports run to today. A share with fewer shares in the portfolio
+than you hold may have a missing split, and one with more a missing consolidation: check whether the
+company has split or consolidated its shares since you first bought them.
 
 Add the split yourself in a [RAW file](raw.md):
 
@@ -140,7 +145,7 @@ Add the split yourself in a [RAW file](raw.md):
     purchases before it and take off your sales before it. If an earlier split of the share has no
     rows either, add a row for that one first and count the shares it added.
 3. Work out how many shares the split added. Two shares through a 10-for-1 split become 20, so the
-    split added 18.
+    split added 18. A consolidation takes shares away, so its number is negative.
 4. Write one `STOCK_SPLIT` row with that date, the ticker and that number:
 
     ```csv
@@ -148,7 +153,8 @@ Add the split yourself in a [RAW file](raw.md):
     2024-06-10,STOCK_SPLIT,NVDA,18,0.00,0.00,USD
     ```
 
-5. Pass the file along with the export:
+5. Pass the file along with the export. cgt-calc reads only one RAW file, so if you already pass
+    one, add the row to that file instead.
 
     ```shell
     cgt-calc --year 2024 --trading212-dir trading212/ --raw-file splits.csv
@@ -156,20 +162,26 @@ Add the split yourself in a [RAW file](raw.md):
 
 cgt-calc cannot check the number you write, so check it in two ways. Run it for the tax year of the
 split and find the share reorganisation in the report: its ratio should be the company's, 10 for
-this split. Then compare the final portfolio with your holdings in Trading 212 again: if it still
-shows fewer of the share than you hold, an earlier split is missing as well.
-[Share reorganisations](raw.md#share-reorganisations) covers a consolidation and a holding spread
-across brokers.
+this split. Then compare the final portfolio with your holdings again: if the count of the share
+still differs, look for another split with no rows. If you hold the share at another broker as well,
+see [Holdings spread across brokers](raw.md#holdings-spread-across-brokers).
 
-If you also bought or sold the share on the day of the split, cgt-calc stops with **Cannot apply the
-reorganisation**, because the RAW row has no time to compare with the time of the trade. In a
-working copy of the export, move that day's trades of the share into the RAW file as `BUY` and
-`SELL` rows, in [the order they happened](raw.md#the-order-of-rows-on-one-date). For each, write the
-number of shares, the `Total` divided by that number as the `price`, and the currency of the
-`Total`, so that the trade keeps the amount Trading 212 gave it. Their cash is then kept on a
-balance separate from your Trading 212 cash. If either balance goes below zero, the run stops with
-`Reached a negative balance`; run it again with `--no-balance-check`, which turns the check off for
-every input in the run.
+If you also bought or sold the share on the day of the split, cgt-calc stops with
+[`cannot be placed either side of it`](raw.md#cannot-be-placed-either-side-of-it), because the RAW
+row has no time to compare with the time of the trade. In a working copy of the export, move that
+day's trades of the share into the RAW file, in
+[the order they happened](raw.md#the-order-of-rows-on-one-date). Each becomes a `BUY` or `SELL` row
+with the number of shares and the currency of the `Total`:
+
+- For a purchase, the `price` is the `Total` divided by the number of shares and `fees` is `0`,
+    because the total already includes the fees.
+- For a sale, the `Total` is after fees, which in the exports examined are only the
+    `Currency conversion fee`. Write that fee in `fees`, and add it to the `Total` before dividing
+    by the number of shares.
+
+The cash of those trades is then kept on a balance separate from your Trading 212 cash. If either
+balance goes below zero, the run stops with `Reached a negative balance`; run it again with
+[`--no-balance-check`](../usage.md#check-the-result).
 
 ### Dates and time zones
 
@@ -395,7 +407,9 @@ check that you passed the directory itself to `--trading212-dir`, not the path t
 ### The balance or portfolio looks wrong
 
 Re-export the history with all data categories selected. Check for a missing date range, files from
-the wrong account, or an unsupported action listed above.
+the wrong account, or an unsupported action listed above. A share with fewer shares in the final
+portfolio than you hold may have a split the export has no rows for: see
+[A split with no rows in the export](#a-split-with-no-rows-in-the-export).
 
 ### `Tried to sell`
 
