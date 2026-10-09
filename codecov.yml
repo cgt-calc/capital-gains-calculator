@@ -30,14 +30,18 @@ coverage:
   status:
     project:
       default:
-        # Compare against the base commit and block PRs that decrease
-        # total coverage by more than the threshold.
+        # Compare against the base commit and fail when total coverage
+        # drops by more than the threshold. Codecov does not post this
+        # status on the organisation's current plan.
         target: auto
         threshold: 0.5%
     patch:
       default:
-        # Report coverage of changed lines without blocking the merge.
-        informational: true
+        # Fail when under 90% of the changed lines are covered. Not a
+        # required check, so a late or missing Codecov status cannot
+        # stall the merge queue. A pull request merged below the
+        # target leaves a failing status on its commit on main.
+        target: 90%
 
 github_checks:
   # No per-line annotations in the diff view, the PR comment is enough.

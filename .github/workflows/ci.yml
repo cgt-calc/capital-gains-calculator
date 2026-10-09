@@ -88,8 +88,9 @@ jobs:
           files: coverage.xml
           flags: python-${{ matrix.python-version }}-${{ matrix.os }}
           token: ${{ secrets.CODECOV_TOKEN }}
-          # Don't fail CI on upload issues: merge protection comes
-          # from the codecov/project status check, not this step.
+          # Don't fail CI on upload issues. A lost upload only leaves
+          # the codecov/patch check unreported, and that check is not
+          # required.
           fail_ci_if_error: false
 
       - name: Upload test results to Codecov
