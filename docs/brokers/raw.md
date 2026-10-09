@@ -160,8 +160,8 @@ income on a holding of `FUND` with a distribution date of 28 June 2024:
     the report names the holding.
 - A voucher for an interest distribution before 6 April 2017 can show
     [income tax deducted](https://www.gov.uk/hmrc-internal-manuals/investment-funds/ifm02222). Only
-    the amount after tax was reinvested: enter the gross interest on the `INTEREST` row, the tax on
-    an `INTEREST_TAX` row and the net amount on the `FEE` row.
+    the amount after tax was reinvested: enter the gross interest on the `INTEREST` row, the tax as
+    a negative `price` on an `INTEREST_TAX` row and the net amount on the `FEE` row.
 
 Together the rows leave the cash balance unchanged. With the `FEE` alone, the income goes unreported
 and the cash balance is £20 short, which can stop the run with `Reached a negative balance`.
