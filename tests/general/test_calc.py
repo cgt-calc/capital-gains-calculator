@@ -3605,7 +3605,7 @@ def _who_pays_each_rate(
     ]
 
 
-def _add_income_note(year: str, added: str = "the dividends and interest") -> str:
+def _note_to_add_income(year: str, added: str = "the dividends and interest") -> str:
     """Return the note saying how to get one figure, as the terminal words it."""
     return (
         f"To get a single figure, add --income with your income for {year} before "
@@ -3635,7 +3635,7 @@ NOTES_FOR_2024 = [
         "£37,700",
     ),
     HIGHEST_RATE_FIRST_NOTE,
-    _add_income_note("2024/2025"),
+    _note_to_add_income("2024/2025"),
     ESTIMATE_NOTE,
 ]
 
@@ -3689,7 +3689,7 @@ NOTES_FOR_2024 = [
                 ),
                 HIGHEST_RATE_FIRST_NOTE,
                 GAINS_BEFORE_23_JUNE_2010_NOTE,
-                _add_income_note("2010/2011", "the interest"),
+                _note_to_add_income("2010/2011", "the interest"),
                 ESTIMATE_NOTE,
             ],
             id="only gains from 23 June 2010 count towards the limit",
@@ -3714,7 +3714,7 @@ NOTES_FOR_2024 = [
                 "Tax at basic rate: £1,800.00",
                 "Tax at higher rate: £2,800.00",
                 *_who_pays_each_rate("2015/2016", "18%", "28%", "£31,785"),
-                _add_income_note("2015/2016", "the interest"),
+                _note_to_add_income("2015/2016", "the interest"),
                 ESTIMATE_NOTE,
             ],
             id="18% and 28% until 5 April 2016",
@@ -3726,7 +3726,7 @@ NOTES_FOR_2024 = [
                 "Tax at basic rate: £1,000.00",
                 "Tax at higher rate: £2,000.00",
                 *_who_pays_each_rate("2016/2017", "10%", "20%", "£32,000"),
-                _add_income_note("2016/2017"),
+                _note_to_add_income("2016/2017"),
                 ESTIMATE_NOTE,
             ],
             id="10% and 20% from 6 April 2016",
