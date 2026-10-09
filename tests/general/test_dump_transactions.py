@@ -758,20 +758,22 @@ def test_cli_refuses_a_destination_it_would_overwrite(
     """A path the run writes later cannot be the snapshot destination."""
     directory = tmp_path / "out"
     directory.mkdir()
+    caches = [argument.format(directory=directory) for argument in extra]
+    # An option is given once, so a case naming its own rates file is the only
+    # one to pass it.
+    if "--exchange-rates-file" not in caches:
+        caches += ["--exchange-rates-file", "tests/exchange_rates_data.csv"]
 
     result = _run_bare(
         "--year",
         "2023",
         "--raw-file",
         _raw_file(tmp_path, "2023-04-25,BUY,XYZ,10,5.00,0.00,USD"),
-        "--exchange-rates-file",
-        "tests/exchange_rates_data.csv",
         "--dump-transactions",
         str(directory / name),
         "--output",
         str(directory / "calculations.pdf"),
-        # Last wins, so a case naming its own cache overrides the default above.
-        *(argument.format(directory=directory) for argument in extra),
+        *caches,
     )
 
     assert result.returncode != 0

@@ -61,6 +61,9 @@ cgt-calc --year 2024 \
   --mssb-dir morgan_stanley/
 ```
 
+Give each option once. cgt-calc stops if you repeat one, because each takes a single value and the
+first would otherwise go unread.
+
 See the [broker instructions](brokers/index.md) for the correct option and export format for each
 source. If your broker is not listed, you can convert its transactions to the generic
 [RAW format](brokers/raw.md).

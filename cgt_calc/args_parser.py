@@ -10,6 +10,7 @@ import shtab
 from .args_validators import (
     STDIN_PATH,
     DeprecatedAction,
+    StoreOnceAction,
     VersionAction,
     date_type,
     existing_file_or_stdin_type,
@@ -56,6 +57,8 @@ Environment variables:
 Documentation: https://cgt-calc.uk/
 """,
     )
+    # Every option that takes a value takes one, so none may be given twice.
+    parser.register("action", None, StoreOnceAction)
 
     # Tax Year
     year_group = parser.add_argument_group("Tax year")

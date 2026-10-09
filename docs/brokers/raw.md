@@ -216,6 +216,9 @@ below. For any replacement or correction, make sure the original activity is not
 check both the final holdings and each broker balance. Keep the downloaded export unchanged for your
 records; make changes only in a working copy.
 
+cgt-calc reads one RAW file in a run. Keep every row you write yourself in that file: a second
+`--raw-file` stops the run.
+
 ## Generate the report
 
 For the tax year 2024/25, run:

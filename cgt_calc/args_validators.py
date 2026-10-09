@@ -198,7 +198,36 @@ def set_completer(
     action.complete = completer  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
 
-class DeprecatedAction(argparse.Action):
+class StoreOnceAction(argparse.Action):
+    """Store an option's value, and refuse a second value for it.
+
+    argparse keeps the last value of a repeated option and drops the others
+    without a word. For an input that means a file the user passed is never
+    read, and the figures are worked out from the rest.
+    """
+
+    @override
+    def __call__(  # type: ignore[explicit-any]
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
+        """Store the value unless the option already has one."""
+        # Until an option is given, the namespace holds the parser's own
+        # default object for its destination. A deprecated alias shares the
+        # destination, so it counts as the same option.
+        if getattr(namespace, self.dest) is not parser.get_default(self.dest):
+            parser.error(
+                f"{option_string} gives a second value for an option that takes "
+                "one. cgt-calc would have used only the last and ignored the "
+                "other: give the option once."
+            )
+        setattr(namespace, self.dest, values)
+
+
+class DeprecatedAction(StoreOnceAction):
     """Print warning when deprecated argument is used."""
 
     @override
@@ -231,7 +260,7 @@ class DeprecatedAction(argparse.Action):
             option_string,
             replacements[option_string],
         )
-        setattr(namespace, self.dest, values)
+        super().__call__(parser, namespace, values, option_string)
 
 
 class VersionAction(argparse.Action):
