@@ -218,6 +218,7 @@ QCB
 QCBs
 QCOM
 rata
+RawTransaction
 regularMarketPrice
 reportable
 repr

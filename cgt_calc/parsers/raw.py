@@ -106,8 +106,10 @@ class RawTransaction(BrokerTransaction):
         if len(row) != CSV_COLUMNS_NUM:
             raise UnexpectedColumnCountError(row, CSV_COLUMNS_NUM, file)
 
+        # A space typed beside a comma is not part of the value: kept on a
+        # symbol, it would make a holding of its own.
         row_values: dict[RawColumn, str] = {
-            column: row[i] for i, column in enumerate(RawColumn)
+            column: row[i].strip() for i, column in enumerate(RawColumn)
         }
 
         date_str = row_values[RawColumn.DATE]
@@ -201,7 +203,10 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
     @override
     def read_transactions(cls, file: TextIO, file_path: Path) -> list[RawTransaction]:
         """Read Raw transactions from file."""
-        lines = list(csv.reader(file))
+        # A space after a comma is skipped here, not left to the trim in
+        # `RawTransaction`: a value in quotes is only read as quoted when the
+        # quote is the first thing in its cell.
+        lines = list(csv.reader(file, skipinitialspace=True))
 
         if all(is_blank_row(row) for row in lines):
             raise ParsingError(file_path, "RAW CSV file is empty")

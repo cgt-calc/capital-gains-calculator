@@ -27,6 +27,8 @@ The columns are:
 The header is required. cgt-calc can infer it from a file without a header for compatibility, but
 warns because it then has to assume that the columns are in the order above.
 
+A space before or after a value is ignored, so you can leave one after each comma.
+
 Here is a complete small example:
 
 ```csv

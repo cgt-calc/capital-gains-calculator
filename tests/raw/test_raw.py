@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import datetime
 from decimal import Decimal
 import io
 import logging
@@ -353,6 +354,51 @@ def test_read_raw_transactions_skips_a_blank_row(tmp_path: Path, blank: str) -> 
     transactions = RawParser().load_from_file(raw_file)
 
     assert [t.source.row for t in transactions if t.source] == [2, 4]
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        "2024-01-02,BUY, BRK B ,10,2.50,0.10,USD",
+        " 2024-01-02 ,BUY,BRK B,10,2.50,0.10,USD",
+        "2024-01-02, BUY ,BRK B,10,2.50,0.10,USD",
+        '2024-01-02,BUY, "BRK B" ,10,2.50,0.10,USD',
+    ],
+    ids=["symbol", "date", "action", "symbol in quotes"],
+)
+def test_read_raw_transactions_ignores_spaces_around_a_value(
+    tmp_path: Path, row: str
+) -> None:
+    """A space typed beside a comma is not part of the value; one inside it is.
+
+    A symbol kept with its space, or with the quotes typed after one, would be
+    a holding of its own, apart from the same symbol typed without them.
+    """
+    raw_file = tmp_path / "raw_spaces.csv"
+    raw_file.write_text(
+        f"date,action,symbol,quantity,price,fees,currency\n{row}\n", encoding="utf-8"
+    )
+
+    (transaction,) = RawParser().load_from_file(raw_file)
+
+    assert transaction.date == datetime.date(2024, 1, 2)
+    assert transaction.action == ActionType.BUY
+    assert transaction.symbol == "BRK B"
+
+
+def test_read_raw_transactions_reads_a_cell_of_spaces_as_empty(tmp_path: Path) -> None:
+    """A cell holding only spaces is an empty cell: no symbol, and no fee."""
+    raw_file = tmp_path / "raw_cell_of_spaces.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2024-01-03,TRANSFER, ,1,1000.00, ,GBP\n",
+        encoding="utf-8",
+    )
+
+    (transaction,) = RawParser().load_from_file(raw_file)
+
+    assert transaction.symbol is None
+    assert transaction.fees == Decimal(0)
 
 
 def test_read_raw_transactions_reports_a_half_filled_row(tmp_path: Path) -> None:
