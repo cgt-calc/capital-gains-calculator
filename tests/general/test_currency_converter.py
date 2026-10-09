@@ -692,7 +692,7 @@ def test_a_rates_file_that_cannot_be_written_is_reported_and_left_alone(
     assert str(raised.value) == (
         "Cannot save exchange rates to rates.csv: Permission denied. Close the file "
         "if another program has it open, and check that it and its folder can be "
-        "written to. To run without reading or saving the rates file, pass "
+        "written to. To run without reading or saving this file, pass "
         "--exchange-rates-file= with nothing after the = sign."
     )
     assert rates_file.read_bytes() == TYPED_ROW

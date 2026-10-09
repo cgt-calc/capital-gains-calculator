@@ -5,14 +5,17 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 import logging
+import os
+from pathlib import Path
 import re
-from typing import TYPE_CHECKING, NoReturn
+from typing import NoReturn
 
 import pytest
 from requests import exceptions as requests_exceptions
 
 from cgt_calc.const import ISIN_TICKER_ALIASES, RuntimeMode
 from cgt_calc.exceptions import (
+    CgtError,
     ExternalApiError,
     InvalidTransactionError,
     IsinTranslationError,
@@ -22,9 +25,6 @@ from cgt_calc.exceptions import (
 import cgt_calc.isin_converter
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 # Well-formed but unassigned, so it cannot be in the bundled translation data.
 UNKNOWN_ISIN = Isin("ZZ0000000008")
@@ -514,6 +514,37 @@ def test_translation_file_roundtrip(
 
     restored = IsinConverter(isin_translation_file=translation_file)
     assert restored.get_symbols(ISIN_A) == {"FOO"}
+
+
+def test_a_translation_file_that_cannot_be_written_is_reported_and_left_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A read-only translation file stops the run with what to do, and stays as it is."""
+    monkeypatch.setattr(cgt_calc.isin_converter, "CGT_MODE", RuntimeMode.PROD)
+    monkeypatch.chdir(tmp_path)
+    translation_file = Path("isin_translation.csv")
+    on_file = f"ISIN,symbol\r\n{ISIN_B},BAR\r\n".encode()
+    translation_file.write_bytes(on_file)
+    translation_file.chmod(0o444)
+    if os.access(translation_file, os.W_OK):
+        pytest.skip("this user may write to a read-only file")
+    converter = IsinConverter(isin_translation_file=translation_file)
+    monkeypatch.setattr(
+        converter,
+        "session",
+        FakeSession([{"data": [{"ticker": "FOO", "exchCode": "LN"}]}]),
+    )
+
+    with pytest.raises(CgtError) as raised:
+        converter.get_symbols(ISIN_A)
+
+    assert str(raised.value) == (
+        "Cannot save ISIN translations to isin_translation.csv: Permission denied. "
+        "Close the file if another program has it open, and check that it and its "
+        "folder can be written to. To run without reading or saving this file, pass "
+        "--isin-translation-file= with nothing after the = sign."
+    )
+    assert translation_file.read_bytes() == on_file
 
 
 def test_translation_file_excludes_transaction_symbols(

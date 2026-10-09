@@ -1,10 +1,13 @@
 """Utility functions."""
 
 from collections.abc import Generator, Iterable
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
+import csv
 import decimal
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+import secrets
+import shutil
 import sys
 import textwrap
 from typing import TextIO
@@ -199,6 +202,31 @@ def open_with_parents(path: Path, *, clear_content: bool = True) -> TextIO:
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     return path.open("w" if clear_content else "r+", encoding="utf8", newline="")
+
+
+def save_csv(file: Path, rows: Iterable[Iterable[object]]) -> None:
+    """Save `rows` as the whole of a CSV file, or leave the file as it was.
+
+    The rows are written beside the file and then moved into its place, so a
+    run that stops part way leaves the old file, not an empty or half-written
+    one. A symbolic link stays one: it is the file it names that is replaced.
+    """
+    target = file.resolve()
+    # No two saves share a name, or two runs at once would write one file.
+    temporary = target.with_name(f"{target.name}.{secrets.token_hex(4)}.tmp")
+    try:
+        with open_with_parents(temporary) as fout:
+            csv.writer(fout).writerows(rows)
+        if target.exists():
+            # A move can succeed over a read-only file: refuse it here.
+            with target.open("r+b"):
+                pass
+            shutil.copymode(target, temporary)
+        temporary.replace(target)
+    finally:
+        # Already gone once it has been moved into place.
+        with suppress(OSError):
+            temporary.unlink()
 
 
 if sys.platform == "win32":

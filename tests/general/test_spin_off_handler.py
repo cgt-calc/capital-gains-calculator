@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 import datetime
+import os
+from pathlib import Path
 import re
 import sys
-from typing import TYPE_CHECKING
 
 import pytest
 
 from cgt_calc.const import DEFAULT_SPIN_OFF_FILE
-from cgt_calc.exceptions import InteractiveInputRequiredError, ParsingError
+from cgt_calc.exceptions import CgtError, InteractiveInputRequiredError, ParsingError
 from cgt_calc.model import Position
 from cgt_calc.spin_off_handler import SpinOffHandler
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 SPIN_OFF_DATE = datetime.date(2021, 5, 10)
 
@@ -219,6 +217,33 @@ def test_recording_spin_off_creates_missing_parent_directories(
     assert source == "OLD"
     content = spin_offs_file.read_text(encoding="utf8")
     assert content.splitlines() == ["dst,src", "NEW,OLD"]
+
+
+def test_a_spin_offs_file_that_cannot_be_written_is_reported_and_left_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A read-only spin-offs file stops the run with what to do, and stays as it is."""
+    monkeypatch.chdir(tmp_path)
+    spin_offs_file = Path("spin_offs.csv")
+    on_file = b"dst,src\r\nSPUN,FIRST\r\n"
+    spin_offs_file.write_bytes(on_file)
+    spin_offs_file.chmod(0o444)
+    if os.access(spin_offs_file, os.W_OK):
+        pytest.skip("this user may write to a read-only file")
+    handler = SpinOffHandler(spin_offs_file)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt: "OLD")
+
+    with pytest.raises(CgtError) as raised:
+        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {"OLD": Position()})
+
+    assert str(raised.value) == (
+        "Cannot save spin-offs to spin_offs.csv: Permission denied. Close the file "
+        "if another program has it open, and check that it and its folder can be "
+        "written to. To run without reading or saving this file, pass "
+        "--spin-offs-file= with nothing after the = sign."
+    )
+    assert spin_offs_file.read_bytes() == on_file
 
 
 def test_disabled_cache_error_asks_for_a_non_empty_path(

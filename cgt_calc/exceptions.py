@@ -74,6 +74,27 @@ def reading_as(encoding: str, file: Path) -> Iterator[None]:
         raise ParsingError(file, detail) from err
 
 
+@contextmanager
+def saving(what: str, file: Path, instead: str) -> Iterator[None]:
+    """Report a failure to write `file` as a message; `instead` is the way round it."""
+    try:
+        yield
+    except OSError as err:
+        raise CgtError(
+            f"Cannot save {what} to {file}: {err.strerror}. Close the file if "
+            "another program has it open, and check that it and its folder can be "
+            f"written to. {instead}"
+        ) from err
+
+
+def without_file(option: str) -> str:
+    """Say how to run without a file that `option` names and cgt-calc saves."""
+    return (
+        f"To run without reading or saving this file, pass {option}= with nothing "
+        "after the = sign."
+    )
+
+
 class UnsupportedBrokerCurrencyError(ParsingError):
     """Raised when a broker export uses an unsupported account currency."""
 
