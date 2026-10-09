@@ -20,6 +20,7 @@ from decimal import Decimal
 import os
 from pathlib import Path
 import re
+import sys
 
 import pytest
 
@@ -274,7 +275,10 @@ def test_a_report_that_cannot_be_saved_says_why(
     )
 
 
-@pytest.mark.skipif(not os.getenv("ENABLE_PDFLATEX"), reason="needs pdflatex")
+@pytest.mark.skipif(
+    not os.getenv("ENABLE_PDFLATEX") or sys.platform == "win32",
+    reason="needs pdflatex, and Windows gives another reason for opening a folder",
+)
 def test_a_latex_log_that_cannot_be_opened_is_named(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
