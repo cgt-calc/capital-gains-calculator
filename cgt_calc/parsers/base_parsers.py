@@ -369,9 +369,9 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
     def read_transactions(cls, file: TextIO, file_path: Path) -> list[T]:
         """Read transactions from a CSV file."""
         lines, header_row = cls.pre_reading(file, file_path)
-        # Read through once for that refusal alone. The reader below skips an
-        # empty line without saying so, so it cannot tell on which line a row
-        # that runs over several began.
+        # Read through once, only to refuse a row that runs over several
+        # lines. The reader below skips an empty line without saying so, so it
+        # cannot tell on which line such a row began.
         lines = list(lines)
         read_csv_rows(lines, file_path, first_row=header_row)
         reader = csv.DictReader(lines)
