@@ -189,6 +189,32 @@ def test_read_revolut_transactions_invalid_decimal(tmp_path: Path) -> None:
         RevolutParser().load_from_file(path)
 
 
+@pytest.mark.parametrize(
+    ("header", "found"),
+    [
+        ([",".join(COLUMNS)], ", row 3: A cell on this row runs on to row 5,"),
+        # A file without a header has its rows one line higher.
+        ([], ", row 2: A cell on this row runs on to row 4,"),
+    ],
+    ids=["with a header", "without a header"],
+)
+def test_read_revolut_transactions_refuses_a_row_that_runs_over_several_lines(
+    tmp_path: Path, header: list[str], found: str
+) -> None:
+    """A double quote left open takes in the rows below it; they are not dropped.
+
+    Opened on the last cell of the second of four purchases, it runs to the
+    end of the file, and the export would be read as two purchases.
+    """
+    rows = [",".join(_default_row()) for _ in range(4)]
+    rows[1] = rows[1].replace(",1.3646", ',"1.3646')
+    path = tmp_path / "revolut.csv"
+    path.write_text("\n".join([*header, *rows]) + "\n", encoding="utf-8")
+
+    with pytest.raises(ParsingError, match=found):
+        RevolutParser().load_from_file(path)
+
+
 def test_read_revolut_transactions_missing_header(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

@@ -401,6 +401,30 @@ def test_read_raw_transactions_reads_a_cell_of_spaces_as_empty(tmp_path: Path) -
     assert transaction.fees == Decimal(0)
 
 
+def test_read_raw_transactions_refuses_a_row_that_runs_over_several_lines(
+    tmp_path: Path,
+) -> None:
+    """A double quote left open takes in the rows below it; they are not dropped.
+
+    The quote opened on row 2 is closed by the one on row 5, so the four rows
+    would be read as one purchase of 5 with the rest inside its symbol.
+    """
+    raw_file = tmp_path / "raw_open_quote.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        '2024-01-02,BUY,"BRK B,10,2.50,0.10,USD\n'
+        "2024-01-03,BUY,XYZ,10,2.50,0.10,USD\n"
+        "2024-01-04,BUY,XYZ,10,2.50,0.10,USD\n"
+        '2024-01-05,BUY,"BRK B,5,3.00,0.10,USD\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ParsingError, match=", row 2: A cell on this row runs on to row 5,"
+    ):
+        RawParser().load_from_file(raw_file)
+
+
 def test_read_raw_transactions_reports_a_half_filled_row(tmp_path: Path) -> None:
     """A row with any cell filled is not blank: it is reported, at its own line."""
     raw_file = tmp_path / "raw_half_filled.csv"

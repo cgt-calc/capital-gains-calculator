@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import csv
 import datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -18,7 +17,7 @@ from cgt_calc.model import (
 )
 from cgt_calc.util import is_blank_row, parse_decimal
 
-from .base_parsers import BaseSingleFileParser
+from .base_parsers import BaseSingleFileParser, read_csv_rows
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -206,7 +205,7 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
         # A space after a comma is skipped here, not left to the trim in
         # `RawTransaction`: a value in quotes is only read as quoted when the
         # quote is the first thing in its cell.
-        lines = list(csv.reader(file, skipinitialspace=True))
+        lines = read_csv_rows(file, file_path, skipinitialspace=True)
 
         if all(is_blank_row(row) for row in lines):
             raise ParsingError(file_path, "RAW CSV file is empty")
