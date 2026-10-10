@@ -148,6 +148,7 @@ ITA
 IsADirectoryError
 iShares
 ISIN
+ISIN's
 IsinConverter
 ISINs
 isoformat

@@ -105,7 +105,7 @@ def end_name(renames: Mapping[str, str], symbol: str) -> str:
 
 
 def connected_names(renames: Mapping[str, str], symbol: str) -> set[str]:
-    """Return every ticker a day's renames say is this holding.
+    """Return every ticker a set of renames says is this holding.
 
     Walked in both directions: a holding is reached from the name it is
     renamed to as well as from the ones renamed into it.
