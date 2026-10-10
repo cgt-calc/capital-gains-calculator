@@ -588,8 +588,8 @@ def _split_chronology_message(
         f"units before or after:\n{indent_entry(other)}\n"
         f"The reorganisation is:\n{indent_entry(row)}\n"
     )
-    stated = other.source is not None and other.source.timestamp is not None
-    if len(instants) == 1 and stated:
+    stamp = None if other.source is None else other.source.timestamp
+    if len(instants) == 1 and stamp is not None:
         return preamble + (
             "Both rows state their times, but the reorganisation is a "
             "single row, and the instant on it is when the broker booked "
@@ -599,12 +599,19 @@ def _split_chronology_message(
             "booked after that row is in the new units; this row was not. "
             "Work the day out by hand (consider professional advice)."
         )
+    if len(instants) > 1 and stamp is not None:
+        return preamble + (
+            f"This row is stamped {stamp}, at or between the two halves of "
+            f"the reorganisation at {min(instants)} and {max(instants)}. If "
+            f"you know the real order, put the day's {symbol} rows in one "
+            "RAW input in that order; otherwise work the day out by hand "
+            "(consider professional advice)."
+        )
     return preamble + (
         "The two come from different inputs, or from an export that gives "
-        "neither times nor a documented order, or the row falls at or "
-        "between the two halves of the reorganisation. Run again with the "
-        f"day's {symbol} rows in one input that states times, or work the "
-        "day out by hand (consider professional advice)."
+        "neither times nor a documented order. Run again with the day's "
+        f"{symbol} rows in one input that states times, or work the day out "
+        "by hand (consider professional advice)."
     )
 
 

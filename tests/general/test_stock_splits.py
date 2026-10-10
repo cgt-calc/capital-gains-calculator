@@ -593,11 +593,10 @@ def test_a_row_at_or_between_the_two_halves_of_a_reorganisation_is_refused(
     """Its unit system is exactly what cannot be told.
 
     The halves are stamped a second apart. A row stamped at either is no more
-    before or after the reorganisation than one stamped between them.
+    before or after the reorganisation than one stamped between them. The
+    refusal prints the three times, so the reader can see it.
     """
-    with pytest.raises(
-        CalculationError, match="the row falls at or between the two halves"
-    ):
+    with pytest.raises(CalculationError, match="cannot be placed either side") as error:
         run(
             [
                 trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
@@ -614,6 +613,16 @@ def test_a_row_at_or_between_the_two_halves_of_a_reorganisation_is_refused(
                 ),
             ]
         )
+    message = str(error.value)
+    assert (
+        f"This row is stamped {stamp}, at or between the two halves of the "
+        "reorganisation at 2023-05-15 07:44:13+00:00 and 2023-05-15 07:44:14+00:00. "
+        "If you know the real order, put the day's FOO rows in one RAW input in "
+        "that order; otherwise work the day out by hand"
+    ) in message
+    # Both state their times, so asking for times would send the reader after
+    # a file that does not exist.
+    assert "in one input that states times" not in message
 
 
 # ===== keeping the broker's own count =====
