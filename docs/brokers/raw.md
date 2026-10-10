@@ -190,10 +190,10 @@ hold no units under the `FEE` row's `symbol` on that date:
     anywhere, and consider professional advice.
 
 cgt-calc does not make this check when the `symbol` is the old or the new ticker of a
-[ticker rename in a Vanguard export](vanguard.md#supported-activity) dated on that day or later. For
-such a `FEE`, check its entry in the PDF as described above. If “Number of units in the pool” is 0,
-one of the three cases above applies, and the cost can end up on units you buy later under either
-ticker.
+[ticker rename in a Vanguard export](vanguard.md#supported-activity) dated on the `FEE` row's date
+or later. For such a `FEE`, check its entry in the PDF as described above. If “Number of units in
+the pool” is 0, one of the three cases above applies, and the cost can end up on units you buy later
+under either ticker.
 
 This is for a fund based in the UK. For an accumulating fund or ETF based elsewhere, such as an
 Irish one, see [Offshore Funds (ERI)](../offshore-funds.md).
