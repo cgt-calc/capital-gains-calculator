@@ -174,8 +174,9 @@ with no new shares: £20.00”. Under that heading, “Number of units in the po
 you hold and “new pool cost” £20 more than the cost before. If you bought more of the fund the same
 day, the PDF shows the £20 as part of that purchase's fees instead.
 
-If you hold no units under the `FEE` row's `symbol` on that date, cgt-calc stops with
-`Cannot add the cost of the FEE row for FUND on 2024-06-28: no units of FUND are held that day`:
+If cgt-calc stops with
+`Cannot add the cost of the FEE row for FUND on 2024-06-28: no units of FUND are held that day`, you
+hold no units under the `FEE` row's `symbol` on that date:
 
 - If cgt-calc knows the holding by another name, write that name as the `symbol` of the `FEE` row.
     The run still lists the holdings you have at the end of your files under “Final portfolio”. For
@@ -187,6 +188,11 @@ If you hold no units under the `FEE` row's `symbol` on that date, cgt-calc stops
     whether the income adds to the cost of those units. Replace the `FEE` with an `ADJUSTMENT` of
     the same amount and a blank `symbol`, which keeps the balance right without adding the cost
     anywhere, and consider professional advice.
+
+cgt-calc does not make this check when the `symbol` is the old or the new ticker of a
+[ticker rename in a Vanguard export](vanguard.md#supported-activity) dated on that day or later. For
+such a `FEE`, check its entry in the PDF as described above: if “Number of units in the pool” is 0,
+the cost was not added to any units, and one of the three cases above applies.
 
 This is for a fund based in the UK. For an accumulating fund or ETF based elsewhere, such as an
 Irish one, see [Offshore Funds (ERI)](../offshore-funds.md).
