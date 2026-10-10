@@ -3,10 +3,12 @@
 Codecov's own comment is cut down to a patch summary on the organisation's
 plan. This builds a fuller one from Codecov's public API: the changed lines
 that tests do not cover, total coverage before and after, and the figures by
-component and by flag. The coverage-comment workflow runs it when Codecov's
-patch check lands. To preview the comment for a pull request without posting:
+component and by flag. "Before" is the commit on the base branch that CI
+merged the pull request into, not the older one its branch started from.
+The coverage-comment workflow runs it when Codecov's patch check lands. To
+print the comment for a pull request without posting it:
 
-    python3 scripts/coverage_comment.py --repo OWNER/NAME --pull 1151 --dry-run
+    python3 scripts/coverage_comment.py --repo OWNER/NAME --pull 1151
 
 Standard library only: the workflow runs it with the runner's Python, without
 installing the project. GitHub is reached through the `gh` CLI, which holds
@@ -21,7 +23,9 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
 from typing import NamedTuple, TypedDict
+import urllib.error
 import urllib.request
 
 # Starts the comment, so that a later run finds it and edits it in place.
@@ -136,6 +140,11 @@ def percent(value: Decimal | int) -> str:
     return f"{Decimal(value):.2f}%"
 
 
+def figure(totals: Totals | None) -> str:
+    """Format the coverage of a component or flag, which may have no report."""
+    return percent(totals["coverage"]) if totals else "n/a"
+
+
 def code_block(lines: list[str]) -> list[str]:
     """Fence source lines so that no run of backticks in them ends the block."""
     longest = max((len(run) for run in re.findall(r"`+", "\n".join(lines))), default=0)
@@ -199,9 +208,6 @@ def breakdown(title: str, column: str, rows: list[Breakdown]) -> list[str]:
     if not rows:
         return []
 
-    def figure(totals: Totals | None) -> str:
-        return percent(totals["coverage"]) if totals else "n/a"
-
     def changed(diff: Totals | None) -> str:
         if diff and diff["lines"]:
             return f"{percent(diff['coverage'])} of {diff['lines']}"
@@ -241,6 +247,12 @@ def render(
     delta = (
         Decimal(head["coverage"]) - Decimal(base["coverage"]) if base else Decimal(0)
     )
+    # A figure can move for one flag or component alone, as when a test only
+    # adds coverage on Windows. Without a report from before, none has moved.
+    moved = base and any(
+        figure(row["base_report_totals"]) != figure(row["head_report_totals"])
+        for row in [*components, *flags]
+    )
 
     if patch and measured:
         icon = ":white_check_mark:" if check["conclusion"] == "success" else ":x:"
@@ -274,7 +286,10 @@ def render(
         *breakdown("Flags", "Flag", flags),
         footer,
     ]
-    return Comment("\n".join(body) + "\n", bool(measured or indirect or delta))
+    return Comment(
+        "\n".join(body) + "\n",
+        bool(measured or indirect or delta or moved),
+    )
 
 
 def gh(*args: str, stdin: str | None = None) -> str:
@@ -298,6 +313,87 @@ def codecov(repo: str, path: str) -> str:
     return text
 
 
+def merged_into(repo: str, sha: str, merge: str | None) -> str | None:
+    """Find the commit on the base branch that CI merged the pull request into.
+
+    CI tests GitHub's test merge of the pull request, not its head commit, so
+    the report Codecov files under the head is for that merge. Coverage before
+    the pull request is then the report of the merge's first parent, which is
+    newer than the commit the branch started from whenever the branch is
+    behind. GitHub may rebuild the test merge after the base branch moves. The
+    one it names now is the one CI tested only if it is no newer than every
+    workflow run the pull request started on this head commit. If it is not,
+    or there is none, the commit cannot be told and the answer is None.
+    """
+    if not merge:
+        return None
+    details: list[str] = json.loads(
+        gh(
+            f"repos/{repo}/commits/{merge}",
+            "--jq",
+            "[.commit.committer.date, .parents[].sha]",
+        ),
+    )
+    committed, *parents = details
+    runs = [
+        line
+        for line in gh(
+            f"repos/{repo}/actions/runs?head_sha={sha}&event=pull_request&per_page=100",
+            "--paginate",
+            "--jq",
+            ".workflow_runs[].created_at",
+        ).split("\n")
+        if line
+    ]
+    # Both times are UTC to the second in one format, so they compare as text.
+    if parents[1:] == [sha] and runs and committed <= min(runs):
+        return parents[0]
+    return None
+
+
+def figures(
+    repo: str,
+    pull: int,
+    sha: str,
+    base: str | None,
+) -> tuple[Compare, list[Breakdown], list[Breakdown]]:
+    """Read Codecov's comparison for the head commit, by component and flag too.
+
+    It is compared with the commit CI merged it into. Without that commit, or
+    without a report for it, what is left is Codecov's own comparison for the
+    pull request, which starts from the commit the branch forked at. Every
+    file changed on the base branch since then would show there as coverage
+    the pull request moved, so its figures from before are dropped and the
+    comment gives only the current ones.
+    """
+
+    def read(query: str) -> tuple[Compare, list[Breakdown], list[Breakdown]]:
+        compare, components, flags = (
+            json.loads(codecov(repo, f"compare/{part}?{query}"), parse_float=Decimal)
+            for part in ("", "components", "flags")
+        )
+        return compare, components, flags
+
+    if base:
+        try:
+            return read(f"base={base}&head={sha}")
+        except urllib.error.HTTPError:
+            # Codecov answers 404 for a commit it holds no report for.
+            pass
+    compare, components, flags = read(f"pullid={pull}")
+    compare["totals"]["base"] = None
+    for file in compare["files"]:
+        file["totals"]["base"] = None
+    for row in [*components, *flags]:
+        row["base_report_totals"] = None
+    print(
+        "Left out the figures from before the pull request: the commit CI"
+        " merged it into is not known, or Codecov has no report for it.",
+        file=sys.stderr,
+    )
+    return compare, components, flags
+
+
 def main() -> None:
     """Render the comment for one pull request, then post or update it."""
     parser = argparse.ArgumentParser(
@@ -309,54 +405,57 @@ def main() -> None:
         "--sha",
         help="head commit of an open pull request, as the workflow knows it",
     )
-    target.add_argument("--pull", type=int, help="pull request number, to preview")
+    target.add_argument(
+        "--pull",
+        type=int,
+        help="pull request number: print its comment and post nothing",
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="print the comment and post nothing",
+        help="with --sha, print the comment and post nothing",
     )
     args = parser.parse_args()
     repo: str = args.repo
-    pull: int | None = args.pull
-    sha: str | None = args.sha
+    pull: int
+    sha: str
+    merge: str | None
 
-    if pull is None:
+    if args.pull is None:
+        sha = args.sha
         # Codecov's check does not name its pull request, and GitHub's lookup
         # of a commit's pull requests misses those from forks, so match the
         # commit against the head of every open one.
-        heads: list[tuple[int, str]] = [
+        heads: list[tuple[int, str, str | None]] = [
             json.loads(line)
             for line in gh(
                 f"repos/{repo}/pulls?state=open&per_page=100",
                 "--paginate",
                 "--jq",
-                ".[] | [.number, .head.sha] | @json",
+                ".[] | [.number, .head.sha, .merge_commit_sha] | @json",
             ).split("\n")
             if line
         ]
-        matching = [number for number, head in heads if head == sha]
+        matching = [(number, merged) for number, head, merged in heads if head == sha]
         if not matching:
             print(f"No open pull request has {sha} as its head; nothing to do.")
             return
-        pull = matching[0]
+        pull, merge = matching[0]
     else:
-        sha = gh(f"repos/{repo}/pulls/{pull}", "--jq", ".head.sha").strip()
+        pull = args.pull
+        sha, merge = json.loads(
+            gh(f"repos/{repo}/pulls/{pull}", "--jq", "[.head.sha, .merge_commit_sha]"),
+        )
 
-    compare: Compare = json.loads(
-        codecov(repo, f"compare/?pullid={pull}"),
-        parse_float=Decimal,
+    compare, components, flags = figures(
+        repo,
+        pull,
+        sha,
+        merged_into(repo, sha, merge),
     )
     if compare["head_commit"] != sha:
         print(f"Codecov has not compared {sha} yet; nothing to do.")
         return
-    components: list[Breakdown] = json.loads(
-        codecov(repo, f"compare/components?pullid={pull}"),
-        parse_float=Decimal,
-    )
-    flags: list[Breakdown] = json.loads(
-        codecov(repo, f"compare/flags?pullid={pull}"),
-        parse_float=Decimal,
-    )
     checks: list[Check] = json.loads(
         gh(
             f"repos/{repo}/commits/{sha}/check-runs?check_name=codecov/patch&per_page=100",
@@ -373,7 +472,9 @@ def main() -> None:
         print(f"Codecov's patch check has not reported on {sha}; nothing to do.")
         return
     comment = render(repo, pull, judged[0], compare, components, flags)
-    if args.dry_run:
+    # A run by pull request number is a person's. It only ever prints: a
+    # comment posted under their name would not be found again and edited.
+    if args.dry_run or args.pull is not None:
         print(comment.body, end="")
         return
 

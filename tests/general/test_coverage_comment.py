@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from email.message import Message
 import json
 from typing import TYPE_CHECKING
+import urllib.error
 
 import pytest
 
@@ -16,9 +18,17 @@ if TYPE_CHECKING:
 
     from scripts.coverage_comment import Breakdown, Check, Compare, File, Line, Totals
 
+    # What Codecov holds for each query: the comparison, then its components
+    # and its flags. None is a comparison it cannot make.
+    Reports = dict[str, tuple[Compare, list[Breakdown], list[Breakdown]] | None]
+
 REPO = "cgt-calc/capital-gains-calculator"
 HEAD = "b653e4c424a99cc763c2b6458bf645d275c56f02"
 OTHER_COMMIT = "2f038f41e779b8a7bffac9bf57a43a91e0601baf"
+# The commit on main that CI merged pull request 7 into, and GitHub's test
+# merge of the two, which is what CI checked out.
+BASE = "e66176501d0d5f0b4d1c3a8f6c1f0a2b9d7e4c35"
+MERGE = "53f97bfb8a1c2d3e4f5061728394a5b6c7d8e9f0"
 PASSED: Check = {
     "app": "codecov",
     "conclusion": "success",
@@ -28,6 +38,14 @@ NOT_JUDGED: Check = {"app": "codecov", "conclusion": None, "title": None}
 # A workflow job that someone named after Codecov's check. GitHub lists the
 # newest check first, so it comes before the real one.
 IMPOSTOR: Check = {"app": "github-actions", "conclusion": "failure", "title": None}
+# The other way round: such a job that passed, listed before the check of
+# Codecov's that failed.
+JOB_PASSED: Check = {"app": "github-actions", "conclusion": "success", "title": None}
+FAILED: Check = {
+    "app": "codecov",
+    "conclusion": "failure",
+    "title": "0.00% of diff hit (target 90.00%)",
+}
 HIT, MISSED, PARTIAL = 0, 1, 2
 
 
@@ -96,6 +114,16 @@ def comparison(
             "patch": patch,
         },
         "files": files,
+    }
+
+
+def breakdown(name: str, base: str | None, head: str) -> Breakdown:
+    """Build the figures of one component or flag, none of whose lines changed."""
+    return {
+        "name": name,
+        "base_report_totals": totals(base) if base else None,
+        "head_report_totals": totals(head),
+        "diff_totals": None,
     }
 
 
@@ -345,6 +373,77 @@ def test_pull_request_that_changes_no_measured_lines(
     )
 
 
+@pytest.mark.parametrize(
+    ("base", "components", "flags", "worth_posting"),
+    [
+        pytest.param(
+            "96.12",
+            [breakdown("Core calculation", "96.45", "96.45")],
+            [breakdown("windows", "95.00", "96.00")],
+            True,
+            id="one flag moved",
+        ),
+        pytest.param(
+            "96.12",
+            [breakdown("Core calculation", "96.45", "96.30")],
+            [breakdown("windows", "95.00", "95.00")],
+            True,
+            id="one component moved",
+        ),
+        pytest.param(
+            "96.12",
+            [breakdown("Core calculation", "96.45", "96.45")],
+            [breakdown("windows", None, "95.00")],
+            True,
+            id="a flag has figures for the first time",
+        ),
+        pytest.param(
+            "96.12",
+            [breakdown("Core calculation", "96.45", "96.45")],
+            [
+                {
+                    "name": "windows",
+                    "base_report_totals": totals("95.00", lines=80000, hits=76000),
+                    "head_report_totals": totals("95.00", lines=80000, hits=76001),
+                    "diff_totals": None,
+                },
+            ],
+            False,
+            id="one more line is run, which is too little to show",
+        ),
+        pytest.param(
+            None,
+            [breakdown("Core calculation", None, "96.45")],
+            [breakdown("windows", None, "95.00")],
+            False,
+            id="there is no report from before to have moved from",
+        ),
+    ],
+)
+def test_figure_that_moves_for_one_flag_or_component_alone_is_worth_a_comment(
+    base: str | None,
+    components: list[Breakdown],
+    flags: list[Breakdown],
+    worth_posting: bool,
+) -> None:
+    """A figure the comment shows can move while the total and every file stay put.
+
+    A test that runs only on Windows can cover lines another platform already
+    covers: the Windows figure rises from 95% to 96% and the combined ones do
+    not move. No measured line changed here and no file moved, so the rows by
+    component and by flag are all that can make the comment worth posting.
+
+    What counts is the figure as the comment shows it. 76,000 of 80,000 lines
+    is 95.00%, and one line more is 95.00125%, which still reads 95.00%: the
+    comment would say nothing new.
+    """
+    compare = comparison([file("cgt_calc/util.py", [])], None, base=base)
+
+    comment = render(REPO, 7, PASSED, compare, components, flags)
+
+    assert comment.worth_posting is worth_posting
+
+
 def test_fully_covered_change_without_a_base_report() -> None:
     """With nothing to compare against, the comment gives only today's figures.
 
@@ -410,7 +509,7 @@ def test_text_from_the_pull_request_cannot_break_out_of_its_place() -> None:
     ]
     flags: list[Breakdown] = [
         {
-            "name": "x|y<b>@z#1*&!\nrow",
+            "name": "x|y<b>@z#1*&!\nrow c++_api",
             "base_report_totals": None,
             "head_report_totals": None,
             "diff_totals": None,
@@ -423,7 +522,7 @@ def test_text_from_the_pull_request_cannot_break_out_of_its_place() -> None:
     assert "````text\n    1  missed   x = '```' # </details> @someone\n````\n" in body
     assert "| `docs/?b??x` | 1.00% | 2.00% |\n" in body
     assert "| `www.evil.example.com GH-1` | n/a | n/a | none |\n" in body
-    assert "| `x?y?b??z?1????row` | n/a | n/a | none |\n" in body
+    assert "| `x?y?b??z?1????row c++_api` | n/a | n/a | none |\n" in body
 
 
 @pytest.mark.parametrize(
@@ -507,6 +606,11 @@ def test_one_uncovered_line_and_a_very_long_one() -> None:
     assert f"    1  missed   {'a' * 100}\n```\n" in body
 
 
+# GitHub built the test merge two seconds before the pull request's CI began.
+MERGED_AT = "2026-10-09T20:18:41Z"
+RUN_AT = "2026-10-09T20:18:43Z"
+
+
 class FakeGitHub:
     """Stand in for the gh CLI: answer the reads and record the writes."""
 
@@ -515,11 +619,21 @@ class FakeGitHub:
         pulls: list[tuple[int, str]],
         comments: list[tuple[int, str, str]],
         checks: list[Check],
+        *,
+        merge: tuple[str, ...] | None = (MERGED_AT, BASE, HEAD),
+        runs: tuple[str, ...] = (RUN_AT,),
     ) -> None:
-        """Hold what GitHub would say about the repository."""
+        """Hold what GitHub would say about the repository.
+
+        `merge` is when the test merge of pull request 7 was committed, then
+        its parents, or None when GitHub has none for it. `runs` is when each
+        workflow run the pull request started on its head commit was created.
+        """
         self.pulls = pulls
         self.comments = comments
         self.checks = checks
+        self.merge = merge
+        self.runs = runs
         self.writes: list[tuple[str, str, str]] = []
 
     def __call__(self, *args: str, stdin: str | None = None) -> str:
@@ -528,17 +642,32 @@ class FakeGitHub:
         A body is sent only when the call names it as a field read from
         standard input. A listing is answered only when every page is asked
         for, and comes back one JSON document a line, with characters outside
-        ASCII left as they are, which is how jq writes them.
+        ASCII left as they are, which is how jq writes them. Only pull request
+        7 has the test merge that can be looked up: another one's is a commit
+        this stand-in does not know.
         """
         path = next(arg for arg in args if arg.startswith(f"repos/{REPO}/"))
+        merge = MERGE if self.merge else None
         if stdin is not None and args[-2:] == ("--field", "body=@-"):
             method = "PATCH" if args[:2] == ("--method", "PATCH") else "POST"
             self.writes.append((method, path, stdin))
             return ""
         if path.endswith("/pulls?state=open&per_page=100") and "--paginate" in args:
-            return "".join(f"{json.dumps(row)}\n" for row in self.pulls)
+            return "".join(
+                f"{json.dumps([number, head, merge if number == 7 else OTHER_COMMIT])}\n"
+                for number, head in self.pulls
+            )
         if path.endswith("/pulls/7"):
-            return f"{HEAD}\n"
+            return json.dumps([HEAD, merge])
+        if self.merge and path.endswith(f"/commits/{MERGE}"):
+            return json.dumps(self.merge)
+        if (
+            path.endswith(
+                f"/actions/runs?head_sha={HEAD}&event=pull_request&per_page=100",
+            )
+            and "--paginate" in args
+        ):
+            return "".join(f"{run}\n" for run in self.runs)
         if path.endswith(
             f"/commits/{HEAD}/check-runs?check_name=codecov/patch&per_page=100",
         ):
@@ -550,20 +679,87 @@ class FakeGitHub:
         raise AssertionError(args)
 
 
-def codecov_returning(compare: Compare) -> Callable[[str, str], str]:
-    """Stand in for Codecov's API: one comparison, no components or flags."""
+AGAINST_BASE = f"base={BASE}&head={HEAD}"
+FOR_PULL = "pullid=7"
 
-    def read(_repo: str, path: str) -> str:
-        return json.dumps(compare, default=float) if "compare/?" in path else "[]"
+
+def codecov_holding(reports: Reports) -> Callable[[str, str], str]:
+    """Stand in for Codecov's API, which holds only the comparisons given.
+
+    Each is read at three addresses: the comparison itself, its components
+    and its flags. One Codecov cannot make is answered with a 404, as it
+    answers for a commit it has no report for. Any other address is a mistake
+    in the script, so it fails the test.
+    """
+
+    def read(repo: str, path: str) -> str:
+        assert repo == REPO
+        for query, held in reports.items():
+            addresses = [
+                f"compare/?{query}",
+                f"compare/components?{query}",
+                f"compare/flags?{query}",
+            ]
+            if path in addresses and held is None:
+                raise urllib.error.HTTPError(path, 404, "Not Found", Message(), None)
+            if path in addresses and held is not None:
+                return json.dumps(held[addresses.index(path)], default=float)
+        raise AssertionError(path)
 
     return read
+
+
+def against_base(compare: Compare) -> Reports:
+    """Hold one comparison with the commit CI merged into, with no breakdowns."""
+    return {AGAINST_BASE: (compare, [], [])}
 
 
 MEASURED = comparison(
     [file("cgt_calc/util.py", [added(1, "x = 1", HIT)])],
     totals("100.00", lines=1, hits=1),
 )
+UNCOVERED = comparison(
+    [file("cgt_calc/util.py", [added(1, "x = 1", MISSED)])],
+    totals("0", lines=1, hits=0),
+)
 UNMOVED = comparison([file("cgt_calc/util.py", [])], None)
+# Pull request 7 as Codecov sees it when its branch is behind main and it
+# changes no measured line. Against the commit CI merged it into, coverage
+# fell in `model.py`, by one point, and in the total, from 96.12% to 96.00%,
+# which is 0.12 points. Against the commit the branch started from, every
+# figure from before is another one, and `currency_converter.py` has moved
+# as well, though it was main that changed it.
+BEHIND_MAIN: Reports = {
+    AGAINST_BASE: (
+        comparison(
+            [
+                file("cgt_calc/model.py", [], base="99.00", head="98.00"),
+                file("cgt_calc/currency_converter.py", [], base="96.92", head="96.92"),
+            ],
+            None,
+            base="96.12",
+            head="96.00",
+        ),
+        [breakdown("Core calculation", "96.45", "96.30")],
+        [breakdown("docker", "95.93", "95.81")],
+    ),
+    FOR_PULL: (
+        comparison(
+            [
+                file("cgt_calc/model.py", [], base="99.50", head="98.00"),
+                file("cgt_calc/currency_converter.py", [], base="96.76", head="96.92"),
+            ],
+            None,
+            base="95.00",
+            head="96.00",
+        ),
+        [breakdown("Core calculation", "95.50", "96.30")],
+        [breakdown("docker", "95.20", "95.81")],
+    ),
+}
+# The same pull request when Codecov has no report for the commit CI merged
+# it into.
+NO_BASE_REPORT: Reports = {**BEHIND_MAIN, AGAINST_BASE: None}
 COVERED = "### :white_check_mark: 100.00% of changed lines covered\n"
 NOTHING = "### No measured lines changed\n"
 # A comment holding a line separator, which once split the listing in two and
@@ -583,13 +779,13 @@ EDIT = f"repos/{REPO}/issues/comments/11"
 
 
 @pytest.mark.parametrize(
-    ("pulls", "comments", "checks", "compare", "writes"),
+    ("pulls", "comments", "checks", "reports", "writes"),
     [
         pytest.param(
             [(5, OTHER_COMMIT), (7, HEAD)],
             OTHERS,
             [IMPOSTOR, PASSED],
-            MEASURED,
+            against_base(MEASURED),
             [("POST", NEW, COVERED)],
             id="a first comment is posted on the pull request the commit heads",
         ),
@@ -597,15 +793,23 @@ EDIT = f"repos/{REPO}/issues/comments/11"
             [(5, OTHER_COMMIT), (7, HEAD)],
             [*OTHERS, OWN, DUPLICATE],
             [IMPOSTOR, PASSED],
-            MEASURED,
+            against_base(MEASURED),
             [("PATCH", EDIT, COVERED)],
             id="its own earlier comment is edited in place",
         ),
         pytest.param(
             [(7, HEAD)],
             OTHERS,
+            [JOB_PASSED, FAILED],
+            against_base(UNCOVERED),
+            [("POST", NEW, "### :x: 0.00% of changed lines covered\n")],
+            id="Codecov failed the change, so the comment says so",
+        ),
+        pytest.param(
+            [(7, HEAD)],
+            OTHERS,
             [IMPOSTOR, PASSED],
-            UNMOVED,
+            against_base(UNMOVED),
             [],
             id="nothing moved and no comment yet, so none is posted",
         ),
@@ -613,15 +817,31 @@ EDIT = f"repos/{REPO}/issues/comments/11"
             [(7, HEAD)],
             [*OTHERS, OWN],
             [IMPOSTOR, PASSED],
-            UNMOVED,
+            against_base(UNMOVED),
             [("PATCH", EDIT, NOTHING)],
             id="nothing moved but a comment exists, so it is brought up to date",
+        ),
+        pytest.param(
+            [(7, HEAD)],
+            OTHERS,
+            [IMPOSTOR, PASSED],
+            BEHIND_MAIN,
+            [("POST", NEW, NOTHING)],
+            id="figures moved against the commit CI merged into, so one is posted",
+        ),
+        pytest.param(
+            [(7, HEAD)],
+            OTHERS,
+            [IMPOSTOR, PASSED],
+            NO_BASE_REPORT,
+            [],
+            id="figures moved only since the branch started, so none is posted",
         ),
         pytest.param(
             [(5, OTHER_COMMIT)],
             [OWN],
             [IMPOSTOR, PASSED],
-            MEASURED,
+            against_base(MEASURED),
             [],
             id="the commit heads no open pull request",
         ),
@@ -629,9 +849,18 @@ EDIT = f"repos/{REPO}/issues/comments/11"
             [(7, HEAD)],
             [OWN],
             [IMPOSTOR, PASSED],
-            comparison(
-                MEASURED["files"], MEASURED["totals"]["patch"], commit=OTHER_COMMIT
-            ),
+            {
+                AGAINST_BASE: None,
+                FOR_PULL: (
+                    comparison(
+                        MEASURED["files"],
+                        MEASURED["totals"]["patch"],
+                        commit=OTHER_COMMIT,
+                    ),
+                    [],
+                    [],
+                ),
+            },
             [],
             id="Codecov compared an older commit",
         ),
@@ -639,7 +868,7 @@ EDIT = f"repos/{REPO}/issues/comments/11"
             [(7, HEAD)],
             [OWN],
             [IMPOSTOR, NOT_JUDGED],
-            MEASURED,
+            against_base(MEASURED),
             [],
             id="Codecov has not judged the commit",
         ),
@@ -649,19 +878,20 @@ def test_what_a_workflow_run_writes_to_the_pull_request(
     pulls: list[tuple[int, str]],
     comments: list[tuple[int, str, str]],
     checks: list[Check],
-    compare: Compare,
+    reports: Reports,
     writes: list[tuple[str, str, str]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """One run creates the comment, edits its own, or leaves the pull request alone.
 
-    The check is taken by its app: a job that shares its name and failed does
-    not turn the tick into a cross, and does not stand in for a Codecov check
-    that has yet to report.
+    The check is taken by its app. A job that shares its name does not turn
+    the tick into a cross when it failed, or the cross into a tick when it
+    passed, and does not stand in for a Codecov check that has yet to report.
+    The one changed line of the failed change is missed, which is 0%.
     """
     github = FakeGitHub(pulls, comments, checks)
     monkeypatch.setattr(coverage_comment, "gh", github)
-    monkeypatch.setattr(coverage_comment, "codecov", codecov_returning(compare))
+    monkeypatch.setattr(coverage_comment, "codecov", codecov_holding(reports))
     monkeypatch.setattr(
         "sys.argv",
         ["coverage_comment.py", "--repo", REPO, "--sha", HEAD],
@@ -674,14 +904,174 @@ def test_what_a_workflow_run_writes_to_the_pull_request(
         assert body.startswith(f"{MARKER}\n{heading}")
 
 
+def tables(component_before: str, flag_before: str) -> str:
+    """Give the end of the comment for pull request 7 when its branch is behind."""
+    return (
+        "<details>\n"
+        "<summary>Components</summary>\n"
+        "\n"
+        "| Component | Before | After | Changed lines |\n"
+        "|---|---|---|---|\n"
+        f"| `Core calculation` | {component_before} | 96.30% | none |\n"
+        "\n"
+        "</details>\n"
+        "\n"
+        "<details>\n"
+        "<summary>Flags</summary>\n"
+        "\n"
+        "| Flag | Before | After | Changed lines |\n"
+        "|---|---|---|---|\n"
+        f"| `docker` | {flag_before} | 95.81% | none |\n"
+        "\n"
+        "</details>\n"
+        "\n"
+        "[Full report on Codecov](https://app.codecov.io/gh/cgt-calc/"
+        "capital-gains-calculator/pull/7) for commit `b653e4c`.\n"
+    )
+
+
+COMPARED_WITH_BASE = (
+    "<!-- cgt-calc-coverage -->\n"
+    "### No measured lines changed\n"
+    "\n"
+    "Total coverage: 96.12% -> 96.00% (-0.12 points).\n"
+    "\n"
+    "#### Coverage changed in files this pull request did not touch\n"
+    "\n"
+    "| File | Before | After |\n"
+    "|---|---|---|\n"
+    "| `cgt_calc/model.py` | 99.00% | 98.00% |\n"
+    "\n"
+) + tables("96.45%", "95.93%")
+CURRENT_FIGURES_ONLY = (
+    "<!-- cgt-calc-coverage -->\n"
+    "### No measured lines changed\n"
+    "\n"
+    "Total coverage: 96.00%.\n"
+    "\n"
+) + tables("n/a", "n/a")
+LEFT_OUT = (
+    "Left out the figures from before the pull request: the commit CI merged"
+    " it into is not known, or Codecov has no report for it.\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("merge", "runs", "reports", "body", "log"),
+    [
+        pytest.param(
+            ("2026-10-09T20:18:43Z", BASE, HEAD),
+            ("2026-10-09T20:18:50Z", "2026-10-09T20:18:43Z"),
+            BEHIND_MAIN,
+            COMPARED_WITH_BASE,
+            "",
+            id="the test merge is as old as the first run, so CI tested it",
+        ),
+        pytest.param(
+            ("2026-10-09T20:18:44Z", BASE, HEAD),
+            ("2026-10-09T20:18:50Z", "2026-10-09T20:18:43Z"),
+            BEHIND_MAIN,
+            CURRENT_FIGURES_ONLY,
+            LEFT_OUT,
+            id="the test merge was rebuilt a second after the first run began",
+        ),
+        pytest.param(
+            ("2026-10-09T20:18:44Z", BASE, HEAD),
+            ("2026-10-09T20:18:43Z", "2026-10-09T20:18:50Z"),
+            BEHIND_MAIN,
+            CURRENT_FIGURES_ONLY,
+            LEFT_OUT,
+            id="the first run is found wherever GitHub lists it",
+        ),
+        pytest.param(
+            (MERGED_AT, BASE, HEAD),
+            (),
+            BEHIND_MAIN,
+            CURRENT_FIGURES_ONLY,
+            LEFT_OUT,
+            id="the pull request started no run on this commit",
+        ),
+        pytest.param(
+            None,
+            (RUN_AT,),
+            BEHIND_MAIN,
+            CURRENT_FIGURES_ONLY,
+            LEFT_OUT,
+            id="GitHub has no test merge, as for a pull request that conflicts",
+        ),
+        pytest.param(
+            (MERGED_AT, BASE),
+            (RUN_AT,),
+            BEHIND_MAIN,
+            CURRENT_FIGURES_ONLY,
+            LEFT_OUT,
+            id="the pull request is merged, so GitHub names the commit on main",
+        ),
+        pytest.param(
+            (MERGED_AT, BASE, OTHER_COMMIT),
+            (RUN_AT,),
+            BEHIND_MAIN,
+            CURRENT_FIGURES_ONLY,
+            LEFT_OUT,
+            id="the test merge is of another head commit",
+        ),
+        pytest.param(
+            (MERGED_AT, BASE, HEAD),
+            (RUN_AT,),
+            NO_BASE_REPORT,
+            CURRENT_FIGURES_ONLY,
+            LEFT_OUT,
+            id="Codecov has no report for the commit CI merged into",
+        ),
+    ],
+)
+def test_figures_from_before_are_those_of_the_commit_ci_merged_into(
+    merge: tuple[str, ...] | None,
+    runs: tuple[str, ...],
+    reports: Reports,
+    body: str,
+    log: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Coverage is compared with what CI merged into, or with nothing at all.
+
+    CI tests the pull request merged into main as main then stood. When the
+    branch is behind, Codecov's own comparison for the pull request starts
+    from the older commit the branch forked at, so it would show the change
+    main made to `currency_converter.py` as this pull request's, and 95.00%
+    as the total before. The comment asks instead for the comparison with the
+    first parent of GitHub's test merge, which shows only `model.py`.
+
+    That holds only while the test merge GitHub names is the one CI checked
+    out: it has the head commit as its second parent, and it is no newer than
+    the first workflow run the pull request started on that commit. When it
+    is not, or Codecov has no report for the commit, the figures from before
+    are left out, never taken from the other comparison. The component's row
+    is under Components and the flag's under Flags in both.
+    """
+    github = FakeGitHub([(7, HEAD)], [OWN], [PASSED], merge=merge, runs=runs)
+    monkeypatch.setattr(coverage_comment, "gh", github)
+    monkeypatch.setattr(coverage_comment, "codecov", codecov_holding(reports))
+    monkeypatch.setattr(
+        "sys.argv",
+        ["coverage_comment.py", "--repo", REPO, "--sha", HEAD],
+    )
+
+    coverage_comment.main()
+
+    assert github.writes == [("PATCH", EDIT, body)]
+    assert capsys.readouterr().err == log
+
+
 @pytest.mark.parametrize(
     ("target", "pulls"),
     [
-        pytest.param(["--sha", HEAD], [(7, HEAD)], id="for a commit"),
+        pytest.param(["--sha", HEAD, "--dry-run"], [(7, HEAD)], id="for a commit"),
         pytest.param(["--pull", "7"], [], id="for a pull request number"),
     ],
 )
-def test_dry_run_prints_the_comment_and_writes_nothing(
+def test_preview_prints_the_comment_and_writes_nothing(
     target: list[str],
     pulls: list[tuple[int, str]],
     monkeypatch: pytest.MonkeyPatch,
@@ -689,16 +1079,17 @@ def test_dry_run_prints_the_comment_and_writes_nothing(
 ) -> None:
     """A preview shows the comment, whether or not one is already posted.
 
-    Asked for by number, the pull request need not be open: its head commit
-    is read from the pull request itself.
+    A commit is previewed with `--dry-run`. A pull request number is always a
+    preview, because the comment a person posted would not be the bot's to
+    find and edit on the next run. Asked for by number, the pull request need
+    not be open: its head commit is read from the pull request itself.
     """
     github = FakeGitHub(pulls, [OWN], [IMPOSTOR, PASSED])
     monkeypatch.setattr(coverage_comment, "gh", github)
-    monkeypatch.setattr(coverage_comment, "codecov", codecov_returning(MEASURED))
     monkeypatch.setattr(
-        "sys.argv",
-        ["coverage_comment.py", "--repo", REPO, *target, "--dry-run"],
+        coverage_comment, "codecov", codecov_holding(against_base(MEASURED))
     )
+    monkeypatch.setattr("sys.argv", ["coverage_comment.py", "--repo", REPO, *target])
 
     coverage_comment.main()
 

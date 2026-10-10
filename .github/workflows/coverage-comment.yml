@@ -28,7 +28,11 @@ jobs:
       github.event.check_run.app.slug == 'codecov' &&
       github.event.check_run.name == 'codecov/patch'
     runs-on: ubuntu-latest
+    # Reads: the checkout, the pull request's workflow runs and Codecov's
+    # check on the commit. The one write is the comment.
     permissions:
+      actions: read
+      checks: read
       contents: read
       pull-requests: write
     steps:
