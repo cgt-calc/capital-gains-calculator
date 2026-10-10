@@ -27,16 +27,21 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: docs-preview
+    # Reads only: the build's artifacts, the open pull requests and the
+    # comment script. The status and the comment are written with the bot's
+    # token instead, so that they are the bot's and not GitHub Actions'.
     permissions:
       actions: read
-      pull-requests: write
+      contents: read
+      pull-requests: read
     steps:
-      - name: Create status token
+      - name: Create bot token
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
           client-id: ${{ vars.MERGE_BOT_CLIENT_ID }}
           private-key: ${{ secrets.MERGE_BOT_PRIVATE_KEY }}
+          permission-pull-requests: write
           permission-statuses: write
 
       - name: Resolve PR
@@ -117,6 +122,19 @@ jobs:
             echo "unchanged=false" >> "${GITHUB_OUTPUT}"
           fi
 
+      # A workflow_run workflow checks out the default branch, so the script is
+      # main's and never the pull request's. It goes in a directory of its
+      # own, after the downloads, so nothing in the pull request's artifacts
+      # can stand in for it, and wrangler still deploys from a directory that
+      # is not a checkout.
+      - name: Check out the comment script
+        if: steps.pr.outputs.number
+        uses: actions/checkout@v7
+        with:
+          path: main
+          persist-credentials: false
+          sparse-checkout: scripts
+
       - name: Report no change
         if: steps.pr.outputs.number && steps.compare.outputs.unchanged == 'true'
         env:
@@ -128,20 +146,19 @@ jobs:
             -f target_url="https://cgt-calc.uk/"
 
       - name: Refresh the stale preview comment
-        # Keeps GITHUB_TOKEN: an earlier preview comment would now link to stale
-        # content, and github-actions[bot] wrote it, so the same identity edits it.
+        # An earlier preview comment would now link to stale content. Without
+        # one there is nothing to correct, so none is posted.
         if: steps.pr.outputs.number && steps.compare.outputs.unchanged == 'true'
         env:
+          COMMENT_TOKEN: ${{ steps.app-token.outputs.token }}
+          COMMENT_AUTHOR: ${{ steps.app-token.outputs.app-slug }}[bot]
           PR_NUMBER: ${{ steps.pr.outputs.number }}
         run: |
-          ID=$(gh api "repos/${GH_REPO}/issues/${PR_NUMBER}/comments" --paginate \
-            --jq ".[] | select(.body | startswith(\"${COMMENT_MARKER}\")) | .id" | head -1)
-          if [ -n "${ID}" ]; then
-            UPDATED=$(TZ='Europe/London' date '+%Y-%m-%d %H:%M %Z')
-            BODY=$(printf '%s\n📖 No rendered changes — this PR matches the live docs at https://cgt-calc.uk/\n\n_Checked %s · updated %s_' \
-              "${COMMENT_MARKER}" "${HEAD_SHA:0:7}" "${UPDATED}")
-            gh api --method PATCH "repos/${GH_REPO}/issues/comments/${ID}" -f body="${BODY}"
-          fi
+          UPDATED=$(TZ='Europe/London' date '+%Y-%m-%d %H:%M %Z')
+          BODY=$(printf '%s\n📖 No rendered changes — this PR matches the live docs at https://cgt-calc.uk/\n\n_Checked %s · updated %s_' \
+            "${COMMENT_MARKER}" "${HEAD_SHA:0:7}" "${UPDATED}")
+          python3 main/scripts/pr_comment.py --repo "${GH_REPO}" --pull "${PR_NUMBER}" \
+            --marker "${COMMENT_MARKER}" --update "${BODY}"
 
       - name: Deploy to Cloudflare Pages
         id: deploy
@@ -180,25 +197,19 @@ jobs:
       - name: Comment preview link
         if: steps.pr.outputs.number && steps.compare.outputs.unchanged != 'true'
         env:
+          COMMENT_TOKEN: ${{ steps.app-token.outputs.token }}
+          COMMENT_AUTHOR: ${{ steps.app-token.outputs.app-slug }}[bot]
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           URL: ${{ steps.facts.outputs.url }}
           SHORT_SHA: ${{ steps.facts.outputs.short_sha }}
           UPDATED: ${{ steps.facts.outputs.updated }}
         run: |
-          ID=$(gh api "repos/${GH_REPO}/issues/${PR_NUMBER}/comments" --paginate \
-            --jq ".[] | select(.body | startswith(\"${COMMENT_MARKER}\")) | .id" | head -1)
-          FRESHNESS=""
-          if [ -n "${ID}" ]; then
-            # Editing an existing comment — note when it was refreshed.
-            FRESHNESS=" · updated ${UPDATED}"
-          fi
-          BODY=$(printf '%s\n📖 **Docs preview:** %s\n\n_Built from %s%s_' \
-            "${COMMENT_MARKER}" "${URL}" "${SHORT_SHA}" "${FRESHNESS}")
-          if [ -n "${ID}" ]; then
-            gh api --method PATCH "repos/${GH_REPO}/issues/comments/${ID}" -f body="${BODY}"
-          else
-            gh api --method POST "repos/${GH_REPO}/issues/${PR_NUMBER}/comments" -f body="${BODY}"
-          fi
+          BUILT=$(printf '%s\n📖 **Docs preview:** %s\n\n_Built from %s' \
+            "${COMMENT_MARKER}" "${URL}" "${SHORT_SHA}")
+          # A comment that is already there also notes when it was refreshed.
+          python3 main/scripts/pr_comment.py --repo "${GH_REPO}" --pull "${PR_NUMBER}" \
+            --marker "${COMMENT_MARKER}" \
+            --create "${BUILT}_" --update "${BUILT} · updated ${UPDATED}_"
 
       - name: Report failure
         if: failure() && steps.pr.outputs.number

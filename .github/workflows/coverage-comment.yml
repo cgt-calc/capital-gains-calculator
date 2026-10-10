@@ -28,19 +28,30 @@ jobs:
       github.event.check_run.app.slug == 'codecov' &&
       github.event.check_run.name == 'codecov/patch'
     runs-on: ubuntu-latest
-    # Reads: the checkout, the pull request's workflow runs and Codecov's
-    # check on the commit. The one write is the comment.
+    # Reads only: the checkout, the open pull requests, their workflow runs
+    # and Codecov's check on the commit. The comment is written with the
+    # bot's token instead, so that it is the bot's and not GitHub Actions'.
     permissions:
       actions: read
       checks: read
       contents: read
-      pull-requests: write
+      pull-requests: read
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
 
+      - name: Create comment token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.MERGE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.MERGE_BOT_PRIVATE_KEY }}
+          permission-pull-requests: write
+
       - name: Post or update the comment
         env:
           GH_TOKEN: ${{ github.token }}
+          COMMENT_TOKEN: ${{ steps.app-token.outputs.token }}
+          COMMENT_AUTHOR: ${{ steps.app-token.outputs.app-slug }}[bot]
           HEAD_SHA: ${{ github.event.check_run.head_sha }}
-        run: python3 scripts/coverage_comment.py --repo "$GITHUB_REPOSITORY" --sha "$HEAD_SHA"
+        run: python3 -m scripts.coverage_comment --repo "$GITHUB_REPOSITORY" --sha "$HEAD_SHA"

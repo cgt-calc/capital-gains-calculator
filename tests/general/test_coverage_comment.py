@@ -11,8 +11,9 @@ import urllib.error
 
 import pytest
 
-from scripts import coverage_comment
+from scripts import coverage_comment, pr_comment
 from scripts.coverage_comment import MARKER, MAX_FILES, MAX_LINES, render
+from tests.general.test_pr_comment import BOT, FakeComments
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -829,7 +830,11 @@ RERUN_AT = "2026-10-09T20:50:00Z"
 
 
 class FakeGitHub:
-    """Stand in for the gh CLI: answer the reads and record the writes."""
+    """Stand in for the gh CLI holding the workflow's token: answer the reads.
+
+    The comments of pull request 7 are read and written with the bot's token,
+    which `bot` stands in for.
+    """
 
     def __init__(
         self,
@@ -852,13 +857,19 @@ class FakeGitHub:
         the pull request's branch started from and the one CI merged it into.
         """
         self.pulls = pulls
-        self.comments = comments
+        self.bot = FakeComments(REPO, 7, comments)
         self.checks = checks
         self.merge = merge
         self.runs = runs
         self.base = base
         self.on_base = on_base
-        self.writes: list[tuple[str, str, str]] = []
+        self.writes = self.bot.writes
+
+    def stand_in(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Answer the script's calls: its reads here, its comment as the bot."""
+        monkeypatch.setattr(coverage_comment, "gh", self)
+        monkeypatch.setattr(pr_comment, "gh", self.bot)
+        monkeypatch.setenv("COMMENT_AUTHOR", BOT)
 
     def pull(self, number: int, head: str) -> str:
         """Give a pull request as the script's filter leaves it.
@@ -878,20 +889,18 @@ class FakeGitHub:
         )
 
     def __call__(self, *args: str, stdin: str | None = None) -> str:
-        """Answer one call the way `gh api` would.
+        """Answer one read the way `gh api` would.
 
-        A body is sent only when the call names it as a field read from
-        standard input. A listing is answered only when every page is asked
-        for, and comes back one JSON document a line, with characters outside
-        ASCII left as they are, which is how jq writes them. The test merge
-        and each run come with both of their times, as GitHub gives them.
+        A listing is answered only when every page is asked for, and comes
+        back one JSON document a line. The test merge and each run come with
+        both of their times, as GitHub gives them. This token cannot comment,
+        so a call that sends anything, or that asks for the comments, is a
+        mistake in the script and fails the test.
         """
         path = next(arg for arg in args if arg.startswith(f"repos/{REPO}/"))
         asked = path.removeprefix(f"repos/{REPO}/")
-        if stdin is not None and args[-2:] == ("--field", "body=@-"):
-            method = "PATCH" if args[:2] == ("--method", "PATCH") else "POST"
-            self.writes.append((method, path, stdin))
-            return ""
+        if stdin is not None or "--method" in args:
+            raise AssertionError(args)
         if asked == "pulls?state=open&per_page=100" and "--paginate" in args:
             return "".join(f"{self.pull(*row)}\n" for row in self.pulls)
         if asked == "pulls/7":
@@ -918,10 +927,6 @@ class FakeGitHub:
             return json.dumps(self.on_base)
         if asked == f"commits/{HEAD}/check-runs?check_name=codecov/patch&per_page=100":
             return json.dumps(self.checks)
-        if asked == "issues/7/comments?per_page=100" and "--paginate" in args:
-            return "".join(
-                f"{json.dumps(row, ensure_ascii=False)}\n" for row in self.comments
-            )
         raise AssertionError(args)
 
 
@@ -1009,17 +1014,17 @@ NO_BASE_REPORT: Reports = {**BEHIND_MAIN, AGAINST_BASE: 404}
 COVERED = "### :white_check_mark: 100.00% of changed lines covered\n"
 NOTHING = "### No measured lines changed\n"
 # A comment holding a line separator, which once split the listing in two and
-# stopped the run; a comment of the bot's that is not this one, though the
-# marker appears later in it; and someone else's that only looks like it.
-# None may be taken for the comment to edit.
+# stopped the run; a comment of GitHub Actions' that is not this one, though
+# the marker appears later in it; and someone else's that only looks like it.
+# None may be taken for the comment to edit, or for one to replace.
 OTHERS = [
     (9, "someone", "pasted\u2028text"),
     (10, "github-actions[bot]", f"The docs preview is ready. {MARKER}"),
     (12, "someone", f"{MARKER}\nnot the bot's"),
 ]
-OWN = (11, "github-actions[bot]", f"{MARKER}\nfigures for an earlier commit")
+OWN = (11, BOT, f"{MARKER}\nfigures for an earlier commit")
 # Two runs racing could each post a comment. The older one is kept up to date.
-DUPLICATE = (13, "github-actions[bot]", f"{MARKER}\na second copy")
+DUPLICATE = (13, BOT, f"{MARKER}\na second copy")
 NEW = f"repos/{REPO}/issues/7/comments"
 EDIT = f"repos/{REPO}/issues/comments/11"
 
@@ -1136,7 +1141,7 @@ def test_what_a_workflow_run_writes_to_the_pull_request(
     The one changed line of the failed change is missed, which is 0%.
     """
     github = FakeGitHub(pulls, comments, checks)
-    monkeypatch.setattr(coverage_comment, "gh", github)
+    github.stand_in(monkeypatch)
     monkeypatch.setattr(coverage_comment, "codecov", codecov_holding(reports))
     monkeypatch.setattr(
         "sys.argv",
@@ -1331,7 +1336,7 @@ def test_figures_from_before_are_those_of_the_commit_ci_merged_into(
         runs=runs,
         base=base,
     )
-    monkeypatch.setattr(coverage_comment, "gh", github)
+    github.stand_in(monkeypatch)
     monkeypatch.setattr(coverage_comment, "codecov", codecov_holding(reports))
     monkeypatch.setattr(
         "sys.argv",
@@ -1370,7 +1375,7 @@ def test_change_is_still_judged_when_the_figures_from_before_are_left_out(
         ),
     }
     github = FakeGitHub([(7, HEAD)], OTHERS, [JOB_PASSED, FAILED])
-    monkeypatch.setattr(coverage_comment, "gh", github)
+    github.stand_in(monkeypatch)
     monkeypatch.setattr(coverage_comment, "codecov", codecov_holding(reports))
     monkeypatch.setattr(
         "sys.argv",
@@ -1420,7 +1425,7 @@ def test_fault_at_codecov_stops_the_run_and_drops_no_figures(
     comment already on the pull request is not rewritten without its figures.
     """
     github = FakeGitHub([(7, HEAD)], [OWN], [PASSED])
-    monkeypatch.setattr(coverage_comment, "gh", github)
+    github.stand_in(monkeypatch)
     monkeypatch.setattr(
         coverage_comment,
         "codecov",
@@ -1569,7 +1574,7 @@ def test_lines_are_left_out_for_files_the_base_branch_changed_too(
         base=base,
         on_base=on_base,
     )
-    monkeypatch.setattr(coverage_comment, "gh", github)
+    github.stand_in(monkeypatch)
     monkeypatch.setattr(
         coverage_comment,
         "codecov",
@@ -1613,6 +1618,7 @@ def test_fault_at_github_stops_the_run_and_takes_no_file_for_unchanged(
             raise subprocess.CalledProcessError(1, ["gh", "api", *args])
         return github(*args, stdin=stdin)
 
+    github.stand_in(monkeypatch)
     monkeypatch.setattr(coverage_comment, "gh", failing)
     monkeypatch.setattr(
         coverage_comment,
@@ -1653,7 +1659,7 @@ def test_preview_prints_the_comment_and_writes_nothing(
     not be open: its head commit is read from the pull request itself.
     """
     github = FakeGitHub(pulls, [OWN], [IMPOSTOR, PASSED])
-    monkeypatch.setattr(coverage_comment, "gh", github)
+    github.stand_in(monkeypatch)
     monkeypatch.setattr(
         coverage_comment, "codecov", codecov_holding(against_base(MEASURED))
     )
@@ -1671,7 +1677,7 @@ def test_run_without_a_commit_or_a_pull_request_is_refused(
 ) -> None:
     """Without either there is nothing to look up, so the script says so and stops."""
     github = FakeGitHub([(7, HEAD)], [OWN], [PASSED])
-    monkeypatch.setattr(coverage_comment, "gh", github)
+    github.stand_in(monkeypatch)
     monkeypatch.setattr("sys.argv", ["coverage_comment.py", "--repo", REPO])
 
     with pytest.raises(SystemExit):

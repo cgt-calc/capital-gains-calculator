@@ -9,13 +9,15 @@ Where the base branch has changed a file that the pull request changes too,
 Codecov may match coverage to the wrong lines of it, so the comment leaves
 that file's lines and every count of changed lines out.
 The coverage-comment workflow runs it when Codecov's patch check lands. To
-print the comment for a pull request without posting it:
+print the comment for a pull request without posting it, from the top of the
+repository:
 
-    python3 scripts/coverage_comment.py --repo OWNER/NAME --pull 1151
+    python3 -m scripts.coverage_comment --repo OWNER/NAME --pull 1151
 
 Standard library only: the workflow runs it with the runner's Python, without
-installing the project. GitHub is reached through the `gh` CLI, which holds
-the token.
+installing the project. GitHub is read through the `gh` CLI, which holds the
+workflow's token. The comment is written by `pr_comment.py`, as the project's
+bot.
 """
 
 from __future__ import annotations
@@ -31,6 +33,8 @@ import sys
 from typing import NamedTuple, TypedDict
 import urllib.error
 import urllib.request
+
+from scripts.pr_comment import publish
 
 # Starts the comment, so that a later run finds it and edits it in place.
 MARKER = "<!-- cgt-calc-coverage -->"
@@ -595,41 +599,8 @@ def main() -> None:
         print(comment.body, end="")
         return
 
-    # One JSON document a line. Split on the newline alone: a comment may hold
-    # other characters that str.splitlines() also breaks at, which jq leaves
-    # as they are inside a string.
-    comments: list[tuple[int, str, str]] = [
-        json.loads(line)
-        for line in gh(
-            f"repos/{repo}/issues/{pull}/comments?per_page=100",
-            "--paginate",
-            "--jq",
-            ".[] | [.id, .user.login, .body] | @json",
-        ).split("\n")
-        if line
-    ]
-    own = [
-        comment_id
-        for comment_id, author, text in comments
-        if author == "github-actions[bot]" and text.startswith(MARKER)
-    ]
-    if own:
-        gh(
-            "--method",
-            "PATCH",
-            f"repos/{repo}/issues/comments/{own[0]}",
-            "--field",
-            "body=@-",
-            stdin=comment.body,
-        )
-    elif comment.worth_posting:
-        gh(
-            f"repos/{repo}/issues/{pull}/comments",
-            "--field",
-            "body=@-",
-            stdin=comment.body,
-        )
-    else:
+    first = comment.body if comment.worth_posting else None
+    if not publish(repo, pull, MARKER, comment.body, first):
         print("Nothing measured changed and there is no comment to update.")
 
 
