@@ -265,9 +265,11 @@ class Matcher:
         # rename today or later connects to another is not checked: cost
         # written under one side of a rename is carried to the other when the
         # rename is applied, and the rename-day refusals are built on that.
-        # It is a gap, since the other name may hold no units either, and one
-        # left open on purpose: only a Vanguard ticker change writes a rename
-        # row, and the UK funds a FEE is meant for have no ticker to change.
+        # It is a gap: the other name may hold no units either, and the cost
+        # then joins a later purchase under either name, which is the case
+        # refused here. It is left open on purpose: only a Vanguard ticker
+        # change writes a rename row, and the UK funds a FEE is meant for have
+        # no ticker to change.
         if (
             record.cost_only.amount != 0
             and position.quantity + acquisition.quantity == 0
