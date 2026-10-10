@@ -601,10 +601,10 @@ def _split_chronology_message(
         )
     return preamble + (
         "The two come from different inputs, or from an export that gives "
-        "neither times nor a documented order, or the row falls between "
-        "the two halves of the reorganisation. Run again with the day's "
-        f"{symbol} rows in one input that states times, or work the day "
-        "out by hand (consider professional advice)."
+        "neither times nor a documented order, or the row falls at or "
+        "between the two halves of the reorganisation. Run again with the "
+        f"day's {symbol} rows in one input that states times, or work the "
+        "day out by hand (consider professional advice)."
     )
 
 

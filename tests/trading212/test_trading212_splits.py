@@ -368,7 +368,7 @@ def test_a_trade_at_or_between_the_two_halves_is_refused(
     The close is stamped 07:44:13 in every row. When the reopening carries the
     same stamp, a trade at that instant is the only one there is to refuse.
     """
-    with pytest.raises(ParsingError, match="stamped between the two halves"):
+    with pytest.raises(ParsingError, match="stamped at or between the two halves"):
         load(
             tmp_path,
             {
@@ -383,19 +383,24 @@ def test_a_trade_at_or_between_the_two_halves_is_refused(
 
 
 def test_a_trade_outside_the_two_halves_is_left_alone(tmp_path: Path) -> None:
-    """Only a row stamped between them is ambiguous."""
+    """Only a row stamped at or between them is ambiguous.
+
+    One trade is a millisecond before the position closes and one a millisecond
+    after it reopens. Both load, beside the reorganisation itself.
+    """
     transactions = load(
         tmp_path,
         {
             "export.csv": [
                 HEADER_2026,
-                trade_row(time="2026-02-02 06:00:00"),
+                trade_row(time="2026-02-02 07:44:12.999"),
                 close_row(time="2026-02-02 07:44:13"),
                 open_row(time="2026-02-02 07:44:14"),
+                trade_row(time="2026-02-02 07:44:14.001", transaction_id="trade-2"),
             ]
         },
     )
-    assert len(transactions) == 2
+    assert len(transactions) == 3
 
 
 def test_the_current_header_and_an_offset_timestamp_pair(tmp_path: Path) -> None:
@@ -1621,12 +1626,17 @@ def test_a_row_between_the_halves_says_what_to_do_about_it(tmp_path: Path) -> No
         )
 
     message = str(error.value)
-    assert "stamped between the two halves" in message
+    assert "stamped at or between the two halves" in message
     # The offending row, named the way every other split error names one.
     assert "Market buy at" in message
     assert "Time=2026-02-02 07:44:13.500" in message
-    # And somewhere to go next.
-    assert "work it out by hand (consider professional advice)" in message
+    # And somewhere to go next, if the row is right about when it was dealt.
+    assert (
+        "the reorganisation at 2026-02-02 07:44:13+00:00 and 2026-02-02 "
+        "07:44:14+00:00. Check this row against Trading 212; if it really was "
+        "dealt at or between those two times, leave FOO out and work it out by "
+        "hand (consider professional advice)."
+    ) in message
 
 
 def test_a_legacy_split_on_the_close_halfs_date_is_refused(tmp_path: Path) -> None:
@@ -1883,7 +1893,7 @@ def test_halves_from_two_exports_do_not_form_one_event(tmp_path: Path) -> None:
 
     with pytest.raises(ParsingError) as alone:
         load(one, {"a.csv": [header, *straddling]})
-    assert "stamped between the two halves" in str(alone.value)
+    assert "stamped at or between the two halves" in str(alone.value)
 
     with pytest.raises(ParsingError) as combined:
         load(both, {"a.csv": [header, *straddling], "b.csv": [header, *early]})
@@ -1942,7 +1952,7 @@ def test_a_disagreed_trade_timestamp_is_not_erased_by_a_merge(
         load(both, {"a.csv": between, "b.csv": before})
 
     message = str(combined.value)
-    assert "stamped between the two halves" in message
+    assert "stamped at or between the two halves" in message
     # The survivor is the .100 copy, so the refusal has to name the .500
     # one it turned on or the error points at a stamp that looks fine.
     assert "also reported as" in message

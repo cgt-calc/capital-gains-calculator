@@ -559,7 +559,7 @@ class Trading212Transaction(BrokerTransaction):
         # disagree below the second. The chronology a reorganisation is
         # checked against has to see all of them: keeping only the survivor's
         # would let one export's stamp erase another's evidence that a trade
-        # fell between the two halves.
+        # fell at or between the two halves.
         self.stated_instants: frozenset[datetime] = frozenset({self.datetime})
 
         transaction_id = (row.get(Trading212Column.TRANSACTION_ID) or "").strip()
@@ -837,7 +837,7 @@ class Trading212Transaction(BrokerTransaction):
         # A reorganisation is proved by rows read together, and the checks
         # that protect it read more than the content above: pairing the two
         # halves compares the figures below, and a trade is refused for being
-        # stamped between the halves, which turns on their exact instants.
+        # stamped at or between the halves, which turns on their exact instants.
         # Merging two rows that differ in any of that would let one export's
         # account of the event stand in for another's, and the evidence that
         # made the other refuse would go with it. So a reorganisation row
@@ -1883,7 +1883,7 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
             if any(first <= instant <= last for instant in other.stated_instants):
                 raise _split_error(
                     other,
-                    f"This row is stamped between the two halves of the "
+                    f"This row is stamped at or between the two halves of the "
                     f"{event.symbol} reorganisation on {event.date}, so there "
                     "is no telling whether its share count is stated in the "
                     f"units before it or the units after it. Rows: "
@@ -1891,7 +1891,7 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
                     f"(No. of shares={other.quantity}, "
                     f"Time={_stated_times(other)}); the reorganisation at "
                     f"{first} and {last}. Check this row against Trading 212; "
-                    "if it really was dealt while the reorganisation was in "
-                    f"flight, leave {event.symbol} out and work it out by hand "
+                    "if it really was dealt at or between those two times, "
+                    f"leave {event.symbol} out and work it out by hand "
                     "(consider professional advice).",
                 )

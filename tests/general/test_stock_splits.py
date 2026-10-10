@@ -58,6 +58,9 @@ POOL_DAY = datetime.date(2023, 5, 2)
 RENAME_DAY = datetime.date(2023, 5, 8)
 EVENT_DAY = datetime.date(2023, 5, 15)
 LATER_DAY = datetime.date(2023, 6, 10)
+# The instants the two halves of a paired reorganisation on the event day carry.
+SPLIT_OPENED = datetime.datetime(2023, 5, 15, 7, 44, 13, tzinfo=datetime.UTC)
+SPLIT_CLOSED = datetime.datetime(2023, 5, 15, 7, 44, 14, tzinfo=datetime.UTC)
 
 
 def trade(
@@ -575,31 +578,39 @@ def test_a_same_day_row_from_another_input_is_refused() -> None:
         )
 
 
-def test_a_row_between_the_two_halves_of_a_reorganisation_is_refused() -> None:
-    """Its unit system is exactly what cannot be told."""
-    opened = datetime.datetime(2023, 5, 15, 7, 44, 13, tzinfo=datetime.UTC)
-    closed = datetime.datetime(2023, 5, 15, 7, 44, 14, tzinfo=datetime.UTC)
-    between = TransactionSource(
-        parser="Testing",
-        account="Other account",
-        file=Path("other.csv"),
-        index=0,
-        timestamp=datetime.datetime(
-            2023, 5, 15, 7, 44, 13, 500000, tzinfo=datetime.UTC
-        ),
-    )
-    with pytest.raises(CalculationError, match="cannot be placed either side"):
+@pytest.mark.parametrize(
+    "stamp",
+    [
+        SPLIT_OPENED,
+        SPLIT_OPENED + datetime.timedelta(milliseconds=500),
+        SPLIT_CLOSED,
+    ],
+    ids=["at the first half", "between", "at the second half"],
+)
+def test_a_row_at_or_between_the_two_halves_of_a_reorganisation_is_refused(
+    stamp: datetime.datetime,
+) -> None:
+    """Its unit system is exactly what cannot be told.
+
+    The halves are stamped a second apart. A row stamped at either is no more
+    before or after the reorganisation than one stamped between them.
+    """
+    with pytest.raises(
+        CalculationError, match="the row falls at or between the two halves"
+    ):
         run(
             [
                 trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
-                trade(EVENT_DAY, ActionType.BUY, "FOO", "2", "10", source=between),
+                trade(
+                    EVENT_DAY, ActionType.BUY, "FOO", "2", "10", source=_stamped(stamp)
+                ),
                 paired_split(
                     EVENT_DAY,
                     "FOO",
                     "12",
                     "24",
                     Fraction(2),
-                    instants=(opened, closed),
+                    instants=(SPLIT_OPENED, SPLIT_CLOSED),
                 ),
             ]
         )
@@ -2361,10 +2372,6 @@ def _stamped(when: datetime.datetime) -> TransactionSource:
         index=0,
         timestamp=when,
     )
-
-
-SPLIT_OPENED = datetime.datetime(2023, 5, 15, 7, 44, 13, tzinfo=datetime.UTC)
-SPLIT_CLOSED = datetime.datetime(2023, 5, 15, 7, 44, 14, tzinfo=datetime.UTC)
 
 
 def test_a_row_stamped_before_the_event_is_restated() -> None:
