@@ -75,6 +75,28 @@ def test_fund_bought_and_sold_on_one_day_is_accepted(tmp_path: Path) -> None:
     assert re.search(r"Total gain: +£10\.00\n", result.stdout)
 
 
+def test_a_row_that_runs_over_several_lines_is_refused(tmp_path: Path) -> None:
+    """A double quote left open takes in the rows below it; they are not dropped.
+
+    The quote opened on row 3 is closed by the one on row 5, so the three rows
+    would be read as one deposit of 225.83: the fee on row 4 left out, and the
+    dividend on row 5 taken for a transfer.
+    """
+    vanguard_file = tmp_path / "open_quote.csv"
+    vanguard_file.write_text(
+        "Date,Details,Amount,Balance\n"
+        "01/03/2022,Regular Deposit,100.00,100.00\n"
+        '01/04/2022,"Regular Deposit,150.00,250.00\n'
+        "07/04/2022,Account Fee for the period 08-Jan-2022 to 07-Apr-2022,"
+        "-14.05,235.95\n"
+        '09/04/2022,"DIV: FOO.XLON.GB @ GBP 0.4106,225.83,461.78\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ParsingError, match=", row 3: This row runs on to row 5,"):
+        VanguardParser().load_from_file(vanguard_file)
+
+
 def test_read_vanguard_transactions_buy(tmp_path: Path) -> None:
     """Parse a simple BUY transaction and compute derived fields."""
 
@@ -630,10 +652,14 @@ def test_read_vanguard_date_shaped_row_is_not_treated_as_footer(
         VanguardParser().load_from_file(vanguard_file)
 
 
-def test_read_vanguard_error_uses_physical_line_after_quoted_newline(
+def test_read_vanguard_refuses_a_cell_that_properly_holds_a_line_break(
     tmp_path: Path,
 ) -> None:
-    """Count embedded CSV newlines when reporting the later malformed row."""
+    """A quoted cell that is closed on a later line is refused where it starts.
+
+    The file is not read on with the lines counted past the break: the short
+    row below it, on line 4, is no longer reached.
+    """
     vanguard_file = tmp_path / "quoted_newline.csv"
     vanguard_file.write_text(
         "Date,Details,Amount,Balance\n"
@@ -643,7 +669,7 @@ def test_read_vanguard_error_uses_physical_line_after_quoted_newline(
         encoding="utf-8",
     )
 
-    with pytest.raises(UnexpectedColumnCountError, match=r"row 4:"):
+    with pytest.raises(ParsingError, match=r", row 2: This row runs on to row 3,"):
         VanguardParser().load_from_file(vanguard_file)
 
 

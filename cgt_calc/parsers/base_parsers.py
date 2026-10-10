@@ -52,6 +52,7 @@ def read_csv_rows(
     file_path: Path,
     *,
     first_row: int = 1,
+    delimiter: str = ",",
     skipinitialspace: bool = False,
 ) -> list[list[str]]:
     """Read the rows of a CSV file, refusing one that runs over several lines.
@@ -62,7 +63,7 @@ def read_csv_rows(
     would be left out without a word. ``first_row`` is the line of the file
     that the first of ``lines`` is on.
     """
-    reader = csv.reader(lines, skipinitialspace=skipinitialspace)
+    reader = csv.reader(lines, delimiter=delimiter, skipinitialspace=skipinitialspace)
     rows: list[list[str]] = []
     for row in reader:
         # Every row before this one took one line, or it was refused.
