@@ -5,6 +5,9 @@ plan. This builds a fuller one from Codecov's public API: the changed lines
 that tests do not cover, total coverage before and after, and the figures by
 component and by flag. "Before" is the commit on the default branch that CI
 merged the pull request into, not the older one its branch started from.
+Where the base branch has changed a file that the pull request changes too,
+Codecov may match coverage to the wrong lines of it, so the comment leaves
+that file's lines and every count of changed lines out.
 The coverage-comment workflow runs it when Codecov's patch check lands. To
 print the comment for a pull request without posting it:
 
@@ -39,6 +42,9 @@ LINE_STATES: dict[int | None, str] = {1: "missed", 2: "partial"}
 MAX_LINES = 30
 MAX_LINE_LENGTH = 100
 MAX_FILES = 10
+# GitHub lists at most this many files when it compares two commits, so a
+# list this long may have been cut short.
+MAX_COMPARED_FILES = 300
 # The jq filter that cuts GitHub's account of a pull request down to what
 # PullRequest holds.
 PULL = (
@@ -172,8 +178,11 @@ def code_block(lines: list[str]) -> list[str]:
     return [f"{fence}text", *lines, fence]
 
 
-def uncovered_lines(repo: str, pull: int, files: list[File]) -> list[str]:
-    """List the added lines that tests miss or only partly take, by file."""
+def uncovered_lines(repo: str, pull: int, files: list[File], where: str) -> list[str]:
+    """List the added lines that tests miss or only partly take, by file.
+
+    `where` ends the heading when `files` are not all the changed ones.
+    """
     section: list[str] = []
     total = 0
     for file in files:
@@ -195,7 +204,7 @@ def uncovered_lines(repo: str, pull: int, files: list[File]) -> list[str]:
     heading = "1 changed line is" if total == 1 else f"{total} changed lines are"
     if total > MAX_LINES:
         section += [f"And {total - MAX_LINES} more in the full report.", ""]
-    return [f"#### {heading} not covered", "", *section]
+    return [f"#### {heading} not covered{where}", "", *section]
 
 
 def indirect_changes(files: list[File]) -> list[str]:
@@ -223,12 +232,24 @@ def indirect_changes(files: list[File]) -> list[str]:
     return section
 
 
-def breakdown(title: str, column: str, rows: list[Breakdown]) -> list[str]:
-    """Tabulate the figures by component or by flag, folded away."""
+def breakdown(
+    title: str,
+    column: str,
+    rows: list[Breakdown],
+    *,
+    exact: bool,
+) -> list[str]:
+    """Tabulate the figures by component or by flag, folded away.
+
+    The count of changed lines is given only when it is `exact`: Codecov
+    makes it from every changed file, those with misaligned lines too.
+    """
     if not rows:
         return []
 
     def changed(diff: Totals | None) -> str:
+        if not exact:
+            return "n/a"
         if diff and diff["lines"]:
             return f"{percent(diff['coverage'])} of {diff['lines']}"
         return "none"
@@ -258,8 +279,15 @@ def render(
     compare: Compare,
     components: list[Breakdown],
     flags: list[Breakdown],
+    shifted: list[str],
 ) -> Comment:
-    """Build the comment for a pull request from Codecov's figures."""
+    """Build the comment for a pull request from Codecov's figures.
+
+    `shifted` names the changed files whose lines Codecov may have matched
+    wrongly. Their uncovered lines are left out, and so is every count of
+    changed lines, because each one includes theirs. Codecov's verdict stays,
+    and the comment is worth posting to say what it leaves out.
+    """
     totals = compare["totals"]
     base, head, patch = totals["base"], totals["head"], totals["patch"]
     measured = patch["lines"] if patch else 0
@@ -274,9 +302,28 @@ def render(
         for row in [*components, *flags]
     )
 
-    if patch and measured:
-        icon = ":white_check_mark:" if check["conclusion"] == "success" else ":x:"
-        target = re.search(r"target ([\d.]+)%", check["title"] or "")
+    icon = ":white_check_mark:" if check["conclusion"] == "success" else ":x:"
+    target = re.search(r"target ([\d.]+)%", check["title"] or "")
+    if shifted:
+        outcome = "passed" if check["conclusion"] == "success" else "did not pass"
+        names = [f"- `{plain(path)}`" for path in shifted]
+        if len(names) > MAX_FILES:
+            names[MAX_FILES:] = [f"- and {len(names) - MAX_FILES} more"]
+        verdict = [
+            f"### {icon} Codecov's check of the changed lines {outcome}",
+            "",
+            (f"Codecov's target is {target[1]}%. " if target else "")
+            + "Its count of covered lines is left out, and so are the uncovered"
+            " lines of the files below, because Codecov may have matched their"
+            " coverage to other lines. CI tests the pull request merged into"
+            " its base branch, which may have changed these files since this"
+            " branch started, and a line then has another number in what CI"
+            " tested.",
+            "",
+            *names,
+            "",
+        ]
+    elif patch and measured:
         against = f", against a target of {target[1]}%" if target else ""
         verdict = [
             f"### {icon} {percent(patch['coverage'])} of changed lines covered",
@@ -295,20 +342,26 @@ def render(
         f"[Full report on Codecov](https://app.codecov.io/gh/{repo}/pull/{pull})"
         f" for commit `{compare['head_commit'][:7]}`."
     )
+    aligned = [file for file in compare["files"] if file["name"]["head"] not in shifted]
     body = [
         MARKER,
         *verdict,
         f"Total coverage: {total}.",
         "",
-        *uncovered_lines(repo, pull, compare["files"]),
+        *uncovered_lines(
+            repo,
+            pull,
+            aligned,
+            " in the other files" if shifted else "",
+        ),
         *indirect,
-        *breakdown("Components", "Component", components),
-        *breakdown("Flags", "Flag", flags),
+        *breakdown("Components", "Component", components, exact=not shifted),
+        *breakdown("Flags", "Flag", flags, exact=not shifted),
         footer,
     ]
     return Comment(
         "\n".join(body) + "\n",
-        bool(measured or indirect or delta or moved),
+        bool(shifted or measured or indirect or delta or moved),
     )
 
 
@@ -334,29 +387,25 @@ def codecov(repo: str, path: str) -> str:
 
 
 def merged_into(repo: str, pull: PullRequest) -> str | None:
-    """Find the commit on the default branch that CI merged the pull request into.
+    """Find the commit on its base branch that CI merged the pull request into.
 
     CI tests GitHub's test merge of the pull request, not its head commit, so
-    the report Codecov files under the head is for that merge. Coverage before
-    the pull request is then the report of the merge's first parent, which is
-    newer than the commit the branch started from whenever the branch is
-    behind. The answer is None, for a commit that cannot be told, unless all
-    of this holds:
+    the report Codecov files under the head is for that merge. The commit
+    merged into is the merge's first parent, which is newer than the commit
+    the branch started from whenever the branch is behind. The answer is
+    None, for a commit that cannot be told, unless both of these hold:
 
-    - The pull request targets the default branch. CI tests a commit there as
-      it stands, so its report is its own. A stacked pull request is merged
-      into the head of another one, whose report is for its own test merge.
     - GitHub names a test merge whose second parent is this head commit. It
       names none for a pull request that conflicts, the commit on the default
       branch for one that is merged, and just after a push the merge of the
       head before.
     - That merge is no newer than any workflow run the pull request started
       on this head commit, and there is such a run. GitHub may rebuild the
-      test merge after the default branch moves, and CI tested the one that
+      test merge after the base branch moves, and CI tested the one that
       stood when the run was created. A re-run keeps that time.
     """
     merge = pull["merge_commit_sha"]
-    if not merge or pull["base"] != pull["default_branch"]:
+    if not merge:
         return None
     commit = json.loads(gh(f"repos/{repo}/git/commits/{merge}"))
     committed: str = commit["committer"]["date"]
@@ -378,6 +427,43 @@ def merged_into(repo: str, pull: PullRequest) -> str | None:
     return None
 
 
+def shifted_files(
+    repo: str,
+    pull: PullRequest,
+    tested: str | None,
+    files: list[File],
+) -> list[str]:
+    """Name the changed files whose lines Codecov may have matched wrongly.
+
+    Codecov holds the coverage of the test merge and matches it to the pull
+    request's own lines by number. The numbers agree for a file that the base
+    branch has left alone since the pull request's branch started; any change
+    to it there can move the lines of the merged file. So a changed file is
+    named when the base branch changed it too, under the name it has in the
+    pull request or the one it had before. Every changed file is named when
+    that cannot be told: `tested`, the commit CI merged into, is not known,
+    or GitHub's list of what changed is as long as it lets one be.
+    """
+    changed = [file for file in files if file["has_diff"]]
+    if tested:
+        # Three dots: what changed on the way from the commit the two share
+        # to the commit CI merged into.
+        on_base: list[str] = json.loads(
+            gh(
+                f"repos/{repo}/compare/{pull['head']}...{tested}",
+                "--jq",
+                "[.files[].filename]",
+            ),
+        )
+        if len(on_base) < MAX_COMPARED_FILES:
+            changed = [
+                file
+                for file in changed
+                if {file["name"]["base"], file["name"]["head"]} & set(on_base)
+            ]
+    return [file["name"]["head"] for file in changed]
+
+
 def figures(
     repo: str,
     pull: PullRequest,
@@ -385,13 +471,14 @@ def figures(
 ) -> tuple[Compare, list[Breakdown], list[Breakdown], str]:
     """Read Codecov's comparison for the head commit, by component and flag too.
 
-    It is compared with the commit CI merged it into. Without that commit, or
-    without a report for it, what is left is Codecov's own comparison for the
-    pull request, which starts from the commit the branch forked at. Every
-    file changed on the default branch since then would show there as
-    coverage the pull request moved, so its figures from before are dropped
-    and the comment gives only the current ones. The last item returned says
-    why they were dropped, and is empty when they were not.
+    It is compared with `base`, the commit on the default branch that CI
+    merged it into. Without that commit, or without a report for it, what is
+    left is Codecov's own comparison for the pull request, which starts from
+    the commit the branch forked at. Every file changed on the default branch
+    since then would show there as coverage the pull request moved, so its
+    figures from before are dropped and the comment gives only the current
+    ones. The last item returned says why they were dropped, and is empty
+    when they were not.
     """
 
     def read(query: str) -> tuple[Compare, list[Breakdown], list[Breakdown]]:
@@ -401,7 +488,7 @@ def figures(
         )
         return compare, components, flags
 
-    dropped = "the commit CI merged it into is not known"
+    dropped = "CI is not known to have merged it into a commit on the default branch"
     if base:
         try:
             return (*read(f"base={base}&head={pull['head']}"), "")
@@ -468,11 +555,13 @@ def main() -> None:
         found = json.loads(gh(f"repos/{repo}/pulls/{args.pull}", "--jq", PULL))
     pull, sha = found["number"], found["head"]
 
-    compare, components, flags, dropped = figures(
-        repo,
-        found,
-        merged_into(repo, found),
-    )
+    tested = merged_into(repo, found)
+    # Coverage before the pull request is the report of the commit CI merged
+    # it into, and only on the default branch is that report the commit's
+    # own. A stacked pull request is merged into the head of another one,
+    # whose report is for that one's test merge.
+    before = tested if found["base"] == found["default_branch"] else None
+    compare, components, flags, dropped = figures(repo, found, before)
     if compare["head_commit"] != sha:
         print(f"Codecov has not compared {sha} yet; nothing to do.")
         return
@@ -496,7 +585,8 @@ def main() -> None:
             f"Left out the figures from before the pull request: {dropped}.",
             file=sys.stderr,
         )
-    comment = render(repo, pull, judged[0], compare, components, flags)
+    shifted = shifted_files(repo, found, tested, compare["files"])
+    comment = render(repo, pull, judged[0], compare, components, flags, shifted)
     # A run by pull request number is a person's. It only ever prints: a
     # comment posted under their name would not be found again and edited.
     if args.dry_run or args.pull is not None:

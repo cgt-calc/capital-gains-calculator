@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from email.message import Message
 import json
+import subprocess
 from typing import TYPE_CHECKING
 import urllib.error
 
@@ -54,8 +55,11 @@ def totals(coverage: str, lines: int = 0, hits: int = 0) -> Totals:
     return {"coverage": Decimal(coverage), "lines": lines, "hits": hits}
 
 
-def added(number: int, text: str, code: int) -> Line:
-    """Build a line the pull request adds, with its coverage code."""
+def added(number: int, text: str, code: int | None) -> Line:
+    """Build a line the pull request adds, with its coverage code.
+
+    A line that is not measured, such as a comment, has no code.
+    """
     return {
         "value": f"+{text}",
         "number": {"base": None, "head": number},
@@ -81,13 +85,15 @@ def file(
     head: str = "90.00",
     *,
     new: bool = False,
+    was: str | None = None,
 ) -> File:
     """Build one file of the comparison; one with no lines was not touched.
 
     A file the pull request adds has no name and no totals on the base side.
+    One it renames had the name `was` there.
     """
     return {
-        "name": {"base": None if new else path, "head": path},
+        "name": {"base": None if new else was or path, "head": path},
         "totals": {
             "base": None if new else totals(base),
             "head": totals(head),
@@ -199,7 +205,7 @@ def test_comment_shows_the_figures_and_the_uncovered_changed_lines() -> None:
         },
     ]
 
-    comment = render(REPO, 7, PASSED, compare, components, flags)
+    comment = render(REPO, 7, PASSED, compare, components, flags, [])
 
     assert comment.worth_posting
     # Each anchor is the SHA-256 of the file's path, which is how GitHub names
@@ -298,7 +304,7 @@ def test_verdict_follows_the_patch_check(check: Check, verdict: str) -> None:
         totals("50.00", lines=2, hits=1),
     )
 
-    assert verdict in render(REPO, 7, check, compare, [], []).body
+    assert verdict in render(REPO, 7, check, compare, [], [], []).body
 
 
 @pytest.mark.parametrize(
@@ -357,6 +363,7 @@ def test_pull_request_that_changes_no_measured_lines(
         7,
         {"app": "codecov", "conclusion": "success", "title": "Coverage not affected"},
         comparison([untouched], patch, head=head),
+        [],
         [],
         [],
     )
@@ -446,7 +453,7 @@ def test_figure_that_moves_for_one_flag_or_component_alone_is_worth_a_comment(
     """
     compare = comparison([file("cgt_calc/util.py", [])], None, base=base)
 
-    comment = render(REPO, 7, PASSED, compare, components, flags)
+    comment = render(REPO, 7, PASSED, compare, components, flags, [])
 
     assert comment.worth_posting is worth_posting
 
@@ -477,7 +484,7 @@ def test_fully_covered_change_without_a_base_report() -> None:
         },
     ]
 
-    comment = render(REPO, 7, PASSED, compare, [], flags)
+    comment = render(REPO, 7, PASSED, compare, [], flags, [])
 
     assert comment.worth_posting
     assert "Total coverage: 96.00%.\n" in comment.body
@@ -523,7 +530,7 @@ def test_text_from_the_pull_request_cannot_break_out_of_its_place() -> None:
         },
     ]
 
-    body = render(REPO, 7, PASSED, compare, components, flags).body
+    body = render(REPO, 7, PASSED, compare, components, flags, []).body
 
     assert "[`cgt_calc/a??http?//evil??.py`](https://github.com/" in body
     assert "````text\n    1  missed   x = '```' # </details> @someone\n````\n" in body
@@ -565,7 +572,7 @@ def test_long_list_of_uncovered_lines_is_cut(
     ]
     compare = comparison(files, totals("0", lines=uncovered, hits=0))
 
-    body = render(REPO, 7, PASSED, compare, [], []).body
+    body = render(REPO, 7, PASSED, compare, [], [], []).body
 
     assert f"#### {uncovered} changed lines are not covered\n" in body
     assert body.count("  missed   pass\n") == 30
@@ -593,7 +600,7 @@ def test_long_list_of_untouched_files_is_cut(moved: int, rest: str) -> None:
         for number in range(moved)
     ]
 
-    body = render(REPO, 7, PASSED, comparison(files, None), [], []).body
+    body = render(REPO, 7, PASSED, comparison(files, None), [], [], []).body
 
     assert body.count("| 50.00% | 60.00% |\n") == 10
     assert ("more in the full report" in body) is bool(rest)
@@ -607,10 +614,182 @@ def test_one_uncovered_line_and_a_very_long_one() -> None:
         totals("0", lines=1, hits=0),
     )
 
-    body = render(REPO, 7, PASSED, compare, [], []).body
+    body = render(REPO, 7, PASSED, compare, [], [], []).body
 
     assert "#### 1 changed line is not covered\n" in body
     assert f"    1  missed   {'a' * 100}\n```\n" in body
+
+
+LEFT_OUT = (
+    "Its count of covered lines is left out, and so are the uncovered lines of"
+    " the files below, because Codecov may have matched their coverage to other"
+    " lines. CI tests the pull request merged into its base branch, which may"
+    " have changed these files since this branch started, and a line then has"
+    " another number in what CI tested.\n"
+)
+
+
+def test_figures_that_may_be_for_other_lines_are_left_out() -> None:
+    """A file whose lines may be misaligned loses its lines, and the counts go.
+
+    The base branch changed `base_parsers.py` after this branch started, so
+    the line Codecov calls missed at 387 may be another line of the merged
+    file, and it is not listed. Codecov's 2 of 4 for the change counts that
+    file's lines, so it goes too, from the verdict and from the flag's row.
+    What stays is what does not depend on a line's number: that Codecov
+    failed the change and its target, the total, which fell by 0.12 points,
+    the untouched `model.py`, and the missed line of `util.py`, which the
+    base branch left alone.
+    """
+    compare = comparison(
+        [
+            file(
+                "cgt_calc/parsers/base_parsers.py",
+                [
+                    added(385, "        if not issubclass(cls, BaseDirParser):", HIT),
+                    added(387, "            LOGGER.warning(message)", MISSED),
+                ],
+            ),
+            file(
+                "cgt_calc/util.py",
+                [added(1, "x = 1", HIT), added(2, "y = 2", MISSED)],
+            ),
+            file("cgt_calc/model.py", [], base="99.00", head="98.00"),
+        ],
+        totals("50.00", lines=4, hits=2),
+        head="96.00",
+    )
+    check: Check = {
+        "app": "codecov",
+        "conclusion": "failure",
+        "title": "50.00% of diff hit (target 90.00%)",
+    }
+    flags: list[Breakdown] = [
+        {
+            "name": "docker",
+            "base_report_totals": totals("95.93"),
+            "head_report_totals": totals("95.81"),
+            "diff_totals": totals("50.00", lines=4, hits=2),
+        },
+    ]
+
+    comment = render(
+        REPO,
+        7,
+        check,
+        compare,
+        [],
+        flags,
+        ["cgt_calc/parsers/base_parsers.py"],
+    )
+
+    assert comment.body == (
+        "<!-- cgt-calc-coverage -->\n"
+        "### :x: Codecov's check of the changed lines did not pass\n"
+        "\n"
+        f"Codecov's target is 90.00%. {LEFT_OUT}"
+        "\n"
+        "- `cgt_calc/parsers/base_parsers.py`\n"
+        "\n"
+        "Total coverage: 96.12% -> 96.00% (-0.12 points).\n"
+        "\n"
+        "#### 1 changed line is not covered in the other files\n"
+        "\n"
+        "[`cgt_calc/util.py`](https://github.com/cgt-calc/"
+        "capital-gains-calculator/pull/7/files#diff-"
+        "ed746bb60c95619bf97b3d56a108ef98346e885088fe3989b92791d0a03d8f81)\n"
+        "```text\n"
+        "    2  missed   y = 2\n"
+        "```\n"
+        "\n"
+        "#### Coverage changed in files this pull request did not touch\n"
+        "\n"
+        "| File | Before | After |\n"
+        "|---|---|---|\n"
+        "| `cgt_calc/model.py` | 99.00% | 98.00% |\n"
+        "\n"
+        "<details>\n"
+        "<summary>Flags</summary>\n"
+        "\n"
+        "| Flag | Before | After | Changed lines |\n"
+        "|---|---|---|---|\n"
+        "| `docker` | 95.93% | 95.81% | n/a |\n"
+        "\n"
+        "</details>\n"
+        "\n"
+        "[Full report on Codecov](https://app.codecov.io/gh/cgt-calc/"
+        "capital-gains-calculator/pull/7) for commit `b653e4c`.\n"
+    )
+
+
+def test_comment_that_only_says_what_it_leaves_out_is_still_worth_posting() -> None:
+    """Codecov's finding that no measured line changed may be wrong as well.
+
+    The pull request adds one line to `util.py`, which Codecov takes for one
+    that is not measured, so it counts no changed line and passes the change.
+    The base branch changed the file too, so the line may be measured after
+    all. The comment does not say that no measured lines changed, and it is
+    posted although no figure moved, because nothing else tells the reader
+    that Codecov's check may have judged other lines. The check's title
+    names no target, so none is given.
+    """
+    compare = comparison(
+        [file("cgt_calc/util.py", [added(1, "# Why this is here.", None)])],
+        totals("0", lines=0, hits=0),
+    )
+    check: Check = {
+        "app": "codecov",
+        "conclusion": "success",
+        "title": "Coverage not affected",
+    }
+
+    comment = render(REPO, 7, check, compare, [], [], ["cgt_calc/util.py"])
+
+    assert comment.worth_posting
+    assert comment.body == (
+        "<!-- cgt-calc-coverage -->\n"
+        "### :white_check_mark: Codecov's check of the changed lines passed\n"
+        "\n"
+        f"{LEFT_OUT}"
+        "\n"
+        "- `cgt_calc/util.py`\n"
+        "\n"
+        "Total coverage: 96.12% -> 96.12% (no change).\n"
+        "\n"
+        "[Full report on Codecov](https://app.codecov.io/gh/cgt-calc/"
+        "capital-gains-calculator/pull/7) for commit `b653e4c`.\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("left_out", "rest"),
+    [
+        pytest.param(10, "", id="at the limit, all are named"),
+        pytest.param(11, "- and 1 more\n", id="one over the limit is counted"),
+    ],
+)
+def test_long_list_of_files_left_out_is_cut(left_out: int, rest: str) -> None:
+    """Only the first ten files whose figures are left out are named."""
+    assert MAX_FILES == 10
+    files = [
+        file(f"cgt_calc/f{number}.py", [added(1, "pass", HIT)])
+        for number in range(left_out)
+    ]
+    compare = comparison(files, totals("100.00", lines=left_out, hits=left_out))
+
+    body = render(
+        REPO,
+        7,
+        PASSED,
+        compare,
+        [],
+        [],
+        [one["name"]["head"] for one in files],
+    ).body
+
+    assert body.count("\n- `cgt_calc/f") == 10
+    assert ("more\n" in body) is bool(rest)
+    assert rest in body
 
 
 # GitHub built the test merge two seconds before the pull request's CI began.
@@ -634,6 +813,7 @@ class FakeGitHub:
         merge: tuple[str, ...] | None = (MERGED_AT, BASE, HEAD),
         runs: tuple[str, ...] = (RUN_AT,),
         base: str = "main",
+        on_base: tuple[str, ...] = (),
     ) -> None:
         """Hold what GitHub would say about the repository.
 
@@ -641,7 +821,8 @@ class FakeGitHub:
         its parents, or None when GitHub has none for it. `runs` is when each
         workflow run the pull request started on its head commit was created.
         `base` is the branch it targets, in a repository whose default is
-        main.
+        main. `on_base` is the files that branch changed between the commit
+        the pull request's branch started from and the one CI merged it into.
         """
         self.pulls = pulls
         self.comments = comments
@@ -649,6 +830,7 @@ class FakeGitHub:
         self.merge = merge
         self.runs = runs
         self.base = base
+        self.on_base = on_base
         self.writes: list[tuple[str, str, str]] = []
 
     def pull(self, number: int, head: str) -> str:
@@ -705,6 +887,8 @@ class FakeGitHub:
                 f"{json.dumps({'created_at': run, 'run_started_at': RERUN_AT})}\n"
                 for run in self.runs
             )
+        if asked == f"compare/{HEAD}...{BASE}":
+            return json.dumps(self.on_base)
         if asked == f"commits/{HEAD}/check-runs?check_name=codecov/patch&per_page=100":
             return json.dumps(self.checks)
         if asked == "issues/7/comments?per_page=100" and "--paginate" in args:
@@ -986,8 +1170,8 @@ CURRENT_FIGURES_ONLY = (
     "\n"
 ) + tables("n/a", "n/a")
 NOT_KNOWN = (
-    "Left out the figures from before the pull request: the commit CI merged"
-    " it into is not known.\n"
+    "Left out the figures from before the pull request: CI is not known to"
+    " have merged it into a commit on the default branch.\n"
 )
 NO_REPORT = (
     "Left out the figures from before the pull request: Codecov has no report"
@@ -1221,6 +1405,191 @@ def test_fault_at_codecov_stops_the_run_and_drops_no_figures(
     )
 
     with pytest.raises(urllib.error.HTTPError, match="HTTP Error 500"):
+        coverage_comment.main()
+
+    assert github.writes == []
+
+
+# Pull request 7 when it changes three measured files and adds one line to
+# each, all three missed: 0 of 3 covered. It renamed the last file, which is
+# `old_name.py` on the base branch. It did not touch `model.py`.
+PARSERS = "cgt_calc/parsers/base_parsers.py"
+UTIL = "cgt_calc/util.py"
+RENAMED = "cgt_calc/new_name.py"
+THREE_FILES = comparison(
+    [
+        file(PARSERS, [added(387, "LOGGER.warning(message)", MISSED)]),
+        file(UTIL, [added(1, "x = 1", MISSED)]),
+        file(RENAMED, [added(5, "z = 3", MISSED)], was="cgt_calc/old_name.py"),
+        file("cgt_calc/model.py", []),
+    ],
+    totals("0", lines=3, hits=0),
+)
+# The row of each file's missed line in the list of uncovered lines.
+MISSED_LINE = {
+    PARSERS: "  387  missed   LOGGER.warning(message)\n",
+    UTIL: "    1  missed   x = 1\n",
+    RENAMED: "    5  missed   z = 3\n",
+}
+ALL_LISTED = "#### 3 changed lines are not covered\n"
+TWO_LISTED = "#### 2 changed lines are not covered in the other files\n"
+
+
+@pytest.mark.parametrize(
+    ("on_base", "merge", "base", "left_out", "heading"),
+    [
+        pytest.param(
+            ("cgt_calc/model.py", "tests/general/test_util.py"),
+            (MERGED_AT, BASE, HEAD),
+            "main",
+            [],
+            ALL_LISTED,
+            id="the base branch changed only files the pull request left alone",
+        ),
+        pytest.param(
+            (PARSERS, "cgt_calc/model.py"),
+            (MERGED_AT, BASE, HEAD),
+            "main",
+            [PARSERS],
+            TWO_LISTED,
+            id="the base branch changed one of the files too",
+        ),
+        pytest.param(
+            ("cgt_calc/old_name.py",),
+            (MERGED_AT, BASE, HEAD),
+            "main",
+            [RENAMED],
+            TWO_LISTED,
+            id="the base branch changed a file under the name it had before",
+        ),
+        pytest.param(
+            tuple(f"docs/page{number}.md" for number in range(299)),
+            (MERGED_AT, BASE, HEAD),
+            "main",
+            [],
+            ALL_LISTED,
+            id="GitHub lists 299 files, which is all there are",
+        ),
+        pytest.param(
+            tuple(f"docs/page{number}.md" for number in range(300)),
+            (MERGED_AT, BASE, HEAD),
+            "main",
+            [PARSERS, UTIL, RENAMED],
+            "",
+            id="GitHub lists 300 files, where it cuts the list",
+        ),
+        pytest.param(
+            (),
+            (MERGED_AT, BASE, OTHER_COMMIT),
+            "main",
+            [PARSERS, UTIL, RENAMED],
+            "",
+            id="the commit CI merged into is not known",
+        ),
+        pytest.param(
+            (),
+            (MERGED_AT, BASE, HEAD),
+            "split-the-parser",
+            [],
+            ALL_LISTED,
+            id="the pull request is stacked, and the branch below left them alone",
+        ),
+    ],
+)
+def test_lines_are_left_out_for_files_the_base_branch_changed_too(
+    on_base: tuple[str, ...],
+    merge: tuple[str, ...],
+    base: str,
+    left_out: list[str],
+    heading: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Codecov's figures for a file's lines are kept only where they must be right.
+
+    CI measures the pull request merged into its base branch, and Codecov
+    matches that coverage to the pull request's lines by number. Where the
+    base branch changed a file after the pull request's branch started, the
+    merged file's lines may be numbered otherwise, so that file is named as
+    left out and its missed line is not listed. A file is known by either
+    name when the pull request renamed it. With any file left out, Codecov's
+    0 of 3 gives way to the plain verdict.
+
+    When it cannot be told which files the base branch changed, every changed
+    file is left out: GitHub cuts its list at 300 files, so a list that long
+    may lack the one that matters, and without the commit CI merged into
+    there is nothing to ask about. A stacked pull request has such a commit,
+    on the branch below it, though it gets no figures from before.
+    """
+    reports: Reports = {
+        AGAINST_BASE: (THREE_FILES, [], []),
+        FOR_PULL: (THREE_FILES, [], []),
+    }
+    github = FakeGitHub(
+        [(7, HEAD)],
+        OTHERS,
+        [FAILED],
+        merge=merge,
+        base=base,
+        on_base=on_base,
+    )
+    monkeypatch.setattr(coverage_comment, "gh", github)
+    monkeypatch.setattr(
+        coverage_comment,
+        "codecov",
+        codecov_holding(reports),
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        ["coverage_comment.py", "--repo", REPO, "--sha", HEAD],
+    )
+
+    coverage_comment.main()
+
+    [(method, path, body)] = github.writes
+    assert (method, path) == ("POST", NEW)
+    verdict = (
+        "Codecov's check of the changed lines did not pass"
+        if left_out
+        else "0.00% of changed lines covered"
+    )
+    assert body.startswith(f"{MARKER}\n### :x: {verdict}\n")
+    named = [line for line in body.split("\n") if line.startswith("- ")]
+    assert named == [f"- `{path}`" for path in left_out]
+    assert ("#### " in body) is bool(heading)
+    assert heading in body
+    for path, row in MISSED_LINE.items():
+        assert (row in body) is (path not in left_out)
+
+
+def test_fault_at_github_stops_the_run_and_takes_no_file_for_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A list of the base branch's changes that cannot be read is not an empty one.
+
+    Taking it for empty would show every line as rightly matched. The run
+    fails, where it is seen and can be run again, and nothing is written.
+    """
+    github = FakeGitHub([(7, HEAD)], [OWN], [FAILED])
+
+    def failing(*args: str, stdin: str | None = None) -> str:
+        if f"repos/{REPO}/compare/{HEAD}...{BASE}" in args:
+            raise subprocess.CalledProcessError(1, ["gh", "api", *args])
+        return github(*args, stdin=stdin)
+
+    monkeypatch.setattr(coverage_comment, "gh", failing)
+    monkeypatch.setattr(
+        coverage_comment,
+        "codecov",
+        codecov_holding(against_base(THREE_FILES)),
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        ["coverage_comment.py", "--repo", REPO, "--sha", HEAD],
+    )
+
+    with pytest.raises(
+        subprocess.CalledProcessError, match=r"/compare/.*exit status 1"
+    ):
         coverage_comment.main()
 
     assert github.writes == []
