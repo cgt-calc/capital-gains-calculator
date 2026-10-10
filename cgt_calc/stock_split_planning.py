@@ -603,11 +603,11 @@ def _split_chronology_message(
         return preamble + (
             f"This row is stamped {stamp}, at or between the two halves of "
             f"the reorganisation at {min(instants)} and {max(instants)}. If "
-            f"you know the real order, put the day's {symbol} rows in one "
-            "RAW input in that order, with the reorganisation as one "
-            "STOCK_SPLIT row stating the change to the whole holding; "
-            "otherwise work the day out by hand (consider professional "
-            "advice)."
+            f"you know the real order, move the day's {symbol} rows out of "
+            "their exports into one RAW input in that order, with the "
+            "reorganisation as one STOCK_SPLIT row stating the change to the "
+            "whole holding; otherwise work the day out by hand (consider "
+            "professional advice)."
         )
     return preamble + (
         "The two come from different inputs, or from an export that gives "

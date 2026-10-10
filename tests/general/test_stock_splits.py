@@ -617,10 +617,10 @@ def test_a_row_at_or_between_the_two_halves_of_a_reorganisation_is_refused(
     assert (
         f"This row is stamped {stamp}, at or between the two halves of the "
         "reorganisation at 2023-05-15 07:44:13+00:00 and 2023-05-15 07:44:14+00:00. "
-        "If you know the real order, put the day's FOO rows in one RAW input in "
-        "that order, with the reorganisation as one STOCK_SPLIT row stating the "
-        "change to the whole holding; otherwise work the day out by hand (consider "
-        "professional advice)."
+        "If you know the real order, move the day's FOO rows out of their exports "
+        "into one RAW input in that order, with the reorganisation as one "
+        "STOCK_SPLIT row stating the change to the whole holding; otherwise work "
+        "the day out by hand (consider professional advice)."
     ) in message
     # Both state their times, so asking for times would send the reader after
     # a file that does not exist.
