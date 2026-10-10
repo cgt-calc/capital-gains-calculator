@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 import datetime
+import os
+from pathlib import Path
 import re
 import sys
-from typing import TYPE_CHECKING
 
 import pytest
 
 from cgt_calc.const import DEFAULT_SPIN_OFF_FILE
-from cgt_calc.exceptions import InteractiveInputRequiredError, ParsingError
+from cgt_calc.exceptions import CgtError, InteractiveInputRequiredError, ParsingError
 from cgt_calc.model import Position
 from cgt_calc.spin_off_handler import SpinOffHandler
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 SPIN_OFF_DATE = datetime.date(2021, 5, 10)
 
@@ -219,6 +217,48 @@ def test_recording_spin_off_creates_missing_parent_directories(
     assert source == "OLD"
     content = spin_offs_file.read_text(encoding="utf8")
     assert content.splitlines() == ["dst,src", "NEW,OLD"]
+
+
+@pytest.mark.parametrize(
+    "locked",
+    [
+        pytest.param("out/spin_offs.csv", id="the file is read-only"),
+        pytest.param("out", id="the file can be written but its folder cannot"),
+    ],
+)
+def test_a_spin_offs_file_that_cannot_be_saved_is_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, locked: str
+) -> None:
+    """A spin-offs file that cannot be saved stops the run with the reason.
+
+    `locked` is made read-only. The new rows are written beside the file and
+    moved into its place, so a folder that cannot be written to stops the save
+    even where the file itself could be written.
+    """
+    monkeypatch.chdir(tmp_path)
+    spin_offs_file = Path("out/spin_offs.csv")
+    spin_offs_file.parent.mkdir()
+    spin_offs_file.write_bytes(b"dst,src\r\nSPUN,FIRST\r\n")
+    blocked = Path(locked)
+    blocked.chmod(0o444 if blocked.is_file() else 0o555)
+    handler = SpinOffHandler(spin_offs_file)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt: "OLD")
+    try:
+        if os.access(blocked, os.W_OK):
+            pytest.skip("this user may write there all the same")
+
+        with pytest.raises(CgtError) as raised:
+            handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {"OLD": Position()})
+    finally:
+        blocked.chmod(0o755)
+
+    assert str(raised.value) == (
+        f"Cannot save spin-offs to {spin_offs_file}: Permission denied. Close the "
+        "file if another program has it open, and check that it and its folder can "
+        "be written to. To run without reading or saving this file, pass "
+        "--spin-offs-file= with nothing after the = sign."
+    )
 
 
 def test_disabled_cache_error_asks_for_a_non_empty_path(

@@ -9,6 +9,8 @@ check covers what the reader sees rather than the values behind it.
 
 A name from the user's files is printed as text: the characters LaTeX acts on
 are escaped, in the source and, where pdflatex is available, in a compiled PDF.
+
+A report that cannot be saved says why.
 """
 
 from __future__ import annotations
@@ -16,19 +18,18 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 import os
+from pathlib import Path
 import re
-from typing import TYPE_CHECKING
+import sys
 
 import pytest
 
+from cgt_calc.exceptions import CgtError, MissingExternalToolError
 from cgt_calc.model import ActionType
 from cgt_calc.render_latex import render_pdf
 
 from .calc_test_data import GBP, transaction
 from .test_calc import create_calculator, get_report
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 PENNY = Decimal("0.01")
 
@@ -195,3 +196,130 @@ def test_a_name_with_every_escaped_character_compiles(tmp_path: Path) -> None:
     render_pdf(report, tmp_path / "report.pdf")
 
     assert (tmp_path / "report.pdf").stat().st_size > 0
+
+
+@pytest.mark.parametrize(
+    ("skip_pdflatex", "locked", "output", "named"),
+    [
+        pytest.param(
+            True,
+            "out/report.tex",
+            "out/report.pdf",
+            "out/report.tex",
+            id="the LaTeX source is read-only",
+        ),
+        pytest.param(
+            False,
+            "out/report.pdf",
+            "out/report.pdf",
+            "out/report.pdf",
+            id="the PDF is read-only",
+        ),
+        pytest.param(
+            False,
+            "out/report.pdf",
+            "out/report",
+            "out/report.pdf",
+            id="the PDF is read-only and --output does not end in .pdf",
+        ),
+        pytest.param(
+            True,
+            "out",
+            "out/new/report.pdf",
+            "out/new/report.tex",
+            id="the folder cannot be made",
+        ),
+    ],
+)
+def test_a_report_that_cannot_be_saved_says_why(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    skip_pdflatex: bool,
+    locked: str,
+    output: str,
+    named: str,
+) -> None:
+    """A report that cannot be written stops the run with the reason and what to do.
+
+    `locked` is made read-only: a file where the name has a suffix, else a
+    folder. `named` is the file the message gives: the LaTeX source when that is
+    the report, else the PDF, which pdflatex names after the output's stem. A
+    read-only PDF is found before pdflatex is looked for.
+    """
+    monkeypatch.chdir(tmp_path)
+    blocked = Path(locked)
+    if blocked.suffix:
+        blocked.parent.mkdir()
+        blocked.write_bytes(b"an earlier report")
+        blocked.chmod(0o444)
+    else:
+        blocked.mkdir()
+        blocked.chmod(0o555)
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False), TRANSACTIONS
+    )
+    try:
+        if os.access(blocked, os.W_OK):
+            pytest.skip("this user may write there all the same")
+
+        with pytest.raises(CgtError) as raised:
+            render_pdf(report, Path(output), skip_pdflatex=skip_pdflatex)
+    finally:
+        blocked.chmod(0o755)
+
+    assert str(raised.value) == (
+        f"Cannot save the report to {Path(named)}: Permission denied. Close the file "
+        "if another program has it open, and check that it and its folder can be "
+        "written to. To save it somewhere else, pass --output."
+    )
+
+
+@pytest.mark.skipif(
+    not os.getenv("ENABLE_PDFLATEX") or sys.platform == "win32",
+    reason="needs pdflatex, and Windows gives another reason for opening a folder",
+)
+def test_a_latex_log_that_cannot_be_opened_is_named(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the log of the pdflatex run is the file in the way, the message names it.
+
+    A folder of the log's name stands in for a log that cannot be written. It
+    stops root as well, which the one CI job with pdflatex runs as.
+    """
+    monkeypatch.chdir(tmp_path)
+    log = Path("out/report.latex.log")
+    log.mkdir(parents=True)
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False), TRANSACTIONS
+    )
+
+    with pytest.raises(CgtError) as raised:
+        render_pdf(report, Path("out/report.pdf"))
+
+    assert str(raised.value) == (
+        f"Cannot save the report's log to {log}: Is a directory. Close the file if "
+        "another program has it open, and check that it and its folder can be "
+        "written to. To save it somewhere else, pass --output."
+    )
+
+
+def test_checking_an_earlier_pdf_leaves_it_as_it_was(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Looking whether the PDF can be written does not change it.
+
+    With no pdflatex to be found the run stops after that check, and the
+    report an earlier run saved is still there.
+    """
+    monkeypatch.setenv("PATH", "")
+    earlier = tmp_path / "report.pdf"
+    earlier.write_bytes(b"an earlier report")
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False), TRANSACTIONS
+    )
+
+    with pytest.raises(MissingExternalToolError, match="pdflatex"):
+        render_pdf(report, earlier)
+
+    assert earlier.read_bytes() == b"an earlier report"

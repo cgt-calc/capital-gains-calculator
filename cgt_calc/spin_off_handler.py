@@ -13,8 +13,10 @@ from .exceptions import (
     UnexpectedColumnCountError,
     UnexpectedHeaderError,
     reading_as,
+    saving,
+    without_file,
 )
-from .util import is_blank_row, open_with_parents
+from .util import is_blank_row, save_csv
 
 if TYPE_CHECKING:
     import datetime
@@ -98,10 +100,9 @@ class SpinOffHandler:
     def _write_spin_off_file(self) -> None:
         if self.spin_offs_file is None:
             return
-        with open_with_parents(self.spin_offs_file) as fout:
-            data_rows = [[dst, src] for dst, src in self.cache.items()]
-            writer = csv.writer(fout)
-            writer.writerows([SPIN_OFFS_HEADER, *data_rows])
+        data_rows = [[dst, src] for dst, src in self.cache.items()]
+        with saving("spin-offs", self.spin_offs_file, without_file("--spin-offs-file")):
+            save_csv(self.spin_offs_file, [SPIN_OFFS_HEADER, *data_rows])
 
     def get_spin_off_source(
         self, symbol: str, date: datetime.date, portfolio: dict[str, Position]

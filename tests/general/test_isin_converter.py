@@ -5,14 +5,17 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 import logging
+import os
+from pathlib import Path
 import re
-from typing import TYPE_CHECKING, NoReturn
+from typing import NoReturn
 
 import pytest
 from requests import exceptions as requests_exceptions
 
 from cgt_calc.const import ISIN_TICKER_ALIASES, RuntimeMode
 from cgt_calc.exceptions import (
+    CgtError,
     ExternalApiError,
     InvalidTransactionError,
     IsinTranslationError,
@@ -22,9 +25,6 @@ from cgt_calc.exceptions import (
 import cgt_calc.isin_converter
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 # Well-formed but unassigned, so it cannot be in the bundled translation data.
 UNKNOWN_ISIN = Isin("ZZ0000000008")
@@ -514,6 +514,52 @@ def test_translation_file_roundtrip(
 
     restored = IsinConverter(isin_translation_file=translation_file)
     assert restored.get_symbols(ISIN_A) == {"FOO"}
+
+
+@pytest.mark.parametrize(
+    "locked",
+    [
+        pytest.param("out/isin_translation.csv", id="the file is read-only"),
+        pytest.param("out", id="the file can be written but its folder cannot"),
+    ],
+)
+def test_a_translation_file_that_cannot_be_saved_is_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, locked: str
+) -> None:
+    """A translation file that cannot be saved stops the run with the reason.
+
+    `locked` is made read-only. The new rows are written beside the file and
+    moved into its place, so a folder that cannot be written to stops the save
+    even where the file itself could be written.
+    """
+    monkeypatch.setattr(cgt_calc.isin_converter, "CGT_MODE", RuntimeMode.PROD)
+    monkeypatch.chdir(tmp_path)
+    translation_file = Path("out/isin_translation.csv")
+    translation_file.parent.mkdir()
+    translation_file.write_bytes(f"ISIN,symbol\r\n{ISIN_B},BAR\r\n".encode())
+    blocked = Path(locked)
+    blocked.chmod(0o444 if blocked.is_file() else 0o555)
+    converter = IsinConverter(isin_translation_file=translation_file)
+    monkeypatch.setattr(
+        converter,
+        "session",
+        FakeSession([{"data": [{"ticker": "FOO", "exchCode": "LN"}]}]),
+    )
+    try:
+        if os.access(blocked, os.W_OK):
+            pytest.skip("this user may write there all the same")
+
+        with pytest.raises(CgtError) as raised:
+            converter.get_symbols(ISIN_A)
+    finally:
+        blocked.chmod(0o755)
+
+    assert str(raised.value) == (
+        f"Cannot save ISIN translations to {translation_file}: Permission denied. "
+        "Close the file if another program has it open, and check that it and its "
+        "folder can be written to. To run without reading or saving this file, pass "
+        "--isin-translation-file= with nothing after the = sign."
+    )
 
 
 def test_translation_file_excludes_transaction_symbols(

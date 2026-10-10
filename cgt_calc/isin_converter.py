@@ -28,10 +28,12 @@ from .exceptions import (
     UnexpectedColumnCountError,
     UnexpectedHeaderError,
     reading_as,
+    saving,
+    without_file,
 )
 from .model import Isin
 from .resources import RESOURCES_PACKAGE
-from .util import is_blank_row, open_with_parents
+from .util import is_blank_row, save_csv
 
 if TYPE_CHECKING:
     from importlib.resources.abc import Traversable
@@ -395,12 +397,15 @@ class IsinConverter:
         self.validate_data()
         if self.isin_translation_file is None or CGT_MODE != RuntimeMode.PROD:
             return
-        with open_with_parents(self.isin_translation_file) as fout:
-            data_rows = [
-                [isin, *sorted(symbols)] for isin, symbols in self.write_data.items()
-            ]
-            writer = csv.writer(fout)
-            writer.writerows([ISIN_TRANSLATION_HEADER, *data_rows])
+        data_rows = [
+            [isin, *sorted(symbols)] for isin, symbols in self.write_data.items()
+        ]
+        with saving(
+            "ISIN translations",
+            self.isin_translation_file,
+            without_file("--isin-translation-file"),
+        ):
+            save_csv(self.isin_translation_file, [ISIN_TRANSLATION_HEADER, *data_rows])
 
     def _fetch_live(self, isin: Isin) -> set[str]:
         LOGGER.info("Looking up ISIN %s via OpenFIGI...", isin)

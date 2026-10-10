@@ -150,6 +150,10 @@ which is never copied into the file. Tickers read from your broker transactions 
 but never written to the file. A file written by an earlier version of cgt-calc can hold them; they
 are read like any other row, so remove one that is wrong.
 
+If a run is stopped abruptly while it saves this file, it can leave a file such as
+`isin_translation.csv.3f9a1c2b.tmp` beside it, as with the [exchange rates file](#exchange-rates).
+The translation file itself is complete, and you can delete the leftover.
+
 #### `already linked to ISIN`
 
 Two rows, or a row and the bundled list, give the same ticker to different ISINs. The error names
@@ -219,6 +223,11 @@ If two rows give the same new ticker different old tickers, cgt-calc stops and n
 
 An empty `--spin-offs-file` value disables the cache, so cgt-calc does not read or save spin-off
 mappings.
+
+If a run is stopped abruptly while it saves an answer, it can leave a file such as
+`spin_offs.csv.3f9a1c2b.tmp` beside the spin-offs file, as with the
+[exchange rates file](#exchange-rates). The spin-offs file itself is complete, and you can delete
+the leftover.
 
 ### Ticker renames
 

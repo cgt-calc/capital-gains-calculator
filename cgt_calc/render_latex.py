@@ -12,7 +12,7 @@ from colorama import Fore
 import jinja2
 
 from .const import LATEX_TEMPLATE_RESOURCE, PACKAGE_NAME
-from .exceptions import LatexRenderError, MissingExternalToolError
+from .exceptions import LatexRenderError, MissingExternalToolError, saving
 from .logging import style_text
 from .model import CapitalGainsReport
 from .report_view import build_report_view
@@ -91,13 +91,21 @@ def render_pdf(
         strip_zeros=strip_zeros,
     )
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Without pdflatex the LaTeX source is the report: save it for the user
-    # instead of producing a PDF.
-    if skip_pdflatex:
-        tex_path.write_text(output_text, encoding="utf-8")
-        return
+    # pdflatex names the PDF after the output's stem, whatever its suffix.
+    pdf_path = out_dir / f"{jobname}.pdf"
+    elsewhere = "To save it somewhere else, pass --output."
+    with saving("the report", tex_path if skip_pdflatex else pdf_path, elsewhere):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        # Without pdflatex the LaTeX source is the report: save it for the user
+        # instead of producing a PDF.
+        if skip_pdflatex:
+            tex_path.write_text(output_text, encoding="utf-8")
+            return
+        if pdf_path.exists():
+            # pdflatex stops at a PDF it cannot write, and the error for that
+            # only points at its log.
+            with pdf_path.open("r+b"):
+                pass
 
     with tempfile.NamedTemporaryFile(
         "w", encoding="utf-8", prefix="cgt_calc_", suffix=".tex", delete=False
@@ -119,7 +127,11 @@ def render_pdf(
             f"-jobname={jobname}",
             str(tmp_path),
         ]
-        with log_path.open("w", encoding="utf-8") as log:
+        # Opened apart from the run that follows, so that a failure to start
+        # pdflatex is not reported as a failure to save.
+        with saving("the report's log", log_path, elsewhere):
+            log = log_path.open("w", encoding="utf-8")
+        with log:
             subprocess.run(cmd, check=True, stdout=log, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as err:
         raise LatexRenderError(log_path) from err
