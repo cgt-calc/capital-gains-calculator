@@ -419,8 +419,17 @@ def test_read_raw_transactions_refuses_a_row_that_runs_over_several_lines(
         encoding="utf-8",
     )
 
-    with pytest.raises(ParsingError, match=", row 2: This row runs on to row 5,"):
+    with pytest.raises(ParsingError) as exc:
         RawParser().load_from_file(raw_file)
+
+    assert exc.value.row_index == 2
+    # The whole message, once: the other readers' tests stop at the rows.
+    assert exc.value.detail == (
+        "This row runs on to row 5, because one of its cells holds a line break. "
+        'If a double quote (") is opened on it and not closed, every row down to '
+        "there was read as part of that cell: close or remove the double quote. "
+        "Otherwise take the line break out of the cell."
+    )
 
 
 def test_read_raw_transactions_reports_a_half_filled_row(tmp_path: Path) -> None:
