@@ -213,6 +213,24 @@ def test_read_freetrade_transactions_empty_file(tmp_path: Path) -> None:
         FreetradeParser().load_from_file(empty_file)
 
 
+def test_read_freetrade_transactions_refuses_a_row_that_runs_over_several_lines(
+    tmp_path: Path,
+) -> None:
+    """A double quote left open takes in the rows below it; they are not dropped.
+
+    The quote opened on row 2 is closed by the one on row 3, so the three
+    orders would be read as two.
+    """
+    rows = [",".join(_default_row()) for _ in range(3)]
+    rows[0] = '"' + rows[0]
+    rows[1] = '"' + rows[1]
+    path = tmp_path / "freetrade.csv"
+    path.write_text("\n".join([",".join(COLUMNS), *rows]) + "\n", encoding="utf-8")
+
+    with pytest.raises(ParsingError, match=", row 2: This row runs on to row 3,"):
+        FreetradeParser().load_from_file(path)
+
+
 def test_read_freetrade_transactions_missing_column(tmp_path: Path) -> None:
     """Missing required columns trigger ParsingError."""
     header = COLUMNS[:-1]

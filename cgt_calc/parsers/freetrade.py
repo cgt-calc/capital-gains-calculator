@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import csv
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -24,7 +23,7 @@ from cgt_calc.model import (
 )
 from cgt_calc.util import is_blank_row, parse_decimal
 
-from .base_parsers import BaseSingleFileParser
+from .base_parsers import BaseSingleFileParser, read_csv_rows
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -260,7 +259,7 @@ class FreetradeParser(BaseSingleFileParser[BrokerTransaction]):
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:
         """Parse Freetrade transactions from a CSV file."""
-        lines = list(csv.reader(file))
+        lines = read_csv_rows(file, file_path)
         if not lines:
             raise ParsingError(file_path, "Freetrade CSV file is empty")
         header = [COLUMN_ALIASES.get(column, column) for column in lines[0]]

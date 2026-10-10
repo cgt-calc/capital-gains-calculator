@@ -47,6 +47,41 @@ def read_input(file_path: Path, encoding: str) -> str:
             return file.read()
 
 
+def read_csv_rows(
+    lines: Iterable[str],
+    file_path: Path,
+    *,
+    first_row: int = 1,
+    skipinitialspace: bool = False,
+) -> list[list[str]]:
+    """Read the rows of a CSV file, refusing one that runs over several lines.
+
+    A row does that when a cell holds a line break. In a file whose cells
+    never hold one, that is a double quote left open: it takes in every row
+    down to the next double quote, or to the end of the file, and those rows
+    would be left out without a word. ``first_row`` is the line of the file
+    that the first of ``lines`` is on.
+    """
+    reader = csv.reader(lines, skipinitialspace=skipinitialspace)
+    rows: list[list[str]] = []
+    for row in reader:
+        # Every row before this one took one line, or it was refused.
+        start = first_row + len(rows)
+        end = first_row + reader.line_num - 1
+        if end > start:
+            raise ParsingError(
+                file_path,
+                f"This row runs on to row {end}, because one of its cells holds "
+                'a line break. If a double quote (") is opened on it and not '
+                "closed, every row down to there was read as part of that cell: "
+                "close or remove the double quote. Otherwise take the line break "
+                "out of the cell.",
+                row_index=start,
+            )
+        rows.append(row)
+    return rows
+
+
 def use_current_tickers(
     transactions: Sequence[BrokerTransaction], file_path: Path
 ) -> None:
@@ -336,6 +371,11 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
     def read_transactions(cls, file: TextIO, file_path: Path) -> list[T]:
         """Read transactions from a CSV file."""
         lines, header_row = cls.pre_reading(file, file_path)
+        # Read through once, only to refuse a row that runs over several
+        # lines. The reader below skips an empty line without saying so, so it
+        # cannot tell on which line such a row began.
+        lines = list(lines)
+        read_csv_rows(lines, file_path, first_row=header_row)
         reader = csv.DictReader(lines)
         if reader.fieldnames is None:
             raise ParsingError(
