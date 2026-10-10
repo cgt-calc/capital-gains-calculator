@@ -618,7 +618,9 @@ def test_a_row_at_or_between_the_two_halves_of_a_reorganisation_is_refused(
         f"This row is stamped {stamp}, at or between the two halves of the "
         "reorganisation at 2023-05-15 07:44:13+00:00 and 2023-05-15 07:44:14+00:00. "
         "If you know the real order, put the day's FOO rows in one RAW input in "
-        "that order; otherwise work the day out by hand"
+        "that order, with the reorganisation as one STOCK_SPLIT row stating the "
+        "change to the whole holding; otherwise work the day out by hand (consider "
+        "professional advice)."
     ) in message
     # Both state their times, so asking for times would send the reader after
     # a file that does not exist.
@@ -2505,6 +2507,58 @@ def test_a_row_stamped_after_a_lone_booking_instant_is_left_alone() -> None:
     # units.
     assert calculator.portfolio["FOO"].quantity == Decimal(22)
     assert calculator.portfolio["FOO"].amount == Decimal(120)
+
+
+@pytest.mark.parametrize(
+    ("row_source", "reorganisation"),
+    [
+        pytest.param(
+            _stamped(SPLIT_OPENED),
+            legacy_split(EVENT_DAY, "FOO", "10"),
+            id="only the row",
+        ),
+        pytest.param(
+            elsewhere(0),
+            legacy_split(EVENT_DAY, "FOO", "10", source=_stamped(SPLIT_OPENED)),
+            id="only a single-row reorganisation",
+        ),
+        pytest.param(
+            elsewhere(0),
+            paired_split(
+                EVENT_DAY,
+                "FOO",
+                "12",
+                "24",
+                Fraction(2),
+                instants=(SPLIT_OPENED, SPLIT_CLOSED),
+            ),
+            id="only a paired reorganisation",
+        ),
+    ],
+)
+def test_a_time_stated_on_one_side_only_places_nothing(
+    row_source: TransactionSource, reorganisation: BrokerTransaction
+) -> None:
+    """A time needs another to be compared with.
+
+    With a time on the row or on the reorganisation but not on both, the
+    refusal says that the two are in different inputs and what to run again
+    with. It does not claim the row is stamped anywhere.
+    """
+    with pytest.raises(CalculationError, match="cannot be placed either side") as error:
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                trade(EVENT_DAY, ActionType.BUY, "FOO", "2", "10", source=row_source),
+                reorganisation,
+            ]
+        )
+    assert (
+        "The two come from different inputs, or from an export that gives neither "
+        "times nor a documented order. Run again with the day's FOO rows in one "
+        "input that states times, or work the day out by hand (consider "
+        "professional advice)."
+    ) in str(error.value)
 
 
 def test_a_day_that_sells_more_than_it_can_give_is_refused() -> None:

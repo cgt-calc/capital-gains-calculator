@@ -577,9 +577,9 @@ def _split_chronology_message(
     """Explain why a same-day row cannot be placed around a reorganisation.
 
     Times the export does state are not always enough, so the reason has
-    to say which of the two situations this is. Telling someone whose
-    export already states its times to supply times would send them
-    looking for a file that does not exist.
+    to say which situation this is. Telling someone whose export already
+    states its times to supply times would send them looking for a file
+    that does not exist.
     """
     preamble = (
         f"Cannot apply the reorganisation of {symbol} on {date_index}: "
@@ -604,8 +604,10 @@ def _split_chronology_message(
             f"This row is stamped {stamp}, at or between the two halves of "
             f"the reorganisation at {min(instants)} and {max(instants)}. If "
             f"you know the real order, put the day's {symbol} rows in one "
-            "RAW input in that order; otherwise work the day out by hand "
-            "(consider professional advice)."
+            "RAW input in that order, with the reorganisation as one "
+            "STOCK_SPLIT row stating the change to the whole holding; "
+            "otherwise work the day out by hand (consider professional "
+            "advice)."
         )
     return preamble + (
         "The two come from different inputs, or from an export that gives "
