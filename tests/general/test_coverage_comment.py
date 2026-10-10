@@ -19,8 +19,8 @@ if TYPE_CHECKING:
     from scripts.coverage_comment import Breakdown, Check, Compare, File, Line, Totals
 
     # What Codecov holds for each query: the comparison, then its components
-    # and its flags. None is a comparison it cannot make.
-    Reports = dict[str, tuple[Compare, list[Breakdown], list[Breakdown]] | None]
+    # and its flags. A number is the HTTP status it refuses the query with.
+    Reports = dict[str, tuple[Compare, list[Breakdown], list[Breakdown]] | int]
 
 REPO = "cgt-calc/capital-gains-calculator"
 HEAD = "b653e4c424a99cc763c2b6458bf645d275c56f02"
@@ -117,12 +117,12 @@ def comparison(
     }
 
 
-def breakdown(name: str, base: str | None, head: str) -> Breakdown:
+def breakdown(name: str, base: str | None, head: str | None) -> Breakdown:
     """Build the figures of one component or flag, none of whose lines changed."""
     return {
         "name": name,
         "base_report_totals": totals(base) if base else None,
-        "head_report_totals": totals(head),
+        "head_report_totals": totals(head) if head else None,
         "diff_totals": None,
     }
 
@@ -399,6 +399,13 @@ def test_pull_request_that_changes_no_measured_lines(
         ),
         pytest.param(
             "96.12",
+            [breakdown("Core calculation", "96.45", None)],
+            [breakdown("windows", "95.00", "95.00")],
+            True,
+            id="a component has figures no longer",
+        ),
+        pytest.param(
+            "96.12",
             [breakdown("Core calculation", "96.45", "96.45")],
             [
                 {
@@ -609,6 +616,10 @@ def test_one_uncovered_line_and_a_very_long_one() -> None:
 # GitHub built the test merge two seconds before the pull request's CI began.
 MERGED_AT = "2026-10-09T20:18:41Z"
 RUN_AT = "2026-10-09T20:18:43Z"
+# Times the script must not go by: when the test merge was authored, here
+# long before it was committed, and when a run was last started again.
+AUTHORED_AT = "2026-10-09T20:00:00Z"
+RERUN_AT = "2026-10-09T20:50:00Z"
 
 
 class FakeGitHub:
@@ -622,19 +633,40 @@ class FakeGitHub:
         *,
         merge: tuple[str, ...] | None = (MERGED_AT, BASE, HEAD),
         runs: tuple[str, ...] = (RUN_AT,),
+        base: str = "main",
     ) -> None:
         """Hold what GitHub would say about the repository.
 
         `merge` is when the test merge of pull request 7 was committed, then
         its parents, or None when GitHub has none for it. `runs` is when each
         workflow run the pull request started on its head commit was created.
+        `base` is the branch it targets, in a repository whose default is
+        main.
         """
         self.pulls = pulls
         self.comments = comments
         self.checks = checks
         self.merge = merge
         self.runs = runs
+        self.base = base
         self.writes: list[tuple[str, str, str]] = []
+
+    def pull(self, number: int, head: str) -> str:
+        """Give a pull request as the script's filter leaves it.
+
+        Only pull request 7 has a test merge that can be looked up: another
+        one's is a commit this stand-in does not know.
+        """
+        merge = MERGE if self.merge else None
+        return json.dumps(
+            {
+                "number": number,
+                "head": head,
+                "base": self.base,
+                "default_branch": "main",
+                "merge_commit_sha": merge if number == 7 else OTHER_COMMIT,
+            },
+        )
 
     def __call__(self, *args: str, stdin: str | None = None) -> str:
         """Answer one call the way `gh api` would.
@@ -642,37 +674,40 @@ class FakeGitHub:
         A body is sent only when the call names it as a field read from
         standard input. A listing is answered only when every page is asked
         for, and comes back one JSON document a line, with characters outside
-        ASCII left as they are, which is how jq writes them. Only pull request
-        7 has the test merge that can be looked up: another one's is a commit
-        this stand-in does not know.
+        ASCII left as they are, which is how jq writes them. The test merge
+        and each run come with both of their times, as GitHub gives them.
         """
         path = next(arg for arg in args if arg.startswith(f"repos/{REPO}/"))
-        merge = MERGE if self.merge else None
+        asked = path.removeprefix(f"repos/{REPO}/")
         if stdin is not None and args[-2:] == ("--field", "body=@-"):
             method = "PATCH" if args[:2] == ("--method", "PATCH") else "POST"
             self.writes.append((method, path, stdin))
             return ""
-        if path.endswith("/pulls?state=open&per_page=100") and "--paginate" in args:
-            return "".join(
-                f"{json.dumps([number, head, merge if number == 7 else OTHER_COMMIT])}\n"
-                for number, head in self.pulls
+        if asked == "pulls?state=open&per_page=100" and "--paginate" in args:
+            return "".join(f"{self.pull(*row)}\n" for row in self.pulls)
+        if asked == "pulls/7":
+            return self.pull(7, HEAD)
+        if self.merge and asked == f"git/commits/{MERGE}":
+            committed, *parents = self.merge
+            return json.dumps(
+                {
+                    "sha": MERGE,
+                    "author": {"date": AUTHORED_AT},
+                    "committer": {"date": committed},
+                    "parents": [{"sha": parent} for parent in parents],
+                },
             )
-        if path.endswith("/pulls/7"):
-            return json.dumps([HEAD, merge])
-        if self.merge and path.endswith(f"/commits/{MERGE}"):
-            return json.dumps(self.merge)
         if (
-            path.endswith(
-                f"/actions/runs?head_sha={HEAD}&event=pull_request&per_page=100",
-            )
+            asked == f"actions/runs?head_sha={HEAD}&event=pull_request&per_page=100"
             and "--paginate" in args
         ):
-            return "".join(f"{run}\n" for run in self.runs)
-        if path.endswith(
-            f"/commits/{HEAD}/check-runs?check_name=codecov/patch&per_page=100",
-        ):
+            return "".join(
+                f"{json.dumps({'created_at': run, 'run_started_at': RERUN_AT})}\n"
+                for run in self.runs
+            )
+        if asked == f"commits/{HEAD}/check-runs?check_name=codecov/patch&per_page=100":
             return json.dumps(self.checks)
-        if path.endswith("/issues/7/comments?per_page=100") and "--paginate" in args:
+        if asked == "issues/7/comments?per_page=100" and "--paginate" in args:
             return "".join(
                 f"{json.dumps(row, ensure_ascii=False)}\n" for row in self.comments
             )
@@ -687,9 +722,9 @@ def codecov_holding(reports: Reports) -> Callable[[str, str], str]:
     """Stand in for Codecov's API, which holds only the comparisons given.
 
     Each is read at three addresses: the comparison itself, its components
-    and its flags. One Codecov cannot make is answered with a 404, as it
-    answers for a commit it has no report for. Any other address is a mistake
-    in the script, so it fails the test.
+    and its flags. A number in place of a comparison is the HTTP status that
+    Codecov refuses it with: 404 is its answer for a commit it has no report
+    for. Any other address is a mistake in the script, so it fails the test.
     """
 
     def read(repo: str, path: str) -> str:
@@ -700,9 +735,9 @@ def codecov_holding(reports: Reports) -> Callable[[str, str], str]:
                 f"compare/components?{query}",
                 f"compare/flags?{query}",
             ]
-            if path in addresses and held is None:
-                raise urllib.error.HTTPError(path, 404, "Not Found", Message(), None)
-            if path in addresses and held is not None:
+            if path in addresses and isinstance(held, int):
+                raise urllib.error.HTTPError(path, held, "Refused", Message(), None)
+            if path in addresses and not isinstance(held, int):
                 return json.dumps(held[addresses.index(path)], default=float)
         raise AssertionError(path)
 
@@ -759,7 +794,7 @@ BEHIND_MAIN: Reports = {
 }
 # The same pull request when Codecov has no report for the commit CI merged
 # it into.
-NO_BASE_REPORT: Reports = {**BEHIND_MAIN, AGAINST_BASE: None}
+NO_BASE_REPORT: Reports = {**BEHIND_MAIN, AGAINST_BASE: 404}
 COVERED = "### :white_check_mark: 100.00% of changed lines covered\n"
 NOTHING = "### No measured lines changed\n"
 # A comment holding a line separator, which once split the listing in two and
@@ -850,7 +885,7 @@ EDIT = f"repos/{REPO}/issues/comments/11"
             [OWN],
             [IMPOSTOR, PASSED],
             {
-                AGAINST_BASE: None,
+                AGAINST_BASE: 404,
                 FOR_PULL: (
                     comparison(
                         MEASURED["files"],
@@ -950,16 +985,21 @@ CURRENT_FIGURES_ONLY = (
     "Total coverage: 96.00%.\n"
     "\n"
 ) + tables("n/a", "n/a")
-LEFT_OUT = (
+NOT_KNOWN = (
     "Left out the figures from before the pull request: the commit CI merged"
-    " it into is not known, or Codecov has no report for it.\n"
+    " it into is not known.\n"
+)
+NO_REPORT = (
+    "Left out the figures from before the pull request: Codecov has no report"
+    f" for {BASE}, the commit CI merged it into.\n"
 )
 
 
 @pytest.mark.parametrize(
-    ("merge", "runs", "reports", "body", "log"),
+    ("base", "merge", "runs", "reports", "body", "log"),
     [
         pytest.param(
+            "main",
             ("2026-10-09T20:18:43Z", BASE, HEAD),
             ("2026-10-09T20:18:50Z", "2026-10-09T20:18:43Z"),
             BEHIND_MAIN,
@@ -968,64 +1008,81 @@ LEFT_OUT = (
             id="the test merge is as old as the first run, so CI tested it",
         ),
         pytest.param(
+            "main",
             ("2026-10-09T20:18:44Z", BASE, HEAD),
             ("2026-10-09T20:18:50Z", "2026-10-09T20:18:43Z"),
             BEHIND_MAIN,
             CURRENT_FIGURES_ONLY,
-            LEFT_OUT,
+            NOT_KNOWN,
             id="the test merge was rebuilt a second after the first run began",
         ),
         pytest.param(
+            "main",
             ("2026-10-09T20:18:44Z", BASE, HEAD),
             ("2026-10-09T20:18:43Z", "2026-10-09T20:18:50Z"),
             BEHIND_MAIN,
             CURRENT_FIGURES_ONLY,
-            LEFT_OUT,
+            NOT_KNOWN,
             id="the first run is found wherever GitHub lists it",
         ),
         pytest.param(
+            "main",
             (MERGED_AT, BASE, HEAD),
             (),
             BEHIND_MAIN,
             CURRENT_FIGURES_ONLY,
-            LEFT_OUT,
+            NOT_KNOWN,
             id="the pull request started no run on this commit",
         ),
         pytest.param(
+            "main",
             None,
             (RUN_AT,),
             BEHIND_MAIN,
             CURRENT_FIGURES_ONLY,
-            LEFT_OUT,
+            NOT_KNOWN,
             id="GitHub has no test merge, as for a pull request that conflicts",
         ),
         pytest.param(
+            "main",
             (MERGED_AT, BASE),
             (RUN_AT,),
             BEHIND_MAIN,
             CURRENT_FIGURES_ONLY,
-            LEFT_OUT,
+            NOT_KNOWN,
             id="the pull request is merged, so GitHub names the commit on main",
         ),
         pytest.param(
+            "main",
             (MERGED_AT, BASE, OTHER_COMMIT),
             (RUN_AT,),
             BEHIND_MAIN,
             CURRENT_FIGURES_ONLY,
-            LEFT_OUT,
+            NOT_KNOWN,
             id="the test merge is of another head commit",
         ),
         pytest.param(
+            "split-the-parser",
+            (MERGED_AT, BASE, HEAD),
+            (RUN_AT,),
+            BEHIND_MAIN,
+            CURRENT_FIGURES_ONLY,
+            NOT_KNOWN,
+            id="the pull request is stacked on another one's branch",
+        ),
+        pytest.param(
+            "main",
             (MERGED_AT, BASE, HEAD),
             (RUN_AT,),
             NO_BASE_REPORT,
             CURRENT_FIGURES_ONLY,
-            LEFT_OUT,
+            NO_REPORT,
             id="Codecov has no report for the commit CI merged into",
         ),
     ],
 )
 def test_figures_from_before_are_those_of_the_commit_ci_merged_into(
+    base: str,
     merge: tuple[str, ...] | None,
     runs: tuple[str, ...],
     reports: Reports,
@@ -1044,13 +1101,25 @@ def test_figures_from_before_are_those_of_the_commit_ci_merged_into(
     first parent of GitHub's test merge, which shows only `model.py`.
 
     That holds only while the test merge GitHub names is the one CI checked
-    out: it has the head commit as its second parent, and it is no newer than
-    the first workflow run the pull request started on that commit. When it
-    is not, or Codecov has no report for the commit, the figures from before
-    are left out, never taken from the other comparison. The component's row
-    is under Components and the flag's under Flags in both.
+    out: it has the head commit as its second parent, and it was committed
+    no later than the first workflow run the pull request started on that
+    commit was created. When the test merge was authored, and when a run was
+    started again, do not come into it. It holds only for a pull request into
+    main, too: the first parent of a stacked one is another pull request's
+    head, whose report is for that one's own test merge. When it does not
+    hold, or Codecov has no report for the commit, the figures from before
+    are left out, never taken from the other comparison, and the log says
+    which of the two it was. The component's row is under Components and the
+    flag's under Flags in both.
     """
-    github = FakeGitHub([(7, HEAD)], [OWN], [PASSED], merge=merge, runs=runs)
+    github = FakeGitHub(
+        [(7, HEAD)],
+        [OWN],
+        [PASSED],
+        merge=merge,
+        runs=runs,
+        base=base,
+    )
     monkeypatch.setattr(coverage_comment, "gh", github)
     monkeypatch.setattr(coverage_comment, "codecov", codecov_holding(reports))
     monkeypatch.setattr(
@@ -1062,6 +1131,99 @@ def test_figures_from_before_are_those_of_the_commit_ci_merged_into(
 
     assert github.writes == [("PATCH", EDIT, body)]
     assert capsys.readouterr().err == log
+
+
+def test_change_is_still_judged_when_the_figures_from_before_are_left_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only the figures from before go: the verdict and today's figures stay.
+
+    Codecov has no report for the commit CI merged into. The one line the
+    pull request changes is missed, which is 0 of 1, and Codecov failed it.
+    The comment is still posted, with the verdict, the missed line and, for
+    the flag, how many lines changed. The anchor is the SHA-256 of the path.
+    """
+    reports: Reports = {
+        AGAINST_BASE: 404,
+        FOR_PULL: (
+            UNCOVERED,
+            [],
+            [
+                {
+                    "name": "docker",
+                    "base_report_totals": totals("95.93"),
+                    "head_report_totals": totals("95.81"),
+                    "diff_totals": totals("0", lines=1, hits=0),
+                },
+            ],
+        ),
+    }
+    github = FakeGitHub([(7, HEAD)], OTHERS, [JOB_PASSED, FAILED])
+    monkeypatch.setattr(coverage_comment, "gh", github)
+    monkeypatch.setattr(coverage_comment, "codecov", codecov_holding(reports))
+    monkeypatch.setattr(
+        "sys.argv",
+        ["coverage_comment.py", "--repo", REPO, "--sha", HEAD],
+    )
+
+    coverage_comment.main()
+
+    posted = (
+        "<!-- cgt-calc-coverage -->\n"
+        "### :x: 0.00% of changed lines covered\n"
+        "\n"
+        "0 of 1 changed lines covered, against a target of 90.00%.\n"
+        "Total coverage: 96.12%.\n"
+        "\n"
+        "#### 1 changed line is not covered\n"
+        "\n"
+        "[`cgt_calc/util.py`](https://github.com/cgt-calc/"
+        "capital-gains-calculator/pull/7/files#diff-"
+        "ed746bb60c95619bf97b3d56a108ef98346e885088fe3989b92791d0a03d8f81)\n"
+        "```text\n"
+        "    1  missed   x = 1\n"
+        "```\n"
+        "\n"
+        "<details>\n"
+        "<summary>Flags</summary>\n"
+        "\n"
+        "| Flag | Before | After | Changed lines |\n"
+        "|---|---|---|---|\n"
+        "| `docker` | n/a | 95.81% | 0.00% of 1 |\n"
+        "\n"
+        "</details>\n"
+        "\n"
+        "[Full report on Codecov](https://app.codecov.io/gh/cgt-calc/"
+        "capital-gains-calculator/pull/7) for commit `b653e4c`.\n"
+    )
+    assert github.writes == [("POST", NEW, posted)]
+
+
+def test_fault_at_codecov_stops_the_run_and_drops_no_figures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only a missing report is a reason to leave the figures from before out.
+
+    A server error says nothing about the report for the commit CI merged
+    into. The run fails, where it is seen and can be run again, and the
+    comment already on the pull request is not rewritten without its figures.
+    """
+    github = FakeGitHub([(7, HEAD)], [OWN], [PASSED])
+    monkeypatch.setattr(coverage_comment, "gh", github)
+    monkeypatch.setattr(
+        coverage_comment,
+        "codecov",
+        codecov_holding({**BEHIND_MAIN, AGAINST_BASE: 500}),
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        ["coverage_comment.py", "--repo", REPO, "--sha", HEAD],
+    )
+
+    with pytest.raises(urllib.error.HTTPError, match="HTTP Error 500"):
+        coverage_comment.main()
+
+    assert github.writes == []
 
 
 @pytest.mark.parametrize(

@@ -3,7 +3,7 @@
 Codecov's own comment is cut down to a patch summary on the organisation's
 plan. This builds a fuller one from Codecov's public API: the changed lines
 that tests do not cover, total coverage before and after, and the figures by
-component and by flag. "Before" is the commit on the base branch that CI
+component and by flag. "Before" is the commit on the default branch that CI
 merged the pull request into, not the older one its branch started from.
 The coverage-comment workflow runs it when Codecov's patch check lands. To
 print the comment for a pull request without posting it:
@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 from decimal import Decimal
 import hashlib
+from http import HTTPStatus
 import json
 import re
 import subprocess
@@ -38,6 +39,12 @@ LINE_STATES: dict[int | None, str] = {1: "missed", 2: "partial"}
 MAX_LINES = 30
 MAX_LINE_LENGTH = 100
 MAX_FILES = 10
+# The jq filter that cuts GitHub's account of a pull request down to what
+# PullRequest holds.
+PULL = (
+    "{number, merge_commit_sha, head: .head.sha, base: .base.ref,"
+    " default_branch: .base.repo.default_branch}"
+)
 
 
 class Totals(TypedDict):
@@ -115,6 +122,19 @@ class Check(TypedDict):
     app: str
     conclusion: str | None
     title: str | None
+
+
+class PullRequest(TypedDict):
+    """A pull request: its head commit, the branch it targets, its test merge.
+
+    GitHub names no test merge for a pull request that conflicts.
+    """
+
+    number: int
+    head: str
+    base: str
+    default_branch: str
+    merge_commit_sha: str | None
 
 
 class Comment(NamedTuple):
@@ -313,58 +333,65 @@ def codecov(repo: str, path: str) -> str:
     return text
 
 
-def merged_into(repo: str, sha: str, merge: str | None) -> str | None:
-    """Find the commit on the base branch that CI merged the pull request into.
+def merged_into(repo: str, pull: PullRequest) -> str | None:
+    """Find the commit on the default branch that CI merged the pull request into.
 
     CI tests GitHub's test merge of the pull request, not its head commit, so
     the report Codecov files under the head is for that merge. Coverage before
     the pull request is then the report of the merge's first parent, which is
     newer than the commit the branch started from whenever the branch is
-    behind. GitHub may rebuild the test merge after the base branch moves. The
-    one it names now is the one CI tested only if it is no newer than every
-    workflow run the pull request started on this head commit. If it is not,
-    or there is none, the commit cannot be told and the answer is None.
+    behind. The answer is None, for a commit that cannot be told, unless all
+    of this holds:
+
+    - The pull request targets the default branch. CI tests a commit there as
+      it stands, so its report is its own. A stacked pull request is merged
+      into the head of another one, whose report is for its own test merge.
+    - GitHub names a test merge whose second parent is this head commit. It
+      names none for a pull request that conflicts, the commit on the default
+      branch for one that is merged, and just after a push the merge of the
+      head before.
+    - That merge is no newer than any workflow run the pull request started
+      on this head commit, and there is such a run. GitHub may rebuild the
+      test merge after the default branch moves, and CI tested the one that
+      stood when the run was created. A re-run keeps that time.
     """
-    if not merge:
+    merge = pull["merge_commit_sha"]
+    if not merge or pull["base"] != pull["default_branch"]:
         return None
-    details: list[str] = json.loads(
-        gh(
-            f"repos/{repo}/commits/{merge}",
-            "--jq",
-            "[.commit.committer.date, .parents[].sha]",
-        ),
-    )
-    committed, *parents = details
-    runs = [
-        line
+    commit = json.loads(gh(f"repos/{repo}/git/commits/{merge}"))
+    committed: str = commit["committer"]["date"]
+    parents: list[str] = [parent["sha"] for parent in commit["parents"]]
+    created: list[str] = [
+        json.loads(line)["created_at"]
         for line in gh(
-            f"repos/{repo}/actions/runs?head_sha={sha}&event=pull_request&per_page=100",
+            f"repos/{repo}/actions/runs"
+            f"?head_sha={pull['head']}&event=pull_request&per_page=100",
             "--paginate",
             "--jq",
-            ".workflow_runs[].created_at",
+            ".workflow_runs[] | {created_at} | @json",
         ).split("\n")
         if line
     ]
     # Both times are UTC to the second in one format, so they compare as text.
-    if parents[1:] == [sha] and runs and committed <= min(runs):
+    if parents[1:] == [pull["head"]] and created and committed <= min(created):
         return parents[0]
     return None
 
 
 def figures(
     repo: str,
-    pull: int,
-    sha: str,
+    pull: PullRequest,
     base: str | None,
-) -> tuple[Compare, list[Breakdown], list[Breakdown]]:
+) -> tuple[Compare, list[Breakdown], list[Breakdown], str]:
     """Read Codecov's comparison for the head commit, by component and flag too.
 
     It is compared with the commit CI merged it into. Without that commit, or
     without a report for it, what is left is Codecov's own comparison for the
     pull request, which starts from the commit the branch forked at. Every
-    file changed on the base branch since then would show there as coverage
-    the pull request moved, so its figures from before are dropped and the
-    comment gives only the current ones.
+    file changed on the default branch since then would show there as
+    coverage the pull request moved, so its figures from before are dropped
+    and the comment gives only the current ones. The last item returned says
+    why they were dropped, and is empty when they were not.
     """
 
     def read(query: str) -> tuple[Compare, list[Breakdown], list[Breakdown]]:
@@ -374,24 +401,23 @@ def figures(
         )
         return compare, components, flags
 
+    dropped = "the commit CI merged it into is not known"
     if base:
         try:
-            return read(f"base={base}&head={sha}")
-        except urllib.error.HTTPError:
-            # Codecov answers 404 for a commit it holds no report for.
-            pass
-    compare, components, flags = read(f"pullid={pull}")
+            return (*read(f"base={base}&head={pull['head']}"), "")
+        except urllib.error.HTTPError as error:
+            # Not found is Codecov's answer for a commit it holds no report
+            # for. Any other refusal is a fault, and stops the run.
+            if error.code != HTTPStatus.NOT_FOUND:
+                raise
+        dropped = f"Codecov has no report for {base}, the commit CI merged it into"
+    compare, components, flags = read(f"pullid={pull['number']}")
     compare["totals"]["base"] = None
     for file in compare["files"]:
         file["totals"]["base"] = None
     for row in [*components, *flags]:
         row["base_report_totals"] = None
-    print(
-        "Left out the figures from before the pull request: the commit CI"
-        " merged it into is not known, or Codecov has no report for it.",
-        file=sys.stderr,
-    )
-    return compare, components, flags
+    return compare, components, flags, dropped
 
 
 def main() -> None:
@@ -417,41 +443,35 @@ def main() -> None:
     )
     args = parser.parse_args()
     repo: str = args.repo
-    pull: int
-    sha: str
-    merge: str | None
+    found: PullRequest
 
     if args.pull is None:
-        sha = args.sha
         # Codecov's check does not name its pull request, and GitHub's lookup
         # of a commit's pull requests misses those from forks, so match the
         # commit against the head of every open one.
-        heads: list[tuple[int, str, str | None]] = [
+        opened: list[PullRequest] = [
             json.loads(line)
             for line in gh(
                 f"repos/{repo}/pulls?state=open&per_page=100",
                 "--paginate",
                 "--jq",
-                ".[] | [.number, .head.sha, .merge_commit_sha] | @json",
+                f".[] | {PULL} | @json",
             ).split("\n")
             if line
         ]
-        matching = [(number, merged) for number, head, merged in heads if head == sha]
+        matching = [one for one in opened if one["head"] == args.sha]
         if not matching:
-            print(f"No open pull request has {sha} as its head; nothing to do.")
+            print(f"No open pull request has {args.sha} as its head; nothing to do.")
             return
-        pull, merge = matching[0]
+        found = matching[0]
     else:
-        pull = args.pull
-        sha, merge = json.loads(
-            gh(f"repos/{repo}/pulls/{pull}", "--jq", "[.head.sha, .merge_commit_sha]"),
-        )
+        found = json.loads(gh(f"repos/{repo}/pulls/{args.pull}", "--jq", PULL))
+    pull, sha = found["number"], found["head"]
 
-    compare, components, flags = figures(
+    compare, components, flags, dropped = figures(
         repo,
-        pull,
-        sha,
-        merged_into(repo, sha, merge),
+        found,
+        merged_into(repo, found),
     )
     if compare["head_commit"] != sha:
         print(f"Codecov has not compared {sha} yet; nothing to do.")
@@ -471,6 +491,11 @@ def main() -> None:
     if not judged:
         print(f"Codecov's patch check has not reported on {sha}; nothing to do.")
         return
+    if dropped:
+        print(
+            f"Left out the figures from before the pull request: {dropped}.",
+            file=sys.stderr,
+        )
     comment = render(repo, pull, judged[0], compare, components, flags)
     # A run by pull request number is a person's. It only ever prints: a
     # comment posted under their name would not be found again and edited.
