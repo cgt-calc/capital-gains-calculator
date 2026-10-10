@@ -5,9 +5,9 @@ codecov:
     # aren't computed from partial coverage.
     after_n_builds: 5
 
-comment:
-  after_n_builds: 5
-  layout: "reach, diff, flags, components, files"
+# Off: the coverage-comment workflow posts the PR comment instead.
+# This also turns off Codecov's failed-test comment.
+comment: false
 
 # Path-based coverage views, shown in the PR comment and the Codecov
 # UI. Display only: no per-component status checks.
