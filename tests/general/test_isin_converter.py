@@ -516,29 +516,46 @@ def test_translation_file_roundtrip(
     assert restored.get_symbols(ISIN_A) == {"FOO"}
 
 
-def test_a_translation_file_that_cannot_be_written_is_reported(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "locked",
+    [
+        pytest.param("out/isin_translation.csv", id="the file is read-only"),
+        pytest.param("out", id="the file can be written but its folder cannot"),
+    ],
+)
+def test_a_translation_file_that_cannot_be_saved_is_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, locked: str
 ) -> None:
-    """A read-only translation file stops the run with the reason and what to do."""
+    """A translation file that cannot be saved stops the run with the reason.
+
+    `locked` is made read-only. The new rows are written beside the file and
+    moved into its place, so a folder that cannot be written to stops the save
+    even where the file itself could be written.
+    """
     monkeypatch.setattr(cgt_calc.isin_converter, "CGT_MODE", RuntimeMode.PROD)
     monkeypatch.chdir(tmp_path)
-    translation_file = Path("isin_translation.csv")
+    translation_file = Path("out/isin_translation.csv")
+    translation_file.parent.mkdir()
     translation_file.write_bytes(f"ISIN,symbol\r\n{ISIN_B},BAR\r\n".encode())
-    translation_file.chmod(0o444)
-    if os.access(translation_file, os.W_OK):
-        pytest.skip("this user may write to a read-only file")
+    blocked = Path(locked)
+    blocked.chmod(0o444 if blocked.is_file() else 0o555)
     converter = IsinConverter(isin_translation_file=translation_file)
     monkeypatch.setattr(
         converter,
         "session",
         FakeSession([{"data": [{"ticker": "FOO", "exchCode": "LN"}]}]),
     )
+    try:
+        if os.access(blocked, os.W_OK):
+            pytest.skip("this user may write there all the same")
 
-    with pytest.raises(CgtError) as raised:
-        converter.get_symbols(ISIN_A)
+        with pytest.raises(CgtError) as raised:
+            converter.get_symbols(ISIN_A)
+    finally:
+        blocked.chmod(0o755)
 
     assert str(raised.value) == (
-        "Cannot save ISIN translations to isin_translation.csv: Permission denied. "
+        f"Cannot save ISIN translations to {translation_file}: Permission denied. "
         "Close the file if another program has it open, and check that it and its "
         "folder can be written to. To run without reading or saving this file, pass "
         "--isin-translation-file= with nothing after the = sign."

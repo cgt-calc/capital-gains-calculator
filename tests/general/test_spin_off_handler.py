@@ -219,27 +219,44 @@ def test_recording_spin_off_creates_missing_parent_directories(
     assert content.splitlines() == ["dst,src", "NEW,OLD"]
 
 
-def test_a_spin_offs_file_that_cannot_be_written_is_reported(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "locked",
+    [
+        pytest.param("out/spin_offs.csv", id="the file is read-only"),
+        pytest.param("out", id="the file can be written but its folder cannot"),
+    ],
+)
+def test_a_spin_offs_file_that_cannot_be_saved_is_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, locked: str
 ) -> None:
-    """A read-only spin-offs file stops the run with the reason and what to do."""
+    """A spin-offs file that cannot be saved stops the run with the reason.
+
+    `locked` is made read-only. The new rows are written beside the file and
+    moved into its place, so a folder that cannot be written to stops the save
+    even where the file itself could be written.
+    """
     monkeypatch.chdir(tmp_path)
-    spin_offs_file = Path("spin_offs.csv")
+    spin_offs_file = Path("out/spin_offs.csv")
+    spin_offs_file.parent.mkdir()
     spin_offs_file.write_bytes(b"dst,src\r\nSPUN,FIRST\r\n")
-    spin_offs_file.chmod(0o444)
-    if os.access(spin_offs_file, os.W_OK):
-        pytest.skip("this user may write to a read-only file")
+    blocked = Path(locked)
+    blocked.chmod(0o444 if blocked.is_file() else 0o555)
     handler = SpinOffHandler(spin_offs_file)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr("builtins.input", lambda prompt: "OLD")
+    try:
+        if os.access(blocked, os.W_OK):
+            pytest.skip("this user may write there all the same")
 
-    with pytest.raises(CgtError) as raised:
-        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {"OLD": Position()})
+        with pytest.raises(CgtError) as raised:
+            handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {"OLD": Position()})
+    finally:
+        blocked.chmod(0o755)
 
     assert str(raised.value) == (
-        "Cannot save spin-offs to spin_offs.csv: Permission denied. Close the file "
-        "if another program has it open, and check that it and its folder can be "
-        "written to. To run without reading or saving this file, pass "
+        f"Cannot save spin-offs to {spin_offs_file}: Permission denied. Close the "
+        "file if another program has it open, and check that it and its folder can "
+        "be written to. To run without reading or saving this file, pass "
         "--spin-offs-file= with nothing after the = sign."
     )
 
