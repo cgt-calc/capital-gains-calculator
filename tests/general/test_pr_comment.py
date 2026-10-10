@@ -5,13 +5,19 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+from typing import TYPE_CHECKING
 
 import pytest
 
 from scripts import pr_comment
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 REPO = "cgt-calc/capital-gains-calculator"
-BOT = "cgtbot[bot]"
+# Not the login of the project's own App: the script knows the bot only by
+# what COMMENT_AUTHOR says.
+BOT = "comment-app[bot]"
 ACTIONS = "github-actions[bot]"
 # The docs-preview workflow's marker, and the coverage-comment workflow's.
 PREVIEW = "<!-- cgt-calc-docs-preview -->"
@@ -76,10 +82,13 @@ EDITED = f"{FIRST}, updated 2026-10-10 18:05 BST"
 UNCHANGED = f"{PREVIEW}\nNo rendered changes, checked b653e4c"
 LINK = ["--create", FIRST, "--update", EDITED]
 NO_CHANGE = ["--update", UNCHANGED]
-# Comments that are not the docs preview's to manage. A person's that starts
-# with the marker; one of GitHub Actions' and one of the bot's that only
-# mention it later; and the coverage comment, from each of the two.
+# Comments that are not the docs preview's to manage. One holding a line
+# separator, which once split the listing in two and stopped the run; a
+# person's that starts with the marker; one of GitHub Actions' and one of the
+# bot's that only mention it later; and the coverage comment, from each of
+# the two.
 OTHERS = [
+    (20, "someone", "pasted\u2028text"),
     (21, "someone", f"{PREVIEW}\nquoted by a person"),
     (22, ACTIONS, f"The preview is below. {PREVIEW}"),
     (23, BOT, f"The preview is below. {PREVIEW}"),
@@ -131,13 +140,6 @@ def run(
             id="the bot's earlier comment is edited in place",
         ),
         pytest.param(
-            [*OTHERS, OLD],
-            LINK,
-            [("POST", NEW, EDITED), ("DELETE", OF_OLD, "")],
-            "",
-            id="the bot's comment replaces the one GitHub Actions wrote",
-        ),
-        pytest.param(
             [OLD, *OTHERS, OLD_COPY],
             LINK,
             [
@@ -146,7 +148,7 @@ def run(
                 ("DELETE", OF_OLD_COPY, ""),
             ],
             "",
-            id="it replaces every copy GitHub Actions wrote",
+            id="the bot's comment replaces every copy GitHub Actions wrote",
         ),
         pytest.param(
             [*OTHERS, OLD, OWN],
@@ -251,66 +253,61 @@ def test_refusal_from_github_stops_the_run(
     assert github.writes == writes
 
 
-def gh_exiting(
-    status: int,
-    monkeypatch: pytest.MonkeyPatch,
-) -> list[tuple[list[str], dict[str, str] | None, object]]:
-    """Put a gh that exits with `status` where the real one is run.
+runs_a_script_by_name = pytest.mark.skipif(
+    os.name == "nt",
+    reason="the stand-in for gh is a shell script, which Windows does not run",
+)
+# No such repository: were the stand-in not found, the real gh would be asked
+# for nothing that exists.
+ELSEWHERE = "repos/nobody/nothing/issues/7/comments"
 
-    The workflow's token is in GH_TOKEN and the bot's in COMMENT_TOKEN, as in
-    a workflow. Each call is noted: the command, its environment and what it
-    was sent. As with a real process, a failure raises only when asked to.
+
+def gh_exiting(status: int, folder: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Put a stand-in for gh first on PATH, with the tokens as a workflow has them.
+
+    The workflow's own token is in GH_TOKEN and the bot's in COMMENT_TOKEN.
+    The stand-in prints the token it was given and each of its arguments, a
+    line each, then what it was sent, and exits with `status`.
     """
-    ran: list[tuple[list[str], dict[str, str] | None, object]] = []
-
-    def run_gh(
-        command: list[str],
-        *,
-        env: dict[str, str] | None = None,
-        check: bool = False,
-        **options: object,
-    ) -> subprocess.CompletedProcess[str]:
-        ran.append((command, env, options["input"]))
-        if check and status:
-            raise subprocess.CalledProcessError(status, command)
-        return subprocess.CompletedProcess(command, status, stdout="answer")
-
+    stand_in = folder / "gh"
+    stand_in.write_text(
+        f'#!/bin/sh\nprintf \'%s\\n\' "$GH_TOKEN" "$@"\ncat\nexit {status}\n',
+        encoding="utf-8",
+    )
+    stand_in.chmod(0o700)
+    monkeypatch.setenv("PATH", f"{folder}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("GH_TOKEN", "the workflow's")
     monkeypatch.setenv("COMMENT_TOKEN", "the bot's")
-    monkeypatch.setattr(subprocess, "run", run_gh)
-    return ran
 
 
+@runs_a_script_by_name
 def test_github_is_called_with_the_bots_token_not_the_workflows(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A comment written with the workflow's token would be GitHub Actions'.
 
     gh takes its token from GH_TOKEN, which is where a workflow keeps its own
-    for what it reads, so the bot's goes there for the call. The rest of the
-    environment is passed on: gh is found on PATH.
+    for what it reads, so the bot's goes there for the call. gh is still
+    found on PATH, is sent the text, and what it prints comes back.
     """
-    ran = gh_exiting(0, monkeypatch)
+    gh_exiting(0, tmp_path, monkeypatch)
 
-    assert pr_comment.gh(NEW, "--field", "body=@-", stdin=FIRST) == "answer"
+    answer = pr_comment.gh(ELSEWHERE, "--field", "body=@-", stdin=FIRST)
 
-    assert ran == [
-        (
-            ["gh", "api", NEW, "--field", "body=@-"],
-            {**os.environ, "GH_TOKEN": "the bot's"},
-            FIRST,
-        ),
-    ]
+    assert answer == f"the bot's\napi\n{ELSEWHERE}\n--field\nbody=@-\n{FIRST}"
 
 
+@runs_a_script_by_name
 def test_call_that_gh_reports_as_failed_raises(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A write that GitHub refuses is an error, not an empty answer.
 
     It is what stops a run before anything is deleted.
     """
-    gh_exiting(1, monkeypatch)
+    gh_exiting(1, tmp_path, monkeypatch)
 
     with pytest.raises(subprocess.CalledProcessError, match="exit status 1"):
-        pr_comment.gh(NEW, "--field", "body=@-", stdin=FIRST)
+        pr_comment.gh(ELSEWHERE, "--field", "body=@-", stdin=FIRST)

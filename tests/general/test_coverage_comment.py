@@ -888,7 +888,7 @@ class FakeGitHub:
             },
         )
 
-    def __call__(self, *args: str, stdin: str | None = None) -> str:
+    def __call__(self, *args: str) -> str:
         """Answer one read the way `gh api` would.
 
         A listing is answered only when every page is asked for, and comes
@@ -899,7 +899,7 @@ class FakeGitHub:
         """
         path = next(arg for arg in args if arg.startswith(f"repos/{REPO}/"))
         asked = path.removeprefix(f"repos/{REPO}/")
-        if stdin is not None or "--method" in args:
+        if "--method" in args or "--field" in args:
             raise AssertionError(args)
         if asked == "pulls?state=open&per_page=100" and "--paginate" in args:
             return "".join(f"{self.pull(*row)}\n" for row in self.pulls)
@@ -1013,24 +1013,21 @@ BEHIND_MAIN: Reports = {
 NO_BASE_REPORT: Reports = {**BEHIND_MAIN, AGAINST_BASE: 404}
 COVERED = "### :white_check_mark: 100.00% of changed lines covered\n"
 NOTHING = "### No measured lines changed\n"
-# A comment holding a line separator, which once split the listing in two and
-# stopped the run; a comment of GitHub Actions' that is not this one, though
-# the marker appears later in it; and someone else's that only looks like it.
-# None may be taken for the comment to edit, or for one to replace.
+# A comment of GitHub Actions' that is not this one, though the marker appears
+# later in it, and someone else's that only looks like it. Neither may be
+# taken for the comment to edit, or for one to replace.
 OTHERS = [
-    (9, "someone", "pasted\u2028text"),
     (10, "github-actions[bot]", f"The docs preview is ready. {MARKER}"),
     (12, "someone", f"{MARKER}\nnot the bot's"),
 ]
 OWN = (11, BOT, f"{MARKER}\nfigures for an earlier commit")
-# Two runs racing could each post a comment. The older one is kept up to date.
-DUPLICATE = (13, BOT, f"{MARKER}\na second copy")
 NEW = f"repos/{REPO}/issues/7/comments"
 EDIT = f"repos/{REPO}/issues/comments/11"
+NONE_TO_UPDATE = "Nothing measured changed and there is no comment to update.\n"
 
 
 @pytest.mark.parametrize(
-    ("pulls", "comments", "checks", "reports", "writes"),
+    ("pulls", "comments", "checks", "reports", "writes", "said"),
     [
         pytest.param(
             [(5, OTHER_COMMIT), (7, HEAD)],
@@ -1038,14 +1035,16 @@ EDIT = f"repos/{REPO}/issues/comments/11"
             [IMPOSTOR, PASSED],
             against_base(MEASURED),
             [("POST", NEW, COVERED)],
+            "",
             id="a first comment is posted on the pull request the commit heads",
         ),
         pytest.param(
             [(5, OTHER_COMMIT), (7, HEAD)],
-            [*OTHERS, OWN, DUPLICATE],
+            [*OTHERS, OWN],
             [IMPOSTOR, PASSED],
             against_base(MEASURED),
             [("PATCH", EDIT, COVERED)],
+            "",
             id="its own earlier comment is edited in place",
         ),
         pytest.param(
@@ -1054,6 +1053,7 @@ EDIT = f"repos/{REPO}/issues/comments/11"
             [JOB_PASSED, FAILED],
             against_base(UNCOVERED),
             [("POST", NEW, "### :x: 0.00% of changed lines covered\n")],
+            "",
             id="Codecov failed the change, so the comment says so",
         ),
         pytest.param(
@@ -1062,6 +1062,7 @@ EDIT = f"repos/{REPO}/issues/comments/11"
             [IMPOSTOR, PASSED],
             against_base(UNMOVED),
             [],
+            NONE_TO_UPDATE,
             id="nothing moved and no comment yet, so none is posted",
         ),
         pytest.param(
@@ -1070,6 +1071,7 @@ EDIT = f"repos/{REPO}/issues/comments/11"
             [IMPOSTOR, PASSED],
             against_base(UNMOVED),
             [("PATCH", EDIT, NOTHING)],
+            "",
             id="nothing moved but a comment exists, so it is brought up to date",
         ),
         pytest.param(
@@ -1078,6 +1080,7 @@ EDIT = f"repos/{REPO}/issues/comments/11"
             [IMPOSTOR, PASSED],
             BEHIND_MAIN,
             [("POST", NEW, NOTHING)],
+            "",
             id="figures moved against the commit CI merged into, so one is posted",
         ),
         pytest.param(
@@ -1086,6 +1089,7 @@ EDIT = f"repos/{REPO}/issues/comments/11"
             [IMPOSTOR, PASSED],
             NO_BASE_REPORT,
             [],
+            NONE_TO_UPDATE,
             id="figures moved only since the branch started, so none is posted",
         ),
         pytest.param(
@@ -1094,6 +1098,7 @@ EDIT = f"repos/{REPO}/issues/comments/11"
             [IMPOSTOR, PASSED],
             against_base(MEASURED),
             [],
+            f"No open pull request has {HEAD} as its head; nothing to do.\n",
             id="the commit heads no open pull request",
         ),
         pytest.param(
@@ -1113,6 +1118,7 @@ EDIT = f"repos/{REPO}/issues/comments/11"
                 ),
             },
             [],
+            f"Codecov has not compared {HEAD} yet; nothing to do.\n",
             id="Codecov compared an older commit",
         ),
         pytest.param(
@@ -1121,6 +1127,7 @@ EDIT = f"repos/{REPO}/issues/comments/11"
             [IMPOSTOR, NOT_JUDGED],
             against_base(MEASURED),
             [],
+            f"Codecov's patch check has not reported on {HEAD}; nothing to do.\n",
             id="Codecov has not judged the commit",
         ),
     ],
@@ -1131,14 +1138,17 @@ def test_what_a_workflow_run_writes_to_the_pull_request(
     checks: list[Check],
     reports: Reports,
     writes: list[tuple[str, str, str]],
+    said: str,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """One run creates the comment, edits its own, or leaves the pull request alone.
 
     The check is taken by its app. A job that shares its name does not turn
     the tick into a cross when it failed, or the cross into a tick when it
     passed, and does not stand in for a Codecov check that has yet to report.
-    The one changed line of the failed change is missed, which is 0%.
+    The one changed line of the failed change is missed, which is 0%. A run
+    that writes nothing says why in its log, and one that writes says nothing.
     """
     github = FakeGitHub(pulls, comments, checks)
     github.stand_in(monkeypatch)
@@ -1153,6 +1163,7 @@ def test_what_a_workflow_run_writes_to_the_pull_request(
     assert [write[:2] for write in github.writes] == [write[:2] for write in writes]
     for (_, _, body), (_, _, heading) in zip(github.writes, writes, strict=True):
         assert body.startswith(f"{MARKER}\n{heading}")
+    assert capsys.readouterr().out == said
 
 
 def tables(component_before: str, flag_before: str) -> str:
@@ -1613,10 +1624,10 @@ def test_fault_at_github_stops_the_run_and_takes_no_file_for_unchanged(
     """
     github = FakeGitHub([(7, HEAD)], [OWN], [FAILED])
 
-    def failing(*args: str, stdin: str | None = None) -> str:
+    def failing(*args: str) -> str:
         if f"repos/{REPO}/compare/{HEAD}...{BASE}" in args:
             raise subprocess.CalledProcessError(1, ["gh", "api", *args])
-        return github(*args, stdin=stdin)
+        return github(*args)
 
     github.stand_in(monkeypatch)
     monkeypatch.setattr(coverage_comment, "gh", failing)

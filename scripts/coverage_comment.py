@@ -371,11 +371,10 @@ def render(
     )
 
 
-def gh(*args: str, stdin: str | None = None) -> str:
-    """Call the GitHub API through the gh CLI and return what it prints."""
+def gh(*args: str) -> str:
+    """Read from the GitHub API through the gh CLI and return what it prints."""
     return subprocess.run(
         ["gh", "api", *args],
-        input=stdin,
         stdout=subprocess.PIPE,
         check=True,
         text=True,
