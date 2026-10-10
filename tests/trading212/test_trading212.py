@@ -2556,6 +2556,29 @@ def test_single_file_keeps_distinct_ids_in_one_second(tmp_path: Path) -> None:
     assert len(Trading212Parser.load_from_dir(folder)) == 2
 
 
+def test_a_row_that_runs_over_several_lines_is_refused(tmp_path: Path) -> None:
+    """A double quote left open takes in the row below it; it is not dropped.
+
+    The 2020 layout quotes some cells itself, so one stray quote is enough:
+    the one opened on row 3 is closed by the quote that starts the Notes of
+    row 4, and that deposit would be left out.
+    """
+    export = tmp_path / "open_quote.csv"
+    export.write_text(
+        ",".join(HEADER_2020) + "\n"
+        "Deposit,2020-06-24 04:06:06,,,,,,,,,9000.00,,,9000.00,,,"
+        '"Transaction ID: xxxxxxx",,123\n'
+        'Market buy,2020-06-24 14:33:50,IE00BK5BQW10,VNRG,"VNRG",1.0000000000,'
+        '10.74,USD,1.33080,,8.07,,,,,,"GBP,,124\n'
+        "Deposit,2020-11-24 14:33:50,,,,,,,,,8.08,,,8.08,,,"
+        '"Free Shares Promotion",,125\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ParsingError, match=", row 3: This row runs on to row 4,"):
+        Trading212Parser.load_from_file(export)
+
+
 def test_one_file_dir_matches_load_from_file(tmp_path: Path) -> None:
     """The directory phase is a no-op when there is nothing to overlap."""
     rows = _export(

@@ -20,7 +20,7 @@ from cgt_calc.model import (
 )
 from cgt_calc.util import is_blank_row, parse_decimal
 
-from .base_parsers import BaseSingleFileParser
+from .base_parsers import BaseSingleFileParser, read_csv_rows
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -693,8 +693,10 @@ class VanguardParser(BaseSingleFileParser[VanguardTransaction]):
         """Read Vanguard transactions from exported transaction report file."""
         raw_text = file.read()
         delimiter = _detect_delimiter(raw_text)
-        csv_reader = csv.reader(io.StringIO(raw_text), delimiter=delimiter)
-        lines = [(csv_reader.line_num, row) for row in csv_reader]
+        # Each row is on one line of the file, or it was refused, and an
+        # empty line is a row too, so the rows count the lines.
+        rows = read_csv_rows(io.StringIO(raw_text), file_path, delimiter=delimiter)
+        lines = list(enumerate(rows, start=1))
 
         if not lines:
             raise ParsingError(file_path, "Vanguard CSV file is empty")

@@ -57,6 +57,7 @@ from cgt_calc.util import is_blank_row, parse_decimal
 from .base_parsers import (
     BaseSingleFileParser,
     next_account_token,
+    read_csv_rows,
     read_input,
     use_current_tickers,
 )
@@ -1302,7 +1303,7 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         A ``classmethod`` because pricing a vest needs ``cls.awards_prices``,
         which ``load_from_args`` fills in from ``--schwab-award-file``.
         """
-        lines = list(csv.reader(file))
+        lines = read_csv_rows(file, file_path)
         if not lines:
             message = "Charles Schwab transactions CSV file is empty."
             if from_directory:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections import defaultdict
-import csv
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -37,7 +36,7 @@ from cgt_calc.util import (
     parse_decimal,
 )
 
-from .base_parsers import BaseDirParser
+from .base_parsers import BaseDirParser, read_csv_rows
 
 
 class Trading212Column(StrEnum):
@@ -1211,7 +1210,7 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
         cls, file: TextIO, file_path: Path
     ) -> list[BrokerTransaction]:
         """Parse Trading 212 transactions from CSV file."""
-        lines = list(csv.reader(file))
+        lines = read_csv_rows(file, file_path)
         if not lines:
             raise ParsingError(file_path, "Trading 212 CSV file is empty")
         header = lines[0]
