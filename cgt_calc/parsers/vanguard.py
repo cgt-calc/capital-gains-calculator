@@ -693,8 +693,8 @@ class VanguardParser(BaseSingleFileParser[VanguardTransaction]):
         """Read Vanguard transactions from exported transaction report file."""
         raw_text = file.read()
         delimiter = _detect_delimiter(raw_text)
-        # Each row is on one line of the file, or it was refused, so the
-        # rows count the lines.
+        # Each row is on one line of the file, or it was refused, and an
+        # empty line is a row too, so the rows count the lines.
         rows = read_csv_rows(io.StringIO(raw_text), file_path, delimiter=delimiter)
         lines = list(enumerate(rows, start=1))
 
