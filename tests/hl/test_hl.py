@@ -213,6 +213,47 @@ def test_load_from_dir_accepts_uppercase_csv_extension(tmp_path: Path) -> None:
     assert transactions[0].amount == Decimal("12.34")
 
 
+@pytest.mark.parametrize(
+    ("heading", "encoding"),
+    [
+        (HL_CSV_HEADER, "windows-1252"),
+        (HL_CSV_HEADER, "utf-8"),
+        # Excel's "CSV UTF-8" starts the file with a byte-order mark. Above
+        # the preamble it would be skipped along with it, so this file is cut
+        # down to its column headings, where the mark sits before "Trade date".
+        (HL_CSV_HEADER.splitlines(keepends=True)[-1], "utf-8-sig"),
+    ],
+    ids=[
+        "Windows-1252, as HL writes it",
+        "saved again as UTF-8",
+        "UTF-8 with a byte-order mark before the headings",
+    ],
+)
+def test_a_transaction_summary_is_read_in_either_encoding(
+    tmp_path: Path, heading: str, encoding: str
+) -> None:
+    """The same row loads from the file HL writes and from a UTF-8 copy of it.
+
+    Read as Windows-1252, the UTF-8 copy is refused for its heading, which
+    comes out as "Value (Â£)". Read as UTF-8, the file HL wrote does not
+    decode at all. The "é" and "€" in the description are single bytes in
+    Windows-1252 that a neighbouring code page reads differently: Latin-1 has
+    no "€", and the Greek page has another letter in place of "é".
+    """
+    (tmp_path / "hl-transaction-summary.csv").write_text(
+        heading
+        + '"09/03/2026","09/03/2026","INTEREST","Interest, Nestlé SA € bond","n/a",'
+        '"n/a","3.87"\n',
+        encoding=encoding,
+    )
+
+    transactions = HargreavesLansdownParser.load_from_dir(tmp_path)
+
+    assert [(t.description, t.amount) for t in transactions] == [
+        ("Interest, Nestlé SA € bond", Decimal("3.87"))
+    ]
+
+
 def test_real_preamble_preserves_physical_row_numbers(tmp_path: Path) -> None:
     """Count HL's preamble when recording transaction source lines."""
     csv_file = tmp_path / "hl-transaction-summary.csv"

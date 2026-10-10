@@ -140,6 +140,23 @@ class HargreavesLansdownParser(
 
     @classmethod
     @override
+    def encoding_of(cls, file_path: Path) -> str:
+        """Read a file that is UTF-8 as UTF-8, and any other as Windows-1252.
+
+        HL writes Windows-1252, and a spreadsheet program that saves the file
+        again often writes UTF-8. A file as HL wrote it is never taken for
+        UTF-8: the pound sign in its "Value (£)" heading is the single byte
+        0xA3, which UTF-8 does not allow straight after a bracket.
+        """
+        try:
+            file_path.read_bytes().decode()
+        except UnicodeDecodeError:
+            return cls.encoding
+        # Also drops the byte-order mark that Excel's "CSV UTF-8" writes.
+        return "utf-8-sig"
+
+    @classmethod
+    @override
     def pre_reading(cls, file: TextIO, file_path: Path) -> tuple[Iterable[str], int]:
         """Skip the preamble and retain the header's physical line."""
         lines = iter(file)

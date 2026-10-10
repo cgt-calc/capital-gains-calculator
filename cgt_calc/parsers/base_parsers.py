@@ -202,6 +202,17 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
         return []
 
     @classmethod
+    def encoding_of(cls, file_path: Path) -> str:  # noqa: ARG003
+        """Return the encoding to open this file in.
+
+        Overridden where a broker's file can arrive in more than one encoding.
+        A file that fails to decode is reported as not being in ``encoding``,
+        so an override returns either that or an encoding it has checked the
+        file is in.
+        """
+        return cls.encoding
+
+    @classmethod
     def load_from_file(
         cls,
         file_path: Path,
@@ -225,7 +236,7 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
                     show_parsing_msg=show_parsing_msg,
                     account=account,
                 )
-            with file_path.open(encoding=cls.encoding) as file:
+            with file_path.open(encoding=cls.encoding_of(file_path)) as file:
                 return cls.load_from_stream(
                     file,
                     file_path,
