@@ -23,8 +23,10 @@ jobs:
   comment:
     name: Post coverage comment
     # Every check from an app other than GitHub Actions starts this workflow;
-    # only Codecov's patch check carries on.
+    # only Codecov's patch check carries on. A fork has no bot key, so the
+    # job is skipped there.
     if: >-
+      github.repository_owner == 'cgt-calc' &&
       github.event.check_run.app.slug == 'codecov' &&
       github.event.check_run.name == 'codecov/patch'
     runs-on: ubuntu-latest

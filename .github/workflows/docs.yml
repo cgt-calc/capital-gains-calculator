@@ -46,6 +46,7 @@ jobs:
 
   deploy:
     name: Deploy to Cloudflare Pages
+    if: github.repository_owner == 'cgt-calc'
     needs: build
     runs-on: ubuntu-latest
     concurrency: docs-deploy

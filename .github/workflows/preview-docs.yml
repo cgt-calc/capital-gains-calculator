@@ -22,6 +22,7 @@ jobs:
   preview:
     name: Deploy preview
     if: >-
+      github.repository_owner == 'cgt-calc' &&
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
