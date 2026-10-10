@@ -2519,7 +2519,18 @@ def test_a_row_stamped_after_a_lone_booking_instant_is_left_alone() -> None:
         ),
         pytest.param(
             elsewhere(0),
-            legacy_split(EVENT_DAY, "FOO", "10", source=_stamped(SPLIT_OPENED)),
+            # Stamped in the pool's own input, so the row is the only thing
+            # from another one.
+            legacy_split(
+                EVENT_DAY,
+                "FOO",
+                "10",
+                source=replace(
+                    _stamped(SPLIT_OPENED),
+                    account="Testing account",
+                    file=Path("testing.csv"),
+                ),
+            ),
             id="only a single-row reorganisation",
         ),
         pytest.param(
