@@ -1,0 +1,46 @@
+name: Coverage comment
+
+# Codecov's own pull request comment is cut down to a patch summary on the
+# organisation's plan, so this posts a fuller one from Codecov's API as soon
+# as its patch check reports. A check_run workflow always runs the copy on
+# main, with the checkout below taking main too, so it never executes code
+# from the pull request and is safe to give a token that can comment.
+on:
+  check_run:
+    types:
+      - completed
+
+permissions: {}
+
+# Keyed by the check as well as the commit: every app's check on a commit
+# starts this workflow, and a run for another check must not cancel the one
+# for Codecov's patch check.
+concurrency:
+  group: coverage-comment-${{ github.event.check_run.app.slug }}-${{ github.event.check_run.name }}-${{ github.event.check_run.head_sha }}
+  cancel-in-progress: true
+
+jobs:
+  comment:
+    name: Post coverage comment
+    # Every check from an app other than GitHub Actions starts this workflow;
+    # only Codecov's patch check carries on.
+    if: >-
+      github.event.check_run.app.slug == 'codecov' &&
+      github.event.check_run.name == 'codecov/patch'
+    runs-on: ubuntu-latest
+    # Reads: the checkout, the pull request's workflow runs and Codecov's
+    # check on the commit. The one write is the comment.
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Post or update the comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.check_run.head_sha }}
+        run: python3 scripts/coverage_comment.py --repo "$GITHUB_REPOSITORY" --sha "$HEAD_SHA"
