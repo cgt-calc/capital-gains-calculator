@@ -241,8 +241,9 @@ def breakdown(
 ) -> list[str]:
     """Tabulate the figures by component or by flag, folded away.
 
-    The count of changed lines is given only when it is `exact`: Codecov
-    makes it from every changed file, those with misaligned lines too.
+    The count of changed lines is given only when it is `exact`. A row's
+    count may include the lines of a file that are misaligned, and Codecov
+    does not say which rows hold which files.
     """
     if not rows:
         return []
@@ -285,8 +286,9 @@ def render(
 
     `shifted` names the changed files whose lines Codecov may have matched
     wrongly. Their uncovered lines are left out, and so is every count of
-    changed lines, because each one includes theirs. Codecov's verdict stays,
-    and the comment is worth posting to say what it leaves out.
+    changed lines: the one for the whole change includes theirs, and a
+    component's or a flag's may. Codecov's verdict stays, and the comment is
+    worth posting to say what it leaves out.
     """
     totals = compare["totals"]
     base, head, patch = totals["base"], totals["head"], totals["patch"]
@@ -312,13 +314,13 @@ def render(
         verdict = [
             f"### {icon} Codecov's check of the changed lines {outcome}",
             "",
-            (f"Codecov's target is {target[1]}%. " if target else "")
-            + "Its count of covered lines is left out, and so are the uncovered"
-            " lines of the files below, because Codecov may have matched their"
-            " coverage to other lines. CI tests the pull request merged into"
-            " its base branch, which may have changed these files since this"
-            " branch started, and a line then has another number in what CI"
-            " tested.",
+            (f"The check's target is {target[1]}%. " if target else "")
+            + "Codecov's count of covered lines is left out, and so are the"
+            " uncovered lines of the files below, because their coverage may"
+            " have been matched to other lines. CI tests the pull request"
+            " merged into its base branch, which may have changed these files"
+            " since this branch started, and a line then has another number in"
+            " what CI tested.",
             "",
             *names,
             "",
@@ -396,7 +398,7 @@ def merged_into(repo: str, pull: PullRequest) -> str | None:
     None, for a commit that cannot be told, unless both of these hold:
 
     - GitHub names a test merge whose second parent is this head commit. It
-      names none for a pull request that conflicts, the commit on the default
+      names none for a pull request that conflicts, the commit on its base
       branch for one that is merged, and just after a push the merge of the
       head before.
     - That merge is no newer than any workflow run the pull request started

@@ -538,6 +538,13 @@ def test_text_from_the_pull_request_cannot_break_out_of_its_place() -> None:
     assert "| `www.evil.example.com GH-1` | n/a | n/a | none |\n" in body
     assert "| `x?y?b??z?1????row c++_api` | n/a | n/a | none |\n" in body
 
+    # The same path where the comment names it as a file whose lines it
+    # leaves out.
+    left_out = ["cgt_calc/a](http://evil)`.py"]
+    body = render(REPO, 7, PASSED, compare, components, flags, left_out).body
+
+    assert "\n- `cgt_calc/a??http?//evil??.py`\n" in body
+
 
 @pytest.mark.parametrize(
     ("per_file", "uncovered", "rest"),
@@ -621,11 +628,11 @@ def test_one_uncovered_line_and_a_very_long_one() -> None:
 
 
 LEFT_OUT = (
-    "Its count of covered lines is left out, and so are the uncovered lines of"
-    " the files below, because Codecov may have matched their coverage to other"
-    " lines. CI tests the pull request merged into its base branch, which may"
-    " have changed these files since this branch started, and a line then has"
-    " another number in what CI tested.\n"
+    "Codecov's count of covered lines is left out, and so are the uncovered"
+    " lines of the files below, because their coverage may have been matched"
+    " to other lines. CI tests the pull request merged into its base branch,"
+    " which may have changed these files since this branch started, and a line"
+    " then has another number in what CI tested.\n"
 )
 
 
@@ -635,7 +642,8 @@ def test_figures_that_may_be_for_other_lines_are_left_out() -> None:
     The base branch changed `base_parsers.py` after this branch started, so
     the line Codecov calls missed at 387 may be another line of the merged
     file, and it is not listed. Codecov's 2 of 4 for the change counts that
-    file's lines, so it goes too, from the verdict and from the flag's row.
+    file's lines, so it goes too, from the verdict and from the rows of the
+    component, which is that file's alone, and of the flag.
     What stays is what does not depend on a line's number: that Codecov
     failed the change and its target, the total, which fell by 0.12 points,
     the untouched `model.py`, and the missed line of `util.py`, which the
@@ -664,6 +672,14 @@ def test_figures_that_may_be_for_other_lines_are_left_out() -> None:
         "conclusion": "failure",
         "title": "50.00% of diff hit (target 90.00%)",
     }
+    components: list[Breakdown] = [
+        {
+            "name": "Broker parsers",
+            "base_report_totals": totals("95.85"),
+            "head_report_totals": totals("95.80"),
+            "diff_totals": totals("50.00", lines=2, hits=1),
+        },
+    ]
     flags: list[Breakdown] = [
         {
             "name": "docker",
@@ -678,7 +694,7 @@ def test_figures_that_may_be_for_other_lines_are_left_out() -> None:
         7,
         check,
         compare,
-        [],
+        components,
         flags,
         ["cgt_calc/parsers/base_parsers.py"],
     )
@@ -687,7 +703,7 @@ def test_figures_that_may_be_for_other_lines_are_left_out() -> None:
         "<!-- cgt-calc-coverage -->\n"
         "### :x: Codecov's check of the changed lines did not pass\n"
         "\n"
-        f"Codecov's target is 90.00%. {LEFT_OUT}"
+        f"The check's target is 90.00%. {LEFT_OUT}"
         "\n"
         "- `cgt_calc/parsers/base_parsers.py`\n"
         "\n"
@@ -707,6 +723,15 @@ def test_figures_that_may_be_for_other_lines_are_left_out() -> None:
         "| File | Before | After |\n"
         "|---|---|---|\n"
         "| `cgt_calc/model.py` | 99.00% | 98.00% |\n"
+        "\n"
+        "<details>\n"
+        "<summary>Components</summary>\n"
+        "\n"
+        "| Component | Before | After | Changed lines |\n"
+        "|---|---|---|---|\n"
+        "| `Broker parsers` | 95.85% | 95.80% | n/a |\n"
+        "\n"
+        "</details>\n"
         "\n"
         "<details>\n"
         "<summary>Flags</summary>\n"
@@ -1411,15 +1436,17 @@ def test_fault_at_codecov_stops_the_run_and_drops_no_figures(
 
 
 # Pull request 7 when it changes three measured files and adds one line to
-# each, all three missed: 0 of 3 covered. It renamed the last file, which is
-# `old_name.py` on the base branch. It did not touch `model.py`.
+# each, all three missed: 0 of 3 covered. Codecov has no figures from before
+# for `util.py`, so it gives the file no name on that side. The pull request
+# renamed the last file, which is `old_name.py` on the base branch. It did
+# not touch `model.py`.
 PARSERS = "cgt_calc/parsers/base_parsers.py"
 UTIL = "cgt_calc/util.py"
 RENAMED = "cgt_calc/new_name.py"
 THREE_FILES = comparison(
     [
         file(PARSERS, [added(387, "LOGGER.warning(message)", MISSED)]),
-        file(UTIL, [added(1, "x = 1", MISSED)]),
+        file(UTIL, [added(1, "x = 1", MISSED)], new=True),
         file(RENAMED, [added(5, "z = 3", MISSED)], was="cgt_calc/old_name.py"),
         file("cgt_calc/model.py", []),
     ],
@@ -1453,6 +1480,14 @@ TWO_LISTED = "#### 2 changed lines are not covered in the other files\n"
             [PARSERS],
             TWO_LISTED,
             id="the base branch changed one of the files too",
+        ),
+        pytest.param(
+            (UTIL,),
+            (MERGED_AT, BASE, HEAD),
+            "main",
+            [UTIL],
+            TWO_LISTED,
+            id="the base branch changed a file that has no figures from before",
         ),
         pytest.param(
             ("cgt_calc/old_name.py",),
