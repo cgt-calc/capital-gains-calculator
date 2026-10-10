@@ -174,15 +174,19 @@ with no new shares: £20.00”. Under that heading, “Number of units in the po
 you hold and “new pool cost” £20 more than the cost before. If you bought more of the fund the same
 day, the PDF shows the £20 as part of that purchase's fees instead.
 
-If the entry reads “Number of units in the pool: 0”, the £20 has not been added to anything you
-hold, and cgt-calc gives no warning:
+If you hold no units under the `FEE` row's `symbol` on that date, cgt-calc stops with
+`Cannot add the cost of the FEE row for FUND on 2024-06-28: no units of FUND are held that day`:
 
-- If the `symbol` on the `FEE` row is not the name the report uses for the holding, correct it.
-- If you had sold the whole holding before that date, cgt-calc does not work the case out: it adds
-    the £20 to your next purchase under that symbol. Replace the `FEE` with an `ADJUSTMENT` of the
-    same amount and a blank `symbol`, which keeps the balance right without adding the cost
-    anywhere, and consider professional advice on whether the income adds to the cost of the units
-    you sold.
+- If cgt-calc knows the holding by another name, write that name as the `symbol` of the `FEE` row.
+    The run still lists the holdings you have at the end of your files under “Final portfolio”. For
+    one you have since sold, run without the `FEE` row and read the name in the report for the tax
+    year of the sale.
+- If the date is before the first purchase in your files, check the date and that no earlier
+    purchase is missing.
+- If you had sold or given away the whole holding before that date, cgt-calc does not work out
+    whether the income adds to the cost of those units. Replace the `FEE` with an `ADJUSTMENT` of
+    the same amount and a blank `symbol`, which keeps the balance right without adding the cost
+    anywhere, and consider professional advice.
 
 This is for a fund based in the UK. For an accumulating fund or ETF based elsewhere, such as an
 Irish one, see [Offshore Funds (ERI)](../offshore-funds.md).

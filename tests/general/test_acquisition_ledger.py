@@ -150,7 +150,7 @@ def test_a_fee_is_not_part_of_the_purchase_a_sale_is_identified_against(
     have nothing of it to identify a sale against. Counted in with that day's
     purchase, the whole £100 was relieved against whichever sale matched it.
     Where the sale leaves no shares behind, the pool keeps the fee's cost
-    alone, as it does for a fee charged after a holding is sold out.
+    alone.
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
 

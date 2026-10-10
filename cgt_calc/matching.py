@@ -258,6 +258,35 @@ class Matcher:
             self.run.spin_off_corrected_amounts[date_index, symbol] = acquisition_amount
         modified_amount = acquisition_amount
         position = self.run.portfolio[symbol]
+        # Cost needs units to be part of. A FEE for a holding with none - a
+        # name nothing is held under, or a holding already sold - would wait
+        # in an empty pool and be added to whatever was next bought under the
+        # name, and nothing establishes that it belongs there. A name that a
+        # rename today or later connects to another is not checked: cost
+        # written under one side of a rename is carried to the other when the
+        # rename is applied, and the rename-day refusals are built on that.
+        # It is a gap, since the other name may hold no units either, and one
+        # left open on purpose: only a Vanguard ticker change writes a rename
+        # row, and the UK funds a FEE is meant for have no ticker to change.
+        if (
+            record.cost_only.amount != 0
+            and position.quantity + acquisition.quantity == 0
+            and not any(
+                day >= date_index and symbol in {old, new}
+                for day, renames in self.history.rename_list.items()
+                for old, new in renames.items()
+            )
+        ):
+            raise CalculationError(
+                f"Cannot add the cost of the FEE row for {symbol} on "
+                f"{date_index}: no units of {symbol} are held that day. Check "
+                "the row's symbol and date. If the holding is recorded under "
+                "another name, write the FEE row under that name. If you had "
+                "disposed of all of it by then, whether this cost belongs to "
+                "the units disposed of cannot be established: record the "
+                "amount as an ADJUSTMENT instead, which adds it to no cost "
+                "(consider professional advice)."
+            )
         calculation_entries = []
         # A management fee is cost with no shares, and a fee of nothing is
         # neither, so a day can record either without the other.
@@ -485,7 +514,7 @@ class Matcher:
                     ctx.current_quantity -= available_quantity
                     # Taking the last shares need not take the last of the
                     # cost: a management fee's stays behind, pooled with no
-                    # shares, as it is when charged after a holding is sold.
+                    # shares.
                     ctx.current_amount -= acquisition_cost
                 else:
                     self.run.portfolio[ctx.cost_holder] -= Position(
