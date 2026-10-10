@@ -644,10 +644,12 @@ def test_figures_that_may_be_for_other_lines_are_left_out() -> None:
     file, and it is not listed. Codecov's 2 of 4 for the change counts that
     file's lines, so it goes too, from the verdict and from the rows of the
     component, which is that file's alone, and of the flag.
-    What stays is what does not depend on a line's number: that Codecov
-    failed the change and its target, the total, which fell by 0.12 points,
-    the untouched `model.py`, and the missed line of `util.py`, which the
-    base branch left alone.
+
+    That Codecov failed the change, and its target, are repeated as the
+    check gave them, though it may have judged other lines. What is kept as
+    it stands does not depend on a line's number: the total, which fell by
+    0.12 points, the untouched `model.py`, and the missed line of `util.py`,
+    which the base branch left alone.
     """
     compare = comparison(
         [
