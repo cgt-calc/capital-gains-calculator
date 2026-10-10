@@ -760,16 +760,6 @@ def test_reject_duplicate_stdin_covers_the_award_file() -> None:
     assert exc_info.value.code == 2
 
 
-def test_reject_duplicate_stdin_allows_an_option_and_its_alias() -> None:
-    """A deprecated alias shares its dest, so it is not a second stdin reader."""
-    parser = create_parser()
-    args = parser.parse_args(["--schwab-file", "-", "--schwab", "-"])
-
-    reject_duplicate_stdin(parser, args)
-
-    assert args.schwab_file == STDIN_PATH
-
-
 def test_reject_duplicate_stdin_ignores_ordinary_paths(tmp_path: Path) -> None:
     """Ensure real paths never count towards the stdin limit."""
     first = tmp_path / "raw.csv"
@@ -801,6 +791,124 @@ def test_main_rejects_stdin_given_to_several_options(
 
     assert exc_info.value.code == 2
     assert "can only be given to one option" in capsys.readouterr().err
+
+
+def _options_taking_a_value() -> list[tuple[str, object]]:
+    """Every option that takes a value, with the type that reads the value."""
+    return [
+        (option, action.type)
+        for action in create_parser()._actions  # noqa: SLF001
+        # --print-completion prints a script and exits where it stands.
+        if action.nargs != 0 and action.dest != "print_completion"
+        for option in action.option_strings
+    ]
+
+
+@pytest.mark.parametrize(
+    ("option", "value_type"),
+    _options_taking_a_value(),
+    ids=[option for option, _ in _options_taking_a_value()],
+)
+def test_an_option_given_twice_is_refused(
+    option: str,
+    value_type: object,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A second value would replace the first with no word of it.
+
+    The two values differ wherever the option allows, so keeping either one
+    would be a choice the user did not make.
+    """
+    first_file, second_file = tmp_path / "first.csv", tmp_path / "second.csv"
+    first_dir, second_dir = tmp_path / "first", tmp_path / "second"
+    for file in (first_file, second_file):
+        file.write_text("", encoding="utf-8")
+    for directory in (first_dir, second_dir):
+        directory.mkdir()
+    files = (str(first_file), str(second_file))
+    # Keyed by the function that reads the value, so an option with a new kind
+    # of value has to say here what two of them look like.
+    values = {
+        "year_type": ("2021", "2022"),
+        "date_type": ("2021-04-06", "2022-04-05"),
+        "income_type": ("45000", "50000"),
+        "existing_file_or_stdin_type": files,
+        "existing_file_type": files,
+        "optional_cache_file_type": files,
+        "existing_directory_type": (str(first_dir), str(second_dir)),
+        "ticker_list_type": ("AAA", "BBB"),
+        "output_path_type": (str(tmp_path / "a.pdf"), str(tmp_path / "b.pdf")),
+    }[getattr(value_type, "__name__", "")]
+
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args([option, values[0], option, values[1]])
+
+    assert exc_info.value.code == 2
+    assert (
+        f"error: {option} gives a second value for an option that takes one. "
+        "cgt-calc would have used only the last and ignored the other: give the "
+        "option once."
+    ) in " ".join(capsys.readouterr().err.split())
+
+
+@pytest.mark.parametrize(
+    ("option", "default", "other"),
+    [
+        ("--output", str(DEFAULT_REPORT_PATH), "mine.pdf"),
+        ("--exchange-rates-file", str(DEFAULT_EXCHANGE_RATES_FILE), "mine.csv"),
+        # No tickers, which is what the option holds when it is not given.
+        ("--interest-fund-tickers", "", "AAA"),
+    ],
+)
+def test_a_first_value_that_equals_the_default_still_counts(
+    option: str, default: str, other: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Typing the default out is giving the option, so a second value is refused."""
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args([option, default, option, other])
+
+    assert exc_info.value.code == 2
+    assert (
+        f"error: {option} gives a second value for an option that takes one."
+        in " ".join(capsys.readouterr().err.split())
+    )
+
+
+def test_the_same_value_given_twice_is_refused(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A repeat is refused whether or not it agrees with the first value."""
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(["--year", "2021", "--year", "2021"])
+
+    assert exc_info.value.code == 2
+    assert (
+        "error: --year gives a second value for an option that takes one."
+        in " ".join(capsys.readouterr().err.split())
+    )
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [("--raw", "--raw-file"), ("--raw-file", "--raw")],
+)
+def test_an_option_and_its_old_name_are_one_option(
+    first: str, second: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Given under both names, one of the two files would not be read."""
+    files = [tmp_path / "transfers.csv", tmp_path / "splits.csv"]
+    for file in files:
+        file.write_text("", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args([first, str(files[0]), second, str(files[1])])
+
+    assert exc_info.value.code == 2
+    assert (
+        f"error: {second} gives a second value for an option that takes one."
+        in " ".join(capsys.readouterr().err.split())
+    )
 
 
 @pytest.mark.parametrize("option", ["--initial-prices-file", "--initial-prices"])
