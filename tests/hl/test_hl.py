@@ -219,8 +219,9 @@ def test_load_from_dir_accepts_uppercase_csv_extension(tmp_path: Path) -> None:
         (HL_CSV_HEADER, "windows-1252"),
         (HL_CSV_HEADER, "utf-8"),
         # Excel's "CSV UTF-8" starts the file with a byte-order mark. Above
-        # the preamble it would be skipped along with it, so this file is cut
-        # down to its column headings, where the mark sits before "Trade date".
+        # the preamble, the mark would be skipped along with the preamble, so
+        # this file is cut down to its column headings, where the mark sits
+        # before "Trade date".
         (HL_CSV_HEADER.splitlines(keepends=True)[-1], "utf-8-sig"),
     ],
     ids=[
