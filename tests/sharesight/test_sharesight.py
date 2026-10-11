@@ -888,7 +888,7 @@ def test_parse_trade_report_invalid_stock_activity(tmp_path: Path) -> None:
         SharesightParser().load_from_dir(tmp_path)
 
 
-def _foo_purchase(day: str, quantity: str) -> list[str]:
+def _foo_purchase(day: str, quantity: str, comment: str = "") -> list[str]:
     """Return a purchase of FOO at 5.50 USD a share with 1 USD of brokerage."""
     return [
         "NASDAQ",
@@ -902,7 +902,7 @@ def _foo_purchase(day: str, quantity: str) -> list[str]:
         "USD",
         "1",
         "",
-        "",
+        comment,
     ]
 
 
@@ -984,7 +984,11 @@ def test_load_from_dir_refuses_an_older_trades_report_left_beside_a_newer_one(
 
 
 def test_load_from_dir_reads_reports_with_no_trade_in_common(tmp_path: Path) -> None:
-    """Trades that differ only in their quantity are two trades, and both load."""
+    """Trades that differ in one thing only are two trades, and both load.
+
+    The two purchases of 2 February differ only in their quantity, and the
+    two of 3 February only in their comment.
+    """
     _write_csv(
         tmp_path / "All Trades Report - A.csv",
         [
@@ -998,17 +1002,19 @@ def test_load_from_dir_reads_reports_with_no_trade_in_common(tmp_path: Path) -> 
         [
             TRADE_HEADER,
             _foo_purchase("02/02/2023", "11"),
-            _foo_purchase("03/02/2023", "21"),
+            _foo_purchase("03/02/2023", "20", comment="second account"),
         ],
     )
 
     transactions = SharesightParser().load_from_dir(tmp_path)
 
-    assert [transaction.quantity for transaction in transactions] == [
-        Decimal(10),
-        Decimal(11),
-        Decimal(20),
-        Decimal(21),
+    assert [
+        (transaction.quantity, transaction.description) for transaction in transactions
+    ] == [
+        (Decimal(10), ""),
+        (Decimal(11), ""),
+        (Decimal(20), ""),
+        (Decimal(20), "second account"),
     ]
 
 

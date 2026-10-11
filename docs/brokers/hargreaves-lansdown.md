@@ -15,7 +15,7 @@ The safest option is to start with the account's first transaction and end today
 days after the end of the tax year you are calculating. If you generate several reports, use
 non-overlapping periods so that no transaction is in two of them. cgt-calc stops when it finds one
 that is; see
-[Two files in the directory hold this transaction](#two-files-in-the-directory-hold-this-transaction).
+[`Two files in the directory hold this transaction`](#two-files-in-the-directory-hold-this-transaction).
 
 1. Sign in to the HL website and open the Tax Centre, currently under **Accounts**.
 2. Generate the required Transaction Summary and download the CSV offered with the completed report.
@@ -148,15 +148,18 @@ Open both files and compare their rows:
 - **Every row of one file is also in the other.** This happens when a report was downloaded twice,
     saved again from a spreadsheet program, or covers a period inside the other report's. Move that
     file out of the directory.
-- **Each file has rows the other does not, and the rows they share fall between the same dates.**
-    The two periods partly overlap. Keep both files until you have generated reports whose periods
-    do not overlap, then use those instead.
-- **The two rows are separate transactions that only look the same.** Both must be counted. Do not
-    delete either row, and do not run cgt-calc on the two files separately: either would leave
-    transactions out of the calculation. Work on copies of the two files and move one of the two
-    rows to the line directly below the other, so that both are in the same file. cgt-calc counts
-    every row of a file, including rows that match. A buy or sell row still finds its contract note,
-    because the PDF is looked up by its reference in the directory.
+- **Each file has rows the other does not, and the rows they share are all from one stretch of
+    dates.** The two periods overlap there. Keep both files until you have generated reports whose
+    periods do not overlap, then use those instead.
+- **The two rows are separate transactions that only look the same.** This can happen when the
+    directory holds reports for two accounts: for example, the same fee or payment on the same day
+    in each. Both must be counted. Do not delete either row, and do not run cgt-calc on the two
+    files separately: either would leave transactions out of the calculation. Copy the two original
+    files to somewhere outside the directory, then edit the two that stay in it. Insert one of the
+    two rows as a new line directly below the other, so that both are in the same file, and remove
+    it from the file it came from. Do not paste it over the row that is already there. cgt-calc
+    counts every row of a file, including rows that match. A buy or sell row still finds its
+    contract note, because the PDF is looked up by its reference in the directory.
 
 ### `Reached a negative balance` or `Tried to sell`
 

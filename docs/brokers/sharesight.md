@@ -54,7 +54,7 @@ cgt-calc reads every CSV in the directory whose name starts with `All Trades Rep
 `Taxable Income Report`. An All Trades report exported **Since inception** repeats the trades of
 every earlier export, so move an older All Trades file out of the directory when you add a new one.
 cgt-calc stops when two files hold the same transaction; see
-[Two files in the directory hold this transaction](#two-files-in-the-directory-hold-this-transaction).
+[`Two files in the directory hold this transaction`](#two-files-in-the-directory-hold-this-transaction).
 
 Do not rename or delete columns when converting the worksheets. In addition to the legacy headings,
 cgt-calc accepts aliases including `Market Code`, `Qty`, `Instrument Currency` and `Exch. Rate`. You
@@ -113,7 +113,8 @@ these markers.
 - Overlapping reports are not merged. cgt-calc stops when two files hold a transaction that reads
     the same in both. It cannot detect a transaction that the two files state differently, such as a
     trade whose quantity or comment you edited in Sharesight between two exports, and counts that
-    one twice. Do not keep an older export of a report beside a newer one.
+    one twice. Do not keep an older **Since inception** All Trades export of a portfolio beside a
+    newer one, or a report whose dates another file already covers.
 
 ## Troubleshooting
 
@@ -158,15 +159,18 @@ Open both files and compare them:
 - **Both are All Trades reports for the same portfolio, exported Since inception.** Each starts at
     the portfolio's first trade, so the newer one already holds the trades of the older one as
     Sharesight records them now. Move the older file out of the directory.
-- **The two reports cover date ranges that partly overlap**, as two Taxable Income reports can. Keep
-    both files until you have exported reports whose date ranges do not overlap, then use those
-    instead.
-- **The two rows are separate transactions that only look the same.** Both must be counted. Do not
-    delete either row, and do not run cgt-calc on the two files separately: either would leave
-    transactions out of the calculation. Work on copies of the two files and move one of the two
-    rows to the line directly below the other, so that both are in the same file. cgt-calc counts
-    every row of a list, including rows that match. A row placed anywhere else can fall outside the
-    list it belongs to and be left out.
+- **The two reports cover date ranges that overlap**, as two Taxable Income reports can. Keep both
+    files until you have exported reports whose date ranges do not overlap, then use those instead.
+- **The two rows are separate transactions that only look the same.** This can happen when the
+    directory holds reports for two portfolios: for example, the same trade or dividend in each.
+    Both must be counted. Do not delete either row, and do not run cgt-calc on the two files
+    separately: either would leave transactions out of the calculation. Copy the two original files
+    to somewhere outside the directory, then edit the two that stay in it. Their names must still
+    start with `All Trades Report` or `Taxable Income Report`, or cgt-calc does not read them.
+    Insert one of the two rows as a new line directly below the other, so that both are in the same
+    file, and remove it from the file it came from. Do not paste it over the row that is already
+    there. cgt-calc counts every row of a list, including rows that match. A row placed anywhere
+    else can fall outside the list it belongs to and be left out.
 
 ### The portfolio or dividend totals look wrong
 

@@ -350,12 +350,16 @@ def test_load_from_dir_refuses_reports_whose_periods_overlap(tmp_path: Path) -> 
     """A sale that two reports both hold stops the load, and both are named.
 
     The later report was downloaded second, so the browser added " (1)" to
-    its name and it is read first. The earlier report then holds a receipt
+    its name and it is read first. A third report, read between the two,
+    holds interest that neither has. The earlier report then holds a receipt
     and a purchase that are in no other file, and the sale of 25 February,
     which is on line 8 of the later report and line 7 of this one.
     """
     later = tmp_path / "summary (1).csv"
     later.write_text(HL_CSV_HEADER + HL_FEE_ROW + HL_SELL_ROW, encoding="windows-1252")
+    (tmp_path / "summary (2).csv").write_text(
+        HL_CSV_HEADER + HL_INTEREST_ROW, encoding="windows-1252"
+    )
     earlier = tmp_path / "summary.csv"
     earlier.write_text(
         HL_CSV_HEADER + HL_SELL_ROW + HL_BUY_ROW + HL_RECEIPT_ROW,
@@ -382,24 +386,30 @@ def test_load_from_dir_refuses_reports_whose_periods_overlap(tmp_path: Path) -> 
 def test_load_from_dir_reads_reports_with_no_transaction_in_common(
     tmp_path: Path,
 ) -> None:
-    """Rows that differ only in their value are two transactions, and both load."""
+    """Rows that differ in one thing only are two transactions, and both load.
+
+    The two receipts differ only in their description, and the two payments
+    of interest only in their value.
+    """
     (tmp_path / "first.csv").write_text(
         HL_CSV_HEADER + HL_INTEREST_ROW + HL_RECEIPT_ROW, encoding="windows-1252"
     )
     (tmp_path / "second.csv").write_text(
         HL_CSV_HEADER
         + HL_INTEREST_ROW.replace("3.87", "3.88")
-        + HL_RECEIPT_ROW.replace("50,000.00", "50,000.01"),
+        + HL_RECEIPT_ROW.replace("Pay By Bank", "Pay By Cheque"),
         encoding="windows-1252",
     )
 
     transactions = HargreavesLansdownParser.load_from_dir(tmp_path)
 
-    assert [transaction.amount for transaction in transactions] == [
-        Decimal("50000.00"),
-        Decimal("50000.01"),
-        Decimal("3.87"),
-        Decimal("3.88"),
+    assert [
+        (transaction.description, transaction.amount) for transaction in transactions
+    ] == [
+        ("HL Fund & Share Account Receipt Pay By Bank", Decimal("50000.00")),
+        ("HL Fund & Share Account Receipt Pay By Cheque", Decimal("50000.00")),
+        ("Interest From 10/02/2026 TO 09/03/2026", Decimal("3.87")),
+        ("Interest From 10/02/2026 TO 09/03/2026", Decimal("3.88")),
     ]
 
 

@@ -551,9 +551,10 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                         "periods they cover overlap, leave it in one file only: "
                         "take out of the directory a file whose transactions are "
                         "all in the other one, or export the periods again so "
-                        "that they do not overlap. If they are two separate "
-                        "transactions that only look the same, keep both: move "
-                        "one of the two rows to directly below the other, in the "
-                        "same file. Rows that match within one file are each "
-                        "counted.",
+                        "that they do not overlap.\n"
+                        "If they are two separate transactions that only look the "
+                        "same, keep both: insert one of the two rows as a new "
+                        "line directly below the other, without pasting over the "
+                        "row already there, and remove it from the file it came "
+                        "from. Rows that match within one file are each counted.",
                     )
