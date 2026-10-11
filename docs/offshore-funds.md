@@ -44,10 +44,14 @@ check the ISIN-to-ticker mapping below. Do not assume that missing or unmatched 
 
 Bundled ERI data is indexed by ISIN. If your broker does not supply one, cgt-calc uses its
 ISIN-to-ticker mapping to match the holding. To check or override the mapping, see
-[ISIN to ticker translation](extra-data-and-options.md#isin-to-ticker-translation). Its bundled
-tickers are London ones, so a fund held at Charles Schwab, which shows it under a US symbol, is
-matched only after you add that symbol; see
-[Funds based outside the US](brokers/schwab.md#funds-based-outside-the-us).
+[ISIN to ticker translation](extra-data-and-options.md#isin-to-ticker-translation).
+
+Charles Schwab rows carry no ISIN, and Schwab shows a fund based outside the US under a US
+over-the-counter symbol, not under the London tickers the bundled mapping gives it. So a Schwab
+holding is matched only when the mapping gives the fund's ISIN the symbol Schwab shows. The bundled
+mapping does that for very few funds: a US fund it lists under its US symbol, such as `CHIQ`, and a
+fund based outside the US whose over-the-counter symbol it lists. For any other fund, add the row;
+see [Funds based outside the US](brokers/schwab.md#funds-based-outside-the-us).
 
 ## Unsupported functionality
 

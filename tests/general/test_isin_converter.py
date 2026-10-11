@@ -71,6 +71,9 @@ INVESCO_ISIN = Isin("IE00BKW9SX35")
 SPDR_ISIN = Isin("US78464A8541")
 # A US fund the bundled table lists under its own US symbol, CHIQ.
 GLOBAL_X_ISIN = Isin("US37950E4089")
+# An Irish fund the bundled table lists under its US over-the-counter symbol,
+# ISIBF, and under no London ticker.
+IBONDS_ISIN = Isin("IE000JAYMBQ8")
 
 # An ISIN that is in the bundled translation data.
 VANGUARD_ISIN = Isin("IE00B3XXRP09")
@@ -486,17 +489,18 @@ def test_a_us_symbol_keeps_the_fund_the_users_own_file_gives_it(
 ) -> None:
     """A row in the user's file is theirs to stand by, whatever the market.
 
-    It is how a fund held under a US over-the-counter symbol is identified.
+    ZZZZ has the shape of a London ticker, not of an over-the-counter
+    symbol, so only the row being the user's own keeps it for a US row.
     """
     translation_file = tmp_path / "isin_translation.csv"
     translation_file.write_text(
-        f"ISIN,symbol\n{INVESCO_ISIN},SPLW,ZZZZF\n", encoding="utf-8"
+        f"ISIN,symbol\n{INVESCO_ISIN},SPLW,ZZZZ\n", encoding="utf-8"
     )
     converter = IsinConverter(translation_file)
 
-    converter.set_aside_london_tickers([_us("ZZZZF")])
+    converter.set_aside_london_tickers([_us("ZZZZ")])
 
-    assert converter.get_symbol_to_isin_map()["ZZZZF"] == INVESCO_ISIN
+    assert converter.get_symbol_to_isin_map()["ZZZZ"] == INVESCO_ISIN
 
 
 def test_a_us_symbol_keeps_a_bundled_fund_with_a_us_isin() -> None:
@@ -506,6 +510,19 @@ def test_a_us_symbol_keeps_a_bundled_fund_with_a_us_isin() -> None:
     converter.set_aside_london_tickers([_us("CHIQ")])
 
     assert converter.get_symbol_to_isin_map()["CHIQ"] == GLOBAL_X_ISIN
+
+
+def test_a_us_symbol_keeps_a_fund_bundled_under_its_over_the_counter_symbol() -> None:
+    """Five letters ending in F is the US symbol of a fund from outside the US.
+
+    A Schwab row under it is that fund, as the same holding was before any
+    London ticker was set aside.
+    """
+    converter = IsinConverter()
+
+    converter.set_aside_london_tickers([_us("ISIBF")])
+
+    assert converter.get_symbol_to_isin_map()["ISIBF"] == IBONDS_ISIN
 
 
 def test_a_us_symbol_and_a_row_with_its_own_us_isin_are_one_security() -> None:

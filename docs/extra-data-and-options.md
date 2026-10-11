@@ -157,7 +157,9 @@ The translation file itself is complete, and you can delete the leftover.
 The bundled list gives a fund from outside the US its London tickers. A transaction that cgt-calc
 knows to be from a US market, which is every
 [Charles Schwab](brokers/schwab.md#funds-based-outside-the-us) transaction, is not matched to them,
-and nor is any other transaction in the run under the same ticker. A row in your own file is matched
+and nor is any other transaction in the run under the same ticker. Two kinds of bundled ticker are
+still matched, because they are the fund's own US symbol: the ticker of a fund with a US ISIN, and a
+US over-the-counter symbol of five letters ending in `F`. A row in your own file is matched
 whichever broker the transaction came from.
 
 #### `already linked to ISIN`

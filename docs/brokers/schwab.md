@@ -226,10 +226,12 @@ the London fund tickers in its bundled
 Schwab export is Opendoor, not the Irish fund that London lists as `OPEN`.
 
 A fund based outside the US, such as a UCITS ETF, appears under an over-the-counter symbol, usually
-five letters ending in `F`: `IHPCF`, for example. cgt-calc cannot tell which fund that is. If it is
-a [reporting offshore fund](../offshore-funds.md), add a row with the fund's ISIN and that symbol to
-your [mapping file](../extra-data-and-options.md#isin-to-ticker-translation). Without the row, the
-fund's excess reported income is left out of the report and no warning is printed.
+five letters ending in `F`: `IHPCF`, for example. cgt-calc knows which fund that is only when the
+mapping lists the symbol, and the bundled list does so for very few funds. If yours is a
+[reporting offshore fund](../offshore-funds.md) and the bundled list does not have its symbol, add a
+row with the fund's ISIN and that symbol to your
+[mapping file](../extra-data-and-options.md#isin-to-ticker-translation). Without the row, the fund's
+excess reported income is left out of the report and no warning is printed.
 
 ## Written equity options
 
@@ -495,8 +497,8 @@ use the one with the correct quantity.
     both.
 - Exports from more than one Schwab account cannot be combined. Nothing in the CSV identifies the
     account.
-- Excess reported income from a reporting offshore fund is left out, without a warning, until you
-    map the fund's ISIN to its Schwab symbol; see
+- Excess reported income from a reporting offshore fund is left out, without a warning, when the
+    mapping does not give the fund's ISIN its Schwab symbol; see
     [Funds based outside the US](#funds-based-outside-the-us).
 
 ## Troubleshooting

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from importlib import resources
 import logging
 from pathlib import Path
+import re
 from typing import TYPE_CHECKING, Final
 
 from pyrate_limiter import limiter_factory
@@ -43,6 +44,8 @@ if TYPE_CHECKING:
 
 ISIN_TRANSLATION_HEADER: Final = ["ISIN", "symbol"]
 ISIN_TRANSLATION_COLUMNS_NUM: Final = len(ISIN_TRANSLATION_HEADER)
+# The symbol US over-the-counter markets give a security from outside the US.
+_US_OVER_THE_COUNTER_SYMBOL: Final = re.compile(r"[A-Z]{4}F")
 LOGGER = logging.getLogger(__name__)
 
 
@@ -94,9 +97,10 @@ class IsinConverter:
         # lookups; a ticker learned from a transaction stored there is what
         # makes one run's holding conflict with the next run's.
         self.write_data: dict[Isin, set[str]] = {}
-        # The ISINs whose row is the bundled table's own, which lists London
-        # tickers. A row in the user's file replaces the bundled one and is
-        # theirs to stand by, whatever market its tickers are from.
+        # The ISINs whose row is the bundled table's own, which gives a fund
+        # from outside the US its London tickers. A row in the user's file
+        # replaces the bundled one and is theirs to stand by, whatever market
+        # its tickers are from.
         self.bundled_isins: set[Isin] = set()
         # The tickers this run's transactions carry, and the reverse index.
         # Two transactions disagreeing about a security is the one case where
@@ -175,9 +179,12 @@ class IsinConverter:
         tickers, and a row known to be US cannot be one of them: Schwab's
         `OPEN` is Opendoor, not the iShares fund London lists under that
         code. Left in, the entry would give the US holding that fund's excess
-        reported income and its source country. A fund with a US ISIN is
-        listed in the US, so its bundled ticker may be the US symbol itself
-        and stays.
+        reported income and its source country.
+
+        Two kinds of bundled ticker are the fund's own US symbol, and stay.
+        A fund with a US ISIN is listed in the US. And a fund from outside
+        the US is traded there over the counter under five letters ending in
+        F, which is the symbol a US row for that very fund carries.
 
         Decided for the run rather than row by row, because every row under
         one ticker is one holding. The fund keeps its other tickers.
@@ -195,9 +202,14 @@ class IsinConverter:
         for isin in self.bundled_isins:
             if isin.startswith("US"):
                 continue
-            for ticker in self.data[isin] & us_symbols:
+            london = {
+                ticker
+                for ticker in self.data[isin] & us_symbols
+                if not _US_OVER_THE_COUNTER_SYMBOL.fullmatch(ticker)
+            }
+            for ticker in london:
                 set_aside[ticker] = isin
-            self.data[isin] -= us_symbols
+            self.data[isin] -= london
         for transaction in transactions:
             if (transaction.symbol, transaction.isin) in set_aside.items():
                 raise InvalidTransactionError(
