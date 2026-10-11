@@ -947,8 +947,13 @@ def test_load_from_dir_refuses_an_older_trades_report_left_beside_a_newer_one(
     of the three purchases of 2 February were corrected, and a purchase dated
     the day before was entered. Those read differently, or are in one file
     only. The purchase of 10 was left alone: it is on line 3 of the older
-    export and line 4 of the newer one.
+    export and line 4 of the newer one. A third report, with one purchase
+    that neither export has, is read before both.
     """
+    _write_csv(
+        tmp_path / "All Trades Report - B.csv",
+        [TRADE_HEADER, _foo_purchase("06/02/2023", "7")],
+    )
     older = tmp_path / "All Trades Report 2023.csv"
     _write_csv(
         older,

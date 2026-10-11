@@ -553,8 +553,13 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                         "all in the other one, or export the periods again so "
                         "that they do not overlap.\n"
                         "If they are two separate transactions that only look the "
-                        "same, keep both: insert one of the two rows as a new "
-                        "line directly below the other, without pasting over the "
-                        "row already there, and remove it from the file it came "
-                        "from. Rows that match within one file are each counted.",
+                        "same, keep both in one file. Check first that the two "
+                        "files have the same column headings in the same order: "
+                        "if they do not, export both reports again in one "
+                        "layout, or put each value under the matching heading of "
+                        "the file it moves to. Then insert one of the two rows "
+                        "as a new line directly below the other, without pasting "
+                        "over the row already there, and remove it from the file "
+                        "it came from. Rows that match within one file are each "
+                        "counted.",
                     )

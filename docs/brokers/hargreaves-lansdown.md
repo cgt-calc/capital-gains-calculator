@@ -153,13 +153,21 @@ Open both files and compare their rows:
     periods do not overlap, then use those instead.
 - **The two rows are separate transactions that only look the same.** This can happen when the
     directory holds reports for two accounts: for example, the same fee or payment on the same day
-    in each. Both must be counted. Do not delete either row, and do not run cgt-calc on the two
-    files separately: either would leave transactions out of the calculation. Copy the two original
-    files to somewhere outside the directory, then edit the two that stay in it. Insert one of the
-    two rows as a new line directly below the other, so that both are in the same file, and remove
-    it from the file it came from. Do not paste it over the row that is already there. cgt-calc
-    counts every row of a file, including rows that match. A buy or sell row still finds its
-    contract note, because the PDF is looked up by its reference in the directory.
+    in each. Both must be counted, so put both rows in one file as described below.
+
+Do not delete either of two separate transactions, and do not run cgt-calc on the two files
+separately: either would leave transactions out of the calculation. Instead:
+
+1. Copy both original files to somewhere outside the directory, and edit the two that stay in it.
+2. Compare the column headings of the two files. If they are the same and in the same order, insert
+    one of the two rows as a new line directly below the other. If they differ, generate both
+    reports again in the same layout first, or put each value of the row under the matching heading
+    of the file it moves to. Never paste the row over one that is already there.
+3. Remove that row from the file it came from.
+4. Run cgt-calc again. If the two files hold another matching pair, it reports that one next.
+
+cgt-calc counts every row of a file, including rows that match. A buy or sell row still finds its
+contract note, because the PDF is looked up by its reference in the directory.
 
 ### `Reached a negative balance` or `Tried to sell`
 
