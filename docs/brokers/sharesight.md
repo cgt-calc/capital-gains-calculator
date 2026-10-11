@@ -155,11 +155,12 @@ Open both files and compare them:
 
 - **One file is a copy of the other**, such as a report downloaded twice. Move one of them out of
     the directory.
-- **Both are All Trades reports for the same portfolio.** Each export starts at the portfolio's
-    first trade, so the newer one already holds the trades of the older one as Sharesight records
-    them now. Move the older file out of the directory.
-- **Both are Taxable Income reports whose date ranges overlap.** Keep both files until you have
-    exported reports whose date ranges do not overlap, then use those instead.
+- **Both are All Trades reports for the same portfolio, exported Since inception.** Each starts at
+    the portfolio's first trade, so the newer one already holds the trades of the older one as
+    Sharesight records them now. Move the older file out of the directory.
+- **The two reports cover date ranges that partly overlap**, as two Taxable Income reports can. Keep
+    both files until you have exported reports whose date ranges do not overlap, then use those
+    instead.
 - **The two rows are separate transactions that only look the same.** Both must be counted. Do not
     delete either row, and do not run cgt-calc on the two files separately: either would leave
     transactions out of the calculation. Work on copies of the two files and move one of the two

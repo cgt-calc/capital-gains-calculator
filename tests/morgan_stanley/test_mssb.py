@@ -73,6 +73,43 @@ def test_read_mssb_release_success(tmp_path: Path) -> None:
     assert transaction.amount == Decimal(30)
 
 
+def test_reports_whose_names_differ_only_in_case_are_both_read(tmp_path: Path) -> None:
+    """Two releases reports named alike but for their case load as they always have.
+
+    Morgan Stanley is left out of the check for a transaction that two files
+    hold, so its directories load as they did before that check. Where the
+    file system tells the two names apart, the loader is given two releases
+    reports and reads the release of 3 shares in each.
+    """
+    rows = [
+        COLUMNS_RELEASE,
+        [
+            "25-Mar-2023",
+            "ORDER-1",
+            "GSU Class C",
+            "Release",
+            "Complete",
+            "$10.00",
+            "3.000",
+            "$0.00",
+            "3",
+            "Fractional Shares",
+        ],
+    ]
+    _write_csv(tmp_path / RELEASES_REPORT_FILENAME, rows)
+    lower_case_name = tmp_path / RELEASES_REPORT_FILENAME.lower()
+    if lower_case_name.exists():
+        pytest.skip("this file system does not tell the two names apart")
+    _write_csv(lower_case_name, rows)
+
+    transactions = MSSBParser.load_from_dir(tmp_path)
+
+    assert [transaction.quantity for transaction in transactions] == [
+        Decimal(3),
+        Decimal(3),
+    ]
+
+
 def test_read_mssb_withdrawal_skips_notice(tmp_path: Path) -> None:
     """Ensure withdrawal parser ignores trailing notice rows."""
 

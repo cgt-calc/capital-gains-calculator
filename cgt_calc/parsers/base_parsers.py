@@ -451,8 +451,7 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
 
     glob_dir: str
     # Whether a transaction that two files of the directory both hold stops
-    # the load. Cleared only where the parser merges overlapping files
-    # itself.
+    # the load. A parser that clears it says why.
     refuses_transaction_in_two_files: ClassVar[bool] = True
 
     @override

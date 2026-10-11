@@ -104,6 +104,11 @@ class MSSBParser(
     format_name = "CSV"
     glob_dir = "*.csv"
     deprecated_flags: ClassVar[list[str]] = ["--mssb"]
+    # Left as it was before that check existed. The two reports are read by
+    # fixed name and never hold the same transaction. Only two names that
+    # differ in nothing but their case, on a file system that tells them
+    # apart, are read as two copies of one report, and counted twice.
+    refuses_transaction_in_two_files: ClassVar[bool] = False
 
     @staticmethod
     def _is_withdrawals_report(file_path: Path) -> bool:
