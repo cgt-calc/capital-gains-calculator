@@ -215,6 +215,29 @@ def test_read_revolut_transactions_refuses_a_row_that_runs_over_several_lines(
         RevolutParser().load_from_file(path)
 
 
+def test_read_revolut_transactions_names_the_row_of_a_cell_too_long_to_read(
+    tmp_path: Path,
+) -> None:
+    """A double quote left open high up a long export is reported at its line.
+
+    The file has no header, so the line the reader supplies for one must not
+    be counted: the quote is on the second line of the file. The 2,000 rows
+    below it come to more than the 131,072 characters a cell can hold.
+    """
+    row = ",".join(_default_row())
+    path = tmp_path / "revolut.csv"
+    path.write_text(
+        "\n".join([row, row.replace(",1.3646", ',"1.3646'), *[row] * 2000]) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ParsingError,
+        match=", row 2: A cell that starts on this row is longer than a CSV cell",
+    ):
+        RevolutParser().load_from_file(path)
+
+
 def test_read_revolut_transactions_missing_header(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

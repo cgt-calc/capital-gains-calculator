@@ -432,6 +432,58 @@ def test_read_raw_transactions_refuses_a_row_that_runs_over_several_lines(
     )
 
 
+def test_read_raw_transactions_names_the_row_of_a_cell_too_long_to_read(
+    tmp_path: Path,
+) -> None:
+    """A double quote left open high up a long file is reported, with its row.
+
+    The reader gives up once the cell the quote opened passes 131,072
+    characters, before it hands the row over. That ended in a traceback naming
+    neither the file nor the row. The 4,000 rows below the quote come to
+    144,000 characters.
+    """
+    row = "2024-01-03,BUY,XYZ,10,2.50,0.10,USD\n"
+    raw_file = tmp_path / "raw_long_open_quote.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2024-01-02,BUY,XYZ,10,2.50,0.10,USD\n"
+        '2024-01-03,BUY,"XYZ,10,2.50,0.10,USD\n' + row * 4000,
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ParsingError) as exc:
+        RawParser().load_from_file(raw_file)
+
+    assert exc.value.row_index == 3
+    assert exc.value.detail == (
+        "A cell that starts on this row is longer than a CSV cell can be "
+        '(131,072 characters). A double quote (") is probably opened on it and '
+        "not closed: close or remove it."
+    )
+
+
+def test_read_raw_transactions_names_the_row_of_another_reader_error() -> None:
+    """Whatever else the CSV reader refuses is reported with its row and its words.
+
+    A carriage return alone inside a line is one such case. It reaches the
+    reader when a file whose lines end in carriage returns is read from a
+    stream that leaves them as they are, as piped input can be.
+    """
+    stream = io.StringIO(
+        "date,action,symbol,quantity,price,fees,currency\r"
+        "2024-01-02,BUY,XYZ,10,2.50,0.10,USD\r"
+    )
+
+    with pytest.raises(
+        ParsingError,
+        match=(
+            ", row 1: The CSV reader could not read this row: "
+            "new-line character seen in unquoted field"
+        ),
+    ):
+        RawParser().load_from_stream(stream, STDIN_PATH)
+
+
 def test_read_raw_transactions_reports_a_half_filled_row(tmp_path: Path) -> None:
     """A row with any cell filled is not blank: it is reported, at its own line."""
     raw_file = tmp_path / "raw_half_filled.csv"
