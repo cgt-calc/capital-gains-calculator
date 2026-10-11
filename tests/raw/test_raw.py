@@ -466,18 +466,21 @@ def test_read_raw_transactions_names_the_row_of_another_reader_error() -> None:
     """Whatever else the CSV reader refuses is reported with its row and its words.
 
     A carriage return alone inside a line is one such case. It reaches the
-    reader when a file whose lines end in carriage returns is read from a
-    stream that leaves them as they are, as piped input can be.
+    reader when a line that ends in one is read from a stream that leaves it
+    as it is, as piped input can be. Here the third line ends in one, so the
+    fourth is read as part of it.
     """
     stream = io.StringIO(
-        "date,action,symbol,quantity,price,fees,currency\r"
-        "2024-01-02,BUY,XYZ,10,2.50,0.10,USD\r"
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2024-01-02,BUY,XYZ,10,2.50,0.10,USD\n"
+        "2024-01-03,BUY,XYZ,10,2.50,0.10,USD\r"
+        "2024-01-04,BUY,XYZ,10,2.50,0.10,USD\n"
     )
 
     with pytest.raises(
         ParsingError,
         match=(
-            ", row 1: The CSV reader could not read this row: "
+            ", row 3: The CSV reader could not read this row: "
             "new-line character seen in unquoted field"
         ),
     ):

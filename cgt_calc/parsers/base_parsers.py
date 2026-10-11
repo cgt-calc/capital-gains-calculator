@@ -61,7 +61,8 @@ def read_csv_rows(
     never hold one, that is a double quote left open: it takes in every row
     down to the next double quote, or to the end of the file, and those rows
     would be left out without a word. ``first_row`` is the line of the file
-    that the first of ``lines`` is on.
+    that the first of ``lines`` is on. An error the CSV reader itself raises
+    is reported in the same way, with the file and the row it was reading.
     """
     reader = csv.reader(lines, delimiter=delimiter, skipinitialspace=skipinitialspace)
     rows: list[list[str]] = []
@@ -82,10 +83,11 @@ def read_csv_rows(
                 )
             rows.append(row)
     except csv.Error as err:
-        # The reader stops without giving the row it was on, which is the one
-        # after the rows read so far. A cell past its limit is nearly always
-        # a double quote left open far above the end of the file; the words
-        # it uses for that are the same in every Python this runs on.
+        # The reader raises without giving the row it was reading, which is
+        # the one after the rows read so far. A cell past the reader's limit
+        # is nearly always a double quote left open far above the end of the
+        # file. The reader's text for that error, matched here, is the same
+        # in Python 3.12 to 3.14; a changed text would get the general message.
         if "field larger than field limit" in str(err):
             detail = (
                 "A cell that starts on this row is longer than a CSV cell can be "
