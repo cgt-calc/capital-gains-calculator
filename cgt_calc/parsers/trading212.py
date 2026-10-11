@@ -1203,6 +1203,9 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
     format_name = "CSV"
     glob_dir = "*.csv"
     deprecated_flags: ClassVar[list[str]] = ["--trading212"]
+    # Exports are requested by date range and routinely overlap, so
+    # `_deduplicate` merges what two of them both report.
+    refuses_transaction_in_two_files: ClassVar[bool] = False
 
     @classmethod
     @override

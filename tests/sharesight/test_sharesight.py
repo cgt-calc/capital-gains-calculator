@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 from decimal import Decimal
+import shutil
 from typing import TYPE_CHECKING
 
 import pytest
@@ -885,3 +886,166 @@ def test_parse_trade_report_invalid_stock_activity(tmp_path: Path) -> None:
 
     with pytest.raises(InvalidTransactionError, match="must have Type=Buy"):
         SharesightParser().load_from_dir(tmp_path)
+
+
+def _foo_purchase(day: str, quantity: str, comment: str = "") -> list[str]:
+    """Return a purchase of FOO at 5.50 USD a share with 1 USD of brokerage."""
+    return [
+        "NASDAQ",
+        "FOO",
+        "Foo Inc",
+        "Buy",
+        day,
+        quantity,
+        "5.5",
+        "1",
+        "USD",
+        "1",
+        "",
+        comment,
+    ]
+
+
+def test_load_from_dir_refuses_a_second_copy_of_the_trades_report(
+    tmp_path: Path,
+) -> None:
+    """The sample reports with the trades report downloaded twice stop the load.
+
+    The browser added " (1)" to the second download, so it is read first. The
+    report is then refused at its oldest trade, the purchase of 1 August 2019
+    on line 4 of both.
+    """
+    inputs = Path("tests/sharesight/data/inputs")
+    report = tmp_path / "All Trades Report.csv"
+    copy = tmp_path / "All Trades Report (1).csv"
+    shutil.copy(inputs / "All Trades Report - Test.csv", report)
+    shutil.copy(inputs / "All Trades Report - Test.csv", copy)
+    shutil.copy(
+        inputs / "Taxable Income Report - Test.csv",
+        tmp_path / "Taxable Income Report.csv",
+    )
+
+    with pytest.raises(
+        ParsingError, match="Two files in the directory hold this transaction"
+    ) as excinfo:
+        SharesightParser().load_from_dir(tmp_path)
+
+    message = str(excinfo.value)
+    assert message.startswith(f"While parsing {report}: ")
+    assert message.count("2019-08-01 Buy 1 FX:ETH") == 2
+    assert f"Sharesight, read from row 4 of {copy}\n" in message
+    assert f"Sharesight, read from row 4 of {report}\n" in message
+
+
+def test_load_from_dir_refuses_an_older_trades_report_left_beside_a_newer_one(
+    tmp_path: Path,
+) -> None:
+    """One trade that two exports state alike stops the load, and both are named.
+
+    All Trades is exported since inception, so a newer export repeats the
+    trades of an older one. Between these two exports the quantities of two
+    of the three purchases of 2 February were corrected, and a purchase dated
+    the day before was entered. Those read differently, or are in one file
+    only. The purchase of 10 was left alone: it is on line 3 of the older
+    export and line 4 of the newer one. A third report, with one purchase
+    that neither export has, is read before both.
+    """
+    _write_csv(
+        tmp_path / "All Trades Report - B.csv",
+        [TRADE_HEADER, _foo_purchase("06/02/2023", "7")],
+    )
+    older = tmp_path / "All Trades Report 2023.csv"
+    _write_csv(
+        older,
+        [
+            TRADE_HEADER,
+            _foo_purchase("02/02/2023", "3"),
+            _foo_purchase("02/02/2023", "10"),
+            _foo_purchase("02/02/2023", "4"),
+        ],
+    )
+    newer = tmp_path / "All Trades Report 2024.csv"
+    _write_csv(
+        newer,
+        [
+            TRADE_HEADER,
+            _foo_purchase("01/02/2023", "5"),
+            _foo_purchase("02/02/2023", "3.5"),
+            _foo_purchase("02/02/2023", "10"),
+            _foo_purchase("02/02/2023", "4.5"),
+        ],
+    )
+
+    with pytest.raises(
+        ParsingError, match="Two files in the directory hold this transaction"
+    ) as excinfo:
+        SharesightParser().load_from_dir(tmp_path)
+
+    message = str(excinfo.value)
+    assert message.startswith(f"While parsing {newer}: ")
+    assert message.count("2023-02-02 Buy 10 NASDAQ:FOO") == 2
+    assert f"Sharesight, read from row 3 of {older}\n" in message
+    assert f"Sharesight, read from row 4 of {newer}\n" in message
+
+
+def test_load_from_dir_reads_reports_with_no_trade_in_common(tmp_path: Path) -> None:
+    """Trades that differ in one thing only are two trades, and both load.
+
+    The two purchases of 2 February differ only in their quantity, and the
+    two of 3 February only in their comment.
+    """
+    _write_csv(
+        tmp_path / "All Trades Report - A.csv",
+        [
+            TRADE_HEADER,
+            _foo_purchase("02/02/2023", "10"),
+            _foo_purchase("03/02/2023", "20"),
+        ],
+    )
+    _write_csv(
+        tmp_path / "All Trades Report - B.csv",
+        [
+            TRADE_HEADER,
+            _foo_purchase("02/02/2023", "11"),
+            _foo_purchase("03/02/2023", "20", comment="second account"),
+        ],
+    )
+
+    transactions = SharesightParser().load_from_dir(tmp_path)
+
+    assert [
+        (transaction.quantity, transaction.description) for transaction in transactions
+    ] == [
+        (Decimal(10), ""),
+        (Decimal(11), ""),
+        (Decimal(20), ""),
+        (Decimal(20), "second account"),
+    ]
+
+
+def test_load_from_dir_counts_each_of_two_matching_rows_in_one_file(
+    tmp_path: Path,
+) -> None:
+    """A dividend listed twice in one report is two payments, each with its tax."""
+    dividend = ["XYZ", "X Corp", "03/04/2023", "1.2", "USD", "85", "15", "100", ""]
+    _write_csv(
+        tmp_path / "Taxable Income Report.csv",
+        [["Foreign Income"], FOREIGN_DIVIDEND_HEADER, dividend, dividend, ["Total"]],
+    )
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [TRADE_HEADER, _foo_purchase("02/02/2023", "10")],
+    )
+
+    transactions = SharesightParser().load_from_dir(tmp_path)
+
+    # The purchase costs 10 shares at 5.50 and 1 of brokerage, 56 in all.
+    assert [
+        (transaction.action, transaction.amount) for transaction in transactions
+    ] == [
+        (ActionType.BUY, Decimal(-56)),
+        (ActionType.DIVIDEND, Decimal(100)),
+        (ActionType.DIVIDEND_TAX, Decimal(-15)),
+        (ActionType.DIVIDEND, Decimal(100)),
+        (ActionType.DIVIDEND_TAX, Decimal(-15)),
+    ]

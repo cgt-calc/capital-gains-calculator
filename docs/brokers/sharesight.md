@@ -50,6 +50,12 @@ sharesight/
 Use the filenames shown above when saving the CSV files. cgt-calc does not read the original `.xlsx`
 files or search subdirectories.
 
+cgt-calc reads every CSV in the directory whose name starts with `All Trades Report` or
+`Taxable Income Report`. An All Trades report exported **Since inception** repeats the trades of
+every earlier export, so move an older All Trades file out of the directory when you add a new one.
+cgt-calc stops when two files hold the same transaction; see
+[`Two files in the directory hold this transaction`](#two-files-in-the-directory-hold-this-transaction).
+
 Do not rename or delete columns when converting the worksheets. In addition to the legacy headings,
 cgt-calc accepts aliases including `Market Code`, `Qty`, `Instrument Currency` and `Exch. Rate`. You
 can compare the legacy structure with the
@@ -104,6 +110,11 @@ these markers.
 - If a newer All Trades report gives a non-zero brokerage charge in a currency different from the
     trade currency (GBP for foreign-exchange rows), the import stops. That fee cannot yet be
     represented exactly from this report without risking an incorrect allowable cost.
+- Overlapping reports are not merged. cgt-calc stops when two files hold a transaction that reads
+    the same in both. It cannot detect a transaction that the two files state differently, such as a
+    trade whose quantity or comment you edited in Sharesight between two exports, and counts that
+    one twice. Do not keep an older **Since inception** All Trades export of a portfolio beside a
+    newer one, or a report whose dates another file already covers.
 
 ## Troubleshooting
 
@@ -134,6 +145,41 @@ information.
 
 Compare the named action with [Known limitations](#known-limitations). Do not remove the row unless
 you replace it with an equivalent supported transaction whose UK tax treatment you have verified.
+
+### `Two files in the directory hold this transaction`
+
+cgt-calc found the same transaction in two CSV files and stopped, because reading both would count
+it twice. The error shows the transaction once for each file, with the file and the row it was read
+from. It reports the first one it finds; the two files can share others.
+
+Open both files and compare them:
+
+- **One file is a copy of the other**, such as a report downloaded twice. Move one of them out of
+    the directory.
+- **Both are All Trades reports for the same portfolio, exported Since inception.** Each starts at
+    the portfolio's first trade, so the newer one already holds the trades of the older one as
+    Sharesight records them now. Move the older file out of the directory.
+- **The two reports cover date ranges that overlap**, as two Taxable Income reports can. Keep both
+    files until you have exported reports whose date ranges do not overlap, then use those instead.
+- **The two rows are separate transactions that only look the same.** This can happen when the
+    directory holds reports for two portfolios: for example, the same trade or dividend in each.
+    Both must be counted, so put both rows in one file as described below.
+
+Do not delete either of two separate transactions, and do not run cgt-calc on the two files
+separately: either would leave transactions out of the calculation. Instead:
+
+1. Copy both original files to somewhere outside the directory, and edit the two that stay in it.
+    Their names must still start with `All Trades Report` or `Taxable Income Report`, or cgt-calc
+    does not read them.
+2. Compare the column headings above each of the two rows. If they are the same and in the same
+    order, insert one of the two rows as a new line directly below the other. If they differ, export
+    both reports again in the same layout first, or put each value of the row under the matching
+    heading of the file it moves to. Never paste the row over one that is already there.
+3. Remove that row from the file it came from.
+4. Run cgt-calc again. If the two files hold another matching pair, it reports that one next.
+
+cgt-calc counts every row of a list, including rows that match. A row placed anywhere other than
+directly below its match can fall outside the list it belongs to and be left out.
 
 ### The portfolio or dividend totals look wrong
 

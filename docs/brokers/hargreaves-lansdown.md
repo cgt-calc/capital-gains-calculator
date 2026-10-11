@@ -13,7 +13,9 @@ SIPP: the parser does not identify the account type or exclude tax-advantaged ac
 Export enough history to establish the cost of every investment owned or sold during the tax year.
 The safest option is to start with the account's first transaction and end today, or at least 30
 days after the end of the tax year you are calculating. If you generate several reports, use
-non-overlapping periods so that the same transaction is not imported twice.
+non-overlapping periods so that no transaction is in two of them. cgt-calc stops when it finds one
+that is; see
+[`Two files in the directory hold this transaction`](#two-files-in-the-directory-hold-this-transaction).
 
 1. Sign in to the HL website and open the Tax Centre, currently under **Accounts**.
 2. Generate the required Transaction Summary and download the CSV offered with the completed report.
@@ -23,7 +25,8 @@ non-overlapping periods so that the same transaction is not imported twice.
     and [fund trades](https://www.hl.co.uk/help/buying-selling-investments/funds/buy-funds) confirm
     where completed trades and their notes appear.
 4. Put all the Transaction Summary CSV files and their contract-note PDFs in one directory. Do not
-    put unrelated CSV files there; cgt-calc attempts to parse every CSV in the directory.
+    put unrelated CSV files or a second copy of a report there; cgt-calc attempts to parse every CSV
+    in the directory.
 
 Each trade has a reference such as `B302087054` or `S302087055`. Its PDF filename must begin with
 that complete reference followed by an underscore, for example:
@@ -96,8 +99,12 @@ but any other non-blank reference stops the import with `Unknown transaction typ
 - The parser does not inspect the investment type. It has been tested with an ordinary GBP-priced
     ETF; do not rely on this importer for gilts, bonds, derivatives or another instrument whose UK
     tax treatment differs.
-- Every CSV in the directory is parsed and overlapping reports are not deduplicated. Keep unrelated
-    CSVs elsewhere and make each reporting period occur exactly once.
+- Every CSV in the directory is parsed, and overlapping reports are not merged. cgt-calc stops when
+    two files hold a transaction that reads the same in both: the same trade date, kind of row,
+    description and value and, for a buy or sell, the same contract-note details. It does not
+    compare the reference or the settle date. It cannot detect a transaction that the two files
+    state differently, and counts that one twice. Keep unrelated CSVs elsewhere and make each
+    reporting period occur exactly once.
 - The action and trade date extracted from a PDF are not cross-checked with the CSV. The filename
     reference is the link, so verify that each reference points to the correct note.
 
@@ -129,6 +136,38 @@ version, the complete error and a sanitised copy of the row.
 Use the CSV downloaded from the Tax Centre rather than a statement, tax certificate or spreadsheet
 created by converting a PDF. Keep its headings unchanged. cgt-calc skips the identifying preamble
 above the `Trade date` row, but requires the exported transaction columns below it.
+
+### `Two files in the directory hold this transaction`
+
+cgt-calc found the same transaction in two CSV files and stopped, because reading both would count
+it twice. The error shows the transaction once for each file, with the file and the row it was read
+from. It reports the first one it finds; the two files can share others.
+
+Open both files and compare their rows:
+
+- **Every row of one file is also in the other.** This happens when a report was downloaded twice,
+    saved again from a spreadsheet program, or covers a period inside the other report's. Move that
+    file out of the directory.
+- **Each file has rows the other does not, and the rows they share are all from one stretch of
+    dates.** The two periods overlap there. Keep both files until you have generated reports whose
+    periods do not overlap, then use those instead.
+- **The two rows are separate transactions that only look the same.** This can happen when the
+    directory holds reports for two accounts: for example, the same fee or payment on the same day
+    in each. Both must be counted, so put both rows in one file as described below.
+
+Do not delete either of two separate transactions, and do not run cgt-calc on the two files
+separately: either would leave transactions out of the calculation. Instead:
+
+1. Copy both original files to somewhere outside the directory, and edit the two that stay in it.
+2. Compare the column headings of the two files. If they are the same and in the same order, insert
+    one of the two rows as a new line directly below the other. If they differ, generate both
+    reports again in the same layout first, or put each value of the row under the matching heading
+    of the file it moves to. Never paste the row over one that is already there.
+3. Remove that row from the file it came from.
+4. Run cgt-calc again. If the two files hold another matching pair, it reports that one next.
+
+cgt-calc counts every row of a file, including rows that match. A buy or sell row still finds its
+contract note, because the PDF is looked up by its reference in the directory.
 
 ### `Reached a negative balance` or `Tried to sell`
 

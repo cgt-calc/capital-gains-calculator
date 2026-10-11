@@ -95,3 +95,7 @@
 ^const\.py:.*SpellCheck.*`saem`
 # "a trade earlier that day" is a time, not a comparison with "than".
 ^trading212\.md:.*ThatThan
+# "file system" as two words is standard; CompoundNouns wants "filesystem".
+^mssb\.py:.*CompoundNouns.*filesystem
+# "insert ... as a new line" is a line added to the file, not a "newline".
+^(hargreaves-lansdown|sharesight)\.md:.*CompoundNouns.*newline

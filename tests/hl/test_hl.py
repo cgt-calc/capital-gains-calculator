@@ -296,6 +296,143 @@ def test_an_empty_line_does_not_shift_the_numbers_of_the_rows_below(
     assert excinfo.value.row_index == 9
 
 
+HL_FEE_ROW = (
+    '"04/04/2026","04/04/2026","MANAGE FEE","HL Fund & Share Account To A/C '
+    '01C0450818220","n/a","n/a","-4.05"\n'
+)
+HL_INTEREST_ROW = (
+    '"09/03/2026","09/03/2026","INTEREST","Interest From 10/02/2026 TO 09/03/2026",'
+    '"n/a","n/a","3.87"\n'
+)
+HL_SELL_ROW = (
+    '"25/02/2026","27/02/2026","S302087055","Vanguard FTSE Developed World UCITS '
+    'ETF 1000 @  4500.00","4,500.000","1,000","44,988.05"\n'
+)
+HL_BUY_ROW = (
+    '"24/01/2026","26/01/2026","B302087054","Vanguard FTSE Developed World UCITS '
+    'ETF 4563 @  3287.199","3,287.199","4,563","-150,006.84"\n'
+)
+HL_RECEIPT_ROW = (
+    '"24/01/2026","24/01/2026","FPC","HL Fund & Share Account Receipt Pay By Bank",'
+    '"n/a","n/a","50,000.00"\n'
+)
+
+
+def test_load_from_dir_refuses_a_copy_of_a_report_saved_as_utf8(
+    tmp_path: Path,
+) -> None:
+    """A second copy of a report stops the load, though its bytes differ.
+
+    The copy is the same text saved as UTF-8, as a spreadsheet program does.
+    The directory is read in name order, so the copy is read first and the
+    report is refused at its oldest row, the receipt on line 9.
+    """
+    report = tmp_path / "summary.csv"
+    report.write_text(
+        HL_CSV_HEADER + HL_FEE_ROW + HL_INTEREST_ROW + HL_RECEIPT_ROW,
+        encoding="windows-1252",
+    )
+    copy = tmp_path / "summary copy.csv"
+    copy.write_text(report.read_text(encoding="windows-1252"), encoding="utf-8")
+
+    with pytest.raises(
+        ParsingError, match="Two files in the directory hold this transaction"
+    ) as excinfo:
+        HargreavesLansdownParser.load_from_dir(tmp_path)
+
+    message = str(excinfo.value)
+    assert message.startswith(f"While parsing {report}: ")
+    assert f'Receipt Pay By Bank", read from row 9 of {copy}\n' in message
+    assert f'Receipt Pay By Bank", read from row 9 of {report}\n' in message
+
+
+def test_load_from_dir_refuses_reports_whose_periods_overlap(tmp_path: Path) -> None:
+    """A sale that two reports both hold stops the load, and both are named.
+
+    The later report was downloaded second, so the browser added " (1)" to
+    its name and it is read first. A third report, read between the two,
+    holds interest that neither has. The earlier report then holds a receipt
+    and a purchase that are in no other file, and the sale of 25 February,
+    which is on line 8 of the later report and line 7 of this one.
+    """
+    later = tmp_path / "summary (1).csv"
+    later.write_text(HL_CSV_HEADER + HL_FEE_ROW + HL_SELL_ROW, encoding="windows-1252")
+    (tmp_path / "summary (2).csv").write_text(
+        HL_CSV_HEADER + HL_INTEREST_ROW, encoding="windows-1252"
+    )
+    earlier = tmp_path / "summary.csv"
+    earlier.write_text(
+        HL_CSV_HEADER + HL_SELL_ROW + HL_BUY_ROW + HL_RECEIPT_ROW,
+        encoding="windows-1252",
+    )
+    _create_buy_pdf(str(tmp_path / "B302087054_BOUGHT_Vanguard.pdf"))
+    _create_sell_pdf(str(tmp_path / "S302087055_SOLD_Vanguard.pdf"))
+
+    with pytest.raises(
+        ParsingError, match="Two files in the directory hold this transaction"
+    ) as excinfo:
+        HargreavesLansdownParser.load_from_dir(tmp_path)
+
+    message = str(excinfo.value)
+    assert message.startswith(f"While parsing {earlier}: ")
+    assert f"(ISIN IE00BK5BQV03), read from row 8 of {later}\n" in message
+    assert f"(ISIN IE00BK5BQV03), read from row 7 of {earlier}\n" in message
+    assert message.count("2026-02-25 Sell 1000 VHVG") == 2
+    # The rows only one of the reports holds are not what stopped it.
+    assert "Receipt Pay By Bank" not in message
+    assert "To A/C 01C0450818220" not in message
+
+
+def test_load_from_dir_reads_reports_with_no_transaction_in_common(
+    tmp_path: Path,
+) -> None:
+    """Rows that differ in one thing only are two transactions, and both load.
+
+    The two receipts differ only in their description, and the two payments
+    of interest only in their value.
+    """
+    (tmp_path / "first.csv").write_text(
+        HL_CSV_HEADER + HL_INTEREST_ROW + HL_RECEIPT_ROW, encoding="windows-1252"
+    )
+    (tmp_path / "second.csv").write_text(
+        HL_CSV_HEADER
+        + HL_INTEREST_ROW.replace("3.87", "3.88")
+        + HL_RECEIPT_ROW.replace("Pay By Bank", "Pay By Cheque"),
+        encoding="windows-1252",
+    )
+
+    transactions = HargreavesLansdownParser.load_from_dir(tmp_path)
+
+    assert [
+        (transaction.description, transaction.amount) for transaction in transactions
+    ] == [
+        ("HL Fund & Share Account Receipt Pay By Bank", Decimal("50000.00")),
+        ("HL Fund & Share Account Receipt Pay By Cheque", Decimal("50000.00")),
+        ("Interest From 10/02/2026 TO 09/03/2026", Decimal("3.87")),
+        ("Interest From 10/02/2026 TO 09/03/2026", Decimal("3.88")),
+    ]
+
+
+def test_load_from_dir_counts_each_of_two_matching_rows_in_one_file(
+    tmp_path: Path,
+) -> None:
+    """Two payments of one amount on one day, in one report, are both real."""
+    (tmp_path / "first.csv").write_text(
+        HL_CSV_HEADER + HL_RECEIPT_ROW + HL_RECEIPT_ROW, encoding="windows-1252"
+    )
+    (tmp_path / "second.csv").write_text(
+        HL_CSV_HEADER + HL_INTEREST_ROW, encoding="windows-1252"
+    )
+
+    transactions = HargreavesLansdownParser.load_from_dir(tmp_path)
+
+    assert [transaction.amount for transaction in transactions] == [
+        Decimal("50000.00"),
+        Decimal("50000.00"),
+        Decimal("3.87"),
+    ]
+
+
 # The tests below call the parser directly: the end-to-end tests above
 # run in a subprocess, which is invisible to coverage.
 
