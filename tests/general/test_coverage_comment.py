@@ -262,7 +262,7 @@ def test_comment_shows_the_figures_and_the_uncovered_changed_lines() -> None:
         "</details>\n"
         "\n"
         "[Full report on Codecov](https://app.codecov.io/gh/cgt-calc/"
-        "capital-gains-calculator/pull/7) for commit `b653e4c`.\n"
+        "capital-gains-calculator/pull/7) for commit b653e4c.\n"
     )
 
 
@@ -377,7 +377,7 @@ def test_pull_request_that_changes_no_measured_lines(
         f"{total}"
         "\n"
         "[Full report on Codecov](https://app.codecov.io/gh/cgt-calc/"
-        "capital-gains-calculator/pull/7) for commit `b653e4c`.\n"
+        "capital-gains-calculator/pull/7) for commit b653e4c.\n"
     )
 
 
@@ -746,7 +746,7 @@ def test_figures_that_may_be_for_other_lines_are_left_out() -> None:
         "</details>\n"
         "\n"
         "[Full report on Codecov](https://app.codecov.io/gh/cgt-calc/"
-        "capital-gains-calculator/pull/7) for commit `b653e4c`.\n"
+        "capital-gains-calculator/pull/7) for commit b653e4c.\n"
     )
 
 
@@ -785,7 +785,7 @@ def test_comment_that_only_says_what_it_leaves_out_is_still_worth_posting() -> N
         "Total coverage: 96.12% -> 96.12% (no change).\n"
         "\n"
         "[Full report on Codecov](https://app.codecov.io/gh/cgt-calc/"
-        "capital-gains-calculator/pull/7) for commit `b653e4c`.\n"
+        "capital-gains-calculator/pull/7) for commit b653e4c.\n"
     )
 
 
@@ -1188,7 +1188,7 @@ def tables(component_before: str, flag_before: str) -> str:
         "</details>\n"
         "\n"
         "[Full report on Codecov](https://app.codecov.io/gh/cgt-calc/"
-        "capital-gains-calculator/pull/7) for commit `b653e4c`.\n"
+        "capital-gains-calculator/pull/7) for commit b653e4c.\n"
     )
 
 
@@ -1421,7 +1421,7 @@ def test_change_is_still_judged_when_the_figures_from_before_are_left_out(
         "</details>\n"
         "\n"
         "[Full report on Codecov](https://app.codecov.io/gh/cgt-calc/"
-        "capital-gains-calculator/pull/7) for commit `b653e4c`.\n"
+        "capital-gains-calculator/pull/7) for commit b653e4c.\n"
     )
     assert github.writes == [("POST", NEW, posted)]
 
