@@ -450,6 +450,10 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
     """Parser for loading all files within a directory."""
 
     glob_dir: str
+    # Whether a transaction that two files of the directory both hold stops
+    # the load. Cleared only where the parser merges overlapping files
+    # itself.
+    refuses_transaction_in_two_files: ClassVar[bool] = True
 
     @override
     def __init_subclass__(cls, **kwargs: object) -> None:
@@ -503,9 +507,14 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
         transactions: list[T] = []
         for file_path in sorted(dir_path.glob(cls.glob_dir, case_sensitive=False)):
             if cls.file_path_filter(file_path):
-                transactions += cls.load_from_file(
+                loaded = cls.load_from_file(
                     file_path, warn_on_empty=False, account=account
                 )
+                if cls.refuses_transaction_in_two_files:
+                    cls._refuse_transaction_in_two_files(
+                        loaded, transactions, file_path
+                    )
+                transactions += loaded
         if not transactions:
             LOGGER.warning(
                 "No transactions detected in directory %s for broker %s",
@@ -513,3 +522,39 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                 cls.pretty_name,
             )
         return cls.finalize_transactions(cls.post_process_transactions(transactions))
+
+    @classmethod
+    def _refuse_transaction_in_two_files(
+        cls, loaded: list[T], earlier: list[T], file_path: Path
+    ) -> None:
+        """Refuse a file holding a transaction that an earlier file holds too.
+
+        Two files hold the same transaction when one is a copy of the other,
+        or when the periods they cover overlap, and reading both counts it
+        twice. Transactions are compared as they were read, so a copy saved
+        in another encoding is one too. Rows that match within one file are
+        left alone: one export listing a transaction twice is saying that it
+        happened twice.
+        """
+        on_date: dict[datetime.date, list[T]] = {}
+        for transaction in earlier:
+            on_date.setdefault(transaction.date, []).append(transaction)
+        for transaction in loaded:
+            for other in on_date.get(transaction.date, ()):
+                if other == transaction:
+                    raise ParsingError(
+                        file_path,
+                        "Two files in the directory hold this transaction, and "
+                        "reading both would count it twice:\n"
+                        f"{other}\n{transaction}\n"
+                        "If the two rows are one transaction that both files "
+                        "report, because one file is a copy of the other or the "
+                        "periods they cover overlap, leave it in one file only: "
+                        "take out of the directory a file whose transactions are "
+                        "all in the other one, or export the periods again so "
+                        "that they do not overlap. If they are two separate "
+                        "transactions that only look the same, keep both: move "
+                        "one of the two rows to directly below the other, in the "
+                        "same file. Rows that match within one file are each "
+                        "counted.",
+                    )
