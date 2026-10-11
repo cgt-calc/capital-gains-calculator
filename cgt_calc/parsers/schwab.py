@@ -23,6 +23,7 @@ from cgt_calc.args_validators import (
     existing_file_or_stdin_type,
     set_completer,
 )
+from cgt_calc.const import US_MARKET
 from cgt_calc.exceptions import (
     CgtError,
     ParsingError,
@@ -1088,7 +1089,13 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         # The registry reports both under this parser's name, "Charles
         # Schwab". Only that progress line: each transaction still records
         # the parser that read it.
-        return award_transactions + main_transactions
+        transactions = award_transactions + main_transactions
+        # Schwab shows every holding under a US symbol. A foreign fund bought
+        # through it appears under its over-the-counter symbol, five letters
+        # ending in F, not under the ticker of its home listing.
+        for transaction in transactions:
+            transaction.market = US_MARKET
+        return transactions
 
     @classmethod
     def _load_award_file(cls, args: argparse.Namespace) -> list[BrokerTransaction]:

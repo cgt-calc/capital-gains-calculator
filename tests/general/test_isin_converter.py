@@ -13,7 +13,7 @@ from typing import NoReturn
 import pytest
 from requests import exceptions as requests_exceptions
 
-from cgt_calc.const import ISIN_TICKER_ALIASES, RuntimeMode
+from cgt_calc.const import ISIN_TICKER_ALIASES, US_MARKET, RuntimeMode
 from cgt_calc.exceptions import (
     CgtError,
     ExternalApiError,
@@ -64,6 +64,16 @@ ISIN_B = Isin("US5949181045")
 # ISINs with a curated exchange alias.
 NVIDIA_ISIN = Isin("US67066G1040")
 BROADCOM_ISIN = Isin("US11135F1012")
+# Bundled under its London tickers, SPLG and SPLW. SPLG was also the US
+# symbol of the SPDR Portfolio S&P 500 fund until October 2025.
+INVESCO_ISIN = Isin("IE00BKW9SX35")
+# The SPDR fund itself.
+SPDR_ISIN = Isin("US78464A8541")
+# A US fund the bundled table lists under its own US symbol, CHIQ.
+GLOBAL_X_ISIN = Isin("US37950E4089")
+# An Irish fund the bundled table lists under its US over-the-counter symbol,
+# ISIBF, and under no London ticker.
+IBONDS_ISIN = Isin("IE000JAYMBQ8")
 
 # An ISIN that is in the bundled translation data.
 VANGUARD_ISIN = Isin("IE00B3XXRP09")
@@ -453,6 +463,97 @@ def test_each_security_is_reported_under_one_ticker() -> None:
         reported.setdefault(isin, set()).add(ticker)
 
     assert [isin for isin, tickers in reported.items() if len(tickers) > 1] == []
+
+
+def _us(symbol: str) -> BrokerTransaction:
+    """Create a row without an ISIN whose symbol is known to be a US one."""
+    transaction = _transaction(None, symbol)
+    transaction.market = US_MARKET
+    return transaction
+
+
+def test_a_us_symbol_set_aside_leaves_the_fund_its_other_tickers() -> None:
+    """Only the ticker a US row uses is taken off the bundled fund."""
+    converter = IsinConverter()
+    assert converter.data[INVESCO_ISIN] == {"SPLG", "SPLW"}
+
+    converter.set_aside_london_tickers([_us("SPLG")])
+
+    symbols = converter.get_symbol_to_isin_map()
+    assert "SPLG" not in symbols
+    assert symbols["SPLW"] == INVESCO_ISIN
+
+
+def test_a_us_symbol_keeps_the_fund_the_users_own_file_gives_it(
+    tmp_path: Path,
+) -> None:
+    """A row in the user's file is theirs to stand by, whatever the market.
+
+    ZZZZ has the shape of a London ticker, not of an over-the-counter
+    symbol, so only the row being the user's own keeps it for a US row.
+    """
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(
+        f"ISIN,symbol\n{INVESCO_ISIN},SPLW,ZZZZ\n", encoding="utf-8"
+    )
+    converter = IsinConverter(translation_file)
+
+    converter.set_aside_london_tickers([_us("ZZZZ")])
+
+    assert converter.get_symbol_to_isin_map()["ZZZZ"] == INVESCO_ISIN
+
+
+def test_a_us_symbol_keeps_a_bundled_fund_with_a_us_isin() -> None:
+    """A fund with a US ISIN is bundled under its US symbol, not a London one."""
+    converter = IsinConverter()
+
+    converter.set_aside_london_tickers([_us("CHIQ")])
+
+    assert converter.get_symbol_to_isin_map()["CHIQ"] == GLOBAL_X_ISIN
+
+
+def test_a_us_symbol_keeps_a_fund_bundled_under_its_over_the_counter_symbol() -> None:
+    """Five letters ending in F is the US symbol of a fund from outside the US.
+
+    A Schwab row under it is that fund, as the same holding was before any
+    London ticker was set aside.
+    """
+    converter = IsinConverter()
+
+    converter.set_aside_london_tickers([_us("ISIBF")])
+
+    assert converter.get_symbol_to_isin_map()["ISIBF"] == IBONDS_ISIN
+
+
+def test_a_us_symbol_and_a_row_with_its_own_us_isin_are_one_security() -> None:
+    """A Schwab SPLG row and a row carrying the SPDR fund's ISIN are accepted.
+
+    With the London fund's entry left in, the second row was refused as a
+    ticker the bundled table had already given to another ISIN.
+    """
+    converter = IsinConverter()
+    rows = [_us("SPLG"), _transaction(SPDR_ISIN, "SPLG")]
+
+    converter.set_aside_london_tickers(rows)
+    converter.add_from_transactions(rows)
+
+    assert converter.get_symbol_to_isin_map()["SPLG"] == SPDR_ISIN
+
+
+def test_a_us_symbol_beside_the_london_fund_under_the_same_ticker_is_refused() -> None:
+    """A US SPLG row and a row carrying the London fund's ISIN are two securities."""
+    converter = IsinConverter()
+
+    with pytest.raises(
+        InvalidTransactionError,
+        match=re.escape(
+            "Ticker SPLG is a US symbol on another row of this run and the "
+            f"London ticker of ISIN {INVESCO_ISIN} on this one."
+        ),
+    ):
+        converter.set_aside_london_tickers(
+            [_us("SPLG"), _transaction(INVESCO_ISIN, "SPLG")]
+        )
 
 
 def test_add_from_transaction_ignores_rows_without_both_fields() -> None:

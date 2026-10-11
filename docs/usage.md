@@ -137,6 +137,8 @@ assume overlapping exports are safe.
 
 Numbers are exact rather than rounded for display. `price`, `fees` and `amount` are in the row’s
 `currency`, and fees charged in another currency stay in `foreign_fees` under their own currency.
+`market` names the market a `symbol` belongs to when cgt-calc knows it, which is `US` for every
+Charles Schwab row. It is empty otherwise.
 
 Columns holding several named values, such as `foreign_fees` and `source`, use JSON, which keeps
 names and values together in one cell: `{"EUR":"2.50"}` is a fee of 2.50 euros. An empty column

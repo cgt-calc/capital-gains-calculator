@@ -492,6 +492,10 @@ class BrokerTransaction:
     # did move cash, so the flag reads True on every one of them.
     # `--dump-transactions` does export it.
     affects_cash_balance: bool = field(default=True, repr=False)
+    # The market the symbol is a ticker of, where the parser knows it: a
+    # ticker names one security only within one market. None when nothing
+    # says, which is most exports.
+    market: str | None = None
 
     @property
     def pool_quantity(self) -> Decimal | None:

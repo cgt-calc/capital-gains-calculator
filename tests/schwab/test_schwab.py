@@ -147,6 +147,53 @@ def test_award_file_without_the_award_says_so() -> None:
     assert "has no award price for it" in str(exc_info.value)
 
 
+def test_a_schwab_symbol_is_not_given_a_london_fund_s_income(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """A Schwab symbol is a US one, never a London ticker spelt the same.
+
+    SPLG was the SPDR fund's US symbol, and is also the London ticker of an
+    Irish Invesco fund whose excess reported income cgt-calc holds. A Schwab
+    SPLG holding kept across that fund's 31 December 2023 reporting date is
+    not the fund: none of its income is reported, and its dividend is not
+    an Irish one, which would warn that Ireland has no treaty rate here.
+    """
+    history = tmp_path / "transactions.csv"
+    history.write_text(
+        '"Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount"\n'
+        '"07/31/2024","Sell","SPLG","SPDR PORTFOLIO S&P 500 ETF","100","$60.00","","$6000.00"\n'
+        '"06/27/2024","NRA Tax Adj","SPLG","SPDR PORTFOLIO S&P 500 ETF","","","","-$3.00"\n'
+        '"06/27/2024","Qualified Dividend","SPLG","SPDR PORTFOLIO S&P 500 ETF","","","","$20.00"\n'
+        '"10/09/2023","Buy","SPLG","SPDR PORTFOLIO S&P 500 ETF","100","$50.00","","-$5000.00"\n'
+        '"10/09/2023","Wire Funds Received","","WIRED FUNDS RECEIVED","","","","$5000.00"\n',
+        encoding="utf-8",
+    )
+
+    result = run_cli(
+        build_cmd(
+            "--year",
+            "2024",
+            "--schwab-file",
+            str(history),
+            "--output",
+            report_path(request),
+        )
+    )
+
+    assert stderr_alerts(result.stderr) == []
+    assert "Disposals:                  1" in result.stdout
+    assert "Excess Reported Income" not in result.stdout
+
+
+def test_equity_award_rows_are_us_symbols_too() -> None:
+    """A complete Equity Awards export is stamped like the main history."""
+    transactions = load_via_cli(
+        schwab_award_file="tests/schwab/data/equity_award/schwab_equity_award_v2.json"
+    )
+
+    assert {transaction.market for transaction in transactions} == {"US"}
+
+
 def test_run_with_schwab_example_2023_files(request: pytest.FixtureRequest) -> None:
     """Runs the script and verifies it doesn't fail."""
     cmd = build_cmd(
