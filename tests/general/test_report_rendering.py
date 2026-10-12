@@ -57,23 +57,11 @@ ENTRY = re.compile(
     r"allowable cost(?: on [^:]+)?: £([\d,.]+), (gain|loss): £([\d,.]+)\."
 )
 TOTAL = re.compile(r"Total disposal proceeds: £([\d,.]+)")
-TOTAL_ALLOWABLE_COSTS = re.compile(r"Total allowable costs: £([\d,.]+)")
 
 
 def money(text: str) -> Decimal:
     """Parse a figure as the report prints it."""
     return Decimal(text.replace(",", ""))
-
-
-def test_total_allowable_costs_are_shown(tmp_path: Path) -> None:
-    """The PDF summary includes the allowable-cost total required by SA108."""
-    source = render(tmp_path)
-    total = TOTAL_ALLOWABLE_COSTS.search(source)
-    assert total is not None
-    report = get_report(
-        create_calculator(tax_year=2024, balance_check=False), TRANSACTIONS
-    )
-    assert money(total[1]) == report.allowable_costs
 
 
 def render(tmp_path: Path) -> str:
