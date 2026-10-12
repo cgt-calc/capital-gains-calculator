@@ -61,25 +61,42 @@ def read_csv_rows(
     never hold one, that is a double quote left open: it takes in every row
     down to the next double quote, or to the end of the file, and those rows
     would be left out without a word. ``first_row`` is the line of the file
-    that the first of ``lines`` is on.
+    that the first of ``lines`` is on. An error the CSV reader itself raises
+    is reported in the same way, with the file and the row it was reading.
     """
     reader = csv.reader(lines, delimiter=delimiter, skipinitialspace=skipinitialspace)
     rows: list[list[str]] = []
-    for row in reader:
-        # Every row before this one took one line, or it was refused.
-        start = first_row + len(rows)
-        end = first_row + reader.line_num - 1
-        if end > start:
-            raise ParsingError(
-                file_path,
-                f"This row runs on to row {end}, because one of its cells holds "
-                'a line break. If a double quote (") is opened on it and not '
-                "closed, every row down to there was read as part of that cell: "
-                "close or remove the double quote. Otherwise take the line break "
-                "out of the cell.",
-                row_index=start,
+    try:
+        for row in reader:
+            # Every row before this one took one line, or it was refused.
+            start = first_row + len(rows)
+            end = first_row + reader.line_num - 1
+            if end > start:
+                raise ParsingError(
+                    file_path,
+                    f"This row runs on to row {end}, because one of its cells "
+                    'holds a line break. If a double quote (") is opened on it '
+                    "and not closed, every row down to there was read as part of "
+                    "that cell: close or remove the double quote. Otherwise take "
+                    "the line break out of the cell.",
+                    row_index=start,
+                )
+            rows.append(row)
+    except csv.Error as err:
+        # The reader raises without giving the row it was reading, which is
+        # the one after the rows read so far. A cell past the reader's limit
+        # is nearly always a double quote left open far above the end of the
+        # file. The reader's text for that error, matched here, is the same
+        # in Python 3.12 to 3.14; a changed text would get the general message.
+        if "field larger than field limit" in str(err):
+            detail = (
+                "A cell that starts on this row is longer than a CSV cell can be "
+                f'({csv.field_size_limit():,} characters). A double quote (") is '
+                "probably opened on it and not closed: close or remove it."
             )
-        rows.append(row)
+        else:
+            detail = f"The CSV reader could not read this row: {err}"
+        raise ParsingError(file_path, detail, row_index=first_row + len(rows)) from err
     return rows
 
 
