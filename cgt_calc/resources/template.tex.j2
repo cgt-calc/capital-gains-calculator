@@ -30,7 +30,8 @@
     \BLOCK{ endif }
     \BLOCK{ if event.outcome == "gain" }
 Chargeable \textbf{gain} is £\VAR{ event.gain|money }\BLOCK{ if event.is_gift }, before any relief:
-a gift of shares that qualify for Gift Hold-over Relief has the gain deferred by a joint claim on your returns\BLOCK{ endif +}
+a gift of shares that qualify for Gift Hold-over Relief has the gain deferred by a joint claim on your returns\BLOCK{ endif }
+
 
 Capital gain to date is £\VAR{ event.gain_to_date|money }
     \BLOCK{ elif event.outcome == "nil" }
