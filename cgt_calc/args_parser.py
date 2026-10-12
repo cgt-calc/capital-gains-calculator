@@ -206,6 +206,15 @@ Documentation: https://cgt-calc.uk/
         "bond carrying a deferred gain or for a deeply discounted security; "
         "coupon and accrued interest stay taxable",
     )
+    calc_group.add_argument(
+        "--gifts-to-spouse",
+        action="store_true",
+        default=False,
+        help="treat every broker-reported gift of shares (UNCLASSIFIED_GIFT) "
+        "as a no gain/no loss transfer to a spouse or civil partner (TCGA "
+        "1992 s58), without needing a separate RAW TRANSFER_TO_SPOUSE row; "
+        "use only when all share gifts in your exports went to a spouse",
+    )
 
     # Output Options
     output_group = parser.add_argument_group("Output")

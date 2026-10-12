@@ -474,6 +474,48 @@ an old gift for a later split, so the quantity may not match the number of share
 date. Where both readings are possible, the error prints two candidate lines: check a statement and
 use the one with the correct quantity.
 
+#### Gifts that all went to your spouse or civil partner
+
+If every `Gift` row in the export is a gift to your spouse or civil partner, add `--gifts-to-spouse`
+instead of a RAW row for each one:
+
+```shell
+cgt-calc --year 2025 --schwab-award-file schwab_awards.json --gifts-to-spouse
+```
+
+cgt-calc then treats each `Gift` row as a `TRANSFER_TO_SPOUSE` row for the same date and quantity.
+
+!!! warning "Use it only if every gift qualifies"
+
+    The option covers every `Gift` row in the export, in every tax year, and cgt-calc cannot check
+    who received the shares. Use it only if all of them went to your spouse or civil partner and
+    you were living together at some point in the tax year of each transfer. Since 6 April 2023 a
+    period after separating also qualifies; see
+    [CG22420](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22420). A gift to
+    anyone else is a disposal at market value, so treating it as a transfer to your spouse can
+    understate your gains. If any gift does not qualify, leave the option out and classify each
+    gift as described in [Gifts in a complete export](#gifts-in-a-complete-export).
+
+The option says who received the shares, not how many left your account, so the run can still stop:
+
+- A gift made before a share split can have two possible quantities. cgt-calc stops and prints both
+    candidate lines. Check a statement, add the correct line to a small RAW file and pass it with
+    `--raw-file` alongside `--gifts-to-spouse`.
+- If a RAW `TRANSFER_TO_SPOUSE`, `GIFT` or `GIFT_UNCONNECTED` row is left without a `Gift` row of
+    the same date, ticker and quantity, while a `Gift` row of that date and ticker has no RAW row of
+    its own, cgt-calc stops instead of counting both. Correct the quantity in your RAW row, or add
+    the line the error prints if the two are separate transfers.
+
+A `Gift` row that has a RAW row with the same date, ticker and quantity is taken as that row says
+and is counted once. A RAW row with a different date or ticker is counted as a separate transfer, so
+check any rows you keep against the export. The **Transferred to spouse** list in the report shows
+the transfers counted in the tax year you are reporting.
+
+Each of these transfers is matched in the same way as a `TRANSFER_TO_SPOUSE` row. A purchase of the
+same shares on the same day or within the next 30 days is matched to the transfer, and a sale and a
+transfer of the same shares on one day are refused when there is such a purchase. See
+[Transfers to a spouse or civil partner](raw.md#transfers-to-a-spouse-or-civil-partner).
+
 ## Known limitations
 
 - Transfers of shares are not reconstructed from the main CSV. In particular, `Journaled Shares` is

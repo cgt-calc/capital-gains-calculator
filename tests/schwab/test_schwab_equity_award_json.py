@@ -9,6 +9,7 @@ import io
 import json
 import logging
 from pathlib import Path
+import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
@@ -1515,6 +1516,80 @@ def test_run_with_schwab_equity_award_json(
         / f"{input_file_base}-expected_output.txt"
     )
     assert_stdout_matches(result, cmd, expected_file)
+
+
+def test_gifts_to_spouse_option_reports_each_gift_row_as_a_spouse_transfer(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> None:
+    """`--gifts-to-spouse` on the command line turns `Gift` rows into transfers.
+
+    Without the option the run stops at the first gift and asks who received it.
+
+    13.6 GOOG vest at $131.25 on 25 September 2023, when the cached rate is
+    1.2631 dollars to the pound, so each share costs 131.25 / 1.2631 =
+    £103.9110. Gifts of 2 and 3 pass on 2 x 103.9110 = £207.82 and
+    3 x 103.9110 = £311.73 of that cost, and 13.6 - 2 - 3 = 8.6 shares stay.
+    """
+
+    def gift(date: str, quantity: str) -> dict[str, object]:
+        return {
+            "Date": date,
+            "Action": "Gift",
+            "Symbol": "GOOG",
+            "Quantity": quantity,
+            "Description": "Share Transfer",
+            "FeesAndCommissions": None,
+            "Amount": None,
+            "TransactionDetails": [],
+        }
+
+    vest = {
+        "Date": "09/27/2023",
+        "Action": "Deposit",
+        "Symbol": "GOOG",
+        "Quantity": "13.6",
+        "Description": "RS",
+        "FeesAndCommissions": None,
+        "Amount": None,
+        "TransactionDetails": [
+            {
+                "Details": {
+                    "AwardDate": "01/01/2019",
+                    "AwardId": "C987654",
+                    "VestDate": "09/25/2023",
+                    "VestFairMarketValue": "$131.25",
+                }
+            }
+        ],
+    }
+    award_file = tmp_path / "awards.json"
+    award_file.write_text(
+        json.dumps(
+            {"Transactions": [gift("10/24/2023", "3"), gift("10/09/2023", "2"), vest]}
+        ),
+        encoding="utf-8",
+    )
+
+    cmd = build_cmd(
+        "--year",
+        "2023",
+        "--schwab-award-file",
+        str(award_file),
+        "--output",
+        report_path(request),
+    )
+
+    refused = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
+    assert refused.returncode != 0
+    assert (
+        "reported a gift of 2 units of GOOG on 2023-10-09, but not who received them"
+        in refused.stderr
+    )
+
+    result = run_cli([*cmd, "--gifts-to-spouse"])
+    assert "Final portfolio\n  GOOG: 8.60\n" in result.stdout
+    assert "  2023-10-09: GOOG 2 units, base cost £207.82\n" in result.stdout
+    assert "  2023-10-24: GOOG 3 units, base cost £311.73\n" in result.stdout
 
 
 COMPLETE_CSV_HEADER = [

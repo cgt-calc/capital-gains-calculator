@@ -66,6 +66,7 @@ class CapitalGainsCalculator:
         balance_check: bool = True,
         autoconvert_currency: bool = False,
         calc_unrealized_gains: bool = False,
+        gifts_to_spouse: bool = False,
         period_start: datetime.date | None = None,
         period_end: datetime.date | None = None,
     ):
@@ -115,6 +116,7 @@ class CapitalGainsCalculator:
             interest_fund_tickers,
             balance_check=balance_check,
             autoconvert_currency=autoconvert_currency,
+            gifts_to_spouse=gifts_to_spouse,
             date_in_tax_year=self.date_in_tax_year,
         )
         self.matcher = Matcher(

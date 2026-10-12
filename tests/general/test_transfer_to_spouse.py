@@ -459,12 +459,23 @@ def test_gift_matched_by_transfer_to_spouse_is_accounted_for() -> None:
     assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(40)
 
 
-def test_gift_with_mismatched_transfer_is_rejected() -> None:
-    """A transfer row that does not match the gift does not classify it."""
+@pytest.mark.parametrize("gifts_to_spouse", [False, True])
+def test_gift_with_mismatched_transfer_is_rejected(gifts_to_spouse: bool) -> None:
+    """A transfer row that does not match the gift does not classify it.
+
+    `--gifts-to-spouse` does not rescue the gift either. The broker says 4
+    left that day and the row says 3, and the option says only who received
+    them. Promoting the gift beside the row would take 7 from the pool when
+    one of the two counts is more likely a typing mistake.
+    """
     buy_day = datetime.date(2024, 6, 1)
     gift_day = datetime.date(2024, 6, 10)
-    calculator = create_calculator(tax_year=2024, balance_check=False)
-    with pytest.raises(UnclassifiedGiftError):
+    calculator = create_calculator(
+        tax_year=2024, balance_check=False, gifts_to_spouse=gifts_to_spouse
+    )
+    with pytest.raises(
+        UnclassifiedGiftError, match="a gift of 4 units of FOO on 2024-06-10"
+    ):
         get_report(
             calculator,
             [
@@ -741,8 +752,13 @@ def test_either_reading_of_an_ambiguous_gift_settles_it(confirmed: Decimal) -> N
     assert calculator.portfolio["FOO"].quantity == Decimal(100) - confirmed
 
 
-def test_ambiguous_gift_error_offers_both_readings() -> None:
-    """Unresolved, the error shows both rows rather than guessing one."""
+@pytest.mark.parametrize("gifts_to_spouse", [False, True])
+def test_ambiguous_gift_error_offers_both_readings(gifts_to_spouse: bool) -> None:
+    """Unresolved, the error shows both rows rather than guessing one.
+
+    `--gifts-to-spouse` says who received the shares, not how many left, so
+    it leaves this refusal in place.
+    """
     gift_day = datetime.date(2024, 6, 10)
     gift = BrokerTransaction(
         date=gift_day,
@@ -757,8 +773,11 @@ def test_ambiguous_gift_error_offers_both_readings() -> None:
         broker="Testing",
         ambiguous_quantity=Decimal(40),
     )
+    calculator = create_calculator(
+        tax_year=2024, balance_check=False, gifts_to_spouse=gifts_to_spouse
+    )
     with pytest.raises(UnclassifiedGiftError) as err:
-        get_report(create_calculator(tax_year=2024, balance_check=False), [gift])
+        get_report(calculator, [gift])
 
     message = str(err.value)
     assert "2024-06-10,TRANSFER_TO_SPOUSE,FOO,2,0.00,0.00,GBP" in message
@@ -1917,3 +1936,208 @@ def _management_fee(date: datetime.date, symbol: str, amount: int) -> BrokerTran
         currency=CurrencyCode(GBP),
         broker="Testing",
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests for the --gifts-to-spouse flag
+# ---------------------------------------------------------------------------
+
+
+def _unclassified_gift(
+    date: datetime.date, symbol: str, quantity: int
+) -> BrokerTransaction:
+    """Build a broker-reported gift row (UNCLASSIFIED_GIFT)."""
+    return BrokerTransaction(
+        date=date,
+        action=ActionType.UNCLASSIFIED_GIFT,
+        symbol=symbol,
+        description=f"gift of {symbol}",
+        quantity=Decimal(quantity),
+        price=None,
+        fees=Decimal(0),
+        amount=None,
+        currency=CurrencyCode(GBP),
+        broker="Testing",
+    )
+
+
+def test_gifts_to_spouse_flag_promotes_unclassified_gift_to_transfer() -> None:
+    """--gifts-to-spouse turns every unclassified broker gift into a transfer."""
+    buy_day = datetime.date(2024, 6, 1)
+    gift_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator(
+        tax_year=2024, balance_check=False, gifts_to_spouse=True
+    )
+
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
+            ),
+            _unclassified_gift(gift_day, "FOO", 4),
+        ],
+    )
+
+    # A transfer to a spouse is no gain/no loss and is not a taxable disposal.
+    assert report.total_gain() == Decimal(0)
+    assert report.disposal_count == 0
+    # Four units left the pool.
+    assert calculator.portfolio["FOO"].quantity == Decimal(6)
+    assert calculator.portfolio["FOO"].amount == Decimal(60)
+    # Logged exactly as a transfer to a spouse.
+    entries = report.calculation_log[gift_day]["transfer-to-spouse$FOO"]
+    assert all(e.rule_type is RuleType.TRANSFER_TO_SPOUSE for e in entries)
+    assert sum((e.gain for e in entries), Decimal(0)) == Decimal(0)
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(40)
+
+
+def test_gifts_to_spouse_flag_without_any_unclassified_gifts_is_harmless() -> None:
+    """The flag has no effect when there are no broker gift rows."""
+    buy_day = datetime.date(2024, 6, 1)
+    sell_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator(
+        tax_year=2024, balance_check=False, gifts_to_spouse=True
+    )
+
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
+            ),
+            transaction(
+                sell_day, ActionType.SELL, "FOO", 5, 20, 0, 100, CurrencyCode(GBP)
+            ),
+        ],
+    )
+
+    assert report.total_gain() == Decimal(50)
+    assert calculator.portfolio["FOO"].quantity == Decimal(5)
+
+
+def test_gifts_to_spouse_flag_explicit_row_still_wins() -> None:
+    """An explicit RAW TRANSFER_TO_SPOUSE row is still preferred over auto-promotion.
+
+    When the user has classified the gift manually the broker row is dropped as
+    usual and only the classifying row is processed -- the flag changes nothing.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    gift_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator(
+        tax_year=2024, balance_check=False, gifts_to_spouse=True
+    )
+
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
+            ),
+            _unclassified_gift(gift_day, "FOO", 4),
+            # Explicit classification: the broker row is dropped, this one runs.
+            transfer_to_spouse_transaction(gift_day, "FOO", 4),
+        ],
+    )
+
+    # Same result whether the flag is on or off: only four units leave, once.
+    assert report.total_gain() == Decimal(0)
+    assert calculator.portfolio["FOO"].quantity == Decimal(6)
+    assert calculator.portfolio["FOO"].amount == Decimal(60)
+
+
+def test_gifts_to_spouse_flag_multiple_gifts_all_promoted() -> None:
+    """Every unclassified gift on the same day and different symbols is promoted."""
+    buy_day = datetime.date(2024, 6, 1)
+    gift_day = datetime.date(2024, 6, 10)
+    calculator = create_calculator(
+        tax_year=2024, balance_check=False, gifts_to_spouse=True
+    )
+
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
+            ),
+            transaction(
+                buy_day, ActionType.BUY, "BAR", 20, 5, 0, -100, CurrencyCode(GBP)
+            ),
+            _unclassified_gift(gift_day, "FOO", 3),
+            _unclassified_gift(gift_day, "BAR", 8),
+        ],
+    )
+
+    assert report.total_gain() == Decimal(0)
+    assert report.disposal_count == 0
+    assert calculator.portfolio["FOO"].quantity == Decimal(7)
+    assert calculator.portfolio["BAR"].quantity == Decimal(12)
+
+
+def test_gifts_to_spouse_flag_promotes_only_the_gifts_without_a_row() -> None:
+    """Gifts that RAW rows account for are dropped, and only the others are promoted.
+
+    The broker reports gifts of 4, 4, 6 and 3 FOO on one day. Two RAW rows
+    classify the two gifts of 4, and a third records a transfer of 1 on a
+    later day that the broker does not report. Promoting a gift of 4 as well
+    would take it twice, once as the broker's gift and once as its row, and
+    the row on the later day is no reason to refuse the 6 and the 3.
+
+    40 units bought for 400 with a fee of 8 cost 408, which is 10.20 each.
+    On the gift day the rows take 4 + 4 = 8 and the option promotes 6 + 3 = 9,
+    so 17 units leave with 17 x 10.20 = 173.40 of that cost. One more leaves
+    later, and 40 - 17 - 1 = 22 units stay, costing 22 x 10.20 = 224.40.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    gift_day = datetime.date(2024, 6, 10)
+    later_day = datetime.date(2024, 6, 20)
+    calculator = create_calculator(
+        tax_year=2024, balance_check=False, gifts_to_spouse=True
+    )
+
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                buy_day, ActionType.BUY, "FOO", 40, 10, 8, -408, CurrencyCode(GBP)
+            ),
+            _unclassified_gift(gift_day, "FOO", 4),
+            _unclassified_gift(gift_day, "FOO", 4),
+            _unclassified_gift(gift_day, "FOO", 6),
+            _unclassified_gift(gift_day, "FOO", 3),
+            transfer_to_spouse_transaction(gift_day, "FOO", 4),
+            transfer_to_spouse_transaction(gift_day, "FOO", 4),
+            transfer_to_spouse_transaction(later_day, "FOO", 1),
+        ],
+    )
+
+    assert report.total_gain() == Decimal(0)
+    assert calculator.portfolio["FOO"].quantity == Decimal(22)
+    assert calculator.portfolio["FOO"].amount == Decimal("224.40")
+    entries = report.calculation_log[gift_day]["transfer-to-spouse$FOO"]
+    assert sum((e.quantity for e in entries), Decimal(0)) == Decimal(17)
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal("173.40")
+
+
+def test_gifts_to_spouse_flag_leaves_the_rows_it_was_given_unclassified() -> None:
+    """The option converts a copy, so the row it was given stays an unclassified gift.
+
+    Given to a second calculator built without the option, the same rows stop
+    on that gift as they would on their own.
+    """
+    buy_day = datetime.date(2024, 6, 1)
+    gift_day = datetime.date(2024, 6, 10)
+    rows = [
+        transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)),
+        _unclassified_gift(gift_day, "FOO", 4),
+    ]
+    with_option = create_calculator(
+        tax_year=2024, balance_check=False, gifts_to_spouse=True
+    )
+    get_report(with_option, rows)
+
+    without_option = create_calculator(tax_year=2024, balance_check=False)
+    with pytest.raises(
+        UnclassifiedGiftError, match="a gift of 4 units of FOO on 2024-06-10"
+    ):
+        get_report(without_option, rows)

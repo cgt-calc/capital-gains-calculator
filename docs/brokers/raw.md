@@ -384,6 +384,11 @@ broker export.
 cgt-calc --year 2024 --schwab-file transactions.csv --raw-file transfers.csv
 ```
 
+A complete Schwab Equity Awards export does list gifts, without saying who received them. If all of
+them went to your spouse or civil partner, you can pass `--gifts-to-spouse` instead of adding a row
+for each: see
+[Gifts that all went to your spouse or civil partner](schwab.md#gifts-that-all-went-to-your-spouse-or-civil-partner).
+
 The report and the PDF show the base cost that passes to the recipient, and the text report prints
 the exact RAW row to give them.
 
