@@ -2,9 +2,9 @@
 
 Start with the [development setup](contributing.md#getting-started). A broker parser converts an
 export into `BrokerTransaction` values; tax matching belongs in the calculator, not the parser. The
-[Freetrade parser](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/parsers/freetrade.py)
+[Revolut parser](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/parsers/revolut.py)
 and its
-[tests](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/freetrade/test_freetrade.py)
+[tests](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/revolut/test_revolut.py)
 show file loading, transaction conversion and errors for unsupported rows.
 
 1. Add a new parser class in

@@ -15,11 +15,12 @@ script with the path to a downloaded report or a folder of reports:
 uv run python scripts/import_eri_reports.py /path/to/reports
 ```
 
-Replace `/path/to/reports` with your file or folder. Keep the downloaded filenames: the script uses
-them to recognise the provider. It imports the data into the matching resource CSV under
+Replace `/path/to/reports` with your file or folder. The script recognises each report by its
+filename and imports the data into the matching resource CSV under
 [`cgt_calc/resources/eri/`](https://github.com/cgt-calc/capital-gains-calculator/tree/main/cgt_calc/resources/eri).
-Vanguard, BlackRock, iShares, Xtrackers, Invesco and Legal & General reports are supported this way.
-The script does not update ISIN translations; add any needed mappings as described below.
+Vanguard, BlackRock, iShares, Xtrackers, Invesco and Legal & General UCITS ETF plc reports are
+supported this way. The script does not update ISIN translations; add any needed mappings as
+described below.
 
 Check the messages for each file. **No ERI importer found** means the file was skipped; **found no
 transactions** means no rows were imported from it. The final **Import complete!** message alone
@@ -27,7 +28,16 @@ does not confirm that every report was imported. Review the resource changes wit
 `git diff -- cgt_calc/resources/eri/` and compare the added ISINs, dates, currencies and amounts
 with the provider's report.
 
-Amundi reports have no automatic importer — add their data manually as described below.
+If a supported report is skipped, check its filename first. Rename the file to match the filename
+pattern in that provider's module under
+[`cgt_calc/parsers/eri/importer/`](https://github.com/cgt-calc/capital-gains-calculator/tree/main/cgt_calc/parsers/eri/importer),
+then run the script again. For example, Vanguard Investment Series plc reports with names starting
+`vis-plc-` are recognised once you add `vanguard-` to the start of the name. An Invesco or Xtrackers
+report that is still skipped is in a layout the importer does not read; add its data manually as
+described below.
+
+Amundi reports, and Legal & General reports other than the UCITS ETF plc one, have no automatic
+importer; add their data manually as described below.
 
 ## Manual additions and ISIN translations
 
