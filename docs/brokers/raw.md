@@ -238,8 +238,8 @@ For the tax year 2024/25, run:
 cgt-calc --year 2024 --raw-file raw_data.csv
 ```
 
-`--year 2024` means 6 April 2024 to 5 April 2025. Follow [Generate and Review a Report](../usage.md)
-to find and check the output.
+`--year 2024` means 6 April 2024 to 5 April 2025. Follow [Generate a report](../usage.md) to find
+and check the output.
 
 Include cash deposits and withdrawals if your records contain them so the balance check can detect
 an incomplete conversion. If the source genuinely has no cash history, use `--no-balance-check` only

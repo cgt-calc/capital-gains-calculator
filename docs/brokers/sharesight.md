@@ -71,7 +71,7 @@ cgt-calc --year 2024 --sharesight-dir sharesight/ --no-balance-check
 
 `--year 2024` means 6 April 2024 to 5 April 2025. `--no-balance-check` is needed because these two
 reports do not contain the complete cash activity required to reconcile a broker balance. Follow
-[Generate and Review a Report](../usage.md) to find and check the output.
+[Generate a report](../usage.md) to find and check the output.
 
 ## Supported activity
 

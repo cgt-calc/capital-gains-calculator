@@ -167,7 +167,7 @@ a warning and leaves the relief out. If the warning says that the double taxatio
 match, first check that the RAW rows have the date of the dividend.
 
 If you do not add the tax this way, add it to your dividend income yourself and, if you use
-[`--income`](../usage.md#estimate-the-tax-from-your-income), to the figure you pass.
+[`--income`](../tax-estimates.md#estimate-the-tax-from-your-income), to the figure you pass.
 
 #### Tax corrections
 

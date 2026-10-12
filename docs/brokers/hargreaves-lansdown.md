@@ -53,7 +53,7 @@ cgt-calc --year 2025 --hl-dir hargreaves_lansdown/
 ```
 
 `--year 2025` means 6 April 2025 to 5 April 2026. Pass the directory, not an individual CSV or PDF.
-Follow [Generate and Review a Report](../usage.md) to find and check the output.
+Follow [Generate a report](../usage.md) to find and check the output.
 
 Run with the balance check enabled. Do not add `--no-balance-check` merely to bypass an error; first
 reconcile the report and any unsupported rows as described under

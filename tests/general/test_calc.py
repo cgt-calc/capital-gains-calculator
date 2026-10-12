@@ -3804,7 +3804,7 @@ GAINS_BEFORE_23_JUNE_2010_NOTE = (
 ESTIMATE_NOTE = (
     "The tax is an estimate: it leaves out gains that are not in the files you "
     "supplied, losses brought forward and reliefs. See "
-    "https://cgt-calc.uk/usage/#tax-at-the-basic-and-higher-rate"
+    "https://cgt-calc.uk/tax-estimates/#what-the-estimates-leave-out"
 )
 NOTES_FOR_2024 = [
     *_who_pays_each_rate(
@@ -3947,7 +3947,7 @@ def test_tax_is_shown_at_the_basic_and_the_higher_rate(
 LEFT_OUT_NOTE = (
     "The tax leaves out gains that are not in the files you supplied, losses "
     "brought forward and reliefs. See "
-    "https://cgt-calc.uk/usage/#estimate-the-tax-from-your-income"
+    "https://cgt-calc.uk/tax-estimates/#estimate-the-tax-from-your-income"
 )
 LOWEST_TAX_NOTE = (
     "Losses, the annual exempt amount and the unused part of the limit are set "

@@ -42,8 +42,8 @@ For the 2025/26 tax year, run:
 cgt-calc --year 2025 --interactive-brokers-file U12345678.TRANSACTIONS.20240101.20260505.csv
 ```
 
-`--year 2025` means 6 April 2025 to 5 April 2026. Follow [Generate and Review a Report](../usage.md)
-to find and check the output.
+`--year 2025` means 6 April 2025 to 5 April 2026. Follow [Generate a report](../usage.md) to find
+and check the output.
 
 The Transaction History export contains cash deposits and withdrawals, so a complete export should
 normally pass the balance check. Do not add `--no-balance-check` simply to bypass an error; first

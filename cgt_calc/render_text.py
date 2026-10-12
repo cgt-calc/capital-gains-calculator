@@ -321,11 +321,11 @@ def _capital_gains_tax(
     higher_tax = _pounds(_tax(_charged_by_rate(taxable, Decimal(0))))
     left_out = (
         "gains that are not in the files you supplied, losses brought forward and "
-        "reliefs. See https://cgt-calc.uk/usage/"
+        "reliefs. See "
     )
     estimate = (
         f"The tax is an estimate: it leaves out {left_out}"
-        "#tax-at-the-basic-and-higher-rate"
+        "https://cgt-calc.uk/tax-estimates/#what-the-estimates-leave-out"
     )
     # The part of the taxable gain whose rate depends on income.
     banded = sum(
@@ -361,7 +361,10 @@ def _capital_gains_tax(
         )
         if single_rate:
             notes.append(before_change)
-        notes.append(f"The tax leaves out {left_out}#estimate-the-tax-from-your-income")
+        notes.append(
+            f"The tax leaves out {left_out}"
+            "https://cgt-calc.uk/tax-estimates/#estimate-the-tax-from-your-income"
+        )
         return [("Estimated tax", tax)], notes
 
     # At the basic rates all of the taxable gain fits within the band.
