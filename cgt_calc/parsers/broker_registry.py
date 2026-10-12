@@ -21,6 +21,7 @@ from cgt_calc.parsers.interactive_brokers import InteractiveBrokersParser
 from cgt_calc.parsers.mssb import MSSBParser
 from cgt_calc.parsers.raw import RawParser
 from cgt_calc.parsers.revolut import RevolutParser
+from cgt_calc.parsers.revolut_crypto import RevolutCryptoParser
 from cgt_calc.parsers.schwab import SchwabParser
 from cgt_calc.parsers.sharesight import SharesightParser
 from cgt_calc.parsers.trading212 import Trading212Parser
@@ -151,6 +152,7 @@ class BrokerRegistry:
         InteractiveBrokersParser,
         MSSBParser,
         RevolutParser,
+        RevolutCryptoParser,
         SharesightParser,
         Trading212Parser,
         VanguardParser,
