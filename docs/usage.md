@@ -1,7 +1,5 @@
 # Generate a report
 
-<span id="generate-and-review-a-report"></span>
-
 ## Before you start
 
 Most users need:
@@ -150,6 +148,12 @@ If completing Self Assessment, use the
 for the relevant tax year. cgt-calc does not work out your final tax bill, map its output to return
 boxes or submit a return.
 
+For a full tax year with a taxable gain, the terminal also shows estimates of the tax on it. They
+are not your final tax bill. See [Tax estimates](tax-estimates.md) for how to read them,
+[what they leave out](tax-estimates.md#what-the-estimates-leave-out) and how to
+[estimate the tax from your income](tax-estimates.md#estimate-the-tax-from-your-income) with
+`--income`.
+
 Keep the original exports, supporting statements, command used, warnings and generated report with
 the calculation. Follow HMRC's
 [Capital Gains Tax record-keeping guidance](https://www.gov.uk/capital-gains-tax/records) for the
@@ -159,19 +163,6 @@ Run `cgt-calc --help` for the complete list of available options. Use `--verbose
 detail while investigating a warning or error, and
 [`--dump-transactions`](#inspect-parsed-transactions) to see the transactions the calculation
 started from.
-
-## Tax at the basic and higher rate
-
-For a full tax year with a taxable gain, the terminal shows tax estimates at the rates for that
-year. They leave out gains outside your supplied files, losses brought forward and reliefs, so they
-are not your final tax bill. See [Tax estimates](tax-estimates.md) for how to read the figures and
-[what they leave out](tax-estimates.md#what-the-estimates-leave-out).
-
-## Estimate the tax from your income
-
-Use `--income` to estimate tax using your income for the year. Before adding it, read
-[Estimate the tax from your income](tax-estimates.md#estimate-the-tax-from-your-income) for what to
-include, adjustments you may need, and the estimate's limitations.
 
 ## Inspect parsed transactions
 

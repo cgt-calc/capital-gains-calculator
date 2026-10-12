@@ -72,8 +72,9 @@ The figures also tax a gain on an
 [offshore fund that was ever non-reporting](offshore-funds.md#unsupported-functionality) as a
 capital gain, although it can be taxed as income. Work out that disposal outside cgt-calc.
 
-No tax figures are shown when the taxable gain is zero or when you use `--from` and `--to`, even for
-a period that covers the whole tax year.
+No tax figures are shown when the taxable gain is zero or when you use
+[`--from` and `--to`](usage.md#report-part-of-a-tax-year-advanced), even for a period that covers
+the whole tax year.
 
 ## Estimate the tax from your income
 

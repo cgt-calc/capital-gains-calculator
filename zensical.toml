@@ -48,6 +48,12 @@ nav = [
 
 extra_css = ["stylesheets/extra.css"]
 
+# Tax guidance moved from the usage page to its own page. These keep bookmarks
+# and the links cgt-calc printed to the old headings working.
+[project.plugins.redirects.redirect_maps]
+"usage.md#tax-at-the-basic-and-higher-rate" = "tax-estimates.md#tax-at-the-basic-and-higher-rate"
+"usage.md#estimate-the-tax-from-your-income" = "tax-estimates.md#estimate-the-tax-from-your-income"
+
 [project.theme]
 variant = "modern"
 language = "en"

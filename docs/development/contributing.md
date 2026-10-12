@@ -39,9 +39,9 @@ tax terminology. Developer pages can assume programming knowledge. Use plain Bri
 address the reader as “you”, and explain unfamiliar terms while keeping the names shown in the
 product and HMRC guidance.
 
-- **Start with the task.** Give prerequisites, steps and expected results in the order you need
-    them. Keep optional explanations and detailed reference out of the main sequence; link to them
-    where they help. Split a page when it serves separate tasks, not just because it is long.
+- **Start with the task.** Give prerequisites, steps and expected results in the order the reader
+    needs them. Keep optional explanations and detailed reference out of the main sequence; link to
+    them where they help. Split a page when it serves separate tasks, not just because it is long.
 - **Make the page easy to scan.** Use descriptive headings, numbered steps for a sequence, bullets
     for related items, and tables for comparisons. Put conditions before the instructions they
     affect. Keep each paragraph about one idea.
@@ -49,8 +49,9 @@ product and HMRC guidance.
     say what is unsupported, whether cgt-calc detects it, what could go wrong, and what to do.
     Remove repetition and unnecessary wording without rewriting prose that already works.
 - **Check the evidence.** Verify behaviour against the implementation and tests. Check tax, security
-    and privacy claims against current primary sources, and link to the relevant section. Use
-    fictional or sanitised examples and verify their commands and expected results.
+    and privacy claims against current primary sources, and link to the relevant section. Use small
+    examples with invented names, dates and values, and verify their commands and expected results.
+    Do not copy or rescale a real transaction history.
 
 ### Using an LLM
 
@@ -65,9 +66,10 @@ remove repetition, and make sure important limitations survived the edit.
 
 ### Check your documentation change
 
-Update navigation in `zensical.toml` and links from other pages when moving content. Keep a short
-summary and link at an old heading if released versions of cgt-calc or existing bookmarks use it.
-Run the [formatting, spelling and grammar checks](#code-style), then build the site and check links:
+Update navigation in `zensical.toml` and links from other pages when moving content. When a heading
+moves to another page, add a redirect from its old address under `redirect_maps` in `zensical.toml`,
+so that links cgt-calc has printed and existing bookmarks still work. Run the
+[formatting, spelling and grammar checks](#code-style), then build the site and check links:
 
 ```shell
 uv run --group docs zensical build --clean
@@ -80,8 +82,9 @@ Preview the result with:
 uv run --group docs zensical serve
 ```
 
-Open the local address printed in the terminal. Follow the changed instructions and links, and check
-that headings, tables and code blocks are readable on both a narrow and a wide screen.
+Open the local address printed in the terminal. Follow the changed instructions and links, open any
+old address you redirected, and check that headings, tables and code blocks are readable on both a
+narrow and a wide screen.
 
 ## Code layout
 
