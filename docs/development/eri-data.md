@@ -6,15 +6,26 @@ is described in [Providing custom ERI data](../custom-eri-data.md#where-provider
 
 ## Importing provider reports
 
-For most providers you can import reports automatically. Run the
+First [set up the development environment](contributing.md#getting-started). From the repository
+directory, run the
 [`import_eri_reports.py`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/scripts/import_eri_reports.py)
-script pointing to either the file or the folder containing the downloaded ERI reports. The tool
-recognises the funds provider from the filename and imports the data into the matching resource CSV
-under
+script with the path to a downloaded report or a folder of reports:
+
+```shell
+uv run python scripts/import_eri_reports.py /path/to/reports
+```
+
+Replace `/path/to/reports` with your file or folder. Keep the downloaded filenames: the script uses
+them to recognise the provider. It imports the data into the matching resource CSV under
 [`cgt_calc/resources/eri/`](https://github.com/cgt-calc/capital-gains-calculator/tree/main/cgt_calc/resources/eri).
-Vanguard, BlackRock, iShares, Xtrackers and Invesco reports are all supported this way. The script
-also records any new ISIN translations into
-[`initial_isin_translation.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv).
+Vanguard, BlackRock, iShares, Xtrackers, Invesco and Legal & General reports are supported this way.
+The script does not update ISIN translations; add any needed mappings as described below.
+
+Check the messages for each file. **No ERI importer found** means the file was skipped; **found no
+transactions** means no rows were imported from it. The final **Import complete!** message alone
+does not confirm that every report was imported. Review the resource changes with
+`git diff -- cgt_calc/resources/eri/` and compare the added ISINs, dates, currencies and amounts
+with the provider's report.
 
 Amundi reports have no automatic importer — add their data manually as described below.
 
@@ -22,8 +33,10 @@ Amundi reports have no automatic importer — add their data manually as describ
 
 To add data by hand, append the rows at the bottom of the provider's resource CSV under
 [`cgt_calc/resources/eri/`](https://github.com/cgt-calc/capital-gains-calculator/tree/main/cgt_calc/resources/eri).
-Then run the tool once to generate any new ISIN translations (if needed) and copy them from your own
-ISIN translation file (default `out/isin_translation.csv`) into
+If a fund needs new ticker mappings, follow the
+[ISIN translation instructions](../extra-data-and-options.md#isin-to-ticker-translation) to check or
+add them in your own translation file (default `out/isin_translation.csv`). Copy the verified
+mappings into
 [`initial_isin_translation.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv).
 
 ## Pull request checklist
