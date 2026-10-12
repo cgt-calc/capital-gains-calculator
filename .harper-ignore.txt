@@ -74,13 +74,13 @@
 # "a layout change" is a compound noun; Harper reads it as the verb "lay out".
 ^legal_and_general\.py:.*PhrasalVerbAsCompoundNoun
 # "Your tax is" - Harper joins "tax is" into the noun "taxis".
-^usage\.md:.*CompoundNouns.*taxis
+^tax-estimates\.md:.*CompoundNouns.*taxis
 # "a file path" is the ordinary open compound; Harper prefers "filepath".
 ^usage\.md:.*CompoundNouns.*filepath
 # "all of the gain" is ordinary English; the shorter form is only a preference.
-^(usage\.md|render_text\.py):.*CondenseAllThe
+^(tax-estimates\.md|render_text\.py):.*CondenseAllThe
 # "reminds you when the report has such dividends" is complete as it stands.
-^usage\.md:.*MissingPreposition
+^tax-estimates\.md:.*MissingPreposition
 # "a wrong guess changes the income a thousandfold" is complete as it stands.
 ^args_validators\.py:.*MissingPreposition
 # "Trading 212's" - Harper splits the possessive after a number.
@@ -101,3 +101,5 @@
 ^(hargreaves-lansdown|sharesight)\.md:.*CompoundNouns.*newline
 # "one of the London fund tickers" has its plural noun; OneOfTheSingular misfires.
 ^schwab\.md:.*OneOfTheSingular
+# "a narrow and a wide screen" describes screen widths, not the widescreen format.
+^contributing\.md:.*CompoundNouns.*widescreen

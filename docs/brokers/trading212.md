@@ -63,8 +63,8 @@ For the 2024/25 tax year, run:
 cgt-calc --year 2024 --trading212-dir trading212/
 ```
 
-`--year 2024` means 6 April 2024 to 5 April 2025. Follow [Generate and Review a Report](../usage.md)
-to find and check the output.
+`--year 2024` means 6 April 2024 to 5 April 2025. Follow [Generate a report](../usage.md) to find
+and check the output.
 
 ## Supported activity
 
@@ -253,7 +253,7 @@ of the same period, which gives the price in full. Otherwise, check the tax with
 If the row's figures do not allow a conversion, for example because the number of shares is missing,
 cgt-calc records the amount received and prints a warning naming the dividend. Add the tax withheld
 to your dividend income yourself and, if you use
-[`--income`](../usage.md#estimate-the-tax-from-your-income), to the figure you pass.
+[`--income`](../tax-estimates.md#estimate-the-tax-from-your-income), to the figure you pass.
 
 A row that takes back an earlier dividend is recorded at the amount taken back, with a warning. Its
 tax is not converted, so the report keeps the original dividend's tax at source and any treaty
@@ -279,8 +279,8 @@ cgt-calc does not treat the conversion as a disposal and reports no gain or loss
     in pounds or pence, whatever your account's currency, tax with no currency given, and tax on
     fund interest distributions (`Dividend (Interest)`). Tax in pounds may be UK tax, for example on
     a property income distribution, which is not foreign tax. Add that tax to your income yourself
-    and, if you use [`--income`](../usage.md#estimate-the-tax-from-your-income), to the figure you
-    pass.
+    and, if you use [`--income`](../tax-estimates.md#estimate-the-tax-from-your-income), to the
+    figure you pass.
 - cgt-calc does not use a dividend row's label to tell income from capital.
     `Dividend (Tax exempted)` is on rows where Trading 212 records no tax withheld, and the exports
     examined use it both for ordinary dividends and for repayments of share premium. cgt-calc

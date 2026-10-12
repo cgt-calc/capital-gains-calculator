@@ -1,4 +1,6 @@
-# Generate and Review a Report
+# Generate a report
+
+<span id="generate-and-review-a-report"></span>
 
 ## Before you start
 
@@ -99,6 +101,78 @@ To save the LaTeX source without creating a PDF, use `--no-pdflatex`. The source
 `--output` path with a `.tex` extension (by default, `out/calculations.tex`). For example,
 `--output reports/2024-25.pdf` writes `reports/2024-25.tex`.
 
+## Check the result
+
+Before relying on the figures:
+
+1. Read every warning printed while the calculator runs.
+2. Check that the portfolio section agrees with your records on the end date in the heading (5 April
+    for a full-year report). A holding under a ticker the company no longer uses can mean cgt-calc
+    does not know its [ticker rename](extra-data-and-options.md#ticker-renames), or that a merger or
+    takeover is missing from your history.
+3. Compare **Number of disposals** with your records. Check that **Disposal proceeds** agrees with
+    sale amounts on your broker statements and any values used for other disposals.
+4. Check that dividends and interest are present when you expect them.
+5. Confirm that every relevant account was included once, without overlapping exports.
+6. Check that unusual events such as share splits, spin-offs and offshore fund income were handled.
+
+Avoid `--no-balance-check` unless the relevant [broker guide](brokers/index.md) recommends it or you
+understand why the check cannot succeed. Disabling it removes one of the checks that can reveal
+incomplete transaction history.
+
+For each broker and currency, the balance check compares the cash balance with zero after the last
+row of each day, rather than after every row. Exports disagree about the order of a day's rows, and
+several write the newest first, so a purchase can appear before the deposit that funded it. Balances
+are kept per broker and currency rather than per account, so everything you export from one broker
+in one currency shares a single balance.
+
+cgt-calc cannot detect a balance that falls below zero within a day and recovers by the end of it.
+If you need to verify intraday funding, check the cash history in your broker's own records for that
+day.
+
+A successful run means cgt-calc could parse and calculate the supplied transactions. It does not
+prove that the supplied history was complete or that every part of your tax position is supported.
+
+The PDF shows the matching rules applied to each disposal: **SAME DAY**, **BED AND BREAKFAST** and
+**SECTION 104**. Check any unexpected matches against HMRC's
+[guidance for shares and Capital Gains Tax](https://www.gov.uk/government/publications/shares-and-capital-gains-tax-hs284-self-assessment-helpsheet).
+
+## Use the figures
+
+The cgt-calc report covers only the supported transactions supplied to the tool. It is not a
+complete tax return. Before filing, include gains and losses from other assets, unused losses from
+earlier years, and any claims or reliefs.
+
+Use HMRC's guidance to
+[check whether the gains must be reported](https://www.gov.uk/capital-gains-tax/work-out-need-to-pay).
+If completing Self Assessment, use the
+[Capital gains summary form and notes](https://www.gov.uk/government/publications/self-assessment-capital-gains-summary-sa108)
+for the relevant tax year. cgt-calc does not work out your final tax bill, map its output to return
+boxes or submit a return.
+
+Keep the original exports, supporting statements, command used, warnings and generated report with
+the calculation. Follow HMRC's
+[Capital Gains Tax record-keeping guidance](https://www.gov.uk/capital-gains-tax/records) for the
+required records and retention period.
+
+Run `cgt-calc --help` for the complete list of available options. Use `--verbose` when you need more
+detail while investigating a warning or error, and
+[`--dump-transactions`](#inspect-parsed-transactions) to see the transactions the calculation
+started from.
+
+## Tax at the basic and higher rate
+
+For a full tax year with a taxable gain, the terminal shows tax estimates at the rates for that
+year. They leave out gains outside your supplied files, losses brought forward and reliefs, so they
+are not your final tax bill. See [Tax estimates](tax-estimates.md) for how to read the figures and
+[what they leave out](tax-estimates.md#what-the-estimates-leave-out).
+
+## Estimate the tax from your income
+
+Use `--income` to estimate tax using your income for the year. Before adding it, read
+[Estimate the tax from your income](tax-estimates.md#estimate-the-tax-from-your-income) for what to
+include, adjustments you may need, and the estimate's limitations.
+
 ## Inspect parsed transactions
 
 Use `--dump-transactions` followed by a filename to save the transactions cgt-calc read from your
@@ -165,206 +239,6 @@ error naming the path; remove the partly written file, or choose another name, b
 Nothing else about the run changes. `--output`, `--no-report` and `--no-pdflatex` still do what they
 normally do, and the usual checks on your input still apply.
 
-## Check the result
-
-Before relying on the figures:
-
-1. Read every warning printed while the calculator runs.
-2. Check that the portfolio section agrees with your records on the end date in the heading (5 April
-    for a full-year report). A holding under a ticker the company no longer uses can mean cgt-calc
-    does not know its [ticker rename](extra-data-and-options.md#ticker-renames), or that a merger or
-    takeover is missing from your history.
-3. Compare **Number of disposals** with your records. Check that **Disposal proceeds** agrees with
-    sale amounts on your broker statements and any values used for other disposals.
-4. Check that dividends and interest are present when you expect them.
-5. Confirm that every relevant account was included once, without overlapping exports.
-6. Check that unusual events such as share splits, spin-offs and offshore fund income were handled.
-
-Avoid `--no-balance-check` unless the relevant [broker guide](brokers/index.md) recommends it or you
-understand why the check cannot succeed. Disabling it removes one of the checks that can reveal
-incomplete transaction history.
-
-For each broker and currency, the balance check compares the cash balance with zero after the last
-row of each day, rather than after every row. Exports disagree about the order of a day's rows, and
-several write the newest first, so a purchase can appear before the deposit that funded it. Balances
-are kept per broker and currency rather than per account, so everything you export from one broker
-in one currency shares a single balance.
-
-cgt-calc cannot detect a balance that falls below zero within a day and recovers by the end of it.
-If you need to verify intraday funding, check the cash history in your broker's own records for that
-day.
-
-A successful run means cgt-calc could parse and calculate the supplied transactions. It does not
-prove that the supplied history was complete or that every part of your tax position is supported.
-
-The PDF shows the matching rules applied to each disposal: **SAME DAY**, **BED AND BREAKFAST** and
-**SECTION 104**. Check any unexpected matches against HMRC's
-[guidance for shares and Capital Gains Tax](https://www.gov.uk/government/publications/shares-and-capital-gains-tax-hs284-self-assessment-helpsheet).
-
-## Use the figures
-
-The cgt-calc report covers only the supported transactions supplied to the tool. It is not a
-complete tax return. Before filing, include gains and losses from other assets, unused losses from
-earlier years, and any claims or reliefs.
-
-Use HMRC's guidance to
-[check whether the gains must be reported](https://www.gov.uk/capital-gains-tax/work-out-need-to-pay).
-If completing Self Assessment, use the
-[Capital gains summary form and notes](https://www.gov.uk/government/publications/self-assessment-capital-gains-summary-sa108)
-for the relevant tax year. cgt-calc does not work out your final tax bill, map its output to return
-boxes or submit a return.
-
-Keep the original exports, supporting statements, command used, warnings and generated report with
-the calculation. Follow HMRC's
-[Capital Gains Tax record-keeping guidance](https://www.gov.uk/capital-gains-tax/records) for the
-required records and retention period.
-
-Run `cgt-calc --help` for the complete list of available options. Use `--verbose` when you need more
-detail while investigating a warning or error, and
-[`--dump-transactions`](#inspect-parsed-transactions) to see the transactions the calculation
-started from.
-
-## Tax at the basic and higher rate
-
-When a full tax year has a **Taxable gain**, the terminal shows the Capital Gains Tax on it twice,
-as **Tax at basic rate** and **Tax at higher rate**. The PDF report does not include these figures.
-
-cgt-calc does not know your income, so it cannot tell which rate you pay unless you
-[give your income](#estimate-the-tax-from-your-income). The notes under the two figures give the
-rates and the Income Tax basic rate limit for that tax year, which is £37,700 for 2025/26:
-
-- **Tax at basic rate** is your tax if your taxable income for that year plus the taxable gain is
-    £37,700 or less.
-- **Tax at higher rate** is your tax if your taxable income for that year is £37,700 or more. This
-    includes additional rate taxpayers.
-- If your taxable income is under £37,700 but the taxable gain takes you over it, you pay the basic
-    rate on the part of it that fits under £37,700 and the higher rate on the rest. Your tax is then
-    between the two figures.
-
-For example, in 2025/26 the rates are 18% and 24%. With a taxable gain of £12,000 the terminal shows
-£2,160 and £2,880. If your taxable income is £30,000:
-
-1. £7,700 of the £37,700 is still unused.
-2. The first £7,700 of the gain is taxed at 18%, which is £1,386.
-3. The other £4,300 is taxed at 24%, which is £1,032.
-4. Your tax is £2,418.
-
-Taxable income is your income after the Personal Allowance and other Income Tax reliefs. Follow
-HMRC's steps to [work out which rate you pay](https://www.gov.uk/capital-gains-tax/rates). Two
-things to know about the limit
-([CG21204](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg21204)):
-
-- Gift Aid donations and pension contributions that get tax relief at source raise your limit, so
-    more of your gain is taxed at the basic rate. cgt-calc does not know about them.
-- If you pay Scottish or Welsh Income Tax, the limit for Capital Gains Tax is still the UK one shown
-    in the notes.
-
-The rates changed during two tax years: on 23 June 2010 and on 30 October 2024. For 2010/11 and
-2024/25, cgt-calc taxes each gain at the rates for the day of the sale or other disposal. It deducts
-the year's losses and the annual exempt amount from the gains taxed at the highest rate first,
-whenever in the year the loss arose. This gives the lowest tax, and you may set them against your
-gains in whichever way benefits you most
-([CG10246](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg10246)).
-
-In 2010/11, gains before 23 June 2010 are taxed at 18% whatever your income and do not count towards
-the limit
-([Finance (No. 2) Act 2010, Schedule 1, paragraph 18](https://www.legislation.gov.uk/ukpga/2010/31/schedule/1)).
-When part of your taxable gain was made before that date, the notes say how much of it was made from
-23 June 2010; compare only that amount with the limit. If none of it was made from that date, the
-terminal shows one figure, **Tax at 18%**. It shows the same for 2008/09 and 2009/10, when everyone
-paid 18%.
-
-The figures are estimates to help you plan, not your final tax bill, and the last note in the
-terminal says so. They cover only the **Taxable gain** in the report, at the rates for shares, so
-they leave out:
-
-- gains and losses that are not in the files you supplied, including those on other assets such as
-    property, which can be taxed at different rates
-- losses brought forward from earlier years
-- Business Asset Disposal Relief (formerly Entrepreneurs' Relief) and Investors' Relief
-- losses on gifts to connected people, shown as **Losses on gifts**, which can only reduce gains on
-    disposals to the [same person](brokers/raw.md#gifts-to-anyone-else)
-
-The figures also tax a gain on an
-[offshore fund that was ever non-reporting](offshore-funds.md#unsupported-functionality) as a
-capital gain, although it can be taxed as income. Work out that disposal outside cgt-calc.
-
-No tax figures are shown when the taxable gain is zero or when you use `--from` and `--to`, even for
-a period that covers the whole tax year.
-
-## Estimate the tax from your income
-
-Add `--income` to get one figure in place of the two. Pass your income for the tax year before the
-Personal Allowance, without the dividends and interest in the files you supply. For most employees
-that is the pay shown on the P60:
-
-```shell
-cgt-calc --year 2025 --schwab-file schwab_transactions.csv --income 45000
-```
-
-cgt-calc then:
-
-1. Adds the dividends and interest in the report to the income you gave.
-2. Deducts the standard Personal Allowance for the year, which is £12,570 for 2025/26.
-3. Works out how much of the basic rate limit that taxable income leaves unused.
-4. Taxes that much of the gain at the basic rate and the rest at the higher rate.
-
-The terminal shows **Estimated tax** in place of the two figures, with notes that give each step so
-that you can check it:
-
-```text
-  Taxable gain:        £12,000.00
-  Estimated tax:        £2,653.80
-Income £45,000.00, plus £1,200.00 dividends and £300.00 interest from these files, less the £12,570 Personal Allowance: taxable income £33,930.00, which leaves £3,770.00 of the £37,700 basic rate limit unused.
-Of the taxable gain, £3,770.00 is taxed at 18% and £8,230.00 at 24%.
-```
-
-In the figure you pass, include:
-
-- pay from every job, taxable benefits, pensions, rental profit and any other taxable income
-- dividends and interest from accounts that are not in the files you supply
-
-Leave out income that is not taxed, such as interest and dividends in an ISA.
-
-cgt-calc cannot know the following, so allow for them in the figure you pass:
-
-- **A Personal Allowance that is not the standard one.** Subtract any Blind Person's Allowance. Add
-    any part of your allowance that you transferred with Marriage Allowance. If you received
-    Marriage Allowance, change nothing: it reduces your tax, not your taxable income. Before 2016/17
-    some older people had a higher age-related allowance; subtract the extra.
-- **Gift Aid donations and pension contributions that get tax relief at source.** They raise your
-    basic rate limit. Subtract their gross amount: what you paid plus the basic rate tax relief
-    added to it. If that takes the figure below your Personal Allowance, the estimate can be too
-    high, because cgt-calc cannot count the rest.
-- **Other Income Tax reliefs.** Subtract anything else that reduces your taxable income, such as a
-    trading loss you claim against your income.
-- **Dividends and interest exported after tax.** cgt-calc adds them as the report shows them. If
-    your broker's export gives an amount after tax was taken off, as Revolut does for
-    [dividends](brokers/revolut.md#dividends-and-withholding-tax) and Trading 212 does in
-    [some cases](brokers/trading212.md#known-limitations), add that tax unless you have put it into
-    the report.
-- **Dividends before 6 April 2016.** cgt-calc does not add them, because the amount taxed is not the
-    amount received (see [Choose the tax year](#choose-the-tax-year)). Add their taxable amount
-    yourself. The terminal reminds you when the report has such dividends.
-
-The Personal Allowance shrinks when income is over £100,000. That does not change the estimate: at
-that income all of the gain is taxed at the higher rate. For the same reason, when your income
-leaves none of the limit unused, the notes give the allowance as "£12,570 at most".
-
-For 2010/11 and 2024/25, when the rates changed during the year, cgt-calc sets the losses, the
-annual exempt amount and the unused part of the limit against the gains where they save the most
-tax. HMRC confirms you may use them
-[in the most beneficial way](https://www.gov.uk/government/publications/changes-to-the-rates-of-capital-gains-tax/capital-gains-tax-rates-of-tax).
-The estimate is the tax for the whole year. It is not the adjustment figure that the 2024/25 Self
-Assessment return asks for.
-
-`--income` needs a full tax year, so it cannot be combined with `--from` and `--to`. Write it in
-whole pounds, such as `45000`. For 2008/09 and 2009/10 it changes nothing: everyone paid 18%
-whatever their income, so the terminal still shows one figure, **Tax at 18%**. The same goes for
-2010/11 when all of your taxable gain was made before 23 June 2010. The estimate leaves out the same
-things as the two figures: see
-[Tax at the basic and higher rate](#tax-at-the-basic-and-higher-rate).
-
 ## Report part of a tax year (advanced)
 
 Use `--from` and `--to` instead of `--year` to report a period within one UK tax year. For example,
@@ -386,9 +260,10 @@ a sale or other disposal in the report under the 30-day rule if it is in the sup
 A period report does not calculate the HMRC adjustment or divide the year's tax-free allowance for
 capital gains between periods. Use the **Gain** and **Loss** figures with the full-year report and
 HMRC guidance; do not treat its **Taxable gain** as your annual figure. It shows no tax figures; the
-full-year report's [tax figures](#tax-at-the-basic-and-higher-rate) already apply both sets of
-rates. Its dividend and interest figures are not annual totals either: they include only income
-received inside the period, and the dividend section still deducts the full-year dividend allowance.
+full-year report's [tax figures](tax-estimates.md#tax-at-the-basic-and-higher-rate) already apply
+both sets of rates. Its dividend and interest figures are not annual totals either: they include
+only income received inside the period, and the dividend section still deducts the full-year
+dividend allowance.
 
 ## Read a file from standard input
 

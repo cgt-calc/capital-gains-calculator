@@ -32,6 +32,57 @@ uv sync
 This command creates a virtual environment and installs all project and development dependencies
 into it. Run it again after pulling new changes to update dependencies.
 
+## Writing documentation
+
+Write for someone using cgt-calc to prepare their figures, without assuming they know the code or
+tax terminology. Developer pages can assume programming knowledge. Use plain British English,
+address the reader as “you”, and explain unfamiliar terms while keeping the names shown in the
+product and HMRC guidance.
+
+- **Start with the task.** Give prerequisites, steps and expected results in the order you need
+    them. Keep optional explanations and detailed reference out of the main sequence; link to them
+    where they help. Split a page when it serves separate tasks, not just because it is long.
+- **Make the page easy to scan.** Use descriptive headings, numbered steps for a sequence, bullets
+    for related items, and tables for comparisons. Put conditions before the instructions they
+    affect. Keep each paragraph about one idea.
+- **Preserve useful detail.** Keep examples and warnings that prevent mistakes. For a limitation,
+    say what is unsupported, whether cgt-calc detects it, what could go wrong, and what to do.
+    Remove repetition and unnecessary wording without rewriting prose that already works.
+- **Check the evidence.** Verify behaviour against the implementation and tests. Check tax, security
+    and privacy claims against current primary sources, and link to the relevant section. Use
+    fictional or sanitised examples and verify their commands and expected results.
+
+### Using an LLM
+
+Treat text from a large language model (LLM) as a draft. Give the LLM the reader's task, existing
+page, relevant code and tests, and sources you have checked. Request a focused edit; do not ask it
+to fill gaps by guessing.
+
+Review factual claims separately from wording. Check commands, output labels, calculations and
+citations against their sources; a second LLM response agreeing with the draft is not verification.
+Resolve unsupported claims before publishing. Then read the whole page to check the order of steps,
+remove repetition, and make sure important limitations survived the edit.
+
+### Check your documentation change
+
+Update navigation in `zensical.toml` and links from other pages when moving content. Keep a short
+summary and link at an old heading if released versions of cgt-calc or existing bookmarks use it.
+Run the [formatting, spelling and grammar checks](#code-style), then build the site and check links:
+
+```shell
+uv run --group docs zensical build --clean
+scripts/check_links.sh
+```
+
+Preview the result with:
+
+```shell
+uv run --group docs zensical serve
+```
+
+Open the local address printed in the terminal. Follow the changed instructions and links, and check
+that headings, tables and code blocks are readable on both a narrow and a wide screen.
+
 ## Code layout
 
 The calculation has two passes:

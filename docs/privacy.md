@@ -29,7 +29,7 @@ transaction, which can include the path of the file it was read from and the row
 path can carry your username. The broker pages ask for the complete error message when you report a
 problem: read it first, and shorten a path or replace a figure you would rather not publish. See the
 [instructions for your broker](brokers/index.md). The `--dump-transactions` export also includes the
-source file path and row number for every transaction.
+source file paths and, where recorded, row numbers.
 
 ## Disclaimer
 

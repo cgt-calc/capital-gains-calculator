@@ -40,8 +40,7 @@ cgt-calc --year 2025 --mssb-dir morgan_stanley/
 ```
 
 `--year 2025` means 6 April 2025 to 5 April 2026. Pass the directory containing the two CSV files,
-not either file itself. Follow [Generate and Review a Report](../usage.md) to find and check the
-output.
+not either file itself. Follow [Generate a report](../usage.md) to find and check the output.
 
 ## Supported activity
 

@@ -35,7 +35,7 @@ cgt-calc --year 2024 --freetrade-file freetrade.csv
 ```
 
 The filename does not matter. `--year 2024` means 6 April 2024 to 5 April 2025. Follow
-[Generate and Review a Report](../usage.md) to find and check the output.
+[Generate a report](../usage.md) to find and check the output.
 
 ## Supported activity
 
