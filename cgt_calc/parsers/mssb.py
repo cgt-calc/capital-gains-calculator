@@ -13,7 +13,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import ParsingError, UnsupportedActionError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 from cgt_calc.util import parse_decimal
 
@@ -149,7 +149,9 @@ class MSSBParser(
         plan = row[ReleaseColumn.PLAN]
 
         if row[ReleaseColumn.TYPE] != "Release":
-            raise ParsingError(file, f"Unknown type: {row[ReleaseColumn.TYPE]}")
+            raise UnsupportedActionError(
+                file, f"Unknown type: {row[ReleaseColumn.TYPE]}"
+            )
 
         if row[ReleaseColumn.STATUS] not in {"Complete", "Staged"}:
             raise ParsingError(file, f"Unknown status: {row[ReleaseColumn.STATUS]}")
@@ -207,7 +209,9 @@ class MSSBParser(
         plan = row[WithdrawalColumn.PLAN]
 
         if row[WithdrawalColumn.TYPE] != "Sale":
-            raise ParsingError(file, f"Unknown type: {row[WithdrawalColumn.TYPE]}")
+            raise UnsupportedActionError(
+                file, f"Unknown type: {row[WithdrawalColumn.TYPE]}"
+            )
 
         if row[WithdrawalColumn.ORDER_STATUS] != "Complete":
             raise ParsingError(

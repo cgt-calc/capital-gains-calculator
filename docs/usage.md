@@ -159,6 +159,24 @@ shows the base cost that passes to the recipient instead. The matching rules sti
 purchase on the same day or in the following 30 days can make that cost differ from the average cost
 of your pooled holding.
 
+## Skip unsupported rows
+
+cgt-calc stops when a broker export contains a row whose action or type it does not support, such as
+Schwab's `Journaled Shares` or Revolut's `REWARD`, because a missing transaction could make the
+holdings and gains wrong. Once you know what such a row was and that leaving it out does not change
+your figures, or you have recorded what it changes yourself, for example as a [RAW](brokers/raw.md)
+gift or transfer to a spouse, rerun with `--skip-unsupported-rows`:
+
+```shell
+cgt-calc --year 2025 --schwab-file schwab.csv --raw-file transfers.csv --skip-unsupported-rows
+```
+
+Each skipped row is printed as a warning that names the file, the row and its action. The option
+applies to every input in the run and skips only rows whose action or type is not supported. A row
+cgt-calc recognises but cannot read, such as one with a malformed number or date, still stops the
+run. Check each warning: a skipped row is left out of the calculation entirely, including any cash,
+holding or income it records.
+
 ## Use the figures
 
 The cgt-calc report covers only the supported transactions supplied to the tool. It is not a

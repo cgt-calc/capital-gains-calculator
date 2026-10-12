@@ -12,6 +12,7 @@ from cgt_calc.const import UK_TIMEZONE
 from cgt_calc.exceptions import (
     ParsingError,
     UnexpectedColumnCountError,
+    UnsupportedActionError,
     UnsupportedBrokerCurrencyError,
 )
 from cgt_calc.model import (
@@ -23,7 +24,7 @@ from cgt_calc.model import (
 )
 from cgt_calc.util import is_blank_row, parse_decimal
 
-from .base_parsers import BaseSingleFileParser, read_csv_rows
+from .base_parsers import BaseSingleFileParser, read_csv_rows, read_supported_row
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -127,7 +128,7 @@ def _action_from_str(action_type: str, buy_sell: str, file: Path) -> ActionType:
 
         raise ParsingError(file, f"Unknown buy_sell: '{buy_sell}'")
 
-    raise ParsingError(file, f"Unknown type: '{action_type}'")
+    raise UnsupportedActionError(file, f"Unknown type: '{action_type}'")
 
 
 class FreetradeTransaction(BrokerTransaction):
@@ -291,7 +292,11 @@ class FreetradeParser(BaseSingleFileParser[BrokerTransaction]):
                 )
                 continue
             try:
-                transaction = FreetradeTransaction(row, file_path)
+                transaction = read_supported_row(
+                    index, FreetradeTransaction, row, file_path
+                )
+                if transaction is None:
+                    continue
                 transaction.source = TransactionSource(
                     row=index, timestamp=transaction.datetime
                 )

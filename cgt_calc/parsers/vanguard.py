@@ -11,7 +11,11 @@ import re
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
-from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.exceptions import (
+    ParsingError,
+    UnexpectedColumnCountError,
+    UnsupportedActionError,
+)
 from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
@@ -20,7 +24,7 @@ from cgt_calc.model import (
 )
 from cgt_calc.util import is_blank_row, parse_decimal
 
-from .base_parsers import BaseSingleFileParser, read_csv_rows
+from .base_parsers import BaseSingleFileParser, read_csv_rows, read_supported_row
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -129,7 +133,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
                 "https://cgt-calc.uk/brokers/vanguard/#a-reversed-purchase-or-disposal",
             )
 
-    raise ParsingError(file, f"Unknown action: {label}")
+    raise UnsupportedActionError(file, f"Unknown action: {label}")
 
 
 def _parse_decimal(value: str, context: str) -> Decimal:
@@ -738,7 +742,12 @@ class VanguardParser(BaseSingleFileParser[VanguardTransaction]):
                 # number here. Skipping it for the rest would accept them
                 # silently, so do not narrow this call to NameChange rows.
                 try:
-                    txn = _make_transaction_from_investment(investment_row, file_path)
+                    txn = read_supported_row(
+                        row_index,
+                        _make_transaction_from_investment,
+                        investment_row,
+                        file_path,
+                    )
                 except ParsingError as err:
                     err.add_row_context(row_index)
                     raise
@@ -747,7 +756,7 @@ class VanguardParser(BaseSingleFileParser[VanguardTransaction]):
                         file_path, str(err), row_index=row_index
                     ) from err
                 if txn is None:
-                    continue  # zero-out half of a NameChange pair
+                    continue  # zero-out half of a NameChange pair, or a skipped row
                 txn.source = TransactionSource(row=row_index)
                 if txn.action is ActionType.RENAME:
                     transactions.append(txn)
@@ -771,12 +780,16 @@ class VanguardParser(BaseSingleFileParser[VanguardTransaction]):
                     row_index=row_index,
                 )
             try:
-                cash_txn = VanguardTransaction(cash_header, row, file_path)
+                cash_txn = read_supported_row(
+                    row_index, VanguardTransaction, cash_header, row, file_path
+                )
             except ParsingError as err:
                 err.add_row_context(row_index)
                 raise
             except ValueError as err:
                 raise ParsingError(file_path, str(err), row_index=row_index) from err
+            if cash_txn is None:
+                continue
             cash_txn.source = TransactionSource(row=row_index)
             transactions.append(cash_txn)
 

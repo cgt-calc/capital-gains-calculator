@@ -2,7 +2,9 @@
 
 from abc import ABC, abstractmethod
 import argparse
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Generator, Iterable, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 import csv
 import dataclasses
 import itertools
@@ -20,7 +22,12 @@ from cgt_calc.args_validators import (
     existing_file_or_stdin_type,
     set_completer,
 )
-from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError, reading_as
+from cgt_calc.exceptions import (
+    ParsingError,
+    UnexpectedColumnCountError,
+    UnsupportedActionError,
+    reading_as,
+)
 from cgt_calc.logging import parsing_msg
 from cgt_calc.model import BrokerTransaction, TransactionSource
 from cgt_calc.ticker_renames import ambiguity, current_ticker
@@ -31,6 +38,53 @@ if TYPE_CHECKING:
 LOGGER = logging.getLogger(__name__)
 
 _ACCOUNT_COUNTER = itertools.count(1)
+
+# Set for the duration of one load by `skipping_unsupported_rows`, so the
+# choice reaches every parser's row loop without threading it through each
+# classmethod.
+_SKIP_UNSUPPORTED_ROWS: ContextVar[bool] = ContextVar(
+    "skip_unsupported_rows", default=False
+)
+
+
+@contextmanager
+def skipping_unsupported_rows(*, enabled: bool) -> Generator[None]:
+    """Leave out rows that raise `UnsupportedActionError` while loading."""
+    token = _SKIP_UNSUPPORTED_ROWS.set(enabled)
+    try:
+        yield
+    finally:
+        _SKIP_UNSUPPORTED_ROWS.reset(token)
+
+
+def read_supported_row[**P, T](
+    row_index: int | None,
+    read: Callable[P, T],
+    *args: P.args,
+    **kwargs: P.kwargs,
+) -> T | None:
+    """Read one row, or return None to leave out a row its parser does not support.
+
+    This is the one place `UnsupportedActionError` is handled. Parsers call
+    their row reader through it and move on to the next row on None. Without
+    `--skip-unsupported-rows` the error is raised as before, naming the row.
+    """
+    try:
+        return read(*args, **kwargs)
+    except UnsupportedActionError as err:
+        if row_index is not None:
+            err.add_row_context(row_index)
+        if not _SKIP_UNSUPPORTED_ROWS.get():
+            raise
+        LOGGER.warning(
+            "Skipped an unsupported row because of --skip-unsupported-rows: %s\n"
+            "  The row is left out of the calculation: check that it does not "
+            "change your holdings, their cost or your taxable income, and add "
+            "anything it does change in a RAW file. "
+            "See https://cgt-calc.uk/usage/#skip-unsupported-rows",
+            err.message,
+        )
+        return None
 
 
 def read_input(file_path: Path, encoding: str) -> str:
@@ -441,7 +495,7 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                     raise UnexpectedColumnCountError(
                         [*stated, *row.get(None, [])], expected_col_count, file_path
                     )
-                transaction = cls.read_row(row, file_path)
+                transaction = read_supported_row(index, cls.read_row, row, file_path)
                 if transaction:
                     # Whatever `read_row` recorded is kept, because it knows
                     # what the row itself stated and this only adds the line
