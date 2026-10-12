@@ -32,6 +32,7 @@
 Chargeable \textbf{gain} is £\VAR{ event.gain|money }\BLOCK{ if event.is_gift }, before any relief:
 a gift of shares that qualify for Gift Hold-over Relief has the gain deferred by a joint claim on your returns\BLOCK{ endif }
 
+
 Capital gain to date is £\VAR{ event.gain_to_date|money }
     \BLOCK{ elif event.outcome == "nil" }
 Neither a gain nor a loss.
@@ -237,6 +238,7 @@ Loss is £\VAR{ (-event.gain)|money }; the gain or loss is disregarded (exempt a
 \subsection*{Number of acquisitions: \VAR{ view.summary.acquisition_count }}
 \subsection*{Number of disposals: \VAR{ view.summary.disposal_count }}
 \subsection*{Total disposal proceeds: £\VAR{ view.summary.disposal_proceeds|money }}
+\subsection*{Total allowable costs: £\VAR{ view.summary.allowable_costs|money }}
 \subsection*{Total capital gain before loss: £\VAR{ view.summary.total_gain|money }}
 \subsection*{Total capital loss: £\VAR{ view.summary.total_loss|money }}
 \BLOCK{ if view.summary.gift_loss > 0 }
