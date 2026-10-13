@@ -26,7 +26,7 @@ from cgt_calc.model import BrokerTransaction, TransactionSource
 from cgt_calc.ticker_renames import ambiguity, current_ticker
 
 if TYPE_CHECKING:
-    import datetime
+    import datetime as dt
 
 LOGGER = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ def use_current_tickers(
     an ISIN, fall while that ticker was a renamed security's: nothing says
     which rows are which security's.
     """
-    dates: dict[str, list[datetime.date]] = {}
+    dates: dict[str, list[dt.date]] = {}
     for transaction in transactions:
         if transaction.symbol is not None and transaction.isin is None:
             dates.setdefault(transaction.symbol, []).append(transaction.date)
@@ -552,7 +552,7 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
         left alone: one export listing a transaction twice is saying that it
         happened twice.
         """
-        on_date: dict[datetime.date, list[T]] = {}
+        on_date: dict[dt.date, list[T]] = {}
         for transaction in earlier:
             on_date.setdefault(transaction.date, []).append(transaction)
         for transaction in loaded:

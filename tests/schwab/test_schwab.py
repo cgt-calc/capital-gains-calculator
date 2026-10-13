@@ -1,6 +1,6 @@
 """Test Schwab parser."""
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 import io
 from pathlib import Path
@@ -107,7 +107,7 @@ def test_award_price_with_thousands_separators_is_parsed(tmp_path: Path) -> None
 
     awards = _read_award_file(award_file)
 
-    assert awards.award_prices[datetime.date(2023, 8, 15)]["BAR"] == Decimal("1250.00")
+    assert awards.award_prices[dt.date(2023, 8, 15)]["BAR"] == Decimal("1250.00")
 
 
 def test_each_award_in_a_price_csv_keeps_its_own_price(tmp_path: Path) -> None:
@@ -126,8 +126,8 @@ def test_each_award_in_a_price_csv_keeps_its_own_price(tmp_path: Path) -> None:
     awards = _read_award_file(award_file)
 
     assert awards.award_prices == {
-        datetime.date(2023, 8, 15): {"BAR": Decimal("140.35")},
-        datetime.date(2023, 11, 15): {"BAR": Decimal("150.10")},
+        dt.date(2023, 8, 15): {"BAR": Decimal("140.35")},
+        dt.date(2023, 11, 15): {"BAR": Decimal("150.10")},
     }
 
 
@@ -135,7 +135,7 @@ def test_award_file_without_the_award_says_so() -> None:
     """A file that lacks this particular award is a different mistake."""
     path = Path("tests") / "schwab" / "data" / "rsu_settlement" / "transactions.csv"
     SchwabParser.awards_prices = AwardPrices(
-        award_prices={datetime.date(2020, 1, 1): {"FOO": Decimal(1)}}
+        award_prices={dt.date(2020, 1, 1): {"FOO": Decimal(1)}}
     )
 
     with (
@@ -369,9 +369,7 @@ def test_read_transactions_skips_blank_lines(line: str) -> None:
 
     transactions = _read(content)
 
-    assert [transaction.date for transaction in transactions] == [
-        datetime.date(2023, 1, 15)
-    ]
+    assert [transaction.date for transaction in transactions] == [dt.date(2023, 1, 15)]
 
 
 def test_read_transactions_wrong_column_count() -> None:
@@ -389,7 +387,7 @@ def test_read_transactions_as_of_date() -> None:
         + '01/15/2023 as of 01/12/2023,Credit Interest,,Interest,,,,"$1.00"\n'
     )
     transactions = _read(content)
-    assert transactions[0].date == datetime.date(2023, 1, 15)
+    assert transactions[0].date == dt.date(2023, 1, 15)
 
 
 def test_read_transactions_invalid_date() -> None:
@@ -417,13 +415,13 @@ def test_stock_activity_without_symbol() -> None:
 def test_a_vest_posted_without_as_of_takes_the_award_date() -> None:
     """A posting date with no 'as of' still gives way to the award's vest date."""
     SchwabParser.awards_prices = AwardPrices(
-        award_prices={datetime.date(2023, 8, 15): {"BAR": Decimal("140.35")}}
+        award_prices={dt.date(2023, 8, 15): {"BAR": Decimal("140.35")}}
     )
     content = SCHWAB_HEADER + "08/18/2023,Stock Plan Activity,BAR,Vest,,200,,\n"
 
     (vest,) = _read(content)
 
-    assert vest.date == datetime.date(2023, 8, 15)
+    assert vest.date == dt.date(2023, 8, 15)
 
 
 @pytest.mark.parametrize(
@@ -453,7 +451,7 @@ def test_a_vest_between_a_buy_and_its_cancellation_does_not_hide_the_buy(
     direction the search looks.
     """
     SchwabParser.awards_prices = AwardPrices(
-        award_prices={datetime.date(2023, 8, 15): {"BAR": Decimal("140.35")}}
+        award_prices={dt.date(2023, 8, 15): {"BAR": Decimal("140.35")}}
     )
 
     (vest,) = _read(SCHWAB_HEADER + rows)

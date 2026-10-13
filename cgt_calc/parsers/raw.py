@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 from enum import StrEnum
 import logging
@@ -112,7 +112,7 @@ class RawTransaction(BrokerTransaction):
         }
 
         date_str = row_values[RawColumn.DATE]
-        date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+        date = dt.datetime.strptime(date_str, "%Y-%m-%d").date()
 
         action = _action_from_str(row_values[RawColumn.ACTION], file)
         symbol = row_values[RawColumn.SYMBOL] or None

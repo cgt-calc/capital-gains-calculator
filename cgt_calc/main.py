@@ -33,7 +33,7 @@ from .model import (
 from .util import round_decimal
 
 if TYPE_CHECKING:
-    import datetime
+    import datetime as dt
 
     from .currency_converter import CurrencyConverter
     from .current_price_fetcher import CurrentPriceFetcher
@@ -67,8 +67,8 @@ class CapitalGainsCalculator:
         autoconvert_currency: bool = False,
         calc_unrealized_gains: bool = False,
         gifts_to_spouse: bool = False,
-        period_start: datetime.date | None = None,
-        period_end: datetime.date | None = None,
+        period_start: dt.date | None = None,
+        period_end: dt.date | None = None,
     ):
         """Create calculator object.
 
@@ -139,7 +139,7 @@ class CapitalGainsCalculator:
         return self.run.bnb_list
 
     @property
-    def splits(self) -> dict[datetime.date, dict[str, SplitTransformation]]:
+    def splits(self) -> dict[dt.date, dict[str, SplitTransformation]]:
         """What each share reorganisation does to a holding."""
         return self.history.splits
 
@@ -148,7 +148,7 @@ class CapitalGainsCalculator:
         """Excess Reported Income by date and symbol."""
         return self.history.eris
 
-    def date_in_tax_year(self, date: datetime.date) -> bool:
+    def date_in_tax_year(self, date: dt.date) -> bool:
         """Check if date is within current tax year."""
         assert is_date(date)
         return self.tax_year_start_date <= date <= self.tax_year_end_date

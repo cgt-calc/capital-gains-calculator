@@ -11,7 +11,7 @@ from .util import display_str, is_blank_row, strip_zeros
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
-    import datetime
+    import datetime as dt
     from decimal import Decimal
     from pathlib import Path
 
@@ -337,13 +337,13 @@ class CalculationError(CgtError):
 class ExchangeRateMissingError(CalculationError):
     """Exchange rate is missing error."""
 
-    def __init__(self, symbol: str, date: datetime.date):
+    def __init__(self, symbol: str, date: dt.date):
         """Initialise."""
         self.message = f"No GBP/{symbol} price for {date}"
         super().__init__(self.message)
 
 
-def rates_file_row(currency: str, date: datetime.date, rates_file: Path | None) -> str:
+def rates_file_row(currency: str, date: dt.date, rates_file: Path | None) -> str:
     """Say which file a rate goes in, what its row looks like and where to read more.
 
     The row is written with <rate> in it, so that pasting it unchanged is
@@ -360,7 +360,7 @@ def rates_file_row(currency: str, date: datetime.date, rates_file: Path | None) 
 class HmrcRateMissingError(CalculationError):
     """HMRC gives no rate cgt-calc can use for a currency on a date."""
 
-    def __init__(self, currency: str, date: datetime.date, rates_file: Path | None):
+    def __init__(self, currency: str, date: dt.date, rates_file: Path | None):
         """Initialise with the rates file the row should go in, if there is one."""
         super().__init__(
             f"cgt-calc has no HMRC exchange rate for {currency} on {date}. Add it to "
@@ -375,7 +375,7 @@ _PRICES_FILE = "--prices-file (header 'date,symbol,price')"
 class SharePriceMissingError(CalculationError):
     """No share price is given for a vest without one."""
 
-    def __init__(self, symbol: str, date: datetime.date):
+    def __init__(self, symbol: str, date: dt.date):
         """Initialise."""
         self.message = (
             f"No share price for {symbol} on {date}: add it to a file passed with "
@@ -387,7 +387,7 @@ class SharePriceMissingError(CalculationError):
 class BundledPriceCurrencyError(CalculationError):
     """A bundled USD price was asked for a transaction in another currency."""
 
-    def __init__(self, symbol: str, date: datetime.date, currency: str):
+    def __init__(self, symbol: str, date: dt.date, currency: str):
         """Initialise."""
         super().__init__(
             f"The bundled price for {symbol} on {date} is in USD, but the "
@@ -443,7 +443,7 @@ class ExternalApiError(CgtError):
 class InteractiveInputRequiredError(CgtError):
     """Raised when a prompt is needed but stdin is not a terminal."""
 
-    def __init__(self, symbol: str, date: datetime.date, spin_offs_file: Path | None):
+    def __init__(self, symbol: str, date: dt.date, spin_offs_file: Path | None):
         """Initialise."""
         if spin_offs_file is None:
             # An empty --spin-offs-file disables the cache, so there is no file
@@ -467,7 +467,7 @@ class InteractiveInputRequiredError(CgtError):
 class MarketDataMissingError(CgtError):
     """Raised when the market data provider has no data for a symbol and date."""
 
-    def __init__(self, symbol: str, date: datetime.date):
+    def __init__(self, symbol: str, date: dt.date):
         """Initialise."""
         super().__init__(
             f"No market data found for {symbol} around {date}. Yahoo Finance "

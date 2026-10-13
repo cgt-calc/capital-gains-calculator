@@ -12,15 +12,15 @@ from .model import (
 )
 
 if TYPE_CHECKING:
-    import datetime
+    import datetime as dt
     from decimal import Decimal
 
     from .model import AcquisitionLog
 
 
 def has_key[T](
-    transactions: dict[datetime.date, dict[str, T]],
-    date_index: datetime.date,
+    transactions: dict[dt.date, dict[str, T]],
+    date_index: dt.date,
     symbol: str,
 ) -> bool:
     """Check if transaction log has entry for date_index and symbol.
@@ -34,7 +34,7 @@ def has_key[T](
 
 def day_acquisitions(
     current_list: AcquisitionLog,
-    date_index: datetime.date,
+    date_index: dt.date,
     symbol: str,
 ) -> DayAcquisitions:
     """Return what a day has put into a holding, starting an empty record."""
@@ -43,7 +43,7 @@ def day_acquisitions(
 
 def add_to_list(
     current_list: HmrcTransactionLog,
-    date_index: datetime.date,
+    date_index: dt.date,
     symbol: str,
     quantity: Decimal,
     amount: Decimal,

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -35,7 +35,7 @@ def test_eri_raw_file_option_adds_its_rows_to_the_bundled_ones(tmp_path: Path) -
 
     given = [t for t in transactions if t.source and t.source.file == file_path]
     assert [(t.isin, t.date, t.price) for t in given] == [
-        (VALID_ISIN, datetime.date(2023, 2, 1), Decimal("1.23"))
+        (VALID_ISIN, dt.date(2023, 2, 1), Decimal("1.23"))
     ]
     assert len(transactions) > len(given)
 

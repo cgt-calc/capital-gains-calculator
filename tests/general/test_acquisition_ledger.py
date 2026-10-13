@@ -10,7 +10,7 @@ what a sale is then identified against.
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 
 import pytest
@@ -30,9 +30,9 @@ from .test_calc import _gbp_fee, _gbp_trade, create_calculator, get_report
 from .test_spin_off_basis import BUY_DAY, FLAT, SPIN_OFF_DAY, spin_off
 from .test_stock_splits import legacy_split
 
-DAY = datetime.date(2024, 5, 10)
-EARLIER_DAY = datetime.date(2024, 5, 1)
-LATER_DAY = datetime.date(2024, 5, 20)
+DAY = dt.date(2024, 5, 10)
+EARLIER_DAY = dt.date(2024, 5, 1)
+LATER_DAY = dt.date(2024, 5, 20)
 
 
 def _ledger(transactions: list[BrokerTransaction]) -> AcquisitionLog:
@@ -231,10 +231,10 @@ def test_a_reorganisation_stated_as_a_share_count_records_no_acquisition() -> No
     carries cost into it, where a split leaves the same pool under the same
     name.
     """
-    split_day = datetime.date(2023, 5, 15)
+    split_day = dt.date(2023, 5, 15)
     ledger = _ledger(
         [
-            _gbp_trade(datetime.date(2023, 5, 2), ActionType.BUY, "FOO", 100, 1000),
+            _gbp_trade(dt.date(2023, 5, 2), ActionType.BUY, "FOO", 100, 1000),
             legacy_split(split_day, "FOO", "100"),
         ]
     )

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import fields, is_dataclass
-import datetime
+import datetime as dt
 from decimal import Decimal
 from enum import Enum
 import json
@@ -51,7 +51,7 @@ def _jsonable(value: object) -> object:
         return value
     if isinstance(value, str | Decimal | Path):
         return str(value)
-    if isinstance(value, datetime.date):
+    if isinstance(value, dt.date):
         # datetime.datetime is a date, and isoformat covers both.
         return value.isoformat()
     if isinstance(value, Enum):

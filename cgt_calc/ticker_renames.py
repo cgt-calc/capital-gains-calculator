@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
-import datetime
+import datetime as dt
 from functools import cache
 from importlib import resources
 from typing import TYPE_CHECKING
@@ -30,20 +30,20 @@ class TickerRename:
     new: str
     # The first day this security traded as `old`, where `old` named another
     # security before.
-    since: datetime.date | None
+    since: dt.date | None
     # The first day another security traded as `old`.
-    reused: datetime.date | None
+    reused: dt.date | None
     isin: Isin
     company: str
 
-    def covers(self, date: datetime.date) -> bool:
+    def covers(self, date: dt.date) -> bool:
         """Say whether a row under `old`, without an ISIN, is this security."""
         return (self.since is None or self.since <= date) and (
             self.reused is None or date < self.reused
         )
 
 
-def current_ticker(symbol: str, date: datetime.date, isin: Isin | None = None) -> str:
+def current_ticker(symbol: str, date: dt.date, isin: Isin | None = None) -> str:
     """Return the ticker a row's security trades under now.
 
     A row carrying an ISIN is matched by it, whatever its date; a row without
@@ -57,7 +57,7 @@ def current_ticker(symbol: str, date: datetime.date, isin: Isin | None = None) -
     return symbol if found is None else found.new
 
 
-def ambiguity(symbol: str, dates: Collection[datetime.date]) -> str | None:
+def ambiguity(symbol: str, dates: Collection[dt.date]) -> str | None:
     """Explain why rows without an ISIN under `symbol` cannot be told apart.
 
     When some of the rows fall while `symbol` was a renamed security's and
@@ -103,5 +103,5 @@ def ticker_renames() -> Mapping[str, Sequence[TickerRename]]:
     return by_old
 
 
-def _optional_date(value: str) -> datetime.date | None:
-    return datetime.date.fromisoformat(value) if value else None
+def _optional_date(value: str) -> dt.date | None:
+    return dt.date.fromisoformat(value) if value else None

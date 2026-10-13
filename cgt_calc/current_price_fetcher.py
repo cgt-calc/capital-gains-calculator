@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -19,7 +19,7 @@ class CurrentPriceFetcher:
         self,
         converter: CurrencyConverter,
         current_prices_data: dict[str, Decimal | None] | None = None,
-        historical_prices_data: dict[str, dict[datetime.date, Decimal]] | None = None,
+        historical_prices_data: dict[str, dict[dt.date, Decimal]] | None = None,
     ):
         """Store the converter and optional pre-seeded price data."""
         self.current_prices_data = current_prices_data
@@ -27,7 +27,7 @@ class CurrentPriceFetcher:
         self.converter = converter
 
     def _convert_to_gbp(
-        self, price: Decimal, currency: str | None, date: datetime.date
+        self, price: Decimal, currency: str | None, date: dt.date
     ) -> Decimal:
         """Convert a price quoted in the given yfinance currency to GBP.
 
@@ -65,10 +65,10 @@ class CurrentPriceFetcher:
             return None
         market_price_decimal = Decimal(format(market_price, ".15g"))
         return self._convert_to_gbp(
-            market_price_decimal, ticker.get("currency"), datetime.datetime.now().date()
+            market_price_decimal, ticker.get("currency"), dt.datetime.now().date()
         )
 
-    def known_closing_price(self, symbol: str, date: datetime.date) -> Decimal | None:
+    def known_closing_price(self, symbol: str, date: dt.date) -> Decimal | None:
         """Return an already-known closing price, or None without fetching.
 
         For asking about a ticker that may not exist. Only the prices given to
@@ -77,7 +77,7 @@ class CurrentPriceFetcher:
         """
         return self.historical_prices_data.get(symbol, {}).get(date)
 
-    def get_closing_price(self, symbol: str, date: datetime.date) -> Decimal:
+    def get_closing_price(self, symbol: str, date: dt.date) -> Decimal:
         """Get the price the share closed at on the day, as it traded then.
 
         Yahoo rewrites past prices: by default it lowers them for every later

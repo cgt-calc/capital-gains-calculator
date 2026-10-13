@@ -14,7 +14,7 @@ were.
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 import json
 import logging
@@ -239,7 +239,7 @@ def test_a_lapse_states_a_date_a_symbol_and_a_price(tmp_path: Path) -> None:
 
     prices = _prices(tmp_path, award_file)
 
-    assert prices.get(datetime.date(2023, 6, 12), "ZQX")[1] == 10
+    assert prices.get(dt.date(2023, 6, 12), "ZQX")[1] == 10
 
 
 @pytest.mark.parametrize(
@@ -365,7 +365,7 @@ def test_the_sort_value_wins_over_a_rounded_displayed_price(tmp_path: Path) -> N
 
     prices = _prices(tmp_path, award_file)
 
-    assert prices.get(datetime.date(2023, 6, 12), "ZQX")[1] == Decimal("10.004")
+    assert prices.get(dt.date(2023, 6, 12), "ZQX")[1] == Decimal("10.004")
 
 
 def test_a_lapse_stating_its_details_without_a_wrapper_is_read(
@@ -379,7 +379,7 @@ def test_a_lapse_stating_its_details_without_a_wrapper_is_read(
 
     prices = _prices(tmp_path, award_file)
 
-    assert prices.get(datetime.date(2023, 6, 12), "ZQX")[1] == 10
+    assert prices.get(dt.date(2023, 6, 12), "ZQX")[1] == 10
 
 
 def test_a_renamed_ticker_is_filed_under_the_name_it_is_looked_up_by(
@@ -393,8 +393,8 @@ def test_a_renamed_ticker_is_filed_under_the_name_it_is_looked_up_by(
 
     prices = _prices(tmp_path, award_file)
 
-    assert prices.get(datetime.date(2021, 6, 14), "FB")[1] == 10
-    assert "META" in prices.award_prices[datetime.date(2021, 6, 14)]
+    assert prices.get(dt.date(2021, 6, 14), "FB")[1] == 10
+    assert "META" in prices.award_prices[dt.date(2021, 6, 14)]
 
 
 # --- Several grants on one day ----------------------------------------------
@@ -412,7 +412,7 @@ def test_grants_vesting_together_at_one_price_collapse_to_one_entry(
 
     prices = _prices(tmp_path, award_file)
 
-    assert prices.award_prices == {datetime.date(2023, 6, 12): {"ZQX": 10}}
+    assert prices.award_prices == {dt.date(2023, 6, 12): {"ZQX": 10}}
 
 
 def test_grants_vesting_together_at_different_prices_are_refused(

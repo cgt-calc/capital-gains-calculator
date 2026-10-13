@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 import logging
 from typing import TYPE_CHECKING
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     import pytest
 
 TAX_YEAR = 2024
-DATE = datetime.date(2024, 6, 3)
+DATE = dt.date(2024, 6, 3)
 
 # A US-domiciled security. Interactive Brokers reports its dividends in the
 # account's base currency, GBP for a UK account, while Schwab reports in USD.

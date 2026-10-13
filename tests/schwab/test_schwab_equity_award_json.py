@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import csv
-import datetime
+import datetime as dt
 from decimal import Decimal
 import io
 import json
@@ -80,7 +80,7 @@ def test_schwab_transaction_v1() -> None:
         Path("tests/schwab/data/equity_award/schwab_equity_award_v1.json")
     )
 
-    assert transactions[0].date == datetime.date(2022, 4, 25)
+    assert transactions[0].date == dt.date(2022, 4, 25)
     assert transactions[0].action == ActionType.STOCK_ACTIVITY
     assert transactions[0].symbol == "GOOG"
     assert transactions[0].quantity == Decimal("67.2")
@@ -89,19 +89,19 @@ def test_schwab_transaction_v1() -> None:
     assert transactions[0].currency == "USD"
     assert transactions[0].broker == "Charles Schwab"
 
-    assert transactions[1].date == datetime.date(2022, 6, 14)
+    assert transactions[1].date == dt.date(2022, 6, 14)
     assert transactions[1].action == ActionType.SELL
     assert transactions[1].quantity == Decimal("62.601495")
     assert transactions[1].price == Decimal("113.75")
     assert transactions[1].fees == Decimal("0.17")
 
-    assert transactions[2].date == datetime.date(2022, 10, 25)
+    assert transactions[2].date == dt.date(2022, 10, 25)
     assert transactions[2].action == ActionType.STOCK_ACTIVITY
     assert transactions[2].quantity == Decimal("10.45")
     assert transactions[2].price == Decimal("112.42")
     assert transactions[2].fees == Decimal(0)
 
-    assert transactions[3].date == datetime.date(2022, 11, 16)
+    assert transactions[3].date == dt.date(2022, 11, 16)
     assert transactions[3].action == ActionType.SELL
     assert transactions[3].quantity == Decimal("12.549")
     assert transactions[3].price is not None
@@ -119,28 +119,28 @@ def test_schwab_transaction_v2() -> None:
     )
 
     i = 0
-    assert transactions[i].date == datetime.date(2023, 4, 25)
+    assert transactions[i].date == dt.date(2023, 4, 25)
     assert transactions[i].action == ActionType.STOCK_ACTIVITY
     assert transactions[i].quantity == Decimal("4.911")
     assert transactions[i].price == Decimal("106.78")
     assert transactions[i].fees == Decimal(0)
 
     i += 1
-    assert transactions[i].date == datetime.date(2023, 4, 25)
+    assert transactions[i].date == dt.date(2023, 4, 25)
     assert transactions[i].action == ActionType.STOCK_ACTIVITY
     assert transactions[i].quantity == Decimal("13.6")
     assert transactions[i].price == Decimal("106.78")
     assert transactions[i].fees == Decimal(0)
 
     i += 1
-    assert transactions[i].date == datetime.date(2023, 8, 31)
+    assert transactions[i].date == dt.date(2023, 8, 31)
     assert transactions[i].action == ActionType.SELL
     assert transactions[i].quantity == Decimal("14.40")
     assert transactions[i].price == Decimal("137.90")
     assert transactions[i].fees == Decimal("0.02")
 
     i += 1
-    assert transactions[i].date == datetime.date(2023, 9, 25)
+    assert transactions[i].date == dt.date(2023, 9, 25)
     assert transactions[i].action == ActionType.STOCK_ACTIVITY
     assert transactions[i].symbol == "GOOG"
     assert transactions[i].quantity == Decimal("4.911")
@@ -150,7 +150,7 @@ def test_schwab_transaction_v2() -> None:
     assert transactions[i].broker == "Charles Schwab"
 
     i += 1
-    assert transactions[i].date == datetime.date(2023, 9, 25)
+    assert transactions[i].date == dt.date(2023, 9, 25)
     assert transactions[i].action == ActionType.STOCK_ACTIVITY
     assert transactions[i].symbol == "GOOG"
     assert transactions[i].quantity == Decimal("13.6")
@@ -160,7 +160,7 @@ def test_schwab_transaction_v2() -> None:
     assert transactions[i].broker == "Charles Schwab"
 
     i += 1
-    assert transactions[i].date == datetime.date(2024, 6, 17)
+    assert transactions[i].date == dt.date(2024, 6, 17)
     assert transactions[i].action == ActionType.DIVIDEND
     assert transactions[i].symbol == "GOOG"
     assert transactions[i].amount == Decimal("74.62")
@@ -169,7 +169,7 @@ def test_schwab_transaction_v2() -> None:
     assert transactions[i].broker == "Charles Schwab"
 
     i += 1
-    assert transactions[i].date == datetime.date(2024, 6, 17)
+    assert transactions[i].date == dt.date(2024, 6, 17)
     assert transactions[i].action == ActionType.DIVIDEND_TAX
     assert transactions[i].symbol == "GOOG"
     assert transactions[i].amount == Decimal("-22.39")
@@ -178,7 +178,7 @@ def test_schwab_transaction_v2() -> None:
     assert transactions[i].broker == "Charles Schwab"
 
     i += 1
-    assert transactions[i].date == datetime.date(2024, 7, 12)
+    assert transactions[i].date == dt.date(2024, 7, 12)
     assert transactions[i].action == ActionType.DIVIDEND_TAX
     assert transactions[i].symbol == "GOOG"
     assert transactions[i].amount == Decimal("11.20")
@@ -196,7 +196,7 @@ def test_schwab_transaction_v2_rounding() -> None:
         Path("tests/schwab/data/equity_award/schwab_equity_award_v2_rounding.json")
     )
 
-    assert transactions[0].date == datetime.date(2020, 4, 24)
+    assert transactions[0].date == dt.date(2020, 4, 24)
     assert transactions[0].action == ActionType.SELL
     assert transactions[0].symbol == "GOOG"
     assert transactions[0].quantity == Decimal(91)
@@ -208,7 +208,7 @@ def test_schwab_transaction_v2_rounding() -> None:
     num_vested = Decimal(0)
     for transaction_id in range(1, len(transactions)):
         assert transactions[transaction_id].date == (
-            datetime.date(2020, 1, 1) + datetime.timedelta(days=transaction_id)
+            dt.date(2020, 1, 1) + dt.timedelta(days=transaction_id)
         )
         assert transactions[transaction_id].action == ActionType.STOCK_ACTIVITY
         assert transactions[transaction_id].quantity == Decimal(7)
@@ -220,38 +220,27 @@ def test_schwab_transaction_v2_rounding() -> None:
 
 def test_split_multiplier_google_boundary() -> None:
     """GOOG counts are in current units from the day after the split."""
-    assert (
-        schwab_equity_award_json.split_multiplier("GOOG", datetime.date(2022, 7, 15))
-        == 20
-    )
-    assert (
-        schwab_equity_award_json.split_multiplier("GOOG", datetime.date(2022, 7, 16))
-        == 1
-    )
+    assert schwab_equity_award_json.split_multiplier("GOOG", dt.date(2022, 7, 15)) == 20
+    assert schwab_equity_award_json.split_multiplier("GOOG", dt.date(2022, 7, 16)) == 1
 
 
 def test_split_multiplier_ignores_unknown_symbol() -> None:
     """A symbol with no split history is left alone rather than guessed at."""
-    assert (
-        schwab_equity_award_json.split_multiplier("AAPL", datetime.date(2014, 6, 8))
-        == 1
-    )
-    assert (
-        schwab_equity_award_json.split_multiplier(None, datetime.date(2022, 1, 1)) == 1
-    )
+    assert schwab_equity_award_json.split_multiplier("AAPL", dt.date(2014, 6, 8)) == 1
+    assert schwab_equity_award_json.split_multiplier(None, dt.date(2022, 1, 1)) == 1
 
 
 def test_split_history_demands_a_price_floor_it_can_use() -> None:
     """An UNRELIABLE export is unusable without the price that gives units away."""
     with pytest.raises(ValueError, match="presplit_price_floor"):
         schwab_equity_award_json.SplitHistory(
-            ((datetime.date(2022, 7, 16), 20),),
+            ((dt.date(2022, 7, 16), 20),),
             schwab_equity_award_json.Restatement.UNRELIABLE,
         )
 
     with pytest.raises(ValueError, match="presplit_price_floor"):
         schwab_equity_award_json.SplitHistory(
-            ((datetime.date(2021, 7, 20), 4),),
+            ((dt.date(2021, 7, 20), 4),),
             schwab_equity_award_json.Restatement.ACQUISITIONS_ONLY,
             presplit_price_floor=Decimal(175),
         )
@@ -338,7 +327,7 @@ def test_forced_disbursement_parses_as_transfer() -> None:
     transaction = transactions[0]
     assert transaction.action == ActionType.TRANSFER
     assert transaction.amount == Decimal("-2490.13")
-    assert transaction.date == datetime.date(2015, 3, 31)
+    assert transaction.date == dt.date(2015, 3, 31)
     assert transaction.quantity is None or transaction.quantity == 0
 
 
@@ -358,7 +347,7 @@ def test_gift_parses_as_gift() -> None:
     assert transaction.action == ActionType.UNCLASSIFIED_GIFT
     assert transaction.symbol == "GOOG"
     assert transaction.quantity == Decimal(2)
-    assert transaction.date == datetime.date(2022, 11, 20)
+    assert transaction.date == dt.date(2022, 11, 20)
     assert transaction.price is None
 
 
@@ -461,12 +450,12 @@ def test_detail_counts_multiplier() -> None:
 
     # NVDA restates acquisitions only and split 4:1 on 2021-07-20
     # and 10:1 on 2024-06-10.
-    assert multiplier("NVDA", datetime.date(2021, 7, 19)) == 40
-    assert multiplier("NVDA", datetime.date(2021, 7, 20)) == 10
-    assert multiplier("NVDA", datetime.date(2024, 6, 10)) == 1
+    assert multiplier("NVDA", dt.date(2021, 7, 19)) == 40
+    assert multiplier("NVDA", dt.date(2021, 7, 20)) == 10
+    assert multiplier("NVDA", dt.date(2024, 6, 10)) == 1
     # GOOG's export does not restate uniformly, so counts inside the
     # details are already comparable and need no multiplier.
-    assert multiplier("GOOG", datetime.date(2020, 1, 1)) == 1
+    assert multiplier("GOOG", dt.date(2020, 1, 1)) == 1
 
 
 def test_lot_shares_and_price_helpers() -> None:
@@ -679,10 +668,10 @@ def test_schwab_json_deposit_empty_and_null_amount(tmp_path: Path) -> None:
 
     assert len(transactions) == 2
     # Note: load_from_file reverses the transactions list
-    assert transactions[0].date == datetime.date(2023, 2, 1)
+    assert transactions[0].date == dt.date(2023, 2, 1)
     assert transactions[0].amount == Decimal(1000)
     assert transactions[0].fees == Decimal(0)
-    assert transactions[1].date == datetime.date(2023, 1, 1)
+    assert transactions[1].date == dt.date(2023, 1, 1)
     assert transactions[1].amount == Decimal(1500)
     assert transactions[1].fees == Decimal(0)
 
@@ -1775,7 +1764,7 @@ def test_csv_example_export_reads_its_dividend_tax_deposits_and_sale() -> None:
         ActionType.SELL,
     ]
     assert transactions[0].amount == Decimal("3.25")
-    assert transactions[2].date == datetime.date(2025, 12, 25)
+    assert transactions[2].date == dt.date(2025, 12, 25)
     assert transactions[2].price == Decimal("315.67")
     assert transactions[4].quantity == Decimal("13.302")
 

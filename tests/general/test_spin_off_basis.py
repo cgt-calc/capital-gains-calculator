@@ -8,7 +8,7 @@ pool really cost, with the expected figures worked out by hand.
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 
 import pytest
@@ -34,12 +34,12 @@ from cgt_calc.util import round_decimal
 from .calc_test_data import GBP, USD, transaction, transfer_to_spouse_transaction
 from .test_calc import get_report
 
-BUY_DAY = datetime.date(2024, 6, 1)
-SALE_DAY = datetime.date(2024, 6, 10)
-SPIN_OFF_DAY = datetime.date(2024, 7, 5)
+BUY_DAY = dt.date(2024, 6, 1)
+SALE_DAY = dt.date(2024, 6, 10)
+SPIN_OFF_DAY = dt.date(2024, 7, 5)
 # Inside the 30 days before the spin-off, so the 30-day rule reaches its day.
-EARLY_SALE_DAY = datetime.date(2024, 6, 25)
-LATER = datetime.date(2024, 9, 1)
+EARLY_SALE_DAY = dt.date(2024, 6, 25)
+LATER = dt.date(2024, 9, 1)
 
 # FOO at £90 and BAR at £10 on the day, with as many BAR as FOO units, puts a
 # tenth of the market value in BAR, so a tenth of the cost goes with it.
@@ -56,7 +56,7 @@ def _holding(report: CapitalGainsReport, symbol: str) -> tuple[Decimal, Decimal]
 def spin_off(
     transactions: list[BrokerTransaction],
     foo_units: int,
-    rates: dict[datetime.date, dict[CurrencyCode, Decimal]],
+    rates: dict[dt.date, dict[CurrencyCode, Decimal]],
     currency: CurrencyCode = GBP,
     after: list[BrokerTransaction] | None = None,
 ) -> tuple[CapitalGainsCalculator, CapitalGainsReport]:
@@ -212,7 +212,7 @@ def test_a_later_purchase_of_the_source_is_untouched() -> None:
             transaction(BUY_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
             transaction(LATER, ActionType.BUY, "FOO", 20, 10, 0, -200, GBP),
             transaction(
-                datetime.date(2024, 10, 1),
+                dt.date(2024, 10, 1),
                 ActionType.SELL,
                 "FOO",
                 30,
@@ -227,7 +227,7 @@ def test_a_later_purchase_of_the_source_is_untouched() -> None:
             BUY_DAY: {GBP: FLAT},
             SPIN_OFF_DAY: {GBP: FLAT},
             LATER: {GBP: FLAT},
-            datetime.date(2024, 10, 1): {GBP: FLAT},
+            dt.date(2024, 10, 1): {GBP: FLAT},
         },
     )
 
@@ -466,8 +466,8 @@ def test_a_spin_off_before_the_period_is_applied_but_not_reported() -> None:
     It used to appear in the report under its own, earlier date whenever a
     disposal inside the period happened to be the one that triggered it.
     """
-    earlier_buy = datetime.date(2023, 6, 1)
-    earlier_spin_off = datetime.date(2023, 7, 5)
+    earlier_buy = dt.date(2023, 6, 1)
+    earlier_spin_off = dt.date(2023, 7, 5)
     converter = CurrencyConverter(None, {})
     handler = SpinOffHandler()
     handler.cache = {"BAR": "FOO"}
@@ -963,7 +963,7 @@ def _renaming_calculator(cache: dict[str, str]) -> CapitalGainsCalculator:
                 transaction(BUY_DAY, ActionType.BUY, "OLD", 1, 10, 0, -10, GBP),
                 transaction(BUY_DAY, ActionType.SELL, "OLD", 1, 10, 0, 10, GBP),
                 transaction(
-                    datetime.date(2024, 6, 2),
+                    dt.date(2024, 6, 2),
                     ActionType.FEE,
                     "OLD",
                     None,

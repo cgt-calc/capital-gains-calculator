@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 import os
 from pathlib import Path
 import re
@@ -15,7 +15,7 @@ from cgt_calc.exceptions import CgtError, InteractiveInputRequiredError, Parsing
 from cgt_calc.model import Position
 from cgt_calc.spin_off_handler import SpinOffHandler
 
-SPIN_OFF_DATE = datetime.date(2021, 5, 10)
+SPIN_OFF_DATE = dt.date(2021, 5, 10)
 
 
 def test_cached_source_needs_no_terminal(

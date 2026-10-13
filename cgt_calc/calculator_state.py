@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from .model import ExcessReportedIncomeDistribution, ForeignCurrencyAmount, Position
 
 if TYPE_CHECKING:
-    import datetime
+    import datetime as dt
 
     from .model import (
         AcquisitionLog,
@@ -47,7 +47,7 @@ class PreparedHistory:
     # Grants of written options, by date and contract name. Kept apart from
     # disposal_list: a grant disposes of the option the grant creates, not of
     # units of a holding, so it has no pool to draw a cost from.
-    option_disposal_list: dict[datetime.date, dict[str, OptionDisposalData]] = field(
+    option_disposal_list: dict[dt.date, dict[str, OptionDisposalData]] = field(
         default_factory=lambda: defaultdict(dict)
     )
     # No gain/no loss transfers to a spouse/civil partner. Kept separate from
@@ -58,7 +58,7 @@ class PreparedHistory:
     # replayed by both passes: deciding again in the second pass is how
     # one pass ends up substituting the broker's count while the other
     # scales by the ratio.
-    splits: dict[datetime.date, dict[str, SplitTransformation]] = field(
+    splits: dict[dt.date, dict[str, SplitTransformation]] = field(
         default_factory=lambda: defaultdict(dict)
     )
     # What a decrease may still take, on a day a reorganisation restated
@@ -66,9 +66,7 @@ class PreparedHistory:
     # reconciliation before its decreases, and this pass meets them
     # interleaved, so its running count dips below what the day really
     # holds on one side or the other of the correction.
-    split_day_capacity: dict[tuple[str, datetime.date], Decimal] = field(
-        default_factory=dict
-    )
+    split_day_capacity: dict[tuple[str, dt.date], Decimal] = field(default_factory=dict)
     # Which declared account boundaries have put units into each holding.
     # A broker's own single-row split states a change to its own account,
     # so it may only be read as a change to the whole pool when the whole
@@ -81,14 +79,14 @@ class PreparedHistory:
         default_factory=lambda: defaultdict(set)
     )
     # Stores old->new mapping when a symbol changes its name.
-    rename_list: dict[datetime.date, dict[str, str]] = field(
+    rename_list: dict[dt.date, dict[str, str]] = field(
         default_factory=lambda: defaultdict(dict)
     )
     # What a day's renames say is one holding, by date and by each of the
     # names that holding is spelled under. Only the days and holdings
     # `plan_renames` reads that way: any other name is absent, and keeps the
     # pool the RENAME row's own position leaves it under until the day closes.
-    rename_components: dict[datetime.date, dict[str, RenameComponent]] = field(
+    rename_components: dict[dt.date, dict[str, RenameComponent]] = field(
         default_factory=dict
     )
 
@@ -102,39 +100,39 @@ class PreparedHistory:
     # different ones are combined at the date of the dividend they are
     # attributed to, not the date they happened to post on.
     dividend_tax_list: dict[
-        tuple[str, str, datetime.date, CurrencyCode], ForeignCurrencyAmount
+        tuple[str, str, dt.date, CurrencyCode], ForeignCurrencyAmount
     ] = field(default_factory=lambda: defaultdict(ForeignCurrencyAmount))
-    dividend_dates: dict[tuple[str, str], set[datetime.date]] = field(
+    dividend_dates: dict[tuple[str, str], set[dt.date]] = field(
         default_factory=lambda: defaultdict(set)
     )
-    interest_list: dict[
-        tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount
-    ] = field(default_factory=lambda: defaultdict(ForeignCurrencyAmount))
+    interest_list: dict[tuple[str, CurrencyCode, dt.date], ForeignCurrencyAmount] = (
+        field(default_factory=lambda: defaultdict(ForeignCurrencyAmount))
+    )
     interest_tax_list: dict[
-        tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount
+        tuple[str, CurrencyCode, dt.date], ForeignCurrencyAmount
     ] = field(default_factory=lambda: defaultdict(ForeignCurrencyAmount))
 
-    spin_offs: dict[datetime.date, list[SpinOff]] = field(
+    spin_offs: dict[dt.date, list[SpinOff]] = field(
         default_factory=lambda: defaultdict(list)
     )
     # Disposals that are gifts at market value rather than sales, and
     # whether the recipient is a connected person. A loss on a gift to a
     # connected person is clogged (TCGA 1992 s18(3)) and reported on its own.
-    gift_disposals: dict[tuple[datetime.date, str], bool] = field(default_factory=dict)
+    gift_disposals: dict[tuple[dt.date, str], bool] = field(default_factory=dict)
     # Days on which a symbol was sold, redeemed or cashed out.
-    sale_days: set[tuple[datetime.date, str]] = field(default_factory=set)
+    sale_days: set[tuple[dt.date, str]] = field(default_factory=set)
     # The value per unit each day's gifts to a connected person stated,
     # to refuse a second value: one holding has one market value on a day.
-    gift_prices: dict[tuple[datetime.date, str], tuple[Decimal, CurrencyCode]] = field(
+    gift_prices: dict[tuple[dt.date, str], tuple[Decimal, CurrencyCode]] = field(
         default_factory=dict
     )
     # Days on which a symbol was charged a management fee. A fee adds to
     # the pool's cost with no shares, so it cannot be told from the pool
     # itself once it is in.
-    fee_days: set[tuple[datetime.date, str]] = field(default_factory=set)
+    fee_days: set[tuple[dt.date, str]] = field(default_factory=set)
     eris: ExcessReportedIncomeLog = field(default_factory=lambda: defaultdict(dict))
     # The date of the earliest transaction, where the walk starts.
-    first_date: datetime.date | None = None
+    first_date: dt.date | None = None
 
 
 @dataclass
@@ -168,7 +166,7 @@ class RunState:
     ingested: bool = False
     # The source side of each spin-off, recorded when it is applied and
     # collected into the calculation log by date.
-    spin_off_entries: dict[datetime.date, dict[str, list[CalculationEntry]]] = field(
+    spin_off_entries: dict[dt.date, dict[str, list[CalculationEntry]]] = field(
         default_factory=lambda: defaultdict(lambda: defaultdict(list))
     )
     eris_distribution: ExcessReportedIncomeDistributionLog = field(
@@ -180,7 +178,7 @@ class RunState:
     # by day and symbol. The first pass could only estimate it; the walk
     # works out the real figure when it reaches the day and keeps it here
     # rather than rewriting the recorded acquisition.
-    spin_off_corrected_amounts: dict[tuple[datetime.date, str], Decimal] = field(
+    spin_off_corrected_amounts: dict[tuple[dt.date, str], Decimal] = field(
         default_factory=dict
     )
 

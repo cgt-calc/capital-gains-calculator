@@ -9,7 +9,7 @@ only be set against gains on disposals to that person (s18(3)).
 from __future__ import annotations
 
 import dataclasses
-import datetime
+import datetime as dt
 from decimal import Decimal
 import re
 from typing import TYPE_CHECKING
@@ -39,8 +39,8 @@ from .test_calc import create_calculator, get_report
 if TYPE_CHECKING:
     from pathlib import Path
 
-BUY_DAY = datetime.date(2024, 6, 1)
-GIFT_DAY = datetime.date(2024, 6, 10)
+BUY_DAY = dt.date(2024, 6, 1)
+GIFT_DAY = dt.date(2024, 6, 10)
 
 
 def _gift(
@@ -188,7 +188,7 @@ def test_a_worthless_holding_given_to_an_unconnected_person_is_a_loss() -> None:
 
 def test_a_gift_is_identified_like_a_sale() -> None:
     """A repurchase within 30 days is matched first, as for any disposal."""
-    rebuy_day = datetime.date(2024, 6, 20)
+    rebuy_day = dt.date(2024, 6, 20)
     report = get_report(
         create_calculator(tax_year=2024, balance_check=False),
         [
@@ -358,7 +358,7 @@ def test_a_raw_gift_before_a_split_is_in_the_units_of_its_day() -> None:
     case is a matter of what the user enters, so it is covered by the
     wording of the refusal rather than by a calculation.
     """
-    split_day = datetime.date(2024, 7, 1)
+    split_day = dt.date(2024, 7, 1)
     report = get_report(
         create_calculator(tax_year=2024, balance_check=False),
         [

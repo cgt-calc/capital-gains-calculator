@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-import datetime
+import datetime as dt
 from decimal import Decimal
 import logging
 from typing import TYPE_CHECKING
@@ -46,7 +46,7 @@ class IncomeProcessor:
         currency_converter: CurrencyConverter,
         isin_converter: IsinConverter,
         interest_fund_tickers: list[str],
-        date_in_tax_year: Callable[[datetime.date], bool],
+        date_in_tax_year: Callable[[dt.date], bool],
         *,
         autoconvert_currency: bool = False,
     ):
@@ -62,13 +62,13 @@ class IncomeProcessor:
 
     def _group_by_month(
         self,
-        entries: dict[tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount],
-    ) -> dict[tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount]:
+        entries: dict[tuple[str, CurrencyCode, dt.date], ForeignCurrencyAmount],
+    ) -> dict[tuple[str, CurrencyCode, dt.date], ForeignCurrencyAmount]:
         """Group in-tax-year amounts by month, keyed by the month's last date."""
-        monthly: dict[
-            tuple[str, CurrencyCode, datetime.date], ForeignCurrencyAmount
-        ] = defaultdict(ForeignCurrencyAmount)
-        last_date: datetime.date = datetime.date.min
+        monthly: dict[tuple[str, CurrencyCode, dt.date], ForeignCurrencyAmount] = (
+            defaultdict(ForeignCurrencyAmount)
+        )
+        last_date: dt.date = dt.date.min
         last_broker: str | None = None
         last_currency: CurrencyCode | None = None
 
@@ -159,9 +159,9 @@ class IncomeProcessor:
     def _warn_unattributed_dividend_tax(
         self,
         symbol: str,
-        date: datetime.date,
+        date: dt.date,
         tax: ForeignCurrencyAmount,
-        candidates: list[datetime.date],
+        candidates: list[dt.date],
     ) -> None:
         """Warn about withheld tax that no single dividend can claim."""
         # The tax is missing from the report of every year that holds a
@@ -203,8 +203,8 @@ class IncomeProcessor:
 
     @staticmethod
     def _dividends_for_tax(
-        date: datetime.date, dividend_dates: set[datetime.date]
-    ) -> list[datetime.date]:
+        date: dt.date, dividend_dates: set[dt.date]
+    ) -> list[dt.date]:
         """Return the dividends a withholding could have been taken from.
 
         A payment on the day of the withholding is not in doubt, whatever

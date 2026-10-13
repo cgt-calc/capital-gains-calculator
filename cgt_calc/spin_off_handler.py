@@ -19,7 +19,7 @@ from .exceptions import (
 from .util import is_blank_row, save_csv
 
 if TYPE_CHECKING:
-    import datetime
+    import datetime as dt
     from pathlib import Path
 
     from .model import Position
@@ -105,7 +105,7 @@ class SpinOffHandler:
             save_csv(self.spin_offs_file, [SPIN_OFFS_HEADER, *data_rows])
 
     def get_spin_off_source(
-        self, symbol: str, date: datetime.date, portfolio: dict[str, Position]
+        self, symbol: str, date: dt.date, portfolio: dict[str, Position]
     ) -> str:
         """Given a spin-off ticker gets the spin-off source."""
         if symbol in self.cache:

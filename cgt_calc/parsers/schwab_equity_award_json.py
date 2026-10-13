@@ -20,7 +20,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import csv
 from dataclasses import InitVar, dataclass
-import datetime
+import datetime as dt
 import decimal
 from decimal import Decimal
 from enum import Enum, auto
@@ -103,7 +103,7 @@ class Restatement(Enum):
 class SplitHistory:
     """Splits for one symbol, and what the export did to records before them."""
 
-    splits: tuple[tuple[datetime.date, int], ...]
+    splits: tuple[tuple[dt.date, int], ...]
     """Ratios against the first day on which counts are in the new units."""
 
     restatement: Restatement
@@ -136,24 +136,24 @@ class SplitHistory:
 # with. GOOG is UNRELIABLE only because its export leaves nothing better.
 SPLITS: Final = {
     "NVDA": SplitHistory(
-        ((datetime.date(2021, 7, 20), 4), (datetime.date(2024, 6, 10), 10)),
+        ((dt.date(2021, 7, 20), 4), (dt.date(2024, 6, 10), 10)),
         Restatement.ACQUISITIONS_ONLY,
     ),
     "GOOG": SplitHistory(
-        ((datetime.date(2022, 7, 16), 20),),
+        ((dt.date(2022, 7, 16), 20),),
         Restatement.UNRELIABLE,
         # GOOG never traded above $175 * 20 = $3500 before the split.
         presplit_price_floor=Decimal(175),
     ),
     "GOOGL": SplitHistory(
-        ((datetime.date(2022, 7, 16), 20),),
+        ((dt.date(2022, 7, 16), 20),),
         Restatement.UNRELIABLE,
         presplit_price_floor=Decimal(175),
     ),
 }
 
 
-def split_multiplier(symbol: str | None, on: datetime.date) -> int:
+def split_multiplier(symbol: str | None, on: dt.date) -> int:
     """Factor turning a share count printed on `on` into current units.
 
     Prices divide by the same factor, so the money is unchanged.
@@ -174,7 +174,7 @@ def _restates_acquisitions_only(symbol: str | None) -> bool:
     return history is not None and history.restatement is Restatement.ACQUISITIONS_ONLY
 
 
-def _detail_counts_multiplier(symbol: str | None, on: datetime.date) -> int:
+def _detail_counts_multiplier(symbol: str | None, on: dt.date) -> int:
     """Factor turning counts inside a row's details into current units.
 
     A row's own `Quantity` is restated for later splits while the counts inside
@@ -572,7 +572,7 @@ def _row_where(row: JsonRowType, names: FieldNames, *, with_date: bool) -> str:
 
 def _row_date(
     container: JsonRowType, field: str, where: str, file_path: Path
-) -> datetime.date:
+) -> dt.date:
     """Read one date, naming the row and the field where it cannot be read.
 
     Every date this module reads comes through here. A bare `strptime` answers
@@ -599,7 +599,7 @@ def _row_date(
         # hands over as a Decimal and `strptime` refuses outright. The row
         # does state something, so it is quoted back like any other value
         # that cannot be read.
-        return datetime.datetime.strptime(stated, "%m/%d/%Y").date()
+        return dt.datetime.strptime(stated, "%m/%d/%Y").date()
     except (TypeError, ValueError) as err:
         raise ParsingError(
             file_path,
@@ -778,7 +778,7 @@ def _check_disposal_units(
 
 
 def _decimal_field(
-    value: str, field: str, what: str, date: datetime.date, file: Path
+    value: str, field: str, what: str, date: dt.date, file: Path
 ) -> Decimal:
     """Parse one of Schwab's string numbers, naming it if it is not one."""
     try:
@@ -791,7 +791,7 @@ def _decimal_field(
 
 
 def _parse_vest_price(
-    details: JsonRowType, names: FieldNames, date: datetime.date, file: Path
+    details: JsonRowType, names: FieldNames, date: dt.date, file: Path
 ) -> Decimal:
     """Parse the Vest Fair Market Value for a vest Deposit."""
     vest_fmv_str = details.get(names.vest_fair_market_value)
@@ -816,7 +816,7 @@ def _parse_vest_price(
 
 
 def _sale_lots(
-    row: JsonRowType, names: FieldNames, date: datetime.date, file: Path
+    row: JsonRowType, names: FieldNames, date: dt.date, file: Path
 ) -> list[tuple[Decimal | None, str | None, Decimal | None]]:
     """Every lot of a Sale, as (share count, price as printed, price).
 
@@ -882,7 +882,7 @@ def _sale_lots(
 def _parse_sale_subtransactions(
     row: JsonRowType,
     names: FieldNames,
-    date: datetime.date,
+    date: dt.date,
     quantity: Decimal,
     amount: Decimal,
     fees: Decimal,
@@ -981,7 +981,7 @@ def _parse_cash_amount(
     row: JsonRowType,
     names: FieldNames,
     raw_action: str,
-    date: datetime.date,
+    date: dt.date,
     file: Path,
 ) -> Decimal:
     """Parse amount for dividend, tax, or transfer transactions.
@@ -1356,10 +1356,10 @@ def lapse_only_rows(
 
 def lapse_award_prices(
     rows: list[JsonRowType], file_path: Path, names: FieldNames
-) -> dict[datetime.date, dict[str, Decimal]]:
+) -> dict[dt.date, dict[str, Decimal]]:
     """Read a vest price from every row of a classified price-only export."""
-    prices: dict[datetime.date, dict[str, Decimal]] = {}
-    priced_at: dict[tuple[datetime.date, str], tuple[Decimal, str]] = {}
+    prices: dict[dt.date, dict[str, Decimal]] = {}
+    priced_at: dict[tuple[dt.date, str], tuple[Decimal, str]] = {}
     for index, row in enumerate(rows):
         where = f"{names.transactions}[{index}]"
         date, symbol, price = _lapse_price(row, where, file_path, names)
@@ -1382,7 +1382,7 @@ def lapse_award_prices(
 
 def _lapse_price(
     row: JsonRowType, where: str, file_path: Path, names: FieldNames
-) -> tuple[datetime.date, str, Decimal]:
+) -> tuple[dt.date, str, Decimal]:
     """Read one Lapse row's date, normalised symbol and vest price.
 
     Everything is required. In an export of nothing but lapses a row that
@@ -1472,7 +1472,7 @@ def _lapse_vest_price(
 
 
 def _reject_symbols_a_split_could_restate(
-    prices: dict[datetime.date, dict[str, Decimal]], file_path: Path
+    prices: dict[dt.date, dict[str, Decimal]], file_path: Path
 ) -> None:
     """Refuse a symbol whose price and quantity could be in different units.
 
@@ -1490,10 +1490,10 @@ def _reject_symbols_a_split_could_restate(
     itself is the one least likely to be restated consistently, and cgt-calc
     cannot tell which side of the close it was priced from.
     """
-    earliest: dict[str, datetime.date] = {}
+    earliest: dict[str, dt.date] = {}
     for date, by_symbol in prices.items():
         for symbol in by_symbol:
-            if date < earliest.get(symbol, datetime.date.max):
+            if date < earliest.get(symbol, dt.date.max):
                 earliest[symbol] = date
 
     for symbol, first in sorted(earliest.items()):

@@ -28,7 +28,7 @@ from .model import ActionType, BrokerTransaction
 from .util import normalize_amount, strip_zeros
 
 if TYPE_CHECKING:
-    import datetime
+    import datetime as dt
 
     from .model import CurrencyCode, Isin, TransactionSource
 
@@ -228,7 +228,7 @@ def recover_ratio(
 class StockSplitEvent:
     """One share reorganisation, as the input stated it."""
 
-    date: datetime.date
+    date: dt.date
     broker: str
     symbol_before: str
     symbol_after: str
@@ -240,7 +240,7 @@ class StockSplitEvent:
     ratio: Fraction | UnresolvedRatio
     # The instants the export stamped on the rows behind this event: none for
     # a history that states dates only, one for a single row, two for a pair.
-    instants: tuple[datetime.datetime, ...] = ()
+    instants: tuple[dt.datetime, ...] = ()
 
     def __post_init__(self) -> None:
         """Refuse an event that also changes the identifier.

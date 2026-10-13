@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from copy import deepcopy
 import csv
-import datetime
+import datetime as dt
 from decimal import Decimal, InvalidOperation
 from functools import cache
 from importlib import resources
@@ -55,9 +55,9 @@ NEW_ENDPOINT_FROM_YEAR: Final = 2021
 # The first month HMRC's legacy endpoint has a file for at the address used.
 # Nothing is asked for an earlier date, and a row in the rates file for one was
 # typed in: no download wrote it.
-FIRST_DOWNLOADED_RATES_MONTH: Final = datetime.date(2015, 2, 1)
+FIRST_DOWNLOADED_RATES_MONTH: Final = dt.date(2015, 2, 1)
 
-type _StartingRates = dict[datetime.date, Decimal]
+type _StartingRates = dict[dt.date, Decimal]
 
 
 class CurrencyConverter:
@@ -66,7 +66,7 @@ class CurrencyConverter:
     def __init__(
         self,
         exchange_rates_file: Path | None = None,
-        initial_data: dict[datetime.date, dict[CurrencyCode, Decimal]] | None = None,
+        initial_data: dict[dt.date, dict[CurrencyCode, Decimal]] | None = None,
     ):
         """Load data from exchange_rates_file and optionally from initial_data."""
         self.exchange_rates_file = exchange_rates_file
@@ -75,9 +75,9 @@ class CurrencyConverter:
             **read_data,
             **(initial_data or {}),
         }
-        self._reported: set[tuple[datetime.date, CurrencyCode]] = set()
+        self._reported: set[tuple[dt.date, CurrencyCode]] = set()
         # The rates of each month downloaded in this run, by its first day.
-        self._downloaded: dict[datetime.date, dict[CurrencyCode, Decimal]] = {}
+        self._downloaded: dict[dt.date, dict[CurrencyCode, Decimal]] = {}
 
         # Limit borrowed from the Companies House API guidance:
         # https://developer-specs.company-information.service.gov.uk/guides/rateLimiting
@@ -105,10 +105,8 @@ class CurrencyConverter:
     @staticmethod
     def _read_exchange_rates_data(
         exchange_rates_file: Path, fin: Iterable[str]
-    ) -> defaultdict[datetime.date, dict[CurrencyCode, Decimal]]:
-        cache: defaultdict[datetime.date, dict[CurrencyCode, Decimal]] = defaultdict(
-            dict
-        )
+    ) -> defaultdict[dt.date, dict[CurrencyCode, Decimal]]:
+        cache: defaultdict[dt.date, dict[CurrencyCode, Decimal]] = defaultdict(dict)
         # Keep physical line numbers so errors point at the right line even
         # when comment lines precede the data.
         kept = [
@@ -169,7 +167,7 @@ class CurrencyConverter:
             rate_value = normalized_values["rate"]
 
             try:
-                date = datetime.date.fromisoformat(month)
+                date = dt.date.fromisoformat(month)
             except ValueError as err:
                 raise ParsingError(
                     exchange_rates_file,
@@ -211,7 +209,7 @@ class CurrencyConverter:
     @staticmethod
     def _read_exchange_rates_file(
         exchange_rates_file: Path | None,
-    ) -> defaultdict[datetime.date, dict[CurrencyCode, Decimal]]:
+    ) -> defaultdict[dt.date, dict[CurrencyCode, Decimal]]:
         if not exchange_rates_file or not exchange_rates_file.is_file():
             return defaultdict(dict)
         with (
@@ -224,7 +222,7 @@ class CurrencyConverter:
     @cache
     def _shipped_rates(
         year: int,
-    ) -> dict[datetime.date, dict[CurrencyCode, _StartingRates]]:
+    ) -> dict[dt.date, dict[CurrencyCode, _StartingRates]]:
         """Read the rates that ship with cgt-calc for `year`, if any do.
 
         They are kept by month, named by its first day, then by currency, then by
@@ -242,7 +240,7 @@ class CurrencyConverter:
             by_date = CurrencyConverter._read_exchange_rates_data(
                 Path("resources") / SHIPPED_RATES_FOLDER / name, fin
             )
-        rates: dict[datetime.date, dict[CurrencyCode, _StartingRates]] = {}
+        rates: dict[dt.date, dict[CurrencyCode, _StartingRates]] = {}
         for start, by_currency in by_date.items():
             month = rates.setdefault(start.replace(day=1), {})
             for currency, rate in by_currency.items():
@@ -250,7 +248,7 @@ class CurrencyConverter:
         return rates
 
     @staticmethod
-    def _shipped_rate(currency: CurrencyCode, date: datetime.date) -> Decimal | None:
+    def _shipped_rate(currency: CurrencyCode, date: dt.date) -> Decimal | None:
         """Return the shipped rate in force on `date`, if the table has one.
 
         That is the latest of the month's rates starting on or before the date.
@@ -266,7 +264,7 @@ class CurrencyConverter:
     @staticmethod
     def _write_exchange_rates_file(
         exchange_rates_file: Path | None,
-        data: dict[datetime.date, dict[CurrencyCode, Decimal]],
+        data: dict[dt.date, dict[CurrencyCode, Decimal]],
     ) -> None:
         if not exchange_rates_file:
             return
@@ -282,7 +280,7 @@ class CurrencyConverter:
         ):
             save_csv(exchange_rates_file, [EXCHANGE_RATES_HEADER, *data_rows])
 
-    def _query_hmrc_api(self, date: datetime.date, currency: CurrencyCode) -> None:
+    def _query_hmrc_api(self, date: dt.date, currency: CurrencyCode) -> None:
         """Store the month's rates under `date`; `currency` is the one wanted.
 
         HMRC publishes one file for a month, so it is downloaded once in a run
@@ -296,7 +294,7 @@ class CurrencyConverter:
         self._write_exchange_rates_file(self.exchange_rates_file, self.cache)
 
     def _download_month(
-        self, date: datetime.date, currency: CurrencyCode
+        self, date: dt.date, currency: CurrencyCode
     ) -> dict[CurrencyCode, Decimal]:
         """Download the month's rates for `date`; `currency` is the one wanted."""
         month = f"{date:%Y-%m}"
@@ -387,9 +385,7 @@ class CurrencyConverter:
             raise failed(f"HMRC API response for {month} has no rates.")
         return rates
 
-    def currency_to_gbp_rate(
-        self, currency: CurrencyCode, date: datetime.date
-    ) -> Decimal:
+    def currency_to_gbp_rate(self, currency: CurrencyCode, date: dt.date) -> Decimal:
         """Get the number of currency units per GBP at the given date."""
         assert is_date(date)
         # offshore (Hong Kong) Chinese Yuan handling
@@ -427,7 +423,7 @@ class CurrencyConverter:
                 )
         return on_file if typed else shipped
 
-    def _recorded_rate(self, currency: CurrencyCode, date: datetime.date) -> Decimal:
+    def _recorded_rate(self, currency: CurrencyCode, date: dt.date) -> Decimal:
         """Get a rate from the rates file, downloading the month if it lacks one."""
         # The test is for the currency, not the date: a row typed in for one
         # currency leaves the date's other currencies to be downloaded.
@@ -447,9 +443,7 @@ class CurrencyConverter:
 
         return self.cache[date][currency]
 
-    def to_gbp(
-        self, amount: Decimal, currency: CurrencyCode, date: datetime.date
-    ) -> Decimal:
+    def to_gbp(self, amount: Decimal, currency: CurrencyCode, date: dt.date) -> Decimal:
         """Convert amount from given currency to GBP."""
         if currency == "GBP":
             return amount
@@ -463,7 +457,7 @@ class CurrencyConverter:
         self,
         first: ForeignCurrencyAmount,
         second: ForeignCurrencyAmount,
-        date: datetime.date,
+        date: dt.date,
         *,
         autoconvert: bool,
     ) -> ForeignCurrencyAmount:
@@ -522,7 +516,7 @@ class TestCurrencyConverter(CurrencyConverter):
         self._test_file_cache = deepcopy(self.cache)
 
     @override
-    def _recorded_rate(self, currency: CurrencyCode, date: datetime.date) -> Decimal:
+    def _recorded_rate(self, currency: CurrencyCode, date: dt.date) -> Decimal:
         """Get a rate from the rates file, downloading the month if it lacks one.
 
         When the value is missing from the view of the test_file_cache, append it
@@ -545,7 +539,7 @@ class TestCurrencyConverter(CurrencyConverter):
     @staticmethod
     def _append_exchange_rates_file(
         exchange_rates_file: Path,
-        date: datetime.date,
+        date: dt.date,
         currency: CurrencyCode,
         value: Decimal,
     ) -> None:
@@ -565,7 +559,7 @@ class TestCurrencyConverter(CurrencyConverter):
     @override
     def _write_exchange_rates_file(
         exchange_rates_file: Path | None,
-        data: dict[datetime.date, dict[CurrencyCode, Decimal]],
+        data: dict[dt.date, dict[CurrencyCode, Decimal]],
     ) -> None:
         pass
 
@@ -574,7 +568,7 @@ class StrictTestCurrencyConverter(CurrencyConverter):
     """Sandboxed variant of CurrencyConverter that is used to run tests in CI."""
 
     @override
-    def _query_hmrc_api(self, date: datetime.date, currency: CurrencyCode) -> None:
+    def _query_hmrc_api(self, date: dt.date, currency: CurrencyCode) -> None:
         raise RuntimeError(
             f"HMRC values missing for {date:%Y-%m}! "
             "Run `pytest` (once) to populate them from HMRC data"
@@ -584,6 +578,6 @@ class StrictTestCurrencyConverter(CurrencyConverter):
     @override
     def _write_exchange_rates_file(
         exchange_rates_file: Path | None,
-        data: dict[datetime.date, dict[CurrencyCode, Decimal]],
+        data: dict[dt.date, dict[CurrencyCode, Decimal]],
     ) -> None:
         pass

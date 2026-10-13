@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 from typing import TYPE_CHECKING, override
 
@@ -55,7 +55,7 @@ def test_directory_import_continues_after_empty_importer_results(
 def test_unusable_eri_price_is_rejected_before_it_is_written(price: Decimal) -> None:
     """A price the calculator would refuse must not reach the resource files."""
     transaction = ERITransaction(
-        date=datetime.date(2024, 6, 30),
+        date=dt.date(2024, 6, 30),
         isin=Isin("IE00B3RBWM25"),
         price=price,
         currency=CurrencyCode("USD"),
@@ -72,7 +72,7 @@ def test_conflicting_eri_prices_name_the_currency_of_each() -> None:
     a disagreement about the price, so the earlier row's currency is named
     beside its figure and the refused row prints its own.
     """
-    date = datetime.date(2024, 6, 30)
+    date = dt.date(2024, 6, 30)
     isin = Isin("IE00B3RBWM25")
     earlier = ERITransaction(
         date=date, isin=isin, price=Decimal("1.25"), currency=CurrencyCode("USD")

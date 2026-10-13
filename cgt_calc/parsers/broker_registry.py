@@ -28,7 +28,7 @@ from cgt_calc.rename_planning import connected_names
 
 if TYPE_CHECKING:
     import argparse
-    import datetime
+    import datetime as dt
 
     from cgt_calc.isin_converter import IsinConverter
     from cgt_calc.model import BrokerTransaction, Isin
@@ -85,7 +85,7 @@ def _resolve_isins(
 
 def _transaction_sort_key(
     transaction: BrokerTransaction,
-) -> tuple[datetime.date, int]:
+) -> tuple[dt.date, int]:
     """Sort by date, with share vests first and transfers to a spouse last.
 
     A broker export can list the sale of vested shares before the vest itself

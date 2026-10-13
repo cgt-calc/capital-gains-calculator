@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable, Iterator
-import datetime
+import datetime as dt
 from decimal import localcontext
 import logging
 import os
@@ -584,7 +584,7 @@ def test_year_validation_too_early() -> None:
 def test_year_validation_too_late() -> None:
     """Test that year in the future is rejected."""
     parser = create_parser()
-    current_year = datetime.datetime.now().year
+    current_year = dt.datetime.now().year
     invalid_year = current_year + 1
 
     with pytest.raises(SystemExit) as exc_info:
@@ -606,7 +606,7 @@ def test_year_validation_min_valid() -> None:
 def test_year_validation_max_valid() -> None:
     """Test that maximum valid year (current year) is accepted."""
     parser = create_parser()
-    current_year = datetime.datetime.now().year
+    current_year = dt.datetime.now().year
 
     args = parser.parse_args(["--year", str(current_year)])
 
@@ -933,21 +933,21 @@ def test_old_prices_file_names_still_work_but_warn(
     ("period_from", "period_to", "tax_year"),
     [
         pytest.param(
-            datetime.date(2024, 4, 6),
-            datetime.date(2024, 10, 29),
+            dt.date(2024, 4, 6),
+            dt.date(2024, 10, 29),
             2024,
             id="from the first day of 2024/25",
         ),
         pytest.param(
-            datetime.date(2024, 1, 10),
-            datetime.date(2024, 4, 5),
+            dt.date(2024, 1, 10),
+            dt.date(2024, 4, 5),
             2023,
             id="to the last day of 2023/24",
         ),
     ],
 )
 def test_resolve_period_from_to(
-    period_from: datetime.date, period_to: datetime.date, tax_year: int
+    period_from: dt.date, period_to: dt.date, tax_year: int
 ) -> None:
     """--from/--to resolve to the tax year the range falls in, which starts on 6 April."""
     parser = create_parser()
@@ -963,20 +963,18 @@ def test_resolve_period_from_to(
 @pytest.mark.parametrize(
     ("today", "tax_year"),
     [
-        pytest.param(datetime.date(2025, 4, 5), 2023, id="2024/25 has a day to run"),
-        pytest.param(datetime.date(2025, 4, 6), 2024, id="2024/25 ended yesterday"),
+        pytest.param(dt.date(2025, 4, 5), 2023, id="2024/25 has a day to run"),
+        pytest.param(dt.date(2025, 4, 6), 2024, id="2024/25 ended yesterday"),
     ],
 )
 def test_resolve_period_defaults_year_when_absent(
-    monkeypatch: pytest.MonkeyPatch, today: datetime.date, tax_year: int
+    monkeypatch: pytest.MonkeyPatch, today: dt.date, tax_year: int
 ) -> None:
     """--year defaults to the last tax year to have ended, and one ends on 5 April."""
-    stopped = datetime.datetime.combine(today, datetime.time())
+    stopped = dt.datetime.combine(today, dt.time())
     monkeypatch.setattr(
-        "cgt_calc.args_parser.datetime",
-        SimpleNamespace(
-            datetime=SimpleNamespace(now=lambda: stopped), date=datetime.date
-        ),
+        "cgt_calc.args_parser.dt",
+        SimpleNamespace(datetime=SimpleNamespace(now=lambda: stopped), date=dt.date),
     )
     parser = create_parser()
     args = parser.parse_args([])
