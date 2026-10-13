@@ -38,8 +38,8 @@ detailed **PDF report** show **Disposal proceeds** (sale amounts or values for o
 See [Generate a report](https://cgt-calc.uk/usage/) for how to create and check them.
 
 For supported tax years, cgt-calc also provides [tax estimates](https://cgt-calc.uk/tax-estimates/),
-with an optional income figure. It covers only the transactions you supply, does not work out your
-final tax bill and does not submit a return. Check your
+which use your income if you give it. cgt-calc covers only the transactions you supply, does not
+work out your final tax bill and does not submit a return. Check your
 [broker's limitations](https://cgt-calc.uk/brokers/) and the
 [offshore funds limitations](https://cgt-calc.uk/offshore-funds/#unsupported-functionality) before
 relying on the result.

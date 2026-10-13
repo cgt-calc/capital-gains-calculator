@@ -29,9 +29,9 @@ such as Yahoo Finance prices.
 
 #### Rates you add or change
 
-A row in that file for a date from April 2002 to April 2016 is compared with the rate that comes
-with cgt-calc. Where the two differ, cgt-calc prints a warning naming the row and HMRC's rate, on
-every run until you remove the row:
+A row in the exchange rates file for a date from April 2002 to April 2016 is compared with the rate
+that comes with cgt-calc. Where the two differ, cgt-calc prints a warning naming the row and HMRC's
+rate, on every run until you remove the row:
 
 - **Before February 2015** it uses your row. Nothing could be downloaded for those dates, so the row
     is one you typed in. Check it against HMRC's rate in the warning: a row typed from a month's

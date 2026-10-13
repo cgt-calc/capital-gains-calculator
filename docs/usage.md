@@ -73,8 +73,9 @@ source. If your broker is not listed, you can convert its transactions to the ge
 cgt-calc prints a summary to the terminal and, by default, writes the detailed PDF report to
 `out/calculations.pdf`.
 
-The PDF has separate **Capital Gains** and **Interest and Dividends** sections, with a summary at
-the end. Interest is grouped monthly per broker, even if your broker pays it daily.
+The PDF has a **Capital Gains Events** section, an **Interest and Dividends Events** section when
+there is income to show, and **Overall** summaries at the end. Interest is grouped monthly per
+broker, even if your broker pays it daily.
 
 Use `--output` to choose a different PDF location:
 
@@ -128,8 +129,12 @@ within the day; check your broker's cash history if you need to verify that.
 A successful run means cgt-calc could parse and calculate the supplied transactions. It does not
 prove that the supplied history was complete or that every part of your tax position is supported.
 
-The PDF shows the matching rules applied to each disposal: **SAME DAY**, **BED AND BREAKFAST** and
-**SECTION 104**. Check any unexpected matches against HMRC's
+The PDF shows the matching rules applied to each disposal. A sale or other disposal is matched first
+with shares bought or received on the same day (**SAME DAY**), then with shares bought or received
+in the following 30 days (**BED AND BREAKFAST**), then with older shares in your pooled holding
+(**SECTION 104**). Shares that arrive through a company reorganisation, such as a spin-off, are not
+matched under the same-day or 30-day rules: they join your Section 104 holding at their share of the
+original cost. Check any unexpected matches against HMRC's
 [guidance for shares and Capital Gains Tax](https://www.gov.uk/government/publications/shares-and-capital-gains-tax-hs284-self-assessment-helpsheet).
 
 ## Use the figures
@@ -193,8 +198,9 @@ Numbers are exact rather than rounded for display. `price`, `fees` and `amount` 
 `market` names the market a `symbol` belongs to when cgt-calc knows it, which is `US` for every
 Charles Schwab row. It is empty otherwise.
 
-`foreign_fees` and `source` use JSON to keep named values in one cell: `{"EUR":"2.50"}` is a fee of
-2.50 euros. Outside JSON, unset values and empty text both appear as empty cells.
+Columns holding several named values, such as `foreign_fees` and `source`, use JSON to keep them in
+one cell: `{"EUR":"2.50"}` is a fee of 2.50 euros. Outside JSON, unset values and empty text both
+appear as empty cells.
 
 Excess reported income (ERI) records loaded for funds you hold appear with the action
 `EXCESS_REPORTED_INCOME` and an `isin` in place of a `symbol`. They carry only a per-unit `price`,

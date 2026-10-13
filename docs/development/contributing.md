@@ -50,8 +50,9 @@ product and HMRC guidance.
     Remove repetition and unnecessary wording without rewriting prose that already works.
 - **Check the evidence.** Verify behaviour against the implementation and tests. Check tax, security
     and privacy claims against current primary sources, and link to the relevant section. Check
-    commands, output labels, calculations and citations before editing the prose. Use small examples
-    with invented names, dates and values; do not copy or rescale a real transaction history.
+    commands, output labels, calculations and citations against their sources, separately from
+    polishing the wording. Use small examples with invented names, dates and values; do not copy or
+    rescale a real transaction history.
 
 ### Using an LLM
 

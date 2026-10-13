@@ -23,10 +23,10 @@ detailed **PDF report** show **Disposal proceeds** (sale amounts or values for o
 **Allowable costs** (costs deducted when calculating gains), gains, losses, dividends and interest.
 See [Generate a report](usage.md) for how to create and check them.
 
-For supported tax years, cgt-calc also provides [tax estimates](tax-estimates.md), with an optional
-income figure. It covers only the transactions you supply, does not work out your final tax bill and
-does not submit a return. Check your [broker's limitations](brokers/index.md) and the
-[offshore funds limitations](offshore-funds.md#unsupported-functionality) before relying on the
+For supported tax years, cgt-calc also provides [tax estimates](tax-estimates.md), which use your
+income if you give it. cgt-calc covers only the transactions you supply, does not work out your
+final tax bill and does not submit a return. Check your [broker's limitations](brokers/index.md) and
+the [offshore funds limitations](offshore-funds.md#unsupported-functionality) before relying on the
 result.
 
 ## Example report
