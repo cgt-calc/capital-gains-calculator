@@ -31,10 +31,10 @@ with the provider's report.
 If a supported report is skipped, check its filename first. Rename the file to match the filename
 pattern in that provider's module under
 [`cgt_calc/parsers/eri/importer/`](https://github.com/cgt-calc/capital-gains-calculator/tree/main/cgt_calc/parsers/eri/importer),
-then run the script again. For example, Vanguard Investment Series plc reports with names starting
-`vis-plc-` are recognised once you add `vanguard-` to the start of the name. An Invesco or Xtrackers
-report that is still skipped is in a layout the importer does not read; add its data manually as
-described below.
+then run the script again. For example, Vanguard Investment Series plc spreadsheets with names
+starting `vis-plc-` are recognised once you add `vanguard-` to the start of the name. The script
+cannot read older Vanguard PDF reports, or an Invesco or Xtrackers report that is still skipped once
+its name matches the pattern; add their data manually as described below.
 
 Amundi reports, and Legal & General reports other than the UCITS ETF plc one, have no automatic
 importer; add their data manually as described below.
