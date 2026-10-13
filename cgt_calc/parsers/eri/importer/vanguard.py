@@ -20,7 +20,9 @@ from cgt_calc.parsers.eri.model import ERITransaction
 
 from .model import ERIImporter, ERIImporterOutput
 
-VANGUARD_NAME_REGEX = re.compile(r"^.*\b(vanguard).*\.xls(x)?$")
+# Since 2022, Vanguard Investment Series plc reports are published as
+# "vis-plc-...".
+VANGUARD_NAME_REGEX = re.compile(r"^.*\b(vanguard|vis-plc).*\.xls(x)?$")
 
 PERIOD_RE = re.compile(r"^.* (to|\-) ")
 
@@ -28,6 +30,9 @@ ISIN_COLUMN = "ISIN"
 REPORTING_PERIOD_COLUMN = "Reporting Period"
 CURRENCY_COLUMN = "Currency"
 ERI_COLUMN = "Excess of reporting income"
+# The Investment Series report for 2022 heads the same column "reportable":
+# its note defines it in the words the other years use for "reporting".
+ERI_COLUMN_2022 = "Excess of reportable income"
 COLUMNS = [ISIN_COLUMN, REPORTING_PERIOD_COLUMN, CURRENCY_COLUMN, ERI_COLUMN]
 
 VANGUARD_ERI_FILENAME = "vanguard_eri.csv"
@@ -86,6 +91,7 @@ class VanguardImporter(ERIImporter):
         df.columns = df.columns.str.strip()
         df.columns = df.columns.str.replace("\n", " ")
         df.columns = df.columns.str.replace("  ", " ")
+        df.columns = df.columns.str.replace(ERI_COLUMN_2022, ERI_COLUMN)
 
         df = df.map(lambda x: x.strip() if isinstance(x, str) else x)
         cleaned_df = df.filter(regex="|".join(COLUMNS)).dropna()

@@ -31,16 +31,14 @@ with the provider's report.
 If a supported report is skipped, check its filename first. Rename the file to match the filename
 pattern in that provider's module under
 [`cgt_calc/parsers/eri/importer/`](https://github.com/cgt-calc/capital-gains-calculator/tree/main/cgt_calc/parsers/eri/importer),
-then run the script again. For example, Vanguard Investment Series plc spreadsheets with names
-starting `vis-plc-` are recognised once you add `vanguard-` to the start of the name. The script
-cannot read older Vanguard PDF reports, or an Invesco or Xtrackers report that is still skipped once
-its name matches the pattern; add their data manually as described below.
+then run the script again. The script cannot read older Vanguard PDF reports, or an Invesco or
+Xtrackers report that is still skipped once its name matches the pattern; add their data manually as
+described below.
 
-A recognised report can also stop the script with an error. For example, the renamed Vanguard
-Investment Series plc spreadsheet for 2022 stops it with **Cannot process ERI columns**, because its
-column headings differ from the ones the importer reads. Nothing is imported from that file or from
-any file after it in the folder. Move the file out of the folder, run the script again for the other
-reports, and add its data manually as described below.
+A recognised report can also stop the script with an error, such as **Cannot process ERI columns**
+when its column headings differ from the ones the importer reads. Nothing is imported from that file
+or from any file after it in the folder. Move the file out of the folder, run the script again for
+the other reports, and add its data manually as described below.
 
 Amundi reports, and Legal & General reports other than the UCITS ETF plc one, have no automatic
 importer; add their data manually as described below.
