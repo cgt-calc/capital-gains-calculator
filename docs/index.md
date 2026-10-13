@@ -17,27 +17,17 @@ because not every award export or transaction type is supported.
 
 ## What cgt-calc calculates
 
-For supported transactions, the tool converts prices to **GBP** and applies the UK **same-day**,
-**30-day ("bed and breakfast")**, and **Section 104 holding** rules. These match a sale with shares
-bought or received on the same day, shares bought or received within the following 30 days, then
-older shares. Shares that arrive through a company reorganisation, such as a spin-off, are not
-matched this way: they join your Section 104 holding at their share of the original cost. It shows
-**Disposal proceeds** (the sale price or value used when no sale took place), **Allowable costs**
-(costs included in the gain or loss calculation), gains, losses, dividends, and interest in the
-terminal and writes the full calculation to a **PDF report**.
+For supported transactions, cgt-calc calculates capital gains in **GBP** using the UK **same-day**,
+**30-day ("bed and breakfast")** and **Section 104 holding** rules. The terminal summary and
+detailed **PDF report** show **Disposal proceeds** (sale amounts or values for other disposals),
+**Allowable costs** (costs deducted when calculating gains), gains, losses, dividends and interest.
+See [Generate a report](usage.md) for how to create and check them.
 
-cgt-calc reports the net gain from the transactions you supply and, for supported tax years,
-estimates the amount left after the annual tax-free allowance for capital gains (the **annual exempt
-amount**) and the Capital Gains Tax on it: at the basic and the higher rate, or as one estimate if
-you give your income. It does **not** include gains or losses outside those inputs, work out your
-final tax bill, or submit a tax return. Some investment scenarios are not supported; check the
-relevant [broker guide](brokers/index.md) and the
+For supported tax years, cgt-calc also provides [tax estimates](tax-estimates.md), with an optional
+income figure. It covers only the transactions you supply, does not work out your final tax bill and
+does not submit a return. Check your [broker's limitations](brokers/index.md) and the
 [offshore funds limitations](offshore-funds.md#unsupported-functionality) before relying on the
 result.
-
-The PDF report includes separate **Capital Gains** and **Interest and Dividends** sections, with a
-summary at the end. Interest is grouped **monthly per broker** to keep reports concise, even for
-brokers that pay daily interest.
 
 ## Example report
 

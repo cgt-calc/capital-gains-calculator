@@ -73,6 +73,9 @@ source. If your broker is not listed, you can convert its transactions to the ge
 cgt-calc prints a summary to the terminal and, by default, writes the detailed PDF report to
 `out/calculations.pdf`.
 
+The PDF has separate **Capital Gains** and **Interest and Dividends** sections, with a summary at
+the end. Interest is grouped monthly per broker, even if your broker pays it daily.
+
 Use `--output` to choose a different PDF location:
 
 ```shell
@@ -118,15 +121,9 @@ Avoid `--no-balance-check` unless the relevant [broker guide](brokers/index.md) 
 understand why the check cannot succeed. Disabling it removes one of the checks that can reveal
 incomplete transaction history.
 
-For each broker and currency, the balance check compares the cash balance with zero after the last
-row of each day, rather than after every row. Exports disagree about the order of a day's rows, and
-several write the newest first, so a purchase can appear before the deposit that funded it. Balances
-are kept per broker and currency rather than per account, so everything you export from one broker
-in one currency shares a single balance.
-
-cgt-calc cannot detect a balance that falls below zero within a day and recovers by the end of it.
-If you need to verify intraday funding, check the cash history in your broker's own records for that
-day.
+The check stops the run if a cash balance is negative at the end of a day. It combines accounts from
+the same broker in the same currency. It cannot detect a balance that goes negative and recovers
+within the day; check your broker's cash history if you need to verify that.
 
 A successful run means cgt-calc could parse and calculate the supplied transactions. It does not
 prove that the supplied history was complete or that every part of your tax position is supported.
@@ -166,69 +163,55 @@ started from.
 
 ## Inspect parsed transactions
 
-Use `--dump-transactions` followed by a filename to save the transactions cgt-calc read from your
-exports to a CSV file, then carry on with the normal calculation:
+Use `--dump-transactions` to save the parsed transactions as CSV before calculation. Use it to
+compare exports or check what cgt-calc read from a broker file:
 
 ```shell
 cgt-calc --year 2024 --schwab-file transactions.csv --dump-transactions parsed-transactions.csv
 ```
 
-This helps when you want to compare two exports of the same account, or see what a broker file
-actually produced before reading the report.
-
-cgt-calc saves the file before any calculation starts, and confirms it on **stderr**:
+cgt-calc confirms the saved file on **stderr**, then continues with the calculation:
 
 ```text
 Saved 123 parsed transactions to parsed-transactions.csv
 ```
 
-That message means the file is complete. It is not the message that ends a run, which begins
-`Done!`, so a saved file does not show that the calculation succeeded. If the calculation fails, the
-file is kept for you to inspect and the command still exits with an error.
+This confirms that the CSV is complete, not that the calculation succeeded. If calculation fails,
+the CSV remains available and the command exits with an error.
 
 ### What the file contains
 
-One row per transaction, under a header naming every column. The rows are in the order the
-calculation reads them, which is not always the order they happened: some brokers export the newest
-row first, and cgt-calc deliberately places some of a day’s rows before others.
+The file has a header and one row per loaded transaction, including dates outside the report's
+`--year` or `--from`/`--to` period. Rows follow the order supplied to the calculation, which may not
+be chronological. Ticker names and quantities can differ from the final report.
 
-Every transaction cgt-calc loaded is exported, including dates outside the reporting period.
-`--year`, `--from` and `--to` still choose the period the report covers.
-
-Because the calculation has not run yet, ticker names and quantities can differ from the final
-report. The file reflects whatever duplicate handling the parser for your broker supports and
-removes nothing itself, so follow the [instructions for your broker](brokers/index.md) and do not
-assume overlapping exports are safe.
+The dump removes no duplicates beyond those handled by your broker's parser. Follow your
+[broker's instructions](brokers/index.md); do not assume overlapping exports are safe.
 
 Numbers are exact rather than rounded for display. `price`, `fees` and `amount` are in the row’s
 `currency`, and fees charged in another currency stay in `foreign_fees` under their own currency.
 `market` names the market a `symbol` belongs to when cgt-calc knows it, which is `US` for every
 Charles Schwab row. It is empty otherwise.
 
-Columns holding several named values, such as `foreign_fees` and `source`, use JSON, which keeps
-names and values together in one cell: `{"EUR":"2.50"}` is a fee of 2.50 euros. An empty column
-means the value was unset or empty text, which look the same outside JSON.
+`foreign_fees` and `source` use JSON to keep named values in one cell: `{"EUR":"2.50"}` is a fee of
+2.50 euros. Outside JSON, unset values and empty text both appear as empty cells.
 
 Excess reported income (ERI) records loaded for funds you hold appear with the action
 `EXCESS_REPORTED_INCOME` and an `isin` in place of a `symbol`. They carry only a per-unit `price`,
 so `quantity` and `amount` stay empty until the calculation works them out. See the
 [offshore funds guide](offshore-funds.md).
 
-The file is a snapshot for inspection, not an input format: its columns are not the seven columns of
-the [RAW format](brokers/raw.md), and it cannot be passed back with `--raw-file`. `source` names the
-input file each transaction came from, and includes a row number when the parser records one, so the
-export can contain paths from your own machine. Read it before you send it to anyone, and see the
-[privacy notes](privacy.md).
+The dump is not [RAW format](brokers/raw.md) and cannot be used with `--raw-file`. Its `source`
+column includes input paths and, where recorded, row numbers. Check these before sharing the file;
+see the [privacy notes](privacy.md).
 
 ### Where it is written
 
-`--dump-transactions` always creates a new file. cgt-calc refuses to overwrite an existing file,
-refuses a path whose directory does not exist, and refuses a path the same run would write later,
-such as the report or one of the cache files. If writing fails partway through, it stops with an
-error naming the path; remove the partly written file, or choose another name, before trying again.
+Choose a new filename in an existing directory, separate from the report and cache paths. cgt-calc
+refuses existing files, missing directories and paths the run would write later. If writing fails,
+the error names the path; remove any partly written file or choose another name before retrying.
 
-Nothing else about the run changes. `--output`, `--no-report` and `--no-pdflatex` still do what they
-normally do, and the usual checks on your input still apply.
+The usual input checks and `--output`, `--no-report` and `--no-pdflatex` options still apply.
 
 ## Report part of a tax year (advanced)
 

@@ -21,6 +21,14 @@ cgt-calc converts other currencies to pounds at HMRC's monthly exchange rates.
     and from the [UK Trade Tariff API](https://www.trade-tariff.service.gov.uk/exchange_rates) for
     2021 onwards. It saves them to `out/exchange_rates.csv`.
 
+Use `--exchange-rates-file` to select another file in the same format. An empty value disables the
+cache. Keep the completed file with the report to preserve the exchange rates used. cgt-calc may add
+missing months to the selected file, so retain the version used for the final report. Rates that
+come with cgt-calc are not written to the file. Keeping it does not preserve other fetched data,
+such as Yahoo Finance prices.
+
+#### Rates you add or change
+
 A row in that file for a date from April 2002 to April 2016 is compared with the rate that comes
 with cgt-calc. Where the two differ, cgt-calc prints a warning naming the row and HMRC's rate, on
 every run until you remove the row:
@@ -42,6 +50,8 @@ the Russian rouble's rate until September 2013 and the Liberian dollar at the US
 transaction in a currency like these before February 2015, compare HMRC's rate with another source
 and add your own row if it is wrong. From February 2015 to April 2016 HMRC's rate cannot be
 replaced.
+
+#### Missing rates
 
 cgt-calc stops and names the currency and date when it has no rate for a transaction:
 
@@ -66,6 +76,8 @@ For a date from May 2016, cgt-calc also stops when HMRC's rates cannot be downlo
 Try again later first. Adding the rate yourself works too: read it from the HMRC pages linked under
 “May 2016 onwards” above. Each run stops at the first date and currency without a row, though, so a
 history with many dates needs as many rows before it completes.
+
+#### Finding historical rates
 
 HMRC does not prescribe which exchange rate to use, only that the method is reasonable and
 consistent ([CG78310](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg78310)).
@@ -92,16 +104,6 @@ HMRC's rates up to 2014 are kept in the UK Government Web Archive:
 
 A month's table gives a “Date of change” and “New rate” where HMRC changed a rate during the month,
 and its “Weekly Rates of Exchange amendments” list every change.
-
-Use `--exchange-rates-file` to select another file in the same format. An empty value disables the
-cache. Keep the completed file with the report to preserve the exchange rates used. cgt-calc may add
-missing months to the selected file, so retain the version used for the final report. Rates that
-come with cgt-calc are not written to the file. Keeping it does not preserve other fetched data,
-such as Yahoo Finance prices.
-
-If a run is stopped abruptly while it saves the rates, for example by closing the terminal, it can
-leave a file such as `exchange_rates.csv.3f9a1c2b.tmp` beside the rates file. The rates file itself
-is complete, and you can delete the leftover.
 
 ### ISIN to ticker translation
 
@@ -150,10 +152,6 @@ which is never copied into the file. Tickers read from your broker transactions 
 but never written to the file. A file written by an earlier version of cgt-calc can hold them; they
 are read like any other row, so remove one that is wrong.
 
-If a run is stopped abruptly while it saves this file, it can leave a file such as
-`isin_translation.csv.3f9a1c2b.tmp` beside it, as with the [exchange rates file](#exchange-rates).
-The translation file itself is complete, and you can delete the leftover.
-
 The bundled list gives a fund from outside the US its London tickers. A transaction that cgt-calc
 knows to be from a US market, which is every
 [Charles Schwab](brokers/schwab.md#funds-based-outside-the-us) transaction, is not matched to them,
@@ -180,6 +178,13 @@ one, or give it a row that leaves the ticker out.
 One transaction, such as a Charles Schwab one, uses the ticker as a US symbol. Another uses the same
 ticker and carries the ISIN of the London fund that the bundled list gives the ticker to. They are
 two securities, and cgt-calc would pool them as one holding. Calculate them in separate runs.
+
+### Temporary cache files
+
+An interrupted save can leave a `.tmp` file beside `exchange_rates.csv`, `isin_translation.csv` or
+`spin_offs.csv`, such as `exchange_rates.csv.3f9a1c2b.tmp`. Once cgt-calc has stopped, you can
+delete that temporary file. An existing cache stays complete, though it may not include the latest
+run's updates.
 
 ## When extra information is needed
 
@@ -236,12 +241,8 @@ NEWCO,ACME
 If two rows give the same new ticker different old tickers, cgt-calc stops and names both rows.
 
 An empty `--spin-offs-file` value disables the cache, so cgt-calc does not read or save spin-off
-mappings.
-
-If a run is stopped abruptly while it saves an answer, it can leave a file such as
-`spin_offs.csv.3f9a1c2b.tmp` beside the spin-offs file, as with the
-[exchange rates file](#exchange-rates). The spin-offs file itself is complete, and you can delete
-the leftover.
+mappings. See [Temporary cache files](#temporary-cache-files) if an interrupted run leaves a `.tmp`
+file.
 
 ### Ticker renames
 

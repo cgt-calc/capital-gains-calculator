@@ -49,20 +49,16 @@ product and HMRC guidance.
     say what is unsupported, whether cgt-calc detects it, what could go wrong, and what to do.
     Remove repetition and unnecessary wording without rewriting prose that already works.
 - **Check the evidence.** Verify behaviour against the implementation and tests. Check tax, security
-    and privacy claims against current primary sources, and link to the relevant section. Use small
-    examples with invented names, dates and values, and verify their commands and expected results.
-    Do not copy or rescale a real transaction history.
+    and privacy claims against current primary sources, and link to the relevant section. Check
+    commands, output labels, calculations and citations before editing the prose. Use small examples
+    with invented names, dates and values; do not copy or rescale a real transaction history.
 
 ### Using an LLM
 
-Treat text from a large language model (LLM) as a draft. Give the LLM the reader's task, existing
-page, relevant code and tests, and sources you have checked. Request a focused edit; do not ask it
-to fill gaps by guessing.
-
-Review factual claims separately from wording. Check commands, output labels, calculations and
-citations against their sources; a second LLM response agreeing with the draft is not verification.
-Resolve unsupported claims before publishing. Then read the whole page to check the order of steps,
-remove repetition, and make sure important limitations survived the edit.
+Treat text from a large language model (LLM) as a draft. Give it the reader's task, existing page,
+relevant code and tests, and checked sources. Request a focused edit without invented details. Apply
+the evidence checks above yourself; a second LLM agreeing is not verification. Read the whole page
+afterwards to check the order of steps, remove repetition and retain important limitations.
 
 ### Check your documentation change
 
@@ -197,31 +193,12 @@ uv run ty check cgt_calc tests scripts
 
 ## Managing dependencies
 
-You can manage dependencies either with `uv` commands or by editing `pyproject.toml` directly.
-
-### Add a new runtime dependency
-
-```shell
-uv add <package-name>
-```
-
-### Add a development dependency
-
-```shell
-uv add --group dev <package-name>
-```
-
-### Upgrade existing dependencies
-
-```shell
-uv lock --upgrade
-uv sync
-```
-
-### Manual changes
-
-If you edit `pyproject.toml` manually (for example, to bump a version), run `uv sync` afterwards to
-apply the changes and update `uv.lock`.
+| Task                                                        | Command                             |
+| ----------------------------------------------------------- | ----------------------------------- |
+| Add a runtime dependency                                    | `uv add <package-name>`             |
+| Add a development dependency                                | `uv add --group dev <package-name>` |
+| Upgrade dependencies                                        | `uv lock --upgrade`, then `uv sync` |
+| Apply manual edits to `pyproject.toml` and update `uv.lock` | `uv sync`                           |
 
 ## Updating the example report
 

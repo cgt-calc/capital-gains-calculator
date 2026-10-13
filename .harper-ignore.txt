@@ -21,6 +21,8 @@
 ^version\.py:.*PhrasalVerbAsCompoundNoun
 # "A fee on the row is real money" is complete; MissingPreposition misfires.
 ^ingestion\.py:.*MissingPreposition
+# "The PDF has separate ... sections" is complete; the section titles confuse Harper.
+^usage\.md:.*MissingPreposition
 # "CR CR LF" spells out the doubled carriage return; the repeat is the point.
 ^util\.py:.*RepeatedWords
 # "a header that does not match" is a relative clause, not a comparison.
