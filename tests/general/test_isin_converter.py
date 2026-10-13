@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 import logging
 import os
@@ -117,7 +117,7 @@ class FakeSession:
 def _transaction(isin: Isin | None, symbol: str | None) -> BrokerTransaction:
     """Create a minimal transaction with the given ISIN and symbol."""
     return BrokerTransaction(
-        date=datetime.date(2023, 1, 1),
+        date=dt.date(2023, 1, 1),
         action=ActionType.BUY,
         symbol=symbol,
         description="test",

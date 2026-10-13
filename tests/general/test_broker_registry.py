@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import csv
-import datetime
+import datetime as dt
 from decimal import Decimal
 import io
 import logging
@@ -183,7 +183,7 @@ def test_vanguard_symbol_with_isin_mapping_does_not_warn(
 def test_vanguard_display_name_does_not_define_parser_provenance() -> None:
     """Ignore a non-Vanguard transaction whose broker label happens to match."""
     transaction = BrokerTransaction(
-        date=datetime.date(2022, 3, 9),
+        date=dt.date(2022, 3, 9),
         action=ActionType.BUY,
         symbol="Foo Fund",
         description="",
@@ -205,7 +205,7 @@ def test_vanguard_symbol_resolved_by_another_broker_does_not_warn() -> None:
     send them after a change that makes no difference.
     """
     vanguard = VanguardTransaction.from_fields(
-        date=datetime.date(2022, 3, 9),
+        date=dt.date(2022, 3, 9),
         action=ActionType.BUY,
         symbol="VWRP",
         quantity=Decimal(10),
@@ -215,7 +215,7 @@ def test_vanguard_symbol_resolved_by_another_broker_does_not_warn() -> None:
         is_reversal=False,
     )
     elsewhere = BrokerTransaction(
-        date=datetime.date(2022, 3, 9),
+        date=dt.date(2022, 3, 9),
         action=ActionType.BUY,
         symbol="VWRP",
         description="",
@@ -238,7 +238,7 @@ def test_vanguard_symbol_resolved_by_another_broker_does_not_warn() -> None:
 def test_vanguard_blank_symbol_is_not_reported() -> None:
     """A whitespace-only symbol must not render as a phantom empty entry."""
     blank = VanguardTransaction.from_fields(
-        date=datetime.date(2022, 3, 9),
+        date=dt.date(2022, 3, 9),
         action=ActionType.BUY,
         symbol="",
         quantity=Decimal(1),
@@ -249,7 +249,7 @@ def test_vanguard_blank_symbol_is_not_reported() -> None:
     )
 
     whitespace = VanguardTransaction.from_fields(
-        date=datetime.date(2022, 3, 9),
+        date=dt.date(2022, 3, 9),
         action=ActionType.BUY,
         symbol=" ",
         quantity=Decimal(1),
@@ -276,7 +276,7 @@ def test_vanguard_symbol_renamed_with_either_name_mapped_does_not_warn(
 ) -> None:
     """A mapping for either name of a renamed holding covers rows under both."""
     pre_rename = VanguardTransaction.from_fields(
-        date=datetime.date(2022, 3, 9),
+        date=dt.date(2022, 3, 9),
         action=ActionType.BUY,
         symbol="VDXX",
         quantity=Decimal(10),
@@ -286,7 +286,7 @@ def test_vanguard_symbol_renamed_with_either_name_mapped_does_not_warn(
         is_reversal=False,
     )
     rename = VanguardTransaction.from_fields(
-        date=datetime.date(2022, 3, 10),
+        date=dt.date(2022, 3, 10),
         action=ActionType.RENAME,
         symbol="VGER",
         quantity=Decimal(0),

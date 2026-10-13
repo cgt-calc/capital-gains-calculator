@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 import re
 from typing import TYPE_CHECKING
@@ -29,7 +29,7 @@ def test_load_custom_file(tmp_path: Path) -> None:
 
     prices = SharePrices(prices_file=prices_file)
 
-    assert prices.get(datetime.date(2021, 3, 8), "FOO", "USD") == Decimal("10.5")
+    assert prices.get(dt.date(2021, 3, 8), "FOO", "USD") == Decimal("10.5")
 
 
 @pytest.mark.parametrize(
@@ -85,7 +85,7 @@ def test_a_prices_file_is_read_as_typed_or_saved(tmp_path: Path, content: str) -
 
     prices = SharePrices(prices_file=prices_file)
 
-    assert prices.get(datetime.date(2021, 3, 8), "FOO", "USD") == Decimal("10.5")
+    assert prices.get(dt.date(2021, 3, 8), "FOO", "USD") == Decimal("10.5")
 
 
 def test_get_missing_price(tmp_path: Path) -> None:
@@ -102,7 +102,7 @@ def test_get_missing_price(tmp_path: Path) -> None:
             "--prices-file (header 'date,symbol,price')"
         ),
     ):
-        prices.get(datetime.date(2021, 3, 8), "FOO", "USD")
+        prices.get(dt.date(2021, 3, 8), "FOO", "USD")
 
 
 @pytest.mark.parametrize(
@@ -149,7 +149,7 @@ def test_the_same_price_under_an_earlier_ticker_is_accepted(tmp_path: Path) -> N
 
     prices = SharePrices(prices_file=prices_file)
 
-    assert prices.get(datetime.date(2021, 2, 16), "META", "USD") == Decimal("270.50")
+    assert prices.get(dt.date(2021, 2, 16), "META", "USD") == Decimal("270.50")
 
 
 @pytest.mark.parametrize(
@@ -164,8 +164,8 @@ def test_a_prices_file_skips_a_blank_row(tmp_path: Path, blank: str) -> None:
 
     prices = SharePrices(prices_file=prices_file)
 
-    assert prices.get(datetime.date(2021, 3, 8), "FOO", "USD") == Decimal("10.5")
-    assert prices.get(datetime.date(2021, 3, 9), "FOO", "USD") == Decimal(11)
+    assert prices.get(dt.date(2021, 3, 8), "FOO", "USD") == Decimal("10.5")
+    assert prices.get(dt.date(2021, 3, 9), "FOO", "USD") == Decimal(11)
 
 
 def test_a_half_filled_prices_row_is_reported_at_its_line(tmp_path: Path) -> None:
@@ -297,7 +297,7 @@ def test_a_vest_without_a_price_is_priced_in_its_own_currency(
     ]
     if given is not None:
         prices = tmp_path / "prices.csv"
-        day = datetime.date.fromisoformat(date).strftime("%b %d, %Y")
+        day = dt.date.fromisoformat(date).strftime("%b %d, %Y")
         prices.write_text(f'date,symbol,price\n"{day}",{symbol},{given}\n')
         args += ["--prices-file", str(prices)]
 

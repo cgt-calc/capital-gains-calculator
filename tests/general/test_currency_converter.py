@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 from itertools import permutations
 import logging
@@ -58,8 +58,8 @@ def test_read_exchange_rates_skips_blank_rows(tmp_path: Path) -> None:
     converter = CurrencyConverter(exchange_rates_file=rates_file)
     cache = converter.cache
 
-    january = datetime.date(2024, 1, 1)
-    february = datetime.date(2024, 2, 1)
+    january = dt.date(2024, 1, 1)
+    february = dt.date(2024, 2, 1)
     assert cache[january] == {CurrencyCode("USD"): Decimal("1.25")}
     assert cache[february] == {CurrencyCode("EUR"): Decimal("1.10")}
 
@@ -73,7 +73,7 @@ def test_read_exchange_rates_accepts_a_byte_order_mark(tmp_path: Path) -> None:
 
     converter = CurrencyConverter(exchange_rates_file=rates_file)
 
-    assert converter.cache[datetime.date(2024, 1, 1)] == {
+    assert converter.cache[dt.date(2024, 1, 1)] == {
         CurrencyCode("USD"): Decimal("1.25")
     }
 
@@ -183,8 +183,8 @@ def test_read_exchange_rates_skips_comment_lines(tmp_path: Path) -> None:
     converter = CurrencyConverter(exchange_rates_file=rates_file)
     cache = converter.cache
 
-    january = datetime.date(2024, 1, 1)
-    february = datetime.date(2024, 2, 1)
+    january = dt.date(2024, 1, 1)
+    february = dt.date(2024, 2, 1)
     assert cache[january] == {CurrencyCode("USD"): Decimal("1.25")}
     assert cache[february] == {CurrencyCode("EUR"): Decimal("1.10")}
 
@@ -210,7 +210,7 @@ def test_hmrc_fetch_announces_itself(
     monkeypatch.setattr(converter, "session", OfflineSession())
 
     with caplog.at_level(logging.INFO), pytest.raises(ExternalApiError):
-        converter.currency_to_gbp_rate(CurrencyCode("USD"), datetime.date(2021, 5, 10))
+        converter.currency_to_gbp_rate(CurrencyCode("USD"), dt.date(2021, 5, 10))
 
     assert "Fetching HMRC exchange rates for 2021-05..." in caplog.text
 
@@ -268,7 +268,7 @@ class MonthlyFiles:
         return _usd_file(self._rates[url.removesuffix(".xml")[-4:]])
 
 
-DATE = datetime.date(2024, 1, 1)
+DATE = dt.date(2024, 1, 1)
 GBP = CurrencyCode("GBP")
 USD = CurrencyCode("USD")
 PLN = CurrencyCode("PLN")
@@ -325,8 +325,8 @@ def test_query_hmrc_api_http_error_includes_snippet() -> None:
 
 # The last month asked of the legacy service and the first asked of the Trade
 # Tariff API.
-DECEMBER_2020 = datetime.date(2020, 12, 14)
-JANUARY_2021 = datetime.date(2021, 1, 11)
+DECEMBER_2020 = dt.date(2020, 12, 14)
+JANUARY_2021 = dt.date(2021, 1, 11)
 RATES_ADDRESS = {
     DECEMBER_2020: (
         "https://www.hmrc.gov.uk/softwaredevelopers/rates/exrates-monthly-1220.xml"
@@ -427,7 +427,7 @@ def _reply(text: str, *, status: int = 200) -> FakeSession:
     ],
 )
 def test_a_failed_download_says_what_went_wrong_and_what_to_do(
-    date: datetime.date,
+    date: dt.date,
     session: FakeSession | OfflineSession,
     problem: str,
     tmp_path: Path,
@@ -489,10 +489,10 @@ def test_a_month_is_downloaded_once_however_many_of_its_dates_need_it(
 
     with caplog.at_level(logging.INFO):
         for date, rate in (
-            (datetime.date(2019, 6, 3), "1.2611"),
-            (datetime.date(2019, 7, 1), "1.2532"),
-            (datetime.date(2020, 6, 1), "1.2331"),
-            (datetime.date(2019, 6, 14), "1.2611"),
+            (dt.date(2019, 6, 3), "1.2611"),
+            (dt.date(2019, 7, 1), "1.2532"),
+            (dt.date(2020, 6, 1), "1.2331"),
+            (dt.date(2019, 6, 14), "1.2611"),
         ):
             assert converter.currency_to_gbp_rate(USD, date) == Decimal(rate)
 
@@ -528,7 +528,7 @@ def test_a_row_typed_for_one_currency_leaves_the_others_to_be_downloaded(
     goes in. The typed rate stays on its own date: another date in the month
     gets HMRC's.
     """
-    date = datetime.date(2019, 6, 14)
+    date = dt.date(2019, 6, 14)
     rates_file = tmp_path / "rates.csv"
     rates_file.write_text(
         "month,currency,rate\n2019-06-14,USD,1.2682\n", encoding="utf8"
@@ -558,7 +558,7 @@ def test_a_row_typed_for_one_currency_leaves_the_others_to_be_downloaded(
     assert rates_file.read_text(encoding="utf8") == (
         "month,currency,rate\n2019-06-14,EUR,1.1307\n2019-06-14,USD,1.2682\n"
     )
-    assert converter.currency_to_gbp_rate(USD, datetime.date(2019, 6, 20)) == Decimal(
+    assert converter.currency_to_gbp_rate(USD, dt.date(2019, 6, 20)) == Decimal(
         "1.2611"
     )
     assert len(session.urls) == 1
@@ -570,7 +570,7 @@ def test_a_first_save_makes_the_folder_for_the_rates_file(tmp_path: Path) -> Non
     converter = CurrencyConverter(exchange_rates_file=rates_file)
     converter.session = _monthly_usd("1.2532")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
-    converter.currency_to_gbp_rate(USD, datetime.date(2019, 7, 1))
+    converter.currency_to_gbp_rate(USD, dt.date(2019, 7, 1))
 
     assert (
         rates_file.read_bytes() == b"month,currency,rate\r\n2019-07-01,USD,1.2532\r\n"
@@ -624,12 +624,12 @@ def test_a_run_stopped_as_it_saves_leaves_the_rates_file_as_it_was(
     rate.act = stop
     converter = CurrencyConverter(
         exchange_rates_file=rates_file,
-        initial_data={datetime.date(2020, 6, 1): {USD: rate}},
+        initial_data={dt.date(2020, 6, 1): {USD: rate}},
     )
     converter.session = _monthly_usd("1.2532")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
     with pytest.raises(KeyboardInterrupt):
-        converter.currency_to_gbp_rate(USD, datetime.date(2019, 7, 1))
+        converter.currency_to_gbp_rate(USD, dt.date(2019, 7, 1))
 
     assert rates_file.read_bytes() == TYPED_ROW
     assert list(tmp_path.iterdir()) == [rates_file]
@@ -650,17 +650,17 @@ def test_two_runs_that_save_at_once_both_finish(tmp_path: Path) -> None:
 
     def second_run_saves() -> None:
         files_when_the_second_saved.append(len(list(tmp_path.iterdir())))
-        second.currency_to_gbp_rate(USD, datetime.date(2020, 6, 1))
+        second.currency_to_gbp_rate(USD, dt.date(2020, 6, 1))
 
     rate = DuringTheSave("1.4166")
     rate.act = second_run_saves
     first = CurrencyConverter(
         exchange_rates_file=rates_file,
-        initial_data={datetime.date(2021, 6, 1): {USD: rate}},
+        initial_data={dt.date(2021, 6, 1): {USD: rate}},
     )
     first.session = _monthly_usd("1.2532")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
-    first.currency_to_gbp_rate(USD, datetime.date(2019, 7, 1))
+    first.currency_to_gbp_rate(USD, dt.date(2019, 7, 1))
 
     assert rates_file.read_bytes() == (
         TYPED_ROW + b"2019-07-01,USD,1.2532\r\n2021-06-01,USD,1.4166\r\n"
@@ -687,7 +687,7 @@ def test_a_rates_file_that_cannot_be_written_is_reported_and_left_alone(
     converter.session = _monthly_usd("1.2532")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
     with pytest.raises(CgtError) as raised:
-        converter.currency_to_gbp_rate(USD, datetime.date(2019, 7, 1))
+        converter.currency_to_gbp_rate(USD, dt.date(2019, 7, 1))
 
     assert str(raised.value) == (
         "Cannot save exchange rates to rates.csv: Permission denied. Close the file "
@@ -714,9 +714,7 @@ def test_a_save_keeps_a_linked_rates_file_and_its_permissions(tmp_path: Path) ->
     converter = CurrencyConverter(exchange_rates_file=rates_file)
     converter.session = _monthly_usd("1.2532")  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
-    assert converter.currency_to_gbp_rate(USD, datetime.date(2019, 7, 1)) == Decimal(
-        "1.2532"
-    )
+    assert converter.currency_to_gbp_rate(USD, dt.date(2019, 7, 1)) == Decimal("1.2532")
 
     assert rates_file.is_symlink()
     assert kept.read_bytes() == TYPED_ROW + b"2019-07-01,USD,1.2532\r\n"
@@ -729,7 +727,7 @@ def test_test_converter_records_new_rates(tmp_path: Path) -> None:
     rates_file.write_text("month,currency,rate\n", encoding="utf8")
     converter = RecordingCurrencyConverter(exchange_rates_file=rates_file)
 
-    def fake_query(date: datetime.date, currency: CurrencyCode) -> None:
+    def fake_query(date: dt.date, currency: CurrencyCode) -> None:
         converter.cache[date] = {CurrencyCode("USD"): Decimal("1.25")}
 
     converter._query_hmrc_api = fake_query  # type: ignore[method-assign]  # ty: ignore[invalid-assignment]  # noqa: SLF001
@@ -817,23 +815,23 @@ def test_a_date_before_february_2015_that_does_not_ship_is_not_asked_of_hmrc(
     converter.session = OfflineSession()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
     with pytest.raises(HmrcRateMissingError, match=r"a row '2002-03-28,USD,<rate>'"):
-        converter.currency_to_gbp_rate(USD, datetime.date(2002, 3, 28))
+        converter.currency_to_gbp_rate(USD, dt.date(2002, 3, 28))
 
 
 @pytest.mark.parametrize(
     ("currency", "date", "rate"),
     [
-        (USD, datetime.date(2016, 1, 26), Decimal("1.5003")),
-        (USD, datetime.date(2016, 1, 27), Decimal("1.4144")),
+        (USD, dt.date(2016, 1, 26), Decimal("1.5003")),
+        (USD, dt.date(2016, 1, 27), Decimal("1.4144")),
         # The Swiss franc changed twice in February 2015, on the 4th and 11th.
-        (CurrencyCode("CHF"), datetime.date(2015, 2, 10), Decimal("1.3692")),
-        (CurrencyCode("CHF"), datetime.date(2015, 2, 11), Decimal("1.3995")),
+        (CurrencyCode("CHF"), dt.date(2015, 2, 10), Decimal("1.3692")),
+        (CurrencyCode("CHF"), dt.date(2015, 2, 11), Decimal("1.3995")),
         # Offshore yuan is priced as the yuan, whose rate changed that day.
-        (CurrencyCode("CNH"), datetime.date(2015, 5, 27), Decimal("9.8007")),
+        (CurrencyCode("CNH"), dt.date(2015, 5, 27), Decimal("9.8007")),
     ],
 )
 def test_a_rate_hmrc_changed_during_the_month_applies_from_its_date(
-    currency: CurrencyCode, date: datetime.date, rate: Decimal
+    currency: CurrencyCode, date: dt.date, rate: Decimal
 ) -> None:
     """HMRC's monthly file shows one rate; the change it made later does not.
 
@@ -853,29 +851,25 @@ def test_a_rate_hmrc_changed_during_the_month_applies_from_its_date(
     [
         # Each checked by hand against HMRC's page for the month, one for each
         # form HMRC published the months before February 2015 in.
-        pytest.param(
-            USD, datetime.date(2002, 4, 15), Decimal("1.4255"), id="first month"
-        ),
-        pytest.param(USD, datetime.date(2009, 6, 15), Decimal("1.5649"), id="web page"),
-        pytest.param(USD, datetime.date(2005, 6, 15), Decimal("1.8344"), id="PDF"),
+        pytest.param(USD, dt.date(2002, 4, 15), Decimal("1.4255"), id="first month"),
+        pytest.param(USD, dt.date(2009, 6, 15), Decimal("1.5649"), id="web page"),
+        pytest.param(USD, dt.date(2005, 6, 15), Decimal("1.8344"), id="PDF"),
         pytest.param(
             CurrencyCode("EUR"),
-            datetime.date(2006, 6, 15),
+            dt.date(2006, 6, 15),
             Decimal("1.4746"),
             id="Word",
         ),
-        pytest.param(USD, datetime.date(2015, 1, 15), Decimal("1.5562"), id="XML"),
+        pytest.param(USD, dt.date(2015, 1, 15), Decimal("1.5562"), id="XML"),
         # November 2008 opened at 1.6336 and HMRC changed it from the 19th.
         pytest.param(
-            USD, datetime.date(2008, 11, 18), Decimal("1.6336"), id="before a change"
+            USD, dt.date(2008, 11, 18), Decimal("1.6336"), id="before a change"
         ),
-        pytest.param(
-            USD, datetime.date(2008, 11, 19), Decimal("1.5047"), id="from a change"
-        ),
+        pytest.param(USD, dt.date(2008, 11, 19), Decimal("1.5047"), id="from a change"),
     ],
 )
 def test_rates_from_april_2002_come_with_cgt_calc(
-    currency: CurrencyCode, date: datetime.date, rate: Decimal
+    currency: CurrencyCode, date: dt.date, rate: Decimal
 ) -> None:
     """HMRC's download has no file for these months, so they are not asked for."""
     converter = CurrencyConverter()
@@ -894,12 +888,12 @@ def test_every_year_of_shipped_rates_loads(year: int) -> None:
     converter = CurrencyConverter()
     converter.session = OfflineSession()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
-    assert converter.currency_to_gbp_rate(USD, datetime.date(year, 4, 15))
+    assert converter.currency_to_gbp_rate(USD, dt.date(year, 4, 15))
 
 
 def test_a_currency_the_shipped_rates_lack_comes_from_the_rates_given() -> None:
     """HMRC lists no XAU in January 2016, so the rate supplied is the one used."""
-    date = datetime.date(2016, 1, 27)
+    date = dt.date(2016, 1, 27)
     gold = CurrencyCode("XAU")
     converter = CurrencyConverter(initial_data={date: {gold: Decimal("0.001")}})
 
@@ -916,7 +910,7 @@ def test_a_month_that_ships_is_never_downloaded() -> None:
     converter.session = OfflineSession()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
     with pytest.raises(HmrcRateMissingError):
-        converter.currency_to_gbp_rate(CurrencyCode("XAU"), datetime.date(2016, 1, 27))
+        converter.currency_to_gbp_rate(CurrencyCode("XAU"), dt.date(2016, 1, 27))
 
 
 def test_a_different_rate_on_file_is_overruled_and_reported_once(
@@ -941,7 +935,7 @@ def test_a_different_rate_on_file_is_overruled_and_reported_once(
     eur = CurrencyCode("EUR")
 
     def rate(currency: CurrencyCode, day: int) -> Decimal:
-        return converter.currency_to_gbp_rate(currency, datetime.date(2016, 1, day))
+        return converter.currency_to_gbp_rate(currency, dt.date(2016, 1, day))
 
     with caplog.at_level(logging.WARNING):
         assert rate(USD, 26) == Decimal("1.5003")
@@ -985,7 +979,7 @@ def test_a_row_typed_for_a_date_before_february_2015_is_used_and_reported_once(
     converter = CurrencyConverter(exchange_rates_file=rates_file)
 
     def rate(year: int, month: int, day: int) -> Decimal:
-        return converter.currency_to_gbp_rate(USD, datetime.date(year, month, day))
+        return converter.currency_to_gbp_rate(USD, dt.date(year, month, day))
 
     with caplog.at_level(logging.WARNING):
         assert rate(2008, 11, 18) == Decimal("1.6336")
@@ -1016,6 +1010,6 @@ def test_test_converter_does_not_record_a_shipped_rate(tmp_path: Path) -> None:
     rates_file.write_text("month,currency,rate\n", encoding="utf8")
     converter = RecordingCurrencyConverter(exchange_rates_file=rates_file)
 
-    converter.currency_to_gbp_rate(USD, datetime.date(2016, 1, 27))
+    converter.currency_to_gbp_rate(USD, dt.date(2016, 1, 27))
 
     assert rates_file.read_text(encoding="utf-8") == "month,currency,rate\n"

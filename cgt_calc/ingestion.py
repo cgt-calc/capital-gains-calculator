@@ -66,7 +66,7 @@ from .util import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
-    import datetime
+    import datetime as dt
 
     from .calculator_state import CalculatorState
     from .currency_converter import CurrencyConverter
@@ -221,7 +221,7 @@ def _refuse_unsupported_history(transaction: BrokerTransaction) -> None:
 
 def _first_history_date(
     transactions: list[BrokerTransaction],
-) -> datetime.date | None:
+) -> dt.date | None:
     """Return the earliest date, refusing a row the pooling rules cannot price."""
     for transaction in transactions:
         _refuse_unsupported_history(transaction)
@@ -300,7 +300,7 @@ class TransactionIngester:
         balance_check: bool,
         autoconvert_currency: bool = False,
         gifts_to_spouse: bool = False,
-        date_in_tax_year: Callable[[datetime.date], bool],
+        date_in_tax_year: Callable[[dt.date], bool],
     ):
         """Create transaction ingester object."""
         self.history = state.history
@@ -402,9 +402,7 @@ class TransactionIngester:
         else:
             record.purchased += added
 
-    def _available_units(
-        self, symbol: str, date_index: datetime.date
-    ) -> Decimal | None:
+    def _available_units(self, symbol: str, date_index: dt.date) -> Decimal | None:
         """Units a decrease may take now, or None when nothing is held.
 
         On an ordinary day this is the running count. On the day of a share
@@ -463,7 +461,7 @@ class TransactionIngester:
 
     @staticmethod
     def _source_is_the_destination_message(
-        recorded: str, symbol: str, date_index: datetime.date, *, renamed: bool
+        recorded: str, symbol: str, date_index: dt.date, *, renamed: bool
     ) -> str:
         """Say why a holding cannot be spun off from itself."""
         cause = (
@@ -488,7 +486,7 @@ class TransactionIngester:
         )
 
     def _given_price(
-        self, symbol: str, date_index: datetime.date, *, other_end: str
+        self, symbol: str, date_index: dt.date, *, other_end: str
     ) -> Decimal | None:
         """Return the price this run was given for one end of a reorganisation.
 
@@ -525,7 +523,7 @@ class TransactionIngester:
     def _refuse_disagreeing_alias(
         self,
         symbol: str,
-        date_index: datetime.date,
+        date_index: dt.date,
         price: Decimal,
         *,
         other_end: str,
@@ -569,7 +567,7 @@ class TransactionIngester:
         self,
         recorded: str,
         symbol: str,
-        date_index: datetime.date,
+        date_index: dt.date,
         src_price: Decimal,
         dst_price: Decimal,
     ) -> None:
@@ -610,7 +608,7 @@ class TransactionIngester:
                 "professional advice)."
             )
 
-    def _source_holding_name(self, ticker: str, date_index: datetime.date) -> str:
+    def _source_holding_name(self, ticker: str, date_index: dt.date) -> str:
         """Return the name a spin-off's source holding is under right now.
 
         The spin-offs file records one spelling, and a day that renames the
@@ -1156,7 +1154,7 @@ class TransactionIngester:
         self.history.gift_disposals[transaction.date, symbol] = connected
 
     @staticmethod
-    def _gift_values_differ_message(symbol: str, date_index: datetime.date) -> str:
+    def _gift_values_differ_message(symbol: str, date_index: dt.date) -> str:
         return (
             f"Cannot compute gifts of {symbol} at different values per unit on "
             f"the same day ({date_index}): one holding has one market value on "
@@ -1168,7 +1166,7 @@ class TransactionIngester:
         )
 
     @staticmethod
-    def _mixed_gifts_message(symbol: str, date_index: datetime.date) -> str:
+    def _mixed_gifts_message(symbol: str, date_index: dt.date) -> str:
         return (
             f"Cannot compute a gift to a connected person and a gift to someone "
             f"unconnected of {symbol} on the same day ({date_index}): TCGA 1992 "
@@ -1179,7 +1177,7 @@ class TransactionIngester:
         )
 
     @staticmethod
-    def _sale_and_gift_message(symbol: str, date_index: datetime.date) -> str:
+    def _sale_and_gift_message(symbol: str, date_index: dt.date) -> str:
         return (
             f"Cannot compute a sale and a gift to a connected person of {symbol} "
             f"on the same day ({date_index}): TCGA 1992 s105(1) treats everything disposed of "
@@ -1229,15 +1227,15 @@ class TransactionIngester:
             }
         )
         # Every classifying row of a day and symbol, whatever count it states.
-        rows_on_day: Counter[tuple[datetime.date, str | None]] = Counter()
+        rows_on_day: Counter[tuple[dt.date, str | None]] = Counter()
         for (day, symbol, _), count in classified.items():
             rows_on_day[day, symbol] += count
         # Gifts of one symbol on one day all draw on the same rows, and a gift
         # printed before a split can state either of two counts, so which row
         # each takes has to be settled for the day as a whole.
-        groups: dict[
-            tuple[datetime.date, str | None], list[tuple[int, list[Decimal]]]
-        ] = defaultdict(list)
+        groups: dict[tuple[dt.date, str | None], list[tuple[int, list[Decimal]]]] = (
+            defaultdict(list)
+        )
         for index, transaction in enumerate(transactions):
             if transaction.action is not ActionType.UNCLASSIFIED_GIFT:
                 continue
@@ -1519,9 +1517,9 @@ class TransactionIngester:
     @staticmethod
     def _group_by_date(
         transactions: list[BrokerTransaction],
-    ) -> dict[datetime.date, list[BrokerTransaction]]:
+    ) -> dict[dt.date, list[BrokerTransaction]]:
         """Group the history by date, so a day can be planned before it runs."""
-        days: dict[datetime.date, list[BrokerTransaction]] = defaultdict(list)
+        days: dict[dt.date, list[BrokerTransaction]] = defaultdict(list)
         for transaction in transactions:
             days[transaction.date].append(transaction)
         return days
@@ -1529,8 +1527,8 @@ class TransactionIngester:
     def _open_transaction_day(
         self,
         transaction: BrokerTransaction,
-        days: dict[datetime.date, list[BrokerTransaction]],
-        planned: set[datetime.date],
+        days: dict[dt.date, list[BrokerTransaction]],
+        planned: set[dt.date],
     ) -> None:
         """Plan the day's reorganisations, and note where units came from."""
         if transaction.date not in planned:
@@ -1622,7 +1620,7 @@ class TransactionIngester:
         # whether a reorganisation followed it that day, and the pool has to
         # be in the day's closing units before the first of them is pooled.
         days = self._group_by_date(transactions)
-        planned: set[datetime.date] = set()
+        planned: set[dt.date] = set()
         # A rename moves the pool where its row sits, so a purchase or sale
         # of the same holding written under the name the day is retiring is
         # left behind under it. Each date's last row gathers those in, once

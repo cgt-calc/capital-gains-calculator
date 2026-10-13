@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 from pathlib import Path
 
@@ -24,7 +24,7 @@ def test_schwab_interest_tax_without_symbol_is_account_level() -> None:
     assert any(t.action is ActionType.INTEREST for t in transactions)
     assert any(t.action is ActionType.INTEREST_TAX for t in transactions)
 
-    date = datetime.date(2024, 6, 27)
+    date = dt.date(2024, 6, 27)
     currency_converter = CurrencyConverter(
         None, {date: {CurrencyCode("USD"): Decimal(1)}}
     )

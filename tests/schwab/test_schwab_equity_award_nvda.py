@@ -11,7 +11,7 @@ split boundaries of 20 July 2021 and 10 June 2024, and the tax year end.
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 import json
 import logging
@@ -44,7 +44,7 @@ def transactions_fixture() -> list[SchwabAwardTransaction]:
 
 def on(
     transactions: Sequence[BrokerTransaction],
-    date: datetime.date,
+    date: dt.date,
     action: ActionType,
 ) -> BrokerTransaction:
     """Return the single transaction of that kind on that date."""
@@ -57,16 +57,16 @@ def on(
     ("day", "expected"),
     [
         # Before both splits: 4:1 in 2021 then 10:1 in 2024.
-        (datetime.date(2021, 2, 26), 40),
-        (datetime.date(2021, 7, 19), 40),
+        (dt.date(2021, 2, 26), 40),
+        (dt.date(2021, 7, 19), 40),
         # The new shares trade from the 20th, so that day is already post-split.
-        (datetime.date(2021, 7, 20), 10),
-        (datetime.date(2024, 6, 7), 10),
-        (datetime.date(2024, 6, 10), 1),
-        (datetime.date(2026, 4, 2), 1),
+        (dt.date(2021, 7, 20), 10),
+        (dt.date(2024, 6, 7), 10),
+        (dt.date(2024, 6, 10), 1),
+        (dt.date(2026, 4, 2), 1),
     ],
 )
-def test_split_multiplier_boundaries(day: datetime.date, expected: int) -> None:
+def test_split_multiplier_boundaries(day: dt.date, expected: int) -> None:
     """The multiplier changes on the day the new shares trade."""
     assert split_multiplier("NVDA", day) == expected
 
@@ -82,8 +82,7 @@ def test_lapse_is_not_an_acquisition(transactions: list[BrokerTransaction]) -> N
     vests = [
         t
         for t in transactions
-        if t.action == ActionType.STOCK_ACTIVITY
-        and t.date == datetime.date(2021, 9, 15)
+        if t.action == ActionType.STOCK_ACTIVITY and t.date == dt.date(2021, 9, 15)
     ]
     assert len(vests) == 1
     # The paired Lapse says 40; the Deposit says 400 and is the one that counts.
@@ -92,7 +91,7 @@ def test_lapse_is_not_an_acquisition(transactions: list[BrokerTransaction]) -> N
 
 def test_vest_is_read_in_restated_units(transactions: list[BrokerTransaction]) -> None:
     """Both the count and the price of a vest are already restated."""
-    vest = on(transactions, datetime.date(2021, 9, 15), ActionType.STOCK_ACTIVITY)
+    vest = on(transactions, dt.date(2021, 9, 15), ActionType.STOCK_ACTIVITY)
 
     assert vest.quantity == Decimal(400)
     assert vest.price == Decimal("22.341")
@@ -100,7 +99,7 @@ def test_vest_is_read_in_restated_units(transactions: list[BrokerTransaction]) -
 
 def test_sell_to_cover_leaves_net_shares(transactions: list[BrokerTransaction]) -> None:
     """1000 vested, 300 went to tax, and the Deposit is already net."""
-    vest = on(transactions, datetime.date(2024, 9, 18), ActionType.STOCK_ACTIVITY)
+    vest = on(transactions, dt.date(2024, 9, 18), ActionType.STOCK_ACTIVITY)
 
     assert vest.quantity == Decimal(700)
 
@@ -114,7 +113,7 @@ def test_espp_uses_market_value_not_price_paid(
     worth understates the basis by a third on this purchase, and roughly
     tenfold on the ones where the discount is larger.
     """
-    espp = on(transactions, datetime.date(2021, 2, 26), ActionType.STOCK_ACTIVITY)
+    espp = on(transactions, dt.date(2021, 2, 26), ActionType.STOCK_ACTIVITY)
 
     assert espp.quantity == Decimal(80)
     assert espp.price == Decimal("13.7145")
@@ -125,7 +124,7 @@ def test_espp_taxed_in_shares_pools_the_net(
     transactions: list[BrokerTransaction],
 ) -> None:
     """Since August 2025 the tax is settled in shares: 200 bought, 150 kept."""
-    espp = on(transactions, datetime.date(2026, 2, 27), ActionType.STOCK_ACTIVITY)
+    espp = on(transactions, dt.date(2026, 2, 27), ActionType.STOCK_ACTIVITY)
 
     assert espp.quantity == Decimal(150)
     assert espp.price == Decimal("177.19")
@@ -148,7 +147,7 @@ def test_espp_before_a_split_pools_the_net_in_current_units(tmp_path: Path) -> N
 
     espp = on(
         parse(mutated(tmp_path, moved_before_the_splits)),
-        datetime.date(2022, 5, 17),
+        dt.date(2022, 5, 17),
         ActionType.STOCK_ACTIVITY,
     )
 
@@ -165,7 +164,7 @@ def test_disposal_before_the_split_is_converted(
     the two 2023 disposals, and the pool stays wrong by that much for every
     year afterwards.
     """
-    sale = on(transactions, datetime.date(2023, 1, 23), ActionType.SELL)
+    sale = on(transactions, dt.date(2023, 1, 23), ActionType.SELL)
     quantity = sale.quantity
     price = sale.price
 
@@ -180,7 +179,7 @@ def test_disposal_after_the_split_is_left_alone(
     transactions: list[BrokerTransaction],
 ) -> None:
     """A disposal already in current units needs no conversion."""
-    sale = on(transactions, datetime.date(2026, 4, 2), ActionType.SELL)
+    sale = on(transactions, dt.date(2026, 4, 2), ActionType.SELL)
 
     assert sale.quantity == Decimal(120)
     assert sale.price == Decimal("176.725")
@@ -194,7 +193,7 @@ def test_disposal_price_comes_from_the_money(
     Deriving the price this way rather than from the per-lot SalePrice is what
     lets a disposal span lots sold at different prices.
     """
-    sale = on(transactions, datetime.date(2025, 5, 22), ActionType.SELL)
+    sale = on(transactions, dt.date(2025, 5, 22), ActionType.SELL)
 
     assert sale.fees == Decimal("0.10")
     assert sale.price == Decimal("132.83")
@@ -205,7 +204,7 @@ def test_disposal_fees_are_preserved(
     transactions: list[BrokerTransaction],
 ) -> None:
     """A populated Schwab fee like "$0.02" is parsed and kept on the disposal."""
-    sale = on(transactions, datetime.date(2023, 1, 23), ActionType.SELL)
+    sale = on(transactions, dt.date(2023, 1, 23), ActionType.SELL)
 
     assert sale.fees == Decimal("0.02")
 
@@ -278,7 +277,7 @@ def test_a_sale_rounded_in_the_row_takes_its_count_from_the_lots(
 
     sale = on(
         parse(mutated(tmp_path, fractional_lots)),
-        datetime.date(2025, 5, 22),
+        dt.date(2025, 5, 22),
         ActionType.SELL,
     )
 
@@ -304,7 +303,7 @@ def test_a_vest_with_no_quantity_is_left_for_the_calculator_to_refuse(
 
     vest = on(
         parse(mutated(tmp_path, blank_the_vest)),
-        datetime.date(2024, 9, 18),
+        dt.date(2024, 9, 18),
         ActionType.STOCK_ACTIVITY,
     )
 
@@ -333,7 +332,7 @@ def test_a_sale_hiding_its_fraction_in_a_zero_lot_is_recovered(
 
     sale = on(
         parse(mutated(tmp_path, fraction_hidden_in_a_zero_lot)),
-        datetime.date(2026, 4, 2),
+        dt.date(2026, 4, 2),
         ActionType.SELL,
     )
 
@@ -355,7 +354,7 @@ def test_a_sale_the_row_already_states_exactly_is_left_alone(
 
     sale = on(
         parse(mutated(tmp_path, nothing)),
-        datetime.date(2025, 5, 19),
+        dt.date(2025, 5, 19),
         ActionType.SELL,
     )
 
@@ -550,8 +549,7 @@ def test_espp_with_everything_withheld_pools_nothing(tmp_path: Path) -> None:
     espp = [
         t
         for t in parse(mutated(tmp_path, all_withheld))
-        if t.action == ActionType.STOCK_ACTIVITY
-        and t.date == datetime.date(2026, 2, 27)
+        if t.action == ActionType.STOCK_ACTIVITY and t.date == dt.date(2026, 2, 27)
     ]
 
     # Not an acquisition of zero shares, which the calculator refuses outright,

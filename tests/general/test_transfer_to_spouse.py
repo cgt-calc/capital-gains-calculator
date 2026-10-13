@@ -7,7 +7,7 @@ have to be classified before anything can be calculated.
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 import logging
 from typing import TYPE_CHECKING
@@ -46,8 +46,8 @@ if TYPE_CHECKING:
 
 def test_transfer_to_spouse_from_pool_is_no_gain_no_loss() -> None:
     """A transfer to spouse leaves the Section 104 pool at base cost with nil gain."""
-    buy_day = datetime.date(2024, 6, 1)
-    transfer_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    transfer_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -87,14 +87,14 @@ def test_transfer_to_spouse_from_pool_is_no_gain_no_loss() -> None:
 
 def test_a_transfer_on_6_april_belongs_to_the_year_it_starts() -> None:
     """The tax year runs from 6 April: that day's transfer is listed, 5 April's is not."""
-    day_before = datetime.date(2024, 4, 5)
-    first_day = datetime.date(2024, 4, 6)
+    day_before = dt.date(2024, 4, 5)
+    first_day = dt.date(2024, 4, 6)
     calculator = create_calculator(tax_year=2024, balance_check=False)
 
     report = get_report(
         calculator,
         [
-            _gbp_trade(datetime.date(2024, 3, 1), ActionType.BUY, "FOO", 30, 300),
+            _gbp_trade(dt.date(2024, 3, 1), ActionType.BUY, "FOO", 30, 300),
             transfer_to_spouse_transaction(day_before, "FOO", 10),
             transfer_to_spouse_transaction(first_day, "FOO", 5),
         ],
@@ -114,9 +114,9 @@ def test_transfer_to_spouse_matches_repurchase_within_30_days() -> None:
     shares, not the Section 104 average - the case a plain pool reduction gets
     wrong.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    transfer_day = datetime.date(2024, 6, 10)
-    rebuy_day = datetime.date(2024, 6, 15)
+    buy_day = dt.date(2024, 6, 1)
+    transfer_day = dt.date(2024, 6, 10)
+    rebuy_day = dt.date(2024, 6, 15)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -142,8 +142,8 @@ def test_transfer_to_spouse_matches_repurchase_within_30_days() -> None:
 
 def test_transfer_to_spouse_entire_holding_empties_pool() -> None:
     """Transferring the whole holding removes it from the portfolio with nil gain."""
-    buy_day = datetime.date(2024, 6, 1)
-    transfer_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    transfer_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -167,8 +167,8 @@ def test_transfer_to_spouse_matches_same_day_acquisition() -> None:
     The base cost passing to the spouse is then the cost of the shares bought
     that day, not the Section 104 average.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    transfer_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    transfer_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -195,16 +195,16 @@ def test_transfer_to_spouse_matches_same_day_acquisition() -> None:
 @pytest.mark.parametrize(
     "acquisition_day",
     [
-        pytest.param(datetime.date(2024, 6, 10), id="same-day"),
-        pytest.param(datetime.date(2024, 7, 9), id="within-30-days"),
+        pytest.param(dt.date(2024, 6, 10), id="same-day"),
+        pytest.param(dt.date(2024, 7, 9), id="within-30-days"),
     ],
 )
 def test_transfer_to_spouse_same_day_as_sale_is_rejected(
-    acquisition_day: datetime.date,
+    acquisition_day: dt.date,
 ) -> None:
     """A sale and a transfer competing for the same acquisitions is unsupported."""
-    buy_day = datetime.date(2024, 6, 1)
-    event_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    event_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     with pytest.raises(CalculationError, match="does not say how to split") as err:
         get_report(
@@ -242,8 +242,8 @@ def test_transfer_to_spouse_same_day_as_sale_from_pool_is_allowed() -> None:
     Neither can be identified against an acquisition, so both take the same
     Section 104 average cost and the order between them cannot matter.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    event_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    event_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -272,8 +272,8 @@ def test_transfer_to_spouse_same_day_as_sale_from_pool_is_allowed() -> None:
 
 def test_transfer_to_spouse_more_than_owned_is_rejected() -> None:
     """Transferring more units than held is refused."""
-    buy_day = datetime.date(2024, 6, 1)
-    transfer_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    transfer_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     with pytest.raises(
         InvalidTransactionError, match=r"to a spouse on .*, but the holding is"
@@ -298,7 +298,7 @@ def test_transfer_to_spouse_of_not_owned_symbol_is_rejected() -> None:
     ):
         get_report(
             calculator,
-            [transfer_to_spouse_transaction(datetime.date(2024, 6, 10), "FOO", 1)],
+            [transfer_to_spouse_transaction(dt.date(2024, 6, 10), "FOO", 1)],
         )
 
 
@@ -306,8 +306,8 @@ def test_transfer_to_spouse_warns_about_the_ignored_price(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A gift has no consideration, so any price on the row is ignored."""
-    buy_day = datetime.date(2024, 6, 1)
-    transfer_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    transfer_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     with caplog.at_level(logging.WARNING, logger="cgt_calc.ingestion"):
         report = get_report(
@@ -342,8 +342,8 @@ def test_transfer_to_spouse_fee_is_added_to_the_base_cost() -> None:
     that amount has to cover the fee, so the fee ends up in the base cost the
     recipient takes on (TCGA 1992 s38(2), CG15250).
     """
-    buy_day = datetime.date(2024, 6, 1)
-    transfer_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    transfer_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -379,8 +379,8 @@ def test_transfer_to_spouse_shown_in_report() -> None:
 
     It also prints the exact RAW row the recipient needs.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    transfer_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    transfer_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -401,8 +401,8 @@ def test_transfer_to_spouse_shown_in_report() -> None:
 
 def test_unclassified_gift_is_rejected_with_instructions() -> None:
     """A broker gift with no classification refuses and says how to fix it."""
-    buy_day = datetime.date(2024, 6, 1)
-    gift_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    gift_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     with pytest.raises(UnclassifiedGiftError) as err:
         get_report(
@@ -431,8 +431,8 @@ def test_unclassified_gift_is_rejected_with_instructions() -> None:
 
 def test_gift_matched_by_transfer_to_spouse_is_accounted_for() -> None:
     """A matching transfer row classifies the gift, which is then not counted twice."""
-    buy_day = datetime.date(2024, 6, 1)
-    gift_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    gift_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -468,8 +468,8 @@ def test_gift_with_mismatched_transfer_is_rejected(gifts_to_spouse: bool) -> Non
     them. Promoting the gift beside the row would take 7 from the pool when
     one of the two counts is more likely a typing mistake.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    gift_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    gift_day = dt.date(2024, 6, 10)
     calculator = create_calculator(
         tax_year=2024, balance_check=False, gifts_to_spouse=gifts_to_spouse
     )
@@ -497,7 +497,7 @@ def test_gift_with_mismatched_transfer_is_rejected(gifts_to_spouse: bool) -> Non
 
 def test_transfer_to_spouse_without_quantity_is_rejected() -> None:
     """A transfer row has to say how many units moved."""
-    buy_day = datetime.date(2024, 6, 1)
+    buy_day = dt.date(2024, 6, 1)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     with pytest.raises(QuantityNotPositiveError):
         get_report(
@@ -506,7 +506,7 @@ def test_transfer_to_spouse_without_quantity_is_rejected() -> None:
                 transaction(
                     buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
                 ),
-                transfer_to_spouse_transaction(datetime.date(2024, 6, 10), "FOO", 0),
+                transfer_to_spouse_transaction(dt.date(2024, 6, 10), "FOO", 0),
             ],
         )
 
@@ -519,7 +519,7 @@ def test_gift_without_quantity_is_rejected() -> None:
             calculator,
             [
                 transaction(
-                    datetime.date(2024, 6, 10),
+                    dt.date(2024, 6, 10),
                     ActionType.UNCLASSIFIED_GIFT,
                     "FOO",
                     0,
@@ -536,9 +536,9 @@ def test_transfer_to_spouse_reserves_its_share_of_a_same_day_acquisition() -> No
     bed and breakfast, so the sale has to leave those shares alone or they get
     counted twice.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    sell_day = datetime.date(2024, 6, 10)
-    rebuy_day = datetime.date(2024, 6, 15)
+    buy_day = dt.date(2024, 6, 1)
+    sell_day = dt.date(2024, 6, 10)
+    rebuy_day = dt.date(2024, 6, 15)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -574,9 +574,9 @@ def test_transfer_to_spouse_after_a_spin_off_takes_the_apportioned_cost() -> Non
     FOO keeps 90% of its £1,000 at the spin-off, so the 50 units transferred
     carry £450, and the spin-off is recorded under its own date.
     """
-    buy_day = datetime.date(2024, 4, 10)
-    spin_off_day = datetime.date(2024, 5, 5)
-    transfer_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 4, 10)
+    spin_off_day = dt.date(2024, 5, 5)
+    transfer_day = dt.date(2024, 6, 10)
     currency_converter = CurrencyConverter(None, {})
     spin_off_handler = SpinOffHandler()
     spin_off_handler.cache = {"BAR": "FOO"}
@@ -631,9 +631,9 @@ def test_transfer_to_spouse_before_the_tax_year_still_reduces_the_pool() -> None
     The whole history is walked to build the pool, but only events inside the
     reported period belong in the calculations.
     """
-    buy_day = datetime.date(2022, 5, 1)
-    transfer_day = datetime.date(2022, 6, 10)
-    sell_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2022, 5, 1)
+    transfer_day = dt.date(2022, 6, 10)
+    sell_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -661,8 +661,8 @@ def test_disposal_is_not_matched_against_a_same_day_split() -> None:
     were (CG51805). Matching against them would give the disposal their nil
     cost and leave the whole pool cost behind on fewer shares.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    split_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    split_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -687,8 +687,8 @@ def test_disposal_is_not_matched_against_a_same_day_split() -> None:
 
 def test_transfer_to_spouse_is_not_matched_against_a_same_day_split() -> None:
     """The same, for a transfer: the recipient must not inherit a nil base cost."""
-    buy_day = datetime.date(2024, 6, 1)
-    split_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    split_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -714,7 +714,7 @@ def test_either_reading_of_an_ambiguous_gift_settles_it(confirmed: Decimal) -> N
     A gift printed before a split could state either count, so the tool cannot
     pick. Whichever the user confirms from a statement is accepted.
     """
-    gift_day = datetime.date(2024, 6, 10)
+    gift_day = dt.date(2024, 6, 10)
     gift = BrokerTransaction(
         date=gift_day,
         action=ActionType.UNCLASSIFIED_GIFT,
@@ -733,7 +733,7 @@ def test_either_reading_of_an_ambiguous_gift_settles_it(confirmed: Decimal) -> N
         calculator,
         [
             transaction(
-                datetime.date(2024, 6, 1),
+                dt.date(2024, 6, 1),
                 ActionType.BUY,
                 "FOO",
                 100,
@@ -759,7 +759,7 @@ def test_ambiguous_gift_error_offers_both_readings(gifts_to_spouse: bool) -> Non
     `--gifts-to-spouse` says who received the shares, not how many left, so
     it leaves this refusal in place.
     """
-    gift_day = datetime.date(2024, 6, 10)
+    gift_day = dt.date(2024, 6, 10)
     gift = BrokerTransaction(
         date=gift_day,
         action=ActionType.UNCLASSIFIED_GIFT,
@@ -791,7 +791,7 @@ def test_a_certain_gift_is_not_stranded_by_an_uncertain_one() -> None:
     unambiguous one had no alternative to, and the run failed with both rows
     present and correct.
     """
-    gift_day = datetime.date(2024, 6, 10)
+    gift_day = dt.date(2024, 6, 10)
 
     def gift(quantity: int, ambiguous: Decimal | None = None) -> BrokerTransaction:
         return BrokerTransaction(
@@ -813,7 +813,7 @@ def test_a_certain_gift_is_not_stranded_by_an_uncertain_one() -> None:
         calculator,
         [
             transaction(
-                datetime.date(2024, 6, 1),
+                dt.date(2024, 6, 1),
                 ActionType.BUY,
                 "FOO",
                 100,
@@ -835,7 +835,7 @@ def test_a_certain_gift_is_not_stranded_by_an_uncertain_one() -> None:
 
 
 def _gift(
-    day: datetime.date, quantity: int, ambiguous: Decimal | None = None
+    day: dt.date, quantity: int, ambiguous: Decimal | None = None
 ) -> BrokerTransaction:
     return BrokerTransaction(
         date=day,
@@ -858,13 +858,13 @@ def test_two_uncertain_gifts_are_read_the_way_that_fits_both() -> None:
     Read first come, first served, the 20-or-400 gift takes the 20 row and
     the 1-or-20 gift is stranded, although 400 and 20 fit them perfectly.
     """
-    gift_day = datetime.date(2024, 6, 10)
+    gift_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
         [
             transaction(
-                datetime.date(2024, 6, 1),
+                dt.date(2024, 6, 1),
                 ActionType.BUY,
                 "FOO",
                 1000,
@@ -886,13 +886,13 @@ def test_two_uncertain_gifts_are_read_the_way_that_fits_both() -> None:
 
 def test_gifts_no_reading_can_satisfy_still_name_the_one_left_out() -> None:
     """When no way of reading the day fits, the gift without a row is named."""
-    gift_day = datetime.date(2024, 6, 10)
+    gift_day = dt.date(2024, 6, 10)
     with pytest.raises(UnclassifiedGiftError) as err:
         get_report(
             create_calculator(tax_year=2024, balance_check=False),
             [
                 transaction(
-                    datetime.date(2024, 6, 1),
+                    dt.date(2024, 6, 1),
                     ActionType.BUY,
                     "FOO",
                     1000,
@@ -915,8 +915,8 @@ def test_gifts_no_reading_can_satisfy_still_name_the_one_left_out() -> None:
 
 def test_each_gift_needs_its_own_classification() -> None:
     """Two gifts of the same shares on one day are not settled by one row."""
-    buy_day = datetime.date(2024, 6, 1)
-    gift_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    gift_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     with pytest.raises(UnclassifiedGiftError):
         get_report(
@@ -946,8 +946,8 @@ def test_each_gift_needs_its_own_classification() -> None:
 
 def test_two_gifts_are_settled_by_two_classifications() -> None:
     """Matching one row per gift accounts for both."""
-    buy_day = datetime.date(2024, 6, 1)
-    gift_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    gift_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -987,7 +987,7 @@ def test_transfer_to_spouse_sorts_after_a_same_day_acquisition() -> None:
     and parsers merge in registry order, so without this the transfer is
     validated first and fails as nothing held.
     """
-    day = datetime.date(2024, 6, 10)
+    day = dt.date(2024, 6, 10)
     buy = transaction(day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP))
     transfer = transfer_to_spouse_transaction(day, "FOO", 4)
 
@@ -1007,9 +1007,9 @@ def test_management_fee_is_not_a_contended_acquisition() -> None:
     Fees are recorded in the acquisition list with a cost and no quantity, so
     a naive "has a cost" test mistakes one for a purchase.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    event_day = datetime.date(2024, 6, 10)
-    fee_day = datetime.date(2024, 6, 20)
+    buy_day = dt.date(2024, 6, 1)
+    event_day = dt.date(2024, 6, 10)
+    fee_day = dt.date(2024, 6, 20)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -1034,8 +1034,8 @@ def test_management_fee_is_not_a_contended_acquisition() -> None:
 
 def test_fractional_transfer_keeps_its_units_in_the_report() -> None:
     """Rounding to two places would report a real transfer as zero units."""
-    buy_day = datetime.date(2024, 6, 1)
-    transfer_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    transfer_day = dt.date(2024, 6, 10)
     report = get_report(
         create_calculator(tax_year=2024, balance_check=False),
         [
@@ -1055,13 +1055,13 @@ def test_split_shares_do_not_dilute_a_same_day_purchase() -> None:
     Both land in the acquisition list for the day, so treating the total as one
     acquisition prices the purchase across shares that cost nothing.
     """
-    day = datetime.date(2024, 6, 10)
+    day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
         [
             transaction(
-                datetime.date(2024, 6, 1),
+                dt.date(2024, 6, 1),
                 ActionType.BUY,
                 "FOO",
                 10,
@@ -1096,7 +1096,7 @@ def test_transfer_reservation_survives_a_split_before_the_repurchase() -> None:
         calculator,
         [
             transaction(
-                datetime.date(2024, 6, 1),
+                dt.date(2024, 6, 1),
                 ActionType.BUY,
                 "FOO",
                 10,
@@ -1106,7 +1106,7 @@ def test_transfer_reservation_survives_a_split_before_the_repurchase() -> None:
                 CurrencyCode(GBP),
             ),
             transaction(
-                datetime.date(2024, 6, 5),
+                dt.date(2024, 6, 5),
                 ActionType.SELL,
                 "FOO",
                 4,
@@ -1115,9 +1115,9 @@ def test_transfer_reservation_survives_a_split_before_the_repurchase() -> None:
                 60,
                 CurrencyCode(GBP),
             ),
-            split_transaction(datetime.date(2024, 6, 8), "FOO", 6),
+            split_transaction(dt.date(2024, 6, 8), "FOO", 6),
             transaction(
-                datetime.date(2024, 6, 12),
+                dt.date(2024, 6, 12),
                 ActionType.BUY,
                 "FOO",
                 10,
@@ -1126,7 +1126,7 @@ def test_transfer_reservation_survives_a_split_before_the_repurchase() -> None:
                 -50,
                 CurrencyCode(GBP),
             ),
-            transfer_to_spouse_transaction(datetime.date(2024, 6, 12), "FOO", 6),
+            transfer_to_spouse_transaction(dt.date(2024, 6, 12), "FOO", 6),
         ],
     )
 
@@ -1136,9 +1136,9 @@ def test_transfer_reservation_survives_a_split_before_the_repurchase() -> None:
 
 def test_fully_matched_acquisition_is_not_contended() -> None:
     """An acquisition its own day's sale consumes cannot reach an earlier day."""
-    buy_day = datetime.date(2024, 6, 1)
-    event_day = datetime.date(2024, 6, 10)
-    later = datetime.date(2024, 6, 15)
+    buy_day = dt.date(2024, 6, 1)
+    event_day = dt.date(2024, 6, 10)
+    later = dt.date(2024, 6, 15)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -1174,7 +1174,7 @@ def test_acquisition_an_earlier_disposal_took_is_not_contended() -> None:
         calculator,
         [
             transaction(
-                datetime.date(2024, 6, 1),
+                dt.date(2024, 6, 1),
                 ActionType.BUY,
                 "FOO",
                 20,
@@ -1184,7 +1184,7 @@ def test_acquisition_an_earlier_disposal_took_is_not_contended() -> None:
                 CurrencyCode(GBP),
             ),
             transaction(
-                datetime.date(2024, 6, 5),
+                dt.date(2024, 6, 5),
                 ActionType.SELL,
                 "FOO",
                 4,
@@ -1194,7 +1194,7 @@ def test_acquisition_an_earlier_disposal_took_is_not_contended() -> None:
                 CurrencyCode(GBP),
             ),
             transaction(
-                datetime.date(2024, 6, 10),
+                dt.date(2024, 6, 10),
                 ActionType.SELL,
                 "FOO",
                 3,
@@ -1203,9 +1203,9 @@ def test_acquisition_an_earlier_disposal_took_is_not_contended() -> None:
                 60,
                 CurrencyCode(GBP),
             ),
-            transfer_to_spouse_transaction(datetime.date(2024, 6, 10), "FOO", 2),
+            transfer_to_spouse_transaction(dt.date(2024, 6, 10), "FOO", 2),
             transaction(
-                datetime.date(2024, 6, 15),
+                dt.date(2024, 6, 15),
                 ActionType.BUY,
                 "FOO",
                 4,
@@ -1219,9 +1219,7 @@ def test_acquisition_an_earlier_disposal_took_is_not_contended() -> None:
 
     # £60 loss bed-and-breakfasted on 5 June, £30 gain from the pool on the 10th.
     assert report.total_gain() == Decimal(-30)
-    entries = report.calculation_log[datetime.date(2024, 6, 10)][
-        "transfer-to-spouse$FOO"
-    ]
+    entries = report.calculation_log[dt.date(2024, 6, 10)]["transfer-to-spouse$FOO"]
     assert all(e.rule_type is RuleType.TRANSFER_TO_SPOUSE for e in entries)
 
 
@@ -1231,9 +1229,9 @@ def test_same_day_sale_and_transfer_after_a_split_is_allowed() -> None:
     It hands over shares for free, so the B&B rule skips it and neither
     disposal can be identified against it. Both fall through to the pool.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    event_day = datetime.date(2024, 6, 10)
-    split_day = datetime.date(2024, 6, 15)
+    buy_day = dt.date(2024, 6, 1)
+    event_day = dt.date(2024, 6, 10)
+    split_day = dt.date(2024, 6, 15)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     report = get_report(
         calculator,
@@ -1256,12 +1254,12 @@ def test_same_day_sale_and_transfer_after_a_split_is_allowed() -> None:
 
 def test_same_day_sale_and_transfer_message_caps_the_dates_it_lists() -> None:
     """Too many contended acquisitions are summarised rather than all listed."""
-    buy_day = datetime.date(2024, 6, 1)
-    event_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    event_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     rebuys = [
         transaction(
-            event_day + datetime.timedelta(days=offset),
+            event_day + dt.timedelta(days=offset),
             ActionType.BUY,
             "FOO",
             1,
@@ -1297,8 +1295,8 @@ def test_transfer_fee_does_not_move_the_cash_balance() -> None:
     RAW rows come in under their own broker, so charging the fee there drives
     that balance straight below zero and trips the balance check.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    transfer_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    transfer_day = dt.date(2024, 6, 10)
     transfer = BrokerTransaction(
         date=transfer_day,
         action=ActionType.TRANSFER_TO_SPOUSE,
@@ -1343,8 +1341,8 @@ def test_transfer_from_spouse_enters_the_pool_at_the_given_cost() -> None:
     The balance check is on and the account is never funded: nothing was
     bought, so there is nothing for the check to find.
     """
-    arrival = datetime.date(2024, 6, 15)
-    sale = datetime.date(2024, 9, 1)
+    arrival = dt.date(2024, 6, 15)
+    sale = dt.date(2024, 9, 1)
     calculator = create_calculator(tax_year=2024)
     report = get_report(
         calculator,
@@ -1378,7 +1376,7 @@ def test_transfer_from_spouse_needs_the_cost() -> None:
             create_calculator(tax_year=2024, balance_check=False),
             [
                 transaction(
-                    datetime.date(2024, 6, 15),
+                    dt.date(2024, 6, 15),
                     ActionType.TRANSFER_FROM_SPOUSE,
                     "FOO",
                     40,
@@ -1393,7 +1391,7 @@ def test_transfer_from_spouse_needs_the_cost() -> None:
 
 def test_transfer_from_spouse_sorts_before_a_same_day_sale() -> None:
     """Shares sold on the day they arrive must be read as arriving first."""
-    day = datetime.date(2024, 6, 15)
+    day = dt.date(2024, 6, 15)
     sale = transaction(day, ActionType.SELL, "FOO", 40, 20, 0, 800, CurrencyCode(GBP))
     arrival = transaction(
         day,
@@ -1421,12 +1419,12 @@ def test_hand_over_row_round_trips_through_the_raw_parser(tmp_path: Path) -> Non
     £31 over 3 shares does not terminate. The row still has to reproduce £31
     once parsed and pooled, with nothing rounded away on the way.
     """
-    transfer_day = datetime.date(2024, 6, 10)
+    transfer_day = dt.date(2024, 6, 10)
     sender = get_report(
         create_calculator(tax_year=2024, balance_check=False),
         [
             transaction(
-                datetime.date(2024, 6, 1),
+                dt.date(2024, 6, 1),
                 ActionType.BUY,
                 "FOO",
                 10,
@@ -1436,7 +1434,7 @@ def test_hand_over_row_round_trips_through_the_raw_parser(tmp_path: Path) -> Non
                 CurrencyCode(GBP),
             ),
             transaction(
-                datetime.date(2024, 6, 2),
+                dt.date(2024, 6, 2),
                 ActionType.BUY,
                 "FOO",
                 5,
@@ -1462,7 +1460,7 @@ def test_hand_over_row_round_trips_through_the_raw_parser(tmp_path: Path) -> Non
         [
             arrival,
             transaction(
-                datetime.date(2024, 9, 1),
+                dt.date(2024, 9, 1),
                 ActionType.SELL,
                 "FOO",
                 3,
@@ -1487,8 +1485,8 @@ def test_transfer_to_spouse_on_the_day_of_a_rename() -> None:
     applied, so the holding is already where the rename left it and the
     literal ticker on the row is the one that holds it.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    rename_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    rename_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
 
     report = get_report(
@@ -1523,8 +1521,8 @@ def test_transfer_to_spouse_matches_the_day_s_purchase_across_a_rename(
     ticker, and the transfer under either, without changing what was
     transferred.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    rename_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    rename_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
 
     report = get_report(
@@ -1570,8 +1568,8 @@ def test_a_sale_and_a_transfer_under_two_names_of_one_holding_are_refused() -> N
     one, but the day's rename makes them disposals of the same holding, both
     identified against the same purchase.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    rename_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    rename_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
 
     with pytest.raises(CalculationError, match="does not say how to split") as err:
@@ -1614,9 +1612,9 @@ def test_a_sale_and_a_transfer_under_two_names_of_one_holding_are_refused() -> N
     )
 
 
-CONTENTION_BUY_DAY = datetime.date(2024, 6, 1)
-CONTENTION_DAY = datetime.date(2024, 6, 10)
-CONTENTION_LATER_DAY = datetime.date(2024, 6, 20)
+CONTENTION_BUY_DAY = dt.date(2024, 6, 1)
+CONTENTION_DAY = dt.date(2024, 6, 10)
+CONTENTION_LATER_DAY = dt.date(2024, 6, 20)
 
 
 def _contention_history(
@@ -1731,7 +1729,7 @@ def test_a_later_day_s_purchase_is_contended_under_either_of_its_names(
     assert str(CONTENTION_LATER_DAY) in str(err.value)
 
 
-def _free_shares(date: datetime.date, symbol: str, quantity: int) -> BrokerTransaction:
+def _free_shares(date: dt.date, symbol: str, quantity: int) -> BrokerTransaction:
     """Build a purchase of shares that cost nothing."""
     return BrokerTransaction(
         date=date,
@@ -1754,8 +1752,8 @@ def test_a_sale_and_a_transfer_contending_for_free_shares_are_refused() -> None:
     cost and the other takes a share of the pool instead, so which one gets
     them changes both answers.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    event_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    event_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
 
     with pytest.raises(CalculationError, match="does not say how to split") as err:
@@ -1778,8 +1776,8 @@ def test_a_sale_and_a_transfer_contending_for_free_shares_are_refused() -> None:
 
 def test_free_shares_are_matched_same_day_when_only_one_disposal_wants_them() -> None:
     """With nothing to argue over the nil-cost shares are matched as usual."""
-    buy_day = datetime.date(2024, 6, 1)
-    event_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    event_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
 
     report = get_report(
@@ -1812,8 +1810,8 @@ def test_two_transfers_under_two_names_of_one_holding_are_refused() -> None:
     gets the day's purchase, but this tool matches each row against the
     acquisitions under a single name and cannot share them.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    rename_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    rename_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
 
     with pytest.raises(CalculationError, match="cannot share them") as err:
@@ -1857,8 +1855,8 @@ def test_a_transfer_on_a_day_two_pools_are_renamed_together_is_refused() -> None
     carries that figure forward as their own acquisition cost (CG22200). An
     ordinary sale of the same shares is already refused here.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    rename_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    rename_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
 
     with pytest.raises(CalculationError, match="pool NEW and OLD together"):
@@ -1879,8 +1877,8 @@ def test_a_transfer_on_a_day_two_pools_are_renamed_together_is_refused() -> None
 
 def test_a_transfer_and_a_fee_under_the_other_name_are_refused() -> None:
     """The same question about cost the rename brings in, not shares."""
-    buy_day = datetime.date(2024, 6, 1)
-    rename_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    rename_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
 
     with pytest.raises(CalculationError, match="pooled cost with no shares"):
@@ -1899,8 +1897,8 @@ def test_a_transfer_and_a_fee_under_the_other_name_are_refused() -> None:
 
 def test_a_transfer_and_a_fee_under_the_held_name_still_computes() -> None:
     """A fee on the shares themselves costs the same either side of a rename."""
-    buy_day = datetime.date(2024, 6, 1)
-    rename_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    rename_day = dt.date(2024, 6, 10)
     calculator = create_calculator(tax_year=2024, balance_check=False)
 
     report = get_report(
@@ -1922,7 +1920,7 @@ def test_a_transfer_and_a_fee_under_the_held_name_still_computes() -> None:
     assert calculator.portfolio["NEW"].amount == Decimal(750)
 
 
-def _management_fee(date: datetime.date, symbol: str, amount: int) -> BrokerTransaction:
+def _management_fee(date: dt.date, symbol: str, amount: int) -> BrokerTransaction:
     """Build a management fee: pooled cost with no shares."""
     return BrokerTransaction(
         date=date,
@@ -1943,9 +1941,7 @@ def _management_fee(date: datetime.date, symbol: str, amount: int) -> BrokerTran
 # ---------------------------------------------------------------------------
 
 
-def _unclassified_gift(
-    date: datetime.date, symbol: str, quantity: int
-) -> BrokerTransaction:
+def _unclassified_gift(date: dt.date, symbol: str, quantity: int) -> BrokerTransaction:
     """Build a broker-reported gift row (UNCLASSIFIED_GIFT)."""
     return BrokerTransaction(
         date=date,
@@ -1963,8 +1959,8 @@ def _unclassified_gift(
 
 def test_gifts_to_spouse_flag_promotes_unclassified_gift_to_transfer() -> None:
     """--gifts-to-spouse turns every unclassified broker gift into a transfer."""
-    buy_day = datetime.date(2024, 6, 1)
-    gift_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    gift_day = dt.date(2024, 6, 10)
     calculator = create_calculator(
         tax_year=2024, balance_check=False, gifts_to_spouse=True
     )
@@ -1994,8 +1990,8 @@ def test_gifts_to_spouse_flag_promotes_unclassified_gift_to_transfer() -> None:
 
 def test_gifts_to_spouse_flag_without_any_unclassified_gifts_is_harmless() -> None:
     """The flag has no effect when there are no broker gift rows."""
-    buy_day = datetime.date(2024, 6, 1)
-    sell_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    sell_day = dt.date(2024, 6, 10)
     calculator = create_calculator(
         tax_year=2024, balance_check=False, gifts_to_spouse=True
     )
@@ -2022,8 +2018,8 @@ def test_gifts_to_spouse_flag_explicit_row_still_wins() -> None:
     When the user has classified the gift manually the broker row is dropped as
     usual and only the classifying row is processed -- the flag changes nothing.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    gift_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    gift_day = dt.date(2024, 6, 10)
     calculator = create_calculator(
         tax_year=2024, balance_check=False, gifts_to_spouse=True
     )
@@ -2048,8 +2044,8 @@ def test_gifts_to_spouse_flag_explicit_row_still_wins() -> None:
 
 def test_gifts_to_spouse_flag_multiple_gifts_all_promoted() -> None:
     """Every unclassified gift on the same day and different symbols is promoted."""
-    buy_day = datetime.date(2024, 6, 1)
-    gift_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    gift_day = dt.date(2024, 6, 10)
     calculator = create_calculator(
         tax_year=2024, balance_check=False, gifts_to_spouse=True
     )
@@ -2088,9 +2084,9 @@ def test_gifts_to_spouse_flag_promotes_only_the_gifts_without_a_row() -> None:
     so 17 units leave with 17 x 10.20 = 173.40 of that cost. One more leaves
     later, and 40 - 17 - 1 = 22 units stay, costing 22 x 10.20 = 224.40.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    gift_day = datetime.date(2024, 6, 10)
-    later_day = datetime.date(2024, 6, 20)
+    buy_day = dt.date(2024, 6, 1)
+    gift_day = dt.date(2024, 6, 10)
+    later_day = dt.date(2024, 6, 20)
     calculator = create_calculator(
         tax_year=2024, balance_check=False, gifts_to_spouse=True
     )
@@ -2125,8 +2121,8 @@ def test_gifts_to_spouse_flag_leaves_the_rows_it_was_given_unclassified() -> Non
     Given to a second calculator built without the option, the same rows stop
     on that gift as they would on their own.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    gift_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    gift_day = dt.date(2024, 6, 10)
     rows = [
         transaction(buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)),
         _unclassified_gift(gift_day, "FOO", 4),

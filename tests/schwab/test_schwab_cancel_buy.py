@@ -18,7 +18,7 @@ row. All CSVs below follow that realistic ordering.
 
 from collections import OrderedDict
 import csv
-import datetime
+import datetime as dt
 from decimal import Decimal
 from pathlib import Path
 
@@ -116,8 +116,8 @@ class TestCancelBuyFiltering:
     )
     def test_cancel_buy_5_day_boundary(self, tmp_path: Path, days_apart: int) -> None:
         """Test that Cancel Buy matches within 5-day boundary."""
-        buy_date = datetime.date(2024, 1, 10)
-        cancel_date = buy_date + datetime.timedelta(days=days_apart)
+        buy_date = dt.date(2024, 1, 10)
+        cancel_date = buy_date + dt.timedelta(days=days_apart)
 
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(
@@ -133,8 +133,8 @@ class TestCancelBuyFiltering:
 
     def test_cancel_buy_6_days_no_match(self, tmp_path: Path) -> None:
         """Test that Cancel Buy doesn't match beyond 5-day window."""
-        buy_date = datetime.date(2024, 1, 10)
-        cancel_date = buy_date + datetime.timedelta(days=6)
+        buy_date = dt.date(2024, 1, 10)
+        cancel_date = buy_date + dt.timedelta(days=6)
 
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(

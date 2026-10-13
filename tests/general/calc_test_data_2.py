@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 
 import pytest
@@ -31,9 +31,9 @@ calc_basic_data_2 = [
     pytest.param(
         2023,  # tax year
         [
-            transfer_transaction(datetime.date(day=1, month=5, year=2023), 5000),
+            transfer_transaction(dt.date(day=1, month=5, year=2023), 5000),
             buy_transaction(
-                date=datetime.date(day=1, month=5, year=2023),
+                date=dt.date(day=1, month=5, year=2023),
                 symbol="FOO",
                 quantity=3,
                 price=5,
@@ -50,7 +50,7 @@ calc_basic_data_2 = [
         0.00,  # Expected dividend
         0.00,  # Expected dividend gain
         {
-            datetime.date(day=1, month=5, year=2023): {
+            dt.date(day=1, month=5, year=2023): {
                 "buy$FOO": [
                     CalculationEntry(
                         RuleType.SECTION_104,
@@ -70,9 +70,9 @@ calc_basic_data_2 = [
     pytest.param(
         2023,  # tax year
         [
-            transfer_transaction(datetime.date(day=1, month=1, year=2023), 52503),
+            transfer_transaction(dt.date(day=1, month=1, year=2023), 52503),
             buy_transaction(
-                date=datetime.date(day=1, month=1, year=2023),
+                date=dt.date(day=1, month=1, year=2023),
                 symbol="FOO",
                 quantity=500,
                 price=101.1,
@@ -80,7 +80,7 @@ calc_basic_data_2 = [
                 amount=-50551,
             ),
             sell_transaction(
-                date=datetime.date(day=25, month=6, year=2023),
+                date=dt.date(day=25, month=6, year=2023),
                 symbol="FOO",
                 quantity=30,
                 price=100,
@@ -88,7 +88,7 @@ calc_basic_data_2 = [
                 amount=2999,
             ),
             buy_transaction(
-                date=datetime.date(day=30, month=6, year=2023),
+                date=dt.date(day=30, month=6, year=2023),
                 symbol="FOO",
                 quantity=50,
                 price=99,
@@ -96,7 +96,7 @@ calc_basic_data_2 = [
                 amount=-4951,
             ),
             sell_transaction(
-                date=datetime.date(day=30, month=6, year=2023),
+                date=dt.date(day=30, month=6, year=2023),
                 symbol="FOO",
                 quantity=100,
                 price=100,
@@ -104,7 +104,7 @@ calc_basic_data_2 = [
                 amount=9999,
             ),
             transaction(
-                date=datetime.date(day=5, month=7, year=2023),
+                date=dt.date(day=5, month=7, year=2023),
                 action_type=ActionType.SPIN_OFF,
                 symbol="BAR",
                 quantity=840,  # 1:2 spin_off
@@ -112,7 +112,7 @@ calc_basic_data_2 = [
                 fees=1,
             ),
             buy_transaction(
-                date=datetime.date(day=10, month=7, year=2023),
+                date=dt.date(day=10, month=7, year=2023),
                 symbol="FOO",
                 quantity=50,
                 price=99,
@@ -120,7 +120,7 @@ calc_basic_data_2 = [
                 amount=-4951,
             ),
             sell_transaction(
-                date=datetime.date(day=30, month=8, year=2023),
+                date=dt.date(day=30, month=8, year=2023),
                 symbol="BAR",
                 quantity=800,
                 price=10,
@@ -128,7 +128,7 @@ calc_basic_data_2 = [
                 amount=7999,
             ),
             sell_transaction(
-                date=datetime.date(day=30, month=8, year=2023),
+                date=dt.date(day=30, month=8, year=2023),
                 symbol="FOO",
                 quantity=100,
                 price=110,
@@ -145,7 +145,7 @@ calc_basic_data_2 = [
         0.00,  # Expected dividend
         0.00,  # Expected dividend gain
         {
-            datetime.date(day=25, month=6, year=2023): {
+            dt.date(day=25, month=6, year=2023): {
                 "sell$FOO": [
                     CalculationEntry(
                         RuleType.BED_AND_BREAKFAST,
@@ -156,13 +156,13 @@ calc_basic_data_2 = [
                         fees=Decimal("1.0"),
                         new_quantity=Decimal(470),
                         new_pool_cost=Decimal("47517.94"),
-                        bed_and_breakfast_date_index=datetime.date(
+                        bed_and_breakfast_date_index=dt.date(
                             day=10, month=7, year=2023
                         ),
                     ),
                 ],
             },
-            datetime.date(day=30, month=6, year=2023): {
+            dt.date(day=30, month=6, year=2023): {
                 "buy$FOO": [
                     CalculationEntry(
                         RuleType.SECTION_104,
@@ -195,7 +195,7 @@ calc_basic_data_2 = [
                         fees=Decimal("0.2"),
                         new_quantity=Decimal(450),
                         new_pool_cost=Decimal("45495.9"),
-                        bed_and_breakfast_date_index=datetime.date(
+                        bed_and_breakfast_date_index=dt.date(
                             day=10, month=7, year=2023
                         ),
                     ),
@@ -211,7 +211,7 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=5, month=7, year=2023): {
+            dt.date(day=5, month=7, year=2023): {
                 "buy$BAR": [
                     CalculationEntry(
                         RuleType.SECTION_104,
@@ -225,7 +225,7 @@ calc_basic_data_2 = [
                         spin_off=SpinOff(
                             source="FOO",
                             dest="BAR",
-                            date=datetime.date(day=5, month=7, year=2023),
+                            date=dt.date(day=5, month=7, year=2023),
                         ),
                     ),
                 ],
@@ -242,12 +242,12 @@ calc_basic_data_2 = [
                         spin_off=SpinOff(
                             source="FOO",
                             dest="BAR",
-                            date=datetime.date(day=5, month=7, year=2023),
+                            date=dt.date(day=5, month=7, year=2023),
                         ),
                     ),
                 ],
             },
-            datetime.date(day=10, month=7, year=2023): {
+            dt.date(day=10, month=7, year=2023): {
                 "buy$FOO": [
                     CalculationEntry(
                         RuleType.BED_AND_BREAKFAST,
@@ -261,7 +261,7 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=30, month=8, year=2023): {
+            dt.date(day=30, month=8, year=2023): {
                 "sell$FOO": [
                     CalculationEntry(
                         RuleType.SECTION_104,
@@ -294,9 +294,9 @@ calc_basic_data_2 = [
     pytest.param(
         2020,  # tax year
         [
-            transfer_transaction(datetime.date(day=1, month=5, year=2020), 5000),
+            transfer_transaction(dt.date(day=1, month=5, year=2020), 5000),
             buy_transaction(
-                date=datetime.date(day=1, month=5, year=2020),
+                date=dt.date(day=1, month=5, year=2020),
                 symbol="FOO",
                 quantity=3,
                 price=5,
@@ -304,7 +304,7 @@ calc_basic_data_2 = [
                 amount=-16,
             ),
             buy_transaction(
-                date=datetime.date(day=1, month=5, year=2020),
+                date=dt.date(day=1, month=5, year=2020),
                 symbol="BAR",
                 quantity=3,
                 price=5,
@@ -312,46 +312,46 @@ calc_basic_data_2 = [
                 amount=-16,
             ),
             dividend_transaction(
-                date=datetime.date(day=20, month=5, year=2020),
+                date=dt.date(day=20, month=5, year=2020),
                 symbol="FOO",
                 amount=8,
             ),
             dividend_transaction(
-                date=datetime.date(day=20, month=5, year=2020),
+                date=dt.date(day=20, month=5, year=2020),
                 symbol="BAR",
                 amount=10000,
             ),
             dividend_tax_transaction(
-                date=datetime.date(day=20, month=5, year=2020),
+                date=dt.date(day=20, month=5, year=2020),
                 symbol="BAR",
                 amount=1500,
             ),
             # This should never appear in the calcs for 2020/2021 tax year
             interest_transaction(
-                date=datetime.date(day=1, month=4, year=2020),
+                date=dt.date(day=1, month=4, year=2020),
                 amount=2000,
                 currency=CurrencyCode("GBP"),
             ),
             interest_transaction(
-                date=datetime.date(day=10, month=4, year=2020),
+                date=dt.date(day=10, month=4, year=2020),
                 amount=1500,
                 currency=CurrencyCode("GBP"),
             ),
             interest_transaction(
-                date=datetime.date(day=15, month=7, year=2020),
+                date=dt.date(day=15, month=7, year=2020),
                 amount=250,
             ),
             interest_transaction(
-                date=datetime.date(day=17, month=7, year=2020),
+                date=dt.date(day=17, month=7, year=2020),
                 amount=250,
             ),
             interest_transaction(
-                date=datetime.date(day=2, month=4, year=2021),
+                date=dt.date(day=2, month=4, year=2021),
                 amount=500,
             ),
             # This should never appear in the calcs for 2020/2021 tax year
             interest_transaction(
-                date=datetime.date(day=10, month=4, year=2021),
+                date=dt.date(day=10, month=4, year=2021),
                 amount=1000,
             ),
         ],
@@ -364,7 +364,7 @@ calc_basic_data_2 = [
         10000.0,  # Expected dividend
         6500.0,  # Expected dividend gain
         {
-            datetime.date(day=1, month=5, year=2020): {
+            dt.date(day=1, month=5, year=2020): {
                 "buy$FOO": [
                     CalculationEntry(
                         RuleType.SECTION_104,
@@ -390,7 +390,7 @@ calc_basic_data_2 = [
             }
         },
         {
-            datetime.date(day=10, month=4, year=2020): {
+            dt.date(day=10, month=4, year=2020): {
                 "interestUK$Testing": [
                     CalculationEntry(
                         RuleType.INTEREST,
@@ -403,7 +403,7 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=20, month=5, year=2020): {
+            dt.date(day=20, month=5, year=2020): {
                 "dividend$FOO": [
                     CalculationEntry(
                         RuleType.DIVIDEND,
@@ -427,7 +427,7 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=17, month=7, year=2020): {
+            dt.date(day=17, month=7, year=2020): {
                 "interestUSD$Testing": [
                     CalculationEntry(
                         RuleType.INTEREST,
@@ -440,7 +440,7 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=2, month=4, year=2021): {
+            dt.date(day=2, month=4, year=2021): {
                 "interestUSD$Testing": [
                     CalculationEntry(
                         RuleType.INTEREST,
@@ -459,9 +459,9 @@ calc_basic_data_2 = [
     pytest.param(
         2023,  # tax year
         [
-            transfer_transaction(datetime.date(day=1, month=5, year=2023), 100000),
+            transfer_transaction(dt.date(day=1, month=5, year=2023), 100000),
             buy_transaction(
-                date=datetime.date(day=1, month=6, year=2023),
+                date=dt.date(day=1, month=6, year=2023),
                 symbol="FOO",
                 quantity=500,
                 price=101.1,
@@ -470,7 +470,7 @@ calc_basic_data_2 = [
                 isin=Isin("USFOO0000006"),
             ),
             buy_transaction(
-                date=datetime.date(day=2, month=6, year=2023),
+                date=dt.date(day=2, month=6, year=2023),
                 symbol="FOO",
                 quantity=100,
                 price=102.1,
@@ -479,12 +479,12 @@ calc_basic_data_2 = [
                 isin=Isin("USFOO0000006"),
             ),
             eri_transaction(
-                date=datetime.date(day=1, month=7, year=2023),
+                date=dt.date(day=1, month=7, year=2023),
                 isin=Isin("USFOO0000006"),
                 price=2.1,
             ),
             sell_transaction(
-                date=datetime.date(day=25, month=9, year=2023),
+                date=dt.date(day=25, month=9, year=2023),
                 symbol="FOO",
                 quantity=30,
                 price=130,
@@ -502,7 +502,7 @@ calc_basic_data_2 = [
         0.00,  # Expected dividend
         0.00,  # Expected dividend gain
         {
-            datetime.date(day=1, month=6, year=2023): {
+            dt.date(day=1, month=6, year=2023): {
                 "buy$FOO": [
                     CalculationEntry(
                         RuleType.SECTION_104,
@@ -516,7 +516,7 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=2, month=6, year=2023): {
+            dt.date(day=2, month=6, year=2023): {
                 "buy$FOO": [
                     CalculationEntry(
                         RuleType.SECTION_104,
@@ -530,7 +530,7 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=1, month=7, year=2023): {
+            dt.date(day=1, month=7, year=2023): {
                 "excess-reported-income$FOO": [
                     CalculationEntry(
                         RuleType.EXCESS_REPORTED_INCOME,
@@ -544,7 +544,7 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=25, month=9, year=2023): {
+            dt.date(day=25, month=9, year=2023): {
                 "sell$FOO": [
                     CalculationEntry(
                         RuleType.SECTION_104,
@@ -560,7 +560,7 @@ calc_basic_data_2 = [
             },
         },
         {
-            datetime.date(day=1, month=1, year=2024): {
+            dt.date(day=1, month=1, year=2024): {
                 "excess-reported-income-distribution$FOO": [
                     CalculationEntry(
                         RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
@@ -581,9 +581,9 @@ calc_basic_data_2 = [
     pytest.param(
         2020,  # tax year
         [
-            transfer_transaction(datetime.date(day=1, month=1, year=2019), 15100),
+            transfer_transaction(dt.date(day=1, month=1, year=2019), 15100),
             buy_transaction(
-                date=datetime.date(day=1, month=1, year=2019),
+                date=dt.date(day=1, month=1, year=2019),
                 symbol="MSP",
                 quantity=9500,
                 price=1.5,
@@ -592,7 +592,7 @@ calc_basic_data_2 = [
                 isin=Isin("USMSP0000000"),
             ),
             sell_transaction(
-                date=datetime.date(day=30, month=8, year=2020),
+                date=dt.date(day=30, month=8, year=2020),
                 symbol="MSP",
                 quantity=4000,
                 price=1.5,
@@ -601,17 +601,17 @@ calc_basic_data_2 = [
                 isin=Isin("USMSP0000000"),
             ),
             eri_transaction(
-                date=datetime.date(day=1, month=9, year=2020),
+                date=dt.date(day=1, month=9, year=2020),
                 isin=Isin("USMSP0000000"),
                 price=0.4,
             ),
             eri_transaction(
-                date=datetime.date(day=10, month=9, year=2020),
+                date=dt.date(day=10, month=9, year=2020),
                 isin=Isin("USMSP0000000"),
                 price=0.2,
             ),
             buy_transaction(
-                date=datetime.date(day=11, month=9, year=2020),
+                date=dt.date(day=11, month=9, year=2020),
                 symbol="MSP",
                 quantity=500,
                 price=1.7,
@@ -629,7 +629,7 @@ calc_basic_data_2 = [
         3600.00,  # Expected dividend
         1600.00,  # Expected dividend gain
         {
-            datetime.date(day=30, month=8, year=2020): {
+            dt.date(day=30, month=8, year=2020): {
                 "sell$MSP": [
                     CalculationEntry(
                         RuleType.BED_AND_BREAKFAST,
@@ -641,7 +641,7 @@ calc_basic_data_2 = [
                         new_quantity=Decimal(9000),
                         new_pool_cost=Decimal(13500),
                         bed_and_breakfast_date_index=(
-                            datetime.date(day=11, month=9, year=2020)
+                            dt.date(day=11, month=9, year=2020)
                         ),
                     ),
                     CalculationEntry(
@@ -656,7 +656,7 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=1, month=9, year=2020): {
+            dt.date(day=1, month=9, year=2020): {
                 "excess-reported-income$MSP": [
                     CalculationEntry(
                         RuleType.EXCESS_REPORTED_INCOME,
@@ -670,7 +670,7 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=10, month=9, year=2020): {
+            dt.date(day=10, month=9, year=2020): {
                 "excess-reported-income$MSP": [
                     CalculationEntry(
                         RuleType.EXCESS_REPORTED_INCOME,
@@ -684,7 +684,7 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=11, month=9, year=2020): {
+            dt.date(day=11, month=9, year=2020): {
                 "buy$MSP": [
                     CalculationEntry(
                         RuleType.BED_AND_BREAKFAST,
@@ -699,7 +699,7 @@ calc_basic_data_2 = [
             },
         },
         {
-            datetime.date(day=1, month=3, year=2021): {
+            dt.date(day=1, month=3, year=2021): {
                 "excess-reported-income-distribution$MSP": [
                     CalculationEntry(
                         RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
@@ -713,7 +713,7 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            datetime.date(day=10, month=3, year=2021): {
+            dt.date(day=10, month=3, year=2021): {
                 "excess-reported-income-distribution$MSP": [
                     CalculationEntry(
                         RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,

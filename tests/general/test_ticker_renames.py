@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import csv
-import datetime
+import datetime as dt
 from importlib import resources
 
 from cgt_calc.const import TICKER_RENAMES_RESOURCE
@@ -34,8 +34,8 @@ def test_every_rename_is_unambiguous_and_sourced() -> None:
     # Loading checks each ISIN and date.
     assert sum(len(renames) for renames in ticker_renames().values()) == len(rows)
 
-    def day(value: str) -> datetime.date | None:
-        return datetime.date.fromisoformat(value) if value else None
+    def day(value: str) -> dt.date | None:
+        return dt.date.fromisoformat(value) if value else None
 
     for row in rows:
         since, until, reused = day(row["since"]), day(row["until"]), day(row["reused"])
@@ -51,7 +51,7 @@ def test_every_rename_is_unambiguous_and_sourced() -> None:
         for other in rows:
             if other["new"] == row["old"]:
                 assert since is not None, (other, row)
-                assert since >= datetime.date.fromisoformat(other["until"]), (
+                assert since >= dt.date.fromisoformat(other["until"]), (
                     other,
                     row,
                 )

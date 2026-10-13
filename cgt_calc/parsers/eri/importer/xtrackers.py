@@ -18,7 +18,7 @@ from cgt_calc.util import is_blank_row, round_decimal
 from .model import ERIImporter, ERIImporterOutput
 
 if TYPE_CHECKING:
-    import datetime
+    import datetime as dt
     from pathlib import Path
 
     from pdfplumber.page import CroppedPage, Page
@@ -84,7 +84,7 @@ class XtrackersImporter(ERIImporter):
         return result
 
     @staticmethod
-    def _extract_report_end_date(page: Page, prefix: str) -> datetime.date | None:
+    def _extract_report_end_date(page: Page, prefix: str) -> dt.date | None:
         matches = [
             line["text"]
             for line in page.extract_text_lines()
@@ -165,7 +165,7 @@ class XtrackersImporter(ERIImporter):
     def _process_data_table(
         page_num: int,
         data_table: list[list[str | None]],
-        reporting_period_end: datetime.date,
+        reporting_period_end: dt.date,
         colmap: dict[int, int],
         file: Path,
     ) -> list[ERITransaction]:
@@ -213,7 +213,7 @@ class XtrackersImporter(ERIImporter):
     @staticmethod
     def _parse_pages(
         pdf: PDF,
-        reporting_period_end: datetime.date,
+        reporting_period_end: dt.date,
         file: Path,
     ) -> list[ERITransaction]:
         transactions = []

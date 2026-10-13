@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-import datetime
+import datetime as dt
 from decimal import Decimal, localcontext
 from enum import Enum
 import itertools
@@ -195,7 +195,7 @@ def test_no_report_completion_message() -> None:
 
 def test_interest_tax_totals_are_positive() -> None:
     """Ensure interest tax totals are reported as positive amounts."""
-    date = datetime.date(2024, 5, 1)
+    date = dt.date(2024, 5, 1)
     currency_converter = CurrencyConverter(
         None, {date: {CurrencyCode("USD"): Decimal(1)}}
     )
@@ -229,8 +229,8 @@ def test_interest_tax_totals_are_positive() -> None:
 
 def test_interest_tax_reversals_cancel_across_months() -> None:
     """A withholding reversed in a later month must net to zero tax."""
-    march = datetime.date(2025, 3, 1)
-    april = datetime.date(2025, 4, 1)
+    march = dt.date(2025, 3, 1)
+    april = dt.date(2025, 4, 1)
     currency_converter = CurrencyConverter(
         None,
         {
@@ -291,7 +291,7 @@ def test_eri_duplicate_report_within_tolerance_is_skipped(
     close should be treated as the same report arriving twice (e.g. from
     overlapping input files) and simply skipped with a warning.
     """
-    date = datetime.date(2024, 6, 30)
+    date = dt.date(2024, 6, 30)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
 
@@ -329,7 +329,7 @@ def test_eri_conflicting_report_raises_invalid_transaction_error() -> None:
     more than the intended 0.0001 tolerance but less than the old, buggy 0.01
     one.
     """
-    date = datetime.date(2024, 6, 30)
+    date = dt.date(2024, 6, 30)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
 
@@ -368,7 +368,7 @@ def test_eri_missing_required_data_has_a_transaction_error(
 ) -> None:
     """Malformed ERI input identifies the transaction instead of asserting."""
     transaction = BrokerTransaction(
-        date=datetime.date(2024, 6, 30),
+        date=dt.date(2024, 6, 30),
         action=ActionType.EXCESS_REPORTED_INCOME,
         symbol=None,
         description="",
@@ -389,7 +389,7 @@ def test_eri_missing_required_data_has_a_transaction_error(
 
 def test_dividend_and_tax_currency_mismatch_has_a_calculation_error() -> None:
     """Inconsistent income rows produce a user-facing data error."""
-    day = datetime.date(2024, 6, 3)
+    day = dt.date(2024, 6, 3)
     transactions = [
         BrokerTransaction(
             date=day,
@@ -429,7 +429,7 @@ def test_invalid_management_fee_has_a_transaction_error(
 ) -> None:
     """A fee that would corrupt pooled cost is rejected before an invariant fires."""
     fee = BrokerTransaction(
-        date=datetime.date(2024, 6, 3),
+        date=dt.date(2024, 6, 3),
         action=ActionType.FEE,
         symbol="FOO",
         description="management fee",
@@ -452,7 +452,7 @@ def test_zero_management_fee_is_accepted() -> None:
     FOO here, and the whole calculation still runs.
     """
     fee = BrokerTransaction(
-        date=datetime.date(2024, 6, 3),
+        date=dt.date(2024, 6, 3),
         action=ActionType.FEE,
         symbol="FOO",
         description="management fee",
@@ -494,7 +494,7 @@ def test_an_amount_that_disagrees_with_quantity_and_price_is_refused(
     of 1 come to 51 paid or 49 received, so an amount of 60 means one of the
     figures is wrong, and the calculator cannot tell which.
     """
-    date = datetime.date(2024, 5, 10)
+    date = dt.date(2024, 5, 10)
     history = [transaction(date, action, "FOO", 10, 5, 1, amount, currency=GBP)]
     if action is ActionType.SELL:
         # A sale needs shares to sell, or selling shares not held is refused first.
@@ -526,7 +526,7 @@ def test_basic(
     broker_transactions: list[BrokerTransaction],
     expected: float,
     expected_unrealized: float | None,
-    gbp_prices: dict[datetime.date, dict[CurrencyCode, Decimal]] | None,
+    gbp_prices: dict[dt.date, dict[CurrencyCode, Decimal]] | None,
     current_prices: dict[str, Decimal | None] | None,
     expected_uk_interest: float,
     expected_foreign_interest: float,
@@ -543,8 +543,8 @@ def test_basic(
     currency_converter = CurrencyConverter(None, gbp_prices)
     isin_converter = IsinConverter()
     historical_prices = {
-        "FOO": {datetime.date(day=5, month=7, year=2023): Decimal(90)},
-        "BAR": {datetime.date(day=5, month=7, year=2023): Decimal(12)},
+        "FOO": {dt.date(day=5, month=7, year=2023): Decimal(90)},
+        "BAR": {dt.date(day=5, month=7, year=2023): Decimal(12)},
     }
     price_fetcher = CurrentPriceFetcher(
         currency_converter, current_prices, historical_prices
@@ -662,7 +662,7 @@ def test_bed_and_breakfast_zero_available_quantity_skip() -> None:
     symbol = "TEST"
     transactions: list[BrokerTransaction] = [
         BrokerTransaction(
-            date=datetime.date(2024, 1, 1),
+            date=dt.date(2024, 1, 1),
             action=ActionType.TRANSFER,
             symbol=None,
             description="deposit",
@@ -674,7 +674,7 @@ def test_bed_and_breakfast_zero_available_quantity_skip() -> None:
             broker="Test",
         ),
         BrokerTransaction(
-            date=datetime.date(2024, 1, 10),
+            date=dt.date(2024, 1, 10),
             action=ActionType.BUY,
             symbol=symbol,
             description="initial buy",
@@ -686,7 +686,7 @@ def test_bed_and_breakfast_zero_available_quantity_skip() -> None:
             broker="Test",
         ),
         BrokerTransaction(
-            date=datetime.date(2024, 3, 1),
+            date=dt.date(2024, 3, 1),
             action=ActionType.SELL,
             symbol=symbol,
             description="disposal",
@@ -698,7 +698,7 @@ def test_bed_and_breakfast_zero_available_quantity_skip() -> None:
             broker="Test",
         ),
         BrokerTransaction(
-            date=datetime.date(2024, 3, 5),
+            date=dt.date(2024, 3, 5),
             action=ActionType.BUY,
             symbol=symbol,
             description="bed and breakfast buy",
@@ -710,7 +710,7 @@ def test_bed_and_breakfast_zero_available_quantity_skip() -> None:
             broker="Test",
         ),
         BrokerTransaction(
-            date=datetime.date(2024, 3, 10),
+            date=dt.date(2024, 3, 10),
             action=ActionType.BUY,
             symbol=symbol,
             description="unrelated buy",
@@ -728,10 +728,10 @@ def test_bed_and_breakfast_zero_available_quantity_skip() -> None:
     # The original disposal is fully matched against the 5-share buy, so no gain.
     assert report.total_gain() == Decimal(0)
 
-    first_match = datetime.date(2024, 3, 5)
+    first_match = dt.date(2024, 3, 5)
     assert calculator.bnb_list[first_match][symbol].quantity == Decimal(5)
 
-    second_match = datetime.date(2024, 3, 10)
+    second_match = dt.date(2024, 3, 10)
     assert symbol not in calculator.bnb_list.get(second_match, {})
 
 
@@ -754,7 +754,7 @@ def test_proportional_disposal_no_rounding_error() -> None:
     # Using 3 creates a repeating decimal (10/3 = 3.333...) which triggers the issue
     transactions: list[BrokerTransaction] = [
         BrokerTransaction(
-            date=datetime.date(2024, 5, 1),  # Tax year 2024 (Apr 6, 2024 - Apr 5, 2025)
+            date=dt.date(2024, 5, 1),  # Tax year 2024 (Apr 6, 2024 - Apr 5, 2025)
             action=ActionType.BUY,
             symbol=symbol,
             description="buy 3 shares",
@@ -766,7 +766,7 @@ def test_proportional_disposal_no_rounding_error() -> None:
             broker="Test",
         ),
         BrokerTransaction(
-            date=datetime.date(2024, 6, 1),  # Tax year 2024
+            date=dt.date(2024, 6, 1),  # Tax year 2024
             action=ActionType.SELL,
             symbol=symbol,
             description="sell all 3 shares",
@@ -814,7 +814,7 @@ def test_high_precision_amount_no_rounding_error() -> None:
     transactions: list[BrokerTransaction] = [
         # Acquisition 1
         BrokerTransaction(
-            date=datetime.date(2024, 5, 1),
+            date=dt.date(2024, 5, 1),
             action=ActionType.BUY,
             symbol=symbol,
             description="Vest",
@@ -827,7 +827,7 @@ def test_high_precision_amount_no_rounding_error() -> None:
         ),
         # Acquisition 2
         BrokerTransaction(
-            date=datetime.date(2024, 6, 1),
+            date=dt.date(2024, 6, 1),
             action=ActionType.BUY,
             symbol=symbol,
             description="Vest",
@@ -840,7 +840,7 @@ def test_high_precision_amount_no_rounding_error() -> None:
         ),
         # Sell all - triggers disposal with high-precision amounts
         BrokerTransaction(
-            date=datetime.date(2024, 7, 1),
+            date=dt.date(2024, 7, 1),
             action=ActionType.SELL,
             symbol=symbol,
             description="Sale",
@@ -867,7 +867,7 @@ def test_same_day_rule_all_shares_disposed_no_rounding_error() -> None:
     """Test that same day rule disposing ALL shares doesn't cause rounding errors."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
     symbol = "TEST"
-    same_day = datetime.date(2024, 5, 1)
+    same_day = dt.date(2024, 5, 1)
 
     # Use 3 shares to create 1/3 repeating decimal (strongest case)
     buy_quantity = Decimal(3)
@@ -917,7 +917,7 @@ def test_same_day_rule_all_shares_disposed_no_rounding_error() -> None:
     )
 
 
-def _rename_transaction(date: datetime.date, old: str, new: str) -> BrokerTransaction:
+def _rename_transaction(date: dt.date, old: str, new: str) -> BrokerTransaction:
     """Build a RENAME BrokerTransaction that moves the pool from old to new."""
     return BrokerTransaction(
         date=date,
@@ -934,7 +934,7 @@ def _rename_transaction(date: datetime.date, old: str, new: str) -> BrokerTransa
 
 
 def _gbp_trade(
-    date: datetime.date,
+    date: dt.date,
     action: ActionType,
     symbol: str,
     quantity: Decimal | int,
@@ -955,7 +955,7 @@ def _gbp_trade(
     )
 
 
-def _gbp_fee(date: datetime.date, symbol: str, amount: int) -> BrokerTransaction:
+def _gbp_fee(date: dt.date, symbol: str, amount: int) -> BrokerTransaction:
     """Build a management fee: pooled cost with no shares."""
     return BrokerTransaction(
         date=date,
@@ -980,10 +980,10 @@ def test_an_earlier_sale_gets_what_the_repurchase_day_s_own_sale_leaves() -> Non
     sale is left six of the purchase with its other four from the pool.
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    earlier_sale = datetime.date(2024, 5, 7)
-    repurchase = datetime.date(2024, 5, 16)
+    earlier_sale = dt.date(2024, 5, 7)
+    repurchase = dt.date(2024, 5, 16)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "FOO", 20, 200),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "FOO", 20, 200),
         _gbp_trade(earlier_sale, ActionType.SELL, "FOO", 10, 120),
         _gbp_trade(repurchase, ActionType.BUY, "FOO", 10, 150),
         _gbp_trade(repurchase, ActionType.SELL, "FOO", 4, 64),
@@ -1012,8 +1012,8 @@ def test_an_earlier_sale_gets_what_the_repurchase_day_s_own_sale_leaves() -> Non
 def test_a_purchase_on_6_april_belongs_to_the_year_it_starts() -> None:
     """The tax year runs from 6 April: that day's purchase is listed, 5 April's is not."""
     calculator = create_calculator(tax_year=2023, balance_check=False)
-    day_before = datetime.date(2023, 4, 5)
-    first_day = datetime.date(2023, 4, 6)
+    day_before = dt.date(2023, 4, 5)
+    first_day = dt.date(2023, 4, 6)
 
     report = get_report(
         calculator,
@@ -1055,7 +1055,7 @@ def test_exchange_alias_pools_under_one_ticker(
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     buy_alias = BrokerTransaction(
-        date=datetime.date(2024, 5, 1),
+        date=dt.date(2024, 5, 1),
         action=ActionType.BUY,
         symbol=alias,
         description=f"buy {alias}",
@@ -1070,7 +1070,7 @@ def test_exchange_alias_pools_under_one_ticker(
     transactions: list[BrokerTransaction] = [
         buy_alias,
         BrokerTransaction(
-            date=datetime.date(2024, 6, 1),
+            date=dt.date(2024, 6, 1),
             action=ActionType.BUY,
             symbol=canonical,
             description=f"buy {canonical}",
@@ -1083,7 +1083,7 @@ def test_exchange_alias_pools_under_one_ticker(
             isin=isin,
         ),
         BrokerTransaction(
-            date=datetime.date(2024, 9, 1),
+            date=dt.date(2024, 9, 1),
             action=ActionType.SELL,
             symbol=canonical,
             description=f"sell {canonical}",
@@ -1122,7 +1122,7 @@ def test_exchange_alias_pools_under_one_ticker_without_a_transaction_isin() -> N
     calculator.isin_converter.data[isin] = {"NVD", "NVDA"}
 
     buy_alias = BrokerTransaction(
-        date=datetime.date(2024, 5, 1),
+        date=dt.date(2024, 5, 1),
         action=ActionType.BUY,
         symbol="NVD",
         description="buy NVD",
@@ -1136,7 +1136,7 @@ def test_exchange_alias_pools_under_one_ticker_without_a_transaction_isin() -> N
     transactions: list[BrokerTransaction] = [
         buy_alias,
         BrokerTransaction(
-            date=datetime.date(2024, 6, 1),
+            date=dt.date(2024, 6, 1),
             action=ActionType.BUY,
             symbol="NVDA",
             description="buy NVDA",
@@ -1148,7 +1148,7 @@ def test_exchange_alias_pools_under_one_ticker_without_a_transaction_isin() -> N
             broker="Test",
         ),
         BrokerTransaction(
-            date=datetime.date(2024, 9, 1),
+            date=dt.date(2024, 9, 1),
             action=ActionType.SELL,
             symbol="NVDA",
             description="sell NVDA",
@@ -1188,7 +1188,7 @@ def test_transaction_ticker_cannot_reassign_a_reference_owned_isin() -> None:
 
     transactions: list[BrokerTransaction] = [
         BrokerTransaction(
-            date=datetime.date(2024, 5, 1),
+            date=dt.date(2024, 5, 1),
             action=ActionType.BUY,
             symbol="SAME",
             description="buy SAME",
@@ -1201,7 +1201,7 @@ def test_transaction_ticker_cannot_reassign_a_reference_owned_isin() -> None:
             isin=reassigned_isin,
         ),
         BrokerTransaction(
-            date=datetime.date(2024, 5, 1),
+            date=dt.date(2024, 5, 1),
             action=ActionType.BUY,
             symbol="B2",
             description="buy B2",
@@ -1222,10 +1222,10 @@ def test_transaction_ticker_cannot_reassign_a_reference_owned_isin() -> None:
 def test_rename_transfers_pool_to_new_ticker() -> None:
     """RENAME moves pool cost and quantity from old to new ticker; logs a RENAME entry."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    rename_date = datetime.date(2024, 5, 10)
+    rename_date = dt.date(2024, 5, 10)
     transactions: list[BrokerTransaction] = [
         BrokerTransaction(
-            date=datetime.date(2024, 5, 1),
+            date=dt.date(2024, 5, 1),
             action=ActionType.BUY,
             symbol="OLD",
             description="buy OLD",
@@ -1260,7 +1260,7 @@ def test_rename_transfers_pool_to_new_ticker() -> None:
 @pytest.mark.parametrize("description", ["", RENAME_DESCRIPTION_PREFIX])
 def test_rename_without_old_symbol_has_a_transaction_error(description: str) -> None:
     """A rename row that cannot name its source is invalid input."""
-    transaction = _rename_transaction(datetime.date(2024, 5, 10), "OLD", "NEW")
+    transaction = _rename_transaction(dt.date(2024, 5, 10), "OLD", "NEW")
     transaction.description = description
 
     with pytest.raises(InvalidTransactionError, match="old symbol"):
@@ -1271,7 +1271,7 @@ def test_rename_without_old_symbol_has_a_transaction_error(description: str) -> 
 
 def test_rename_without_a_new_symbol_has_a_transaction_error() -> None:
     """A rename row that cannot name its destination is invalid input."""
-    transaction = _rename_transaction(datetime.date(2024, 5, 10), "OLD", "NEW")
+    transaction = _rename_transaction(dt.date(2024, 5, 10), "OLD", "NEW")
     transaction.symbol = None
 
     with pytest.raises(InvalidTransactionError, match="Symbol missing"):
@@ -1283,10 +1283,10 @@ def test_rename_without_a_new_symbol_has_a_transaction_error() -> None:
 def test_section_104_disposal_uses_renamed_pool_cost() -> None:
     """After a rename, S104 disposal under NEW uses the pool cost carried from OLD."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    sell_date = datetime.date(2024, 6, 1)
+    sell_date = dt.date(2024, 6, 1)
     transactions: list[BrokerTransaction] = [
         BrokerTransaction(
-            date=datetime.date(2024, 5, 1),
+            date=dt.date(2024, 5, 1),
             action=ActionType.BUY,
             symbol="OLD",
             description="buy OLD tranche 1",
@@ -1298,7 +1298,7 @@ def test_section_104_disposal_uses_renamed_pool_cost() -> None:
             broker="Test",
         ),
         BrokerTransaction(
-            date=datetime.date(2024, 5, 2),
+            date=dt.date(2024, 5, 2),
             action=ActionType.BUY,
             symbol="OLD",
             description="buy OLD tranche 2",
@@ -1309,7 +1309,7 @@ def test_section_104_disposal_uses_renamed_pool_cost() -> None:
             currency=CurrencyCode("GBP"),
             broker="Test",
         ),
-        _rename_transaction(datetime.date(2024, 5, 15), "OLD", "NEW"),
+        _rename_transaction(dt.date(2024, 5, 15), "OLD", "NEW"),
         BrokerTransaction(
             date=sell_date,
             action=ActionType.SELL,
@@ -1348,7 +1348,7 @@ def test_bed_and_breakfast_matches_across_rename() -> None:
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions: list[BrokerTransaction] = [
         BrokerTransaction(
-            date=datetime.date(2024, 5, 1),
+            date=dt.date(2024, 5, 1),
             action=ActionType.BUY,
             symbol="OLD",
             description="buy OLD",
@@ -1360,7 +1360,7 @@ def test_bed_and_breakfast_matches_across_rename() -> None:
             broker="Test",
         ),
         BrokerTransaction(
-            date=datetime.date(2024, 5, 10),
+            date=dt.date(2024, 5, 10),
             action=ActionType.SELL,
             symbol="OLD",
             description="sell OLD",
@@ -1371,9 +1371,9 @@ def test_bed_and_breakfast_matches_across_rename() -> None:
             currency=CurrencyCode("GBP"),
             broker="Test",
         ),
-        _rename_transaction(datetime.date(2024, 5, 15), "OLD", "NEW"),
+        _rename_transaction(dt.date(2024, 5, 15), "OLD", "NEW"),
         BrokerTransaction(
-            date=datetime.date(2024, 5, 20),
+            date=dt.date(2024, 5, 20),
             action=ActionType.BUY,
             symbol="NEW",
             description="rebuy under NEW",
@@ -1388,8 +1388,8 @@ def test_bed_and_breakfast_matches_across_rename() -> None:
 
     report = get_report(calculator, transactions)
 
-    sell_date = datetime.date(2024, 5, 10)
-    rebuy_date = datetime.date(2024, 5, 20)
+    sell_date = dt.date(2024, 5, 10)
+    rebuy_date = dt.date(2024, 5, 20)
     sell_entries = report.calculation_log[sell_date]["sell$OLD"]
     assert len(sell_entries) == 1
     sell_entry = sell_entries[0]
@@ -1401,7 +1401,7 @@ def test_bed_and_breakfast_matches_across_rename() -> None:
     assert report.total_gain() == Decimal(-100)
 
 
-RENAME_DAY = datetime.date(2024, 5, 10)
+RENAME_DAY = dt.date(2024, 5, 10)
 
 
 def _rename_day_rows(
@@ -1420,7 +1420,7 @@ def _rename_day_rows(
         "buy": _gbp_trade(RENAME_DAY, ActionType.BUY, "NEW", 50, 750),
     }
     return [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         *(rows[name] for name in order),
     ]
 
@@ -1482,7 +1482,7 @@ def test_a_sale_under_the_new_name_draws_on_the_pool_under_the_old_one() -> None
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "NEW", 50, 1000),
     ]
@@ -1508,7 +1508,7 @@ def test_a_sale_the_day_s_purchase_only_half_covers_takes_the_rest_from_the_pool
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
         _gbp_trade(RENAME_DAY, ActionType.BUY, "NEW", 20, 300),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "NEW", 50, 1000),
@@ -1535,10 +1535,10 @@ def test_bed_and_breakfast_carries_the_disposal_date_rename() -> None:
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 100, 800),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
-        _gbp_trade(datetime.date(2024, 5, 20), ActionType.BUY, "NEW", 100, 900),
+        _gbp_trade(dt.date(2024, 5, 20), ActionType.BUY, "NEW", 100, 900),
     ]
 
     report = get_report(calculator, transactions)
@@ -1546,7 +1546,7 @@ def test_bed_and_breakfast_carries_the_disposal_date_rename() -> None:
     entries = report.calculation_log[RENAME_DAY]["sell$OLD"]
     assert len(entries) == 1
     assert entries[0].rule_type is RuleType.BED_AND_BREAKFAST
-    assert entries[0].bed_and_breakfast_date_index == datetime.date(2024, 5, 20)
+    assert entries[0].bed_and_breakfast_date_index == dt.date(2024, 5, 20)
     assert entries[0].allowable_cost == Decimal(900)
     # 100 sold at £8 = £800 proceeds against £900 of repurchase cost.
     assert report.total_gain() == Decimal(-100)
@@ -1561,9 +1561,9 @@ def test_an_earlier_claim_cannot_take_the_rename_day_disposal_s_shares() -> None
     under let both sales be identified against the same 50 shares.
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    earlier_sale = datetime.date(2024, 5, 5)
+    earlier_sale = dt.date(2024, 5, 5)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 200, 2000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 200, 2000),
         _gbp_trade(earlier_sale, ActionType.SELL, "OLD", 50, 1000),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
@@ -1595,7 +1595,7 @@ def test_a_cost_only_pool_under_a_renamed_name_is_refused() -> None:
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         _gbp_fee(RENAME_DAY, "NEW", 500),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
@@ -1625,8 +1625,8 @@ def test_carried_cost_under_a_renamed_name_is_refused_behind_a_purchase() -> Non
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
-        _gbp_fee(datetime.date(2024, 5, 2), "NEW", 500),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_fee(dt.date(2024, 5, 2), "NEW", 500),
         _gbp_trade(RENAME_DAY, ActionType.BUY, "NEW", 10, 100),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
@@ -1651,8 +1651,8 @@ def test_carried_cost_is_refused_under_the_name_the_sale_states() -> None:
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
-        _gbp_fee(datetime.date(2024, 5, 2), "NEW", 500),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_fee(dt.date(2024, 5, 2), "NEW", 500),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "NEW", 50, 1000),
     ]
@@ -1671,8 +1671,8 @@ def test_carried_cost_under_the_held_name_is_part_of_what_it_cost() -> None:
     """The same two rows under the name the shares are held in are pooled."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
-        _gbp_fee(datetime.date(2024, 5, 2), "OLD", 500),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_fee(dt.date(2024, 5, 2), "OLD", 500),
         _gbp_trade(RENAME_DAY, ActionType.BUY, "OLD", 10, 100),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
@@ -1695,7 +1695,7 @@ def test_a_cost_only_pool_under_the_held_name_is_part_of_what_it_cost() -> None:
     """The same fee recorded under the name the shares are held in is pooled."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         _gbp_fee(RENAME_DAY, "OLD", 500),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
@@ -1719,9 +1719,9 @@ def test_carried_cost_under_the_disposal_s_own_name_needs_no_refusal() -> None:
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
-        _gbp_trade(datetime.date(2024, 5, 2), ActionType.SELL, "OLD", 100, 1000),
-        _gbp_fee(datetime.date(2024, 5, 3), "OLD", 500),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 2), ActionType.SELL, "OLD", 100, 1000),
+        _gbp_fee(dt.date(2024, 5, 3), "OLD", 500),
         _gbp_trade(RENAME_DAY, ActionType.BUY, "OLD", 100, 1000),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
@@ -1750,7 +1750,7 @@ def test_a_fee_beside_a_purchase_under_the_renamed_name_is_pooled() -> None:
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
         _gbp_trade(RENAME_DAY, ActionType.BUY, "NEW", 20, 300),
         _gbp_fee(RENAME_DAY, "NEW", 100),
@@ -1767,7 +1767,7 @@ def test_a_fee_beside_a_purchase_under_the_renamed_name_is_pooled() -> None:
     assert calculator.portfolio["NEW"] == Position(Decimal(70), Decimal(770))
 
 
-FEE_DAY = datetime.date(2024, 5, 3)
+FEE_DAY = dt.date(2024, 5, 3)
 
 
 @pytest.mark.parametrize(
@@ -1775,26 +1775,20 @@ FEE_DAY = datetime.date(2024, 5, 3)
     [
         pytest.param(
             [
-                _gbp_trade(
-                    datetime.date(2024, 5, 1), ActionType.BUY, "FUND", 100, 1000
-                ),
+                _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "FUND", 100, 1000),
                 _gbp_fee(FEE_DAY, "FUNDX", 20),
                 # A rename that day or still to come excuses a fee under either
                 # of its own two names, and FUNDX is neither.
                 _rename_transaction(FEE_DAY, "FUND", "FUNDY"),
-                _rename_transaction(datetime.date(2024, 5, 4), "FUNDY", "FUNDZ"),
+                _rename_transaction(dt.date(2024, 5, 4), "FUNDY", "FUNDZ"),
             ],
             "FUNDX",
             id="a name nothing is held under",
         ),
         pytest.param(
             [
-                _gbp_trade(
-                    datetime.date(2024, 5, 1), ActionType.BUY, "FUND", 100, 1000
-                ),
-                _gbp_trade(
-                    datetime.date(2024, 5, 2), ActionType.SELL, "FUND", 100, 1200
-                ),
+                _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "FUND", 100, 1000),
+                _gbp_trade(dt.date(2024, 5, 2), ActionType.SELL, "FUND", 100, 1200),
                 _gbp_fee(FEE_DAY, "FUND", 20),
             ],
             "FUND",
@@ -1802,8 +1796,8 @@ FEE_DAY = datetime.date(2024, 5, 3)
         ),
         pytest.param(
             [
-                _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
-                _rename_transaction(datetime.date(2024, 5, 2), "OLD", "NEW"),
+                _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+                _rename_transaction(dt.date(2024, 5, 2), "OLD", "NEW"),
                 _gbp_fee(FEE_DAY, "OLD", 20),
             ],
             "OLD",
@@ -1850,7 +1844,7 @@ def test_a_fee_on_the_day_the_whole_holding_is_sold_is_part_of_what_it_cost() ->
     report = get_report(
         calculator,
         [
-            _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "FUND", 100, 1000),
+            _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "FUND", 100, 1000),
             _gbp_fee(FEE_DAY, "FUND", 20),
             _gbp_trade(FEE_DAY, ActionType.SELL, "FUND", 100, 1200),
         ],
@@ -1873,7 +1867,7 @@ def test_sales_under_two_names_of_one_holding_are_refused() -> None:
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         _gbp_trade(RENAME_DAY, ActionType.BUY, "NEW", 50, 1000),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 25, 500),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "NEW", 25, 500),
@@ -1899,7 +1893,7 @@ def test_a_holding_renamed_twice_on_a_disposal_date_is_refused() -> None:
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
         _rename_transaction(RENAME_DAY, "OLD", "MID"),
         _rename_transaction(RENAME_DAY, "MID", "NEW"),
@@ -1918,8 +1912,8 @@ def test_a_rename_pooling_two_holdings_on_a_disposal_date_is_refused() -> None:
     """Two pools meet only at the end of the day, so neither is the one sold."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "NEW", 30, 600),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "NEW", 30, 600),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
     ]
@@ -1937,7 +1931,7 @@ def test_a_day_buying_under_both_names_of_one_holding_is_refused() -> None:
     """One day's purchases are one acquisition, and it has one cost."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         _gbp_trade(RENAME_DAY, ActionType.BUY, "OLD", 10, 150),
         _gbp_trade(RENAME_DAY, ActionType.BUY, "NEW", 10, 250),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 5, 100),
@@ -1955,8 +1949,8 @@ def test_a_day_buying_under_both_names_of_one_holding_is_refused() -> None:
 
 
 # A rename inside the 30-day window rather than on the disposal day itself.
-WINDOW_SALE_DAY = datetime.date(2024, 5, 5)
-WINDOW_RENAME_DAY = datetime.date(2024, 5, 20)
+WINDOW_SALE_DAY = dt.date(2024, 5, 5)
+WINDOW_RENAME_DAY = dt.date(2024, 5, 20)
 
 
 @pytest.mark.parametrize("repurchase_spelling", ["OLD", "NEW"])
@@ -1974,7 +1968,7 @@ def test_a_repurchase_under_either_of_the_day_s_names_is_bed_and_breakfasted(
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 500),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 500),
         _gbp_trade(WINDOW_SALE_DAY, ActionType.SELL, "OLD", 100, 2000),
         _gbp_trade(WINDOW_RENAME_DAY, ActionType.BUY, repurchase_spelling, 100, 800),
         _rename_transaction(WINDOW_RENAME_DAY, "OLD", "NEW"),
@@ -2010,7 +2004,7 @@ def test_a_repurchase_split_across_the_day_s_two_names_is_refused(
         _gbp_trade(WINDOW_RENAME_DAY, ActionType.BUY, "OLD", 50, 300),
     ]
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 500),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 500),
         _gbp_trade(WINDOW_SALE_DAY, ActionType.SELL, "OLD", 100, 2000),
         *(purchases if new_first else purchases[::-1]),
         _rename_transaction(WINDOW_RENAME_DAY, "OLD", "NEW"),
@@ -2029,8 +2023,8 @@ def test_a_repurchase_split_across_the_day_s_two_names_is_refused(
 def _merged_window_rows(repurchase_spelling: str) -> list[BrokerTransaction]:
     """Sell OLD, then buy back the day OLD and OTHER are renamed into MERGED."""
     return [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 500),
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OTHER", 100, 700),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 500),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OTHER", 100, 700),
         _gbp_trade(WINDOW_SALE_DAY, ActionType.SELL, "OLD", 100, 2000),
         _gbp_trade(WINDOW_RENAME_DAY, ActionType.BUY, repurchase_spelling, 100, 800),
         _rename_transaction(WINDOW_RENAME_DAY, "OLD", "MERGED"),
@@ -2089,8 +2083,8 @@ def test_an_unrelated_rename_on_the_same_day_is_not_a_merge() -> None:
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 500),
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "FOO", 50, 250),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 500),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "FOO", 50, 250),
         _gbp_trade(WINDOW_SALE_DAY, ActionType.SELL, "OLD", 100, 2000),
         _gbp_trade(WINDOW_RENAME_DAY, ActionType.BUY, "NEW", 100, 800),
         _rename_transaction(WINDOW_RENAME_DAY, "OLD", "NEW"),
@@ -2115,7 +2109,7 @@ def test_a_purchase_under_the_retired_name_after_the_rename_is_a_new_holding() -
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 500),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 500),
         _gbp_trade(WINDOW_SALE_DAY, ActionType.SELL, "OLD", 100, 2000),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
         _gbp_trade(WINDOW_RENAME_DAY, ActionType.BUY, "OLD", 100, 800),
@@ -2145,7 +2139,7 @@ def test_a_rename_day_refuses_more_units_than_the_whole_holding_has(
         _gbp_trade(RENAME_DAY, ActionType.SELL, "NEW", 60, 900),
     ]
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         *([rename, *sales] if rename_first else [*sales, rename]),
     ]
 
@@ -2153,9 +2147,7 @@ def test_a_rename_day_refuses_more_units_than_the_whole_holding_has(
         get_report(calculator, transactions)
 
 
-def _malformed_purchase(
-    date: datetime.date, symbol: str, quantity: str
-) -> BrokerTransaction:
+def _malformed_purchase(date: dt.date, symbol: str, quantity: str) -> BrokerTransaction:
     """Build a purchase whose stated count is not a positive number."""
     return BrokerTransaction(
         date=date,
@@ -2186,7 +2178,7 @@ def test_a_malformed_purchase_on_a_rename_day_blames_its_own_row(
     sale = _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 100, 2000)
     malformed = _malformed_purchase(RENAME_DAY, "NEW", quantity)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         *([malformed, sale] if buy_first else [sale, malformed]),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
     ]
@@ -2218,8 +2210,8 @@ def test_a_purchase_under_the_retired_name_is_there_to_sell_later(
     Two holdings are renamed on the day, and each keeps what it bought.
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    buy_day = datetime.date(2024, 5, 1)
-    sale_day = datetime.date(2024, 5, 20)
+    buy_day = dt.date(2024, 5, 1)
+    sale_day = dt.date(2024, 5, 20)
     transactions = [
         _gbp_trade(buy_day, ActionType.BUY, "OLD", 100, 1000),
         _gbp_trade(buy_day, ActionType.BUY, "FOO", 10, 200),
@@ -2252,7 +2244,7 @@ def test_a_purchase_under_the_retired_name_survives_excess_reported_income() -> 
     calculator = create_calculator(tax_year=2024, balance_check=False)
     calculator.isin_converter.data[ERI_ISIN] = {"NEW"}
     transactions: list[BrokerTransaction] = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
         _gbp_trade(RENAME_DAY, ActionType.BUY, "OLD", 50, 750),
         ERITransaction(
@@ -2261,7 +2253,7 @@ def test_a_purchase_under_the_retired_name_survives_excess_reported_income() -> 
             price=Decimal(1),
             currency=CurrencyCode("GBP"),
         ),
-        _gbp_trade(datetime.date(2024, 5, 20), ActionType.SELL, "NEW", 150, 3000),
+        _gbp_trade(dt.date(2024, 5, 20), ActionType.SELL, "NEW", 150, 3000),
     ]
 
     report = get_report(calculator, transactions)
@@ -2269,7 +2261,7 @@ def test_a_purchase_under_the_retired_name_survives_excess_reported_income() -> 
     assert report.total_gain() == Decimal(1100)
 
 
-def _eri(date: datetime.date, isin: Isin, price: int) -> BrokerTransaction:
+def _eri(date: dt.date, isin: Isin, price: int) -> BrokerTransaction:
     """Build a fund's report of excess income, in pounds a share."""
     return ERITransaction(
         date=date, isin=isin, price=Decimal(price), currency=CurrencyCode("GBP")
@@ -2278,12 +2270,12 @@ def _eri(date: datetime.date, isin: Isin, price: int) -> BrokerTransaction:
 
 @pytest.mark.parametrize(
     "report_date",
-    [datetime.date(2024, 5, 9), RENAME_DAY, datetime.date(2024, 5, 11)],
+    [dt.date(2024, 5, 9), RENAME_DAY, dt.date(2024, 5, 11)],
     ids=["day before", "rename day", "day after"],
 )
 @pytest.mark.parametrize("known_name", ["OLD", "NEW"])
 def test_excess_reported_income_finds_a_renamed_fund_under_either_name(
-    known_name: str, report_date: datetime.date
+    known_name: str, report_date: dt.date
 ) -> None:
     """A report reaches the holding whichever of its tickers the ISIN is known by.
 
@@ -2298,12 +2290,12 @@ def test_excess_reported_income_finds_a_renamed_fund_under_either_name(
     calculator = create_calculator(tax_year=2024, balance_check=False)
     calculator.isin_converter.data[ERI_ISIN] = {known_name}
     transactions: list[BrokerTransaction] = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "QUIET", 10, 100),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "QUIET", 10, 100),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
-        _rename_transaction(datetime.date(2024, 5, 15), "QUIET", "QUIETER"),
-        _gbp_trade(datetime.date(2024, 5, 20), ActionType.SELL, "NEW", 100, 3000),
-        _gbp_trade(datetime.date(2024, 5, 20), ActionType.SELL, "QUIETER", 10, 350),
+        _rename_transaction(dt.date(2024, 5, 15), "QUIET", "QUIETER"),
+        _gbp_trade(dt.date(2024, 5, 20), ActionType.SELL, "NEW", 100, 3000),
+        _gbp_trade(dt.date(2024, 5, 20), ActionType.SELL, "QUIETER", 10, 350),
         _eri(report_date, ERI_ISIN, 2),
     ]
     # Where the command line puts a report: after its day's other rows.
@@ -2330,11 +2322,11 @@ def test_excess_reported_income_stays_off_a_name_another_isin_owns() -> None:
     calculator.isin_converter.data[ERI_ISIN] = {"NEW"}
     calculator.isin_converter.data[other_isin] = {"OLD"}
     transactions: list[BrokerTransaction] = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
-        _eri(datetime.date(2024, 5, 8), ERI_ISIN, 2),
-        _eri(datetime.date(2024, 5, 9), other_isin, 3),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _eri(dt.date(2024, 5, 8), ERI_ISIN, 2),
+        _eri(dt.date(2024, 5, 9), other_isin, 3),
         _rename_transaction(RENAME_DAY, "OLD", "NEW"),
-        _gbp_trade(datetime.date(2024, 5, 20), ActionType.SELL, "NEW", 100, 3000),
+        _gbp_trade(dt.date(2024, 5, 20), ActionType.SELL, "NEW", 100, 3000),
     ]
 
     report = get_report(calculator, transactions)
@@ -2346,7 +2338,7 @@ def test_excess_reported_income_stays_off_a_name_another_isin_owns() -> None:
 def test_the_first_pass_leaves_a_rename_day_under_the_closing_ticker() -> None:
     """Reconciliation carries both shares and their source accounts to NEW."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    opening = _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000)
+    opening = _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000)
     opening.source = TransactionSource(account="Account A")
     purchase = _gbp_trade(RENAME_DAY, ActionType.BUY, "OLD", 50, 750)
     purchase.source = TransactionSource(account="Account B")
@@ -2376,7 +2368,7 @@ def test_a_day_whose_only_rows_are_a_rename_chain_is_refused(
         _rename_transaction(RENAME_DAY, "MID", "NEW"),
     ]
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         *(reversed(renames) if backwards else renames),
     ]
 
@@ -2440,7 +2432,7 @@ def test_every_action_says_what_a_rename_day_does_with_it() -> None:
 def test_two_holdings_renamed_on_one_day_are_told_apart() -> None:
     """Sales under two retired tickers draw on their respective holdings."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    buy_day = datetime.date(2024, 5, 1)
+    buy_day = dt.date(2024, 5, 1)
     transactions = [
         _gbp_trade(buy_day, ActionType.BUY, "OLD", 100, 1000),
         _gbp_trade(buy_day, ActionType.BUY, "FOO", 100, 2000),
@@ -2460,7 +2452,7 @@ def test_two_holdings_renamed_on_one_day_are_told_apart() -> None:
 def test_one_renamed_holding_cannot_borrow_the_other_s_shares() -> None:
     """A sale exceeding its holding's capacity cannot use another holding's shares."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    buy_day = datetime.date(2024, 5, 1)
+    buy_day = dt.date(2024, 5, 1)
     transactions = [
         _gbp_trade(buy_day, ActionType.BUY, "OLD", 100, 1000),
         _gbp_trade(buy_day, ActionType.BUY, "FOO", 50, 1000),
@@ -2487,7 +2479,7 @@ def test_a_holding_renamed_to_two_names_on_a_trading_day_is_refused() -> None:
     """The holding goes to one name or the other, and the day says neither."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         _rename_transaction(RENAME_DAY, "OLD", "AAA"),
         _rename_transaction(RENAME_DAY, "OLD", "BBB"),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 50, 1000),
@@ -2527,10 +2519,10 @@ def test_a_rename_chain_is_refused_whatever_else_the_day_holds(
         )
     )
     transactions = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         extra,
         *(reversed(renames) if backwards else renames),
-        _gbp_trade(datetime.date(2024, 5, 20), ActionType.SELL, "NEW", 100, 1500),
+        _gbp_trade(dt.date(2024, 5, 20), ActionType.SELL, "NEW", 100, 1500),
     ]
 
     with pytest.raises(CalculationError) as excinfo:
@@ -2550,7 +2542,7 @@ def test_a_rename_day_carrying_excess_reported_income_is_read_row_by_row() -> No
     calculator = create_calculator(tax_year=2024, balance_check=False)
     calculator.isin_converter.data[ERI_ISIN] = {"OLD"}
     transactions: list[BrokerTransaction] = [
-        _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
         _gbp_trade(RENAME_DAY, ActionType.SELL, "NEW", 50, 1000),
         ERITransaction(
             date=RENAME_DAY,
@@ -2573,7 +2565,7 @@ def test_same_day_vest_ordered_before_sale() -> None:
     current holding as soon as it is read, so the raw order fails; the registry
     sort places the balance-neutral vest first so the sale is processed.
     """
-    day = datetime.date(2024, 6, 3)
+    day = dt.date(2024, 6, 3)
     vest = transaction(
         day,
         ActionType.STOCK_ACTIVITY,
@@ -2611,8 +2603,8 @@ def test_same_day_sale_funding_purchase_survives_sort() -> None:
     processed before the purchase and the running balance stays non-negative
     under the balance check.
     """
-    day0 = datetime.date(2024, 6, 1)
-    day1 = datetime.date(2024, 6, 2)
+    day0 = dt.date(2024, 6, 1)
+    day1 = dt.date(2024, 6, 2)
     transactions = [
         transaction(day0, ActionType.TRANSFER, amount=50, currency=CurrencyCode("GBP")),
         transaction(
@@ -2668,11 +2660,9 @@ def test_shares_that_arrive_without_a_payment_are_valued_to_the_penny(
     """
     transactions = [
         transaction(day, action, "SYM", 3, price=10.018, currency=GBP)
-        for day in (datetime.date(2024, 6, 3), datetime.date(2024, 6, 4))
+        for day in (dt.date(2024, 6, 3), dt.date(2024, 6, 4))
     ]
-    transactions.append(
-        _gbp_trade(datetime.date(2024, 9, 2), ActionType.SELL, "SYM", 6, 100)
-    )
+    transactions.append(_gbp_trade(dt.date(2024, 9, 2), ActionType.SELL, "SYM", 6, 100))
     calculator = create_calculator(tax_year=2024, balance_check=False)
 
     report = get_report(calculator, transactions)
@@ -2689,8 +2679,8 @@ def test_disposal_debug_log_keeps_fractional_quantity(
     integer (e.g. 2.5 -> 2). They must use ``%s`` so partial shares are logged
     in full.
     """
-    buy_day = datetime.date(2024, 6, 1)
-    sell_day = datetime.date(2024, 6, 10)
+    buy_day = dt.date(2024, 6, 1)
+    sell_day = dt.date(2024, 6, 10)
     transactions = [
         transaction(
             buy_day,
@@ -2808,9 +2798,9 @@ def test_main_returns_failure_on_unexpected_error(
 
 def test_negative_balance_error_trims_long_history() -> None:
     """A long transaction dump is trimmed to the most recent entries."""
-    start = datetime.date(2024, 5, 1)
+    start = dt.date(2024, 5, 1)
     transactions = [transfer_transaction(start, 13.0)] + [
-        transfer_transaction(start + datetime.timedelta(days=day), -1.0)
+        transfer_transaction(start + dt.timedelta(days=day), -1.0)
         for day in range(1, 15)
     ]
     calculator = create_calculator(tax_year=2024)
@@ -2825,7 +2815,7 @@ def test_negative_balance_error_trims_long_history() -> None:
 
 def test_negative_balance_error_shows_short_history_in_full() -> None:
     """A dump that fits within the limit is shown without omissions."""
-    transactions = [transfer_transaction(datetime.date(2024, 5, 1), -1.0)]
+    transactions = [transfer_transaction(dt.date(2024, 5, 1), -1.0)]
     calculator = create_calculator(tax_year=2024)
 
     with pytest.raises(CalculationError) as excinfo:
@@ -2917,25 +2907,25 @@ def test_a_custom_period_reaches_the_report_through_the_command_line(
 
 def test_negative_balance_error_shows_only_relevant_transactions() -> None:
     """Other currencies and cash-neutral transactions are left out of the dump."""
-    day = datetime.date(2024, 5, 1)
+    day = dt.date(2024, 5, 1)
     transactions = [
         transfer_transaction(day, 100.0),
         buy_transaction(
-            day + datetime.timedelta(days=1),
+            day + dt.timedelta(days=1),
             "FOO",
             quantity=1,
             price=10.0,
             fees=0.0,
             amount=-10.0,
         ),
-        split_transaction(day + datetime.timedelta(days=2), "FOO", quantity=1),
+        split_transaction(day + dt.timedelta(days=2), "FOO", quantity=1),
         transaction(
-            day + datetime.timedelta(days=3),
+            day + dt.timedelta(days=3),
             ActionType.TRANSFER,
             amount=5.0,
             currency=CurrencyCode("EUR"),
         ),
-        transfer_transaction(day + datetime.timedelta(days=4), -91.0),
+        transfer_transaction(day + dt.timedelta(days=4), -91.0),
     ]
     calculator = create_calculator(tax_year=2024)
 
@@ -2957,7 +2947,7 @@ def test_balance_check_accepts_same_day_funding_in_either_order(
     deposit_first: bool,
 ) -> None:
     """A purchase funded on the day it is made passes whichever row is first."""
-    day = datetime.date(2024, 5, 1)
+    day = dt.date(2024, 5, 1)
     rows = [
         transfer_transaction(day, 5000.0),
         buy_transaction(day, "FOO", quantity=100, price=50.0, fees=0.0, amount=-5000.0),
@@ -2969,7 +2959,7 @@ def test_balance_check_accepts_same_day_funding_in_either_order(
 
 def test_balance_check_reports_an_overdraft_left_at_the_end_of_the_day() -> None:
     """A day that ends short is still reported, and the message names the day."""
-    day = datetime.date(2024, 5, 1)
+    day = dt.date(2024, 5, 1)
     transactions = [
         transfer_transaction(day, 4000.0),
         buy_transaction(day, "FOO", quantity=100, price=50.0, fees=0.0, amount=-5000.0),
@@ -2987,14 +2977,14 @@ def test_balance_check_reports_an_overdraft_left_at_the_end_of_the_day() -> None
 @pytest.mark.parametrize(
     ("date", "broker", "currency"),
     [
-        (datetime.date(2024, 5, 2), "Testing", CurrencyCode("USD")),
-        (datetime.date(2024, 5, 1), "Another broker", CurrencyCode("USD")),
-        (datetime.date(2024, 5, 1), "Testing", CurrencyCode("EUR")),
+        (dt.date(2024, 5, 2), "Testing", CurrencyCode("USD")),
+        (dt.date(2024, 5, 1), "Another broker", CurrencyCode("USD")),
+        (dt.date(2024, 5, 1), "Testing", CurrencyCode("EUR")),
     ],
     ids=["later date", "other broker", "other currency"],
 )
 def test_balance_check_is_not_funded_by_a_later_day_or_another_pool(
-    date: datetime.date, broker: str, currency: CurrencyCode
+    date: dt.date, broker: str, currency: CurrencyCode
 ) -> None:
     """Funding must be in the same broker and currency by the purchase date.
 
@@ -3003,7 +2993,7 @@ def test_balance_check_is_not_funded_by_a_later_day_or_another_pool(
     neither does money at another broker or in another currency.
     """
     purchase = buy_transaction(
-        datetime.date(2024, 5, 1),
+        dt.date(2024, 5, 1),
         "FOO",
         quantity=100,
         price=50.0,
@@ -3023,7 +3013,7 @@ def test_balance_check_is_not_funded_by_a_later_day_or_another_pool(
 
 def test_balance_check_is_not_silenced_by_a_trailing_eri_row() -> None:
     """Excess reported income skips the check, so it cannot stand in for day close."""
-    day = datetime.date(2024, 5, 1)
+    day = dt.date(2024, 5, 1)
     isin = Isin("USFOO0000006")
     transactions = [
         transfer_transaction(day, 100.0),
@@ -3050,15 +3040,15 @@ def test_custom_period_narrows_reporting_window() -> None:
         SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
-        period_start=datetime.date(2024, 5, 1),
-        period_end=datetime.date(2024, 10, 29),
+        period_start=dt.date(2024, 5, 1),
+        period_end=dt.date(2024, 10, 29),
     )
 
-    assert not calculator.date_in_tax_year(datetime.date(2024, 4, 30))
-    assert calculator.date_in_tax_year(datetime.date(2024, 5, 1))
-    assert calculator.date_in_tax_year(datetime.date(2024, 10, 29))
-    assert not calculator.date_in_tax_year(datetime.date(2024, 10, 30))
-    assert calculator.tax_year_end_date == datetime.date(2024, 10, 29)
+    assert not calculator.date_in_tax_year(dt.date(2024, 4, 30))
+    assert calculator.date_in_tax_year(dt.date(2024, 5, 1))
+    assert calculator.date_in_tax_year(dt.date(2024, 10, 29))
+    assert not calculator.date_in_tax_year(dt.date(2024, 10, 30))
+    assert calculator.tax_year_end_date == dt.date(2024, 10, 29)
 
 
 def test_report_labels_custom_period() -> None:
@@ -3079,8 +3069,8 @@ def test_report_labels_custom_period() -> None:
         Decimal(0),
         Decimal(0),
         show_unrealized_gains=False,
-        period_start=datetime.date(2024, 4, 6),
-        period_end=datetime.date(2024, 10, 29),
+        period_start=dt.date(2024, 4, 6),
+        period_end=dt.date(2024, 10, 29),
     )
 
     assert report.title_period == "2024-04-06 to 2024-10-29"
@@ -3137,7 +3127,7 @@ def test_taxable_gain_requires_an_allowance() -> None:
 
 def test_foreign_fees_folded_into_gbp_transaction() -> None:
     """Convert foreign fees to the transaction currency and re-derive price."""
-    date = datetime.date(2024, 5, 1)
+    date = dt.date(2024, 5, 1)
     currency_converter = CurrencyConverter(
         None, {date: {CurrencyCode("USD"): Decimal("1.25")}}
     )
@@ -3174,7 +3164,7 @@ def test_foreign_fees_folded_into_gbp_transaction() -> None:
 
 def test_foreign_fees_folded_into_non_gbp_transaction() -> None:
     """Convert GBP fees into a non-GBP transaction currency."""
-    date = datetime.date(2024, 5, 1)
+    date = dt.date(2024, 5, 1)
     currency_converter = CurrencyConverter(
         None, {date: {CurrencyCode("USD"): Decimal("1.25")}}
     )
@@ -3211,7 +3201,7 @@ def test_foreign_fees_folded_into_non_gbp_transaction() -> None:
 
 def test_multiple_foreign_fee_currencies_on_sell() -> None:
     """Convert each foreign fee currency and re-derive the sell price."""
-    date = datetime.date(2024, 5, 1)
+    date = dt.date(2024, 5, 1)
     currency_converter = CurrencyConverter(
         None,
         {
@@ -3296,18 +3286,18 @@ def test_calculate_capital_gain_is_repeatable() -> None:
     calculator.prepare_history(
         [
             transaction(
-                datetime.date(2024, 6, 1), ActionType.BUY, "FOO", 10, 10, 0, -100, GBP
+                dt.date(2024, 6, 1), ActionType.BUY, "FOO", 10, 10, 0, -100, GBP
             ),
             transaction(
-                datetime.date(2024, 6, 10), ActionType.SELL, "FOO", 10, 12, 0, 120, GBP
+                dt.date(2024, 6, 10), ActionType.SELL, "FOO", 10, 12, 0, 120, GBP
             ),
             # Within 30 days of the sale, so the walk records a bed and
             # breakfast claim as it matches it.
             transaction(
-                datetime.date(2024, 6, 20), ActionType.BUY, "FOO", 10, 11, 0, -110, GBP
+                dt.date(2024, 6, 20), ActionType.BUY, "FOO", 10, 11, 0, -110, GBP
             ),
             transaction(
-                datetime.date(2024, 7, 1),
+                dt.date(2024, 7, 1),
                 ActionType.DIVIDEND,
                 "FOO",
                 None,
@@ -3317,7 +3307,7 @@ def test_calculate_capital_gain_is_repeatable() -> None:
                 GBP,
             ),
             transaction(
-                datetime.date(2024, 7, 2),
+                dt.date(2024, 7, 2),
                 ActionType.INTEREST,
                 None,
                 None,
@@ -3341,9 +3331,7 @@ def test_prepare_history_runs_once() -> None:
     """A second ingestion would accumulate into the history already recorded."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        transaction(
-            datetime.date(2024, 6, 1), ActionType.BUY, "FOO", 1, 10, 0, -10, GBP
-        )
+        transaction(dt.date(2024, 6, 1), ActionType.BUY, "FOO", 1, 10, 0, -10, GBP)
     ]
     calculator.prepare_history(transactions)
 
@@ -3363,8 +3351,8 @@ def test_failed_ingestion_can_be_neither_retried_nor_calculated() -> None:
     """A history that stopped part way through is not a history to report on."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions = [
-        buy_transaction(datetime.date(2024, 5, 1), "FOO", 10, 10, 0, -100),
-        transaction(datetime.date(2024, 5, 2), ActionType.BUY, "BAR", 10, 10, 0, None),
+        buy_transaction(dt.date(2024, 5, 1), "FOO", 10, 10, 0, -100),
+        transaction(dt.date(2024, 5, 2), ActionType.BUY, "BAR", 10, 10, 0, None),
     ]
 
     with pytest.raises(AmountMissingError):
@@ -3382,9 +3370,9 @@ def test_calculate_matches_the_two_step_sequence() -> None:
 
     def transactions() -> list[BrokerTransaction]:
         return [
-            buy_transaction(datetime.date(2024, 5, 1), "FOO", 10, 10, 0, -100),
-            sell_transaction(datetime.date(2024, 6, 3), "FOO", 10, 12, 0, 120),
-            buy_transaction(datetime.date(2024, 6, 10), "FOO", 10, 11, 0, -110),
+            buy_transaction(dt.date(2024, 5, 1), "FOO", 10, 10, 0, -100),
+            sell_transaction(dt.date(2024, 6, 3), "FOO", 10, 12, 0, 120),
+            buy_transaction(dt.date(2024, 6, 10), "FOO", 10, 11, 0, -110),
         ]
 
     combined = create_calculator(tax_year=2024, balance_check=False)
@@ -3396,9 +3384,9 @@ def test_calculate_matches_the_two_step_sequence() -> None:
     )
 
 
-BUY_DAY = datetime.date(2024, 5, 1)
-SELL_DAY = datetime.date(2024, 5, 10)
-REBUY_DAY = datetime.date(2024, 5, 20)
+BUY_DAY = dt.date(2024, 5, 1)
+SELL_DAY = dt.date(2024, 5, 10)
+REBUY_DAY = dt.date(2024, 5, 20)
 
 
 def test_a_repurchase_of_shares_that_cost_nothing_computes() -> None:
@@ -3635,10 +3623,8 @@ def test_a_gain_of_exactly_half_a_penny_rounds_up(
     [
         pytest.param(
             [
-                _gbp_trade(datetime.date(2020, 6, 1), ActionType.BUY, "AAA", 100, 1000),
-                _gbp_trade(
-                    datetime.date(2020, 7, 1), ActionType.SELL, "AAA", 100, -1200
-                ),
+                _gbp_trade(dt.date(2020, 6, 1), ActionType.BUY, "AAA", 100, 1000),
+                _gbp_trade(dt.date(2020, 7, 1), ActionType.SELL, "AAA", 100, -1200),
             ],
             id="sale",
         ),
@@ -3646,18 +3632,16 @@ def test_a_gain_of_exactly_half_a_penny_rounds_up(
         # the later sale reported a gain of 150 instead of 50.
         pytest.param(
             [
-                _gbp_trade(datetime.date(2020, 6, 1), ActionType.BUY, "AAA", 100, 1000),
+                _gbp_trade(dt.date(2020, 6, 1), ActionType.BUY, "AAA", 100, 1000),
                 transaction(
-                    datetime.date(2020, 6, 1),
+                    dt.date(2020, 6, 1),
                     ActionType.TRANSFER_FROM_SPOUSE,
                     "AAA",
                     10,
                     price=-5,
                     currency=GBP,
                 ),
-                _gbp_trade(
-                    datetime.date(2020, 7, 1), ActionType.SELL, "AAA", 110, 1100
-                ),
+                _gbp_trade(dt.date(2020, 7, 1), ActionType.SELL, "AAA", 110, 1100),
             ],
             id="spouse transfer beside a purchase",
         ),
@@ -3710,7 +3694,7 @@ def test_taxable_dividends_are_stated_only_beside_a_known_allowance(
     treaty relief to deduct.
     """
     us_isin = Isin("US9220427424")
-    day = datetime.date(tax_year, 6, 1)
+    day = dt.date(tax_year, 6, 1)
     calculator = create_calculator(tax_year=tax_year, balance_check=False)
     dividend = [
         transaction(
@@ -3722,7 +3706,7 @@ def test_taxable_dividends_are_stated_only_beside_a_known_allowance(
     ]
     sale = [
         _gbp_trade(day, ActionType.BUY, "FOO", 10, 100),
-        _gbp_trade(day + datetime.timedelta(days=1), ActionType.SELL, "FOO", 10, 120),
+        _gbp_trade(day + dt.timedelta(days=1), ActionType.SELL, "FOO", 10, 120),
     ]
     transactions = dividend if with_dividends else sale
 
@@ -3733,16 +3717,14 @@ def test_taxable_dividends_are_stated_only_beside_a_known_allowance(
 
 
 def _sold_at_a_gain_or_loss(
-    sales: list[tuple[datetime.date, int, int]],
+    sales: list[tuple[dt.date, int, int]],
 ) -> list[BrokerTransaction]:
     """Buy each holding at its cost on 6 April 2008, and sell it on its own day."""
     return [
         trade
         for index, (day, cost, proceeds) in enumerate(sales)
         for trade in (
-            _gbp_trade(
-                datetime.date(2008, 4, 6), ActionType.BUY, f"S{index}", 10, cost
-            ),
+            _gbp_trade(dt.date(2008, 4, 6), ActionType.BUY, f"S{index}", 10, cost),
             _gbp_trade(day, ActionType.SELL, f"S{index}", 10, proceeds),
         )
     ]
@@ -3827,9 +3809,9 @@ NOTES_FOR_2024 = [
         pytest.param(
             2024,
             [
-                (datetime.date(2024, 10, 29), 1000, 11000),
-                (datetime.date(2024, 10, 30), 1000, 9000),
-                (datetime.date(2024, 6, 3), 3000, 1000),
+                (dt.date(2024, 10, 29), 1000, 11000),
+                (dt.date(2024, 10, 30), 1000, 9000),
+                (dt.date(2024, 6, 3), 3000, 1000),
             ],
             [
                 "Tax at basic rate: £1,540.00",
@@ -3841,8 +3823,8 @@ NOTES_FOR_2024 = [
         pytest.param(
             2024,
             [
-                (datetime.date(2024, 10, 29), 1000, 11000),
-                (datetime.date(2024, 10, 30), 1000, 3000),
+                (dt.date(2024, 10, 29), 1000, 11000),
+                (dt.date(2024, 10, 30), 1000, 3000),
             ],
             [
                 "Tax at basic rate: £900.00",
@@ -3854,8 +3836,8 @@ NOTES_FOR_2024 = [
         pytest.param(
             2010,
             [
-                (datetime.date(2010, 6, 22), 1000, 6000),
-                (datetime.date(2010, 6, 23), 1000, 21000),
+                (dt.date(2010, 6, 22), 1000, 6000),
+                (dt.date(2010, 6, 23), 1000, 21000),
             ],
             [
                 "Tax at basic rate: £2,682.00",
@@ -3878,8 +3860,8 @@ NOTES_FOR_2024 = [
         pytest.param(
             2010,
             [
-                (datetime.date(2010, 6, 22), 1000, 16000),
-                (datetime.date(2010, 6, 23), 1000, 6000),
+                (dt.date(2010, 6, 22), 1000, 16000),
+                (dt.date(2010, 6, 23), 1000, 6000),
             ],
             ["Tax at 18%: £1,782.00", ESTIMATE_NOTE],
             id="one rate when the exempt amount covers the gains from 23 June 2010",
@@ -3890,7 +3872,7 @@ NOTES_FOR_2024 = [
         # 18% or 2,800 at 28%; on 6 April 2016 it is 1,000 at 10% or 2,000 at 20%.
         pytest.param(
             2015,
-            [(datetime.date(2016, 4, 5), 1000, 22100)],
+            [(dt.date(2016, 4, 5), 1000, 22100)],
             [
                 "Tax at basic rate: £1,800.00",
                 "Tax at higher rate: £2,800.00",
@@ -3902,7 +3884,7 @@ NOTES_FOR_2024 = [
         ),
         pytest.param(
             2016,
-            [(datetime.date(2016, 4, 6), 1000, 22100)],
+            [(dt.date(2016, 4, 6), 1000, 22100)],
             [
                 "Tax at basic rate: £1,000.00",
                 "Tax at higher rate: £2,000.00",
@@ -3914,20 +3896,20 @@ NOTES_FOR_2024 = [
         ),
         pytest.param(
             2009,
-            [(datetime.date(2009, 6, 1), 1000, 21100)],
+            [(dt.date(2009, 6, 1), 1000, 21100)],
             ["Tax at 18%: £1,800.00", ESTIMATE_NOTE],
             id="one rate for everyone all year",
         ),
         pytest.param(
             2025,
-            [(datetime.date(2025, 6, 2), 1000, 4000)],
+            [(dt.date(2025, 6, 2), 1000, 4000)],
             [],
             id="a gain the exempt amount covers",
         ),
     ],
 )
 def test_tax_is_shown_at_the_basic_and_the_higher_rate(
-    tax_year: int, sales: list[tuple[datetime.date, int, int]], lines: list[str]
+    tax_year: int, sales: list[tuple[dt.date, int, int]], lines: list[str]
 ) -> None:
     """The terminal shows the tax on the taxable gain at each rate, and who pays it.
 
@@ -3957,18 +3939,18 @@ LOWEST_TAX_NOTE = (
 )
 US_FUND = Isin("US9220427424")
 EITHER_SIDE_OF_23_JUNE_2010 = [
-    (datetime.date(2010, 6, 22), 1000, 6000),
-    (datetime.date(2010, 6, 23), 1000, 21000),
+    (dt.date(2010, 6, 22), 1000, 6000),
+    (dt.date(2010, 6, 23), 1000, 21000),
 ]
 EITHER_SIDE_OF_30_OCTOBER_2024 = [
-    (datetime.date(2024, 10, 29), 1000, 11000),
-    (datetime.date(2024, 10, 30), 1000, 9000),
-    (datetime.date(2024, 6, 3), 3000, 1000),
+    (dt.date(2024, 10, 29), 1000, 11000),
+    (dt.date(2024, 10, 30), 1000, 9000),
+    (dt.date(2024, 6, 3), 3000, 1000),
 ]
 WITH_DIVIDENDS_AND_INTEREST = [
-    *_sold_at_a_gain_or_loss([(datetime.date(2025, 6, 2), 1000, 16000)]),
+    *_sold_at_a_gain_or_loss([(dt.date(2025, 6, 2), 1000, 16000)]),
     transaction(
-        datetime.date(2025, 6, 2),
+        dt.date(2025, 6, 2),
         ActionType.DIVIDEND,
         "BAR",
         None,
@@ -3978,14 +3960,14 @@ WITH_DIVIDENDS_AND_INTEREST = [
         GBP,
         isin=US_FUND,
     ),
-    interest_transaction(datetime.date(2025, 6, 2), 300, GBP),
+    interest_transaction(dt.date(2025, 6, 2), 300, GBP),
     # £1,000 at the rate of 1.3412 recorded for this day.
-    interest_transaction(datetime.date(2025, 6, 30), 1341.2),
+    interest_transaction(dt.date(2025, 6, 30), 1341.2),
 ]
 WITH_A_DIVIDEND_IN_2015 = [
-    *_sold_at_a_gain_or_loss([(datetime.date(2015, 6, 1), 1000, 32100)]),
+    *_sold_at_a_gain_or_loss([(dt.date(2015, 6, 1), 1000, 32100)]),
     transaction(
-        datetime.date(2015, 6, 1),
+        dt.date(2015, 6, 1),
         ActionType.DIVIDEND,
         "BAR",
         None,
@@ -4004,7 +3986,7 @@ WITH_A_DIVIDEND_IN_2015 = [
         pytest.param(
             2025,
             0,
-            _sold_at_a_gain_or_loss([(datetime.date(2025, 6, 2), 1000, 44000)]),
+            _sold_at_a_gain_or_loss([(dt.date(2025, 6, 2), 1000, 44000)]),
             [
                 "Estimated tax: £7,338.00",
                 (
@@ -4041,10 +4023,10 @@ WITH_A_DIVIDEND_IN_2015 = [
             2025,
             45000,
             [
-                *_sold_at_a_gain_or_loss([(datetime.date(2025, 6, 2), 1000, 16000)]),
-                interest_transaction(datetime.date(2025, 6, 2), -500, GBP),
+                *_sold_at_a_gain_or_loss([(dt.date(2025, 6, 2), 1000, 16000)]),
+                interest_transaction(dt.date(2025, 6, 2), -500, GBP),
                 transaction(
-                    datetime.date(2025, 6, 2),
+                    dt.date(2025, 6, 2),
                     ActionType.DIVIDEND,
                     "BAR",
                     None,
@@ -4156,7 +4138,7 @@ WITH_A_DIVIDEND_IN_2015 = [
         pytest.param(
             2009,
             45000,
-            _sold_at_a_gain_or_loss([(datetime.date(2009, 6, 1), 1000, 21100)]),
+            _sold_at_a_gain_or_loss([(dt.date(2009, 6, 1), 1000, 21100)]),
             ["Tax at 18%: £1,800.00", ESTIMATE_NOTE],
             id="income makes no difference to a single rate",
         ),
@@ -4213,10 +4195,10 @@ def test_a_report_of_part_of_a_tax_year_shows_no_tax() -> None:
         SharePrices(),
         interest_fund_tickers=[],
         balance_check=False,
-        period_start=datetime.date(2025, 4, 6),
-        period_end=datetime.date(2025, 12, 31),
+        period_start=dt.date(2025, 4, 6),
+        period_end=dt.date(2025, 12, 31),
     )
-    sales = [(datetime.date(2025, 6, 2), 1000, 16000)]
+    sales = [(dt.date(2025, 6, 2), 1000, 16000)]
 
     text = render_text(get_report(calculator, _sold_at_a_gain_or_loss(sales)))
 
@@ -4256,9 +4238,9 @@ def test_acquisitions_before_2010_join_the_pool() -> None:
     """A purchase from 2009 is part of the pool a 2020 sale draws on (CG51550)."""
     calculator = create_calculator(tax_year=2020, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(2009, 6, 1), ActionType.BUY, "AAA", 100, 100),
-        _gbp_trade(datetime.date(2015, 6, 1), ActionType.BUY, "AAA", 100, 300),
-        _gbp_trade(datetime.date(2020, 6, 1), ActionType.SELL, "AAA", 50, 200),
+        _gbp_trade(dt.date(2009, 6, 1), ActionType.BUY, "AAA", 100, 100),
+        _gbp_trade(dt.date(2015, 6, 1), ActionType.BUY, "AAA", 100, 300),
+        _gbp_trade(dt.date(2020, 6, 1), ActionType.SELL, "AAA", 50, 200),
     ]
 
     report = get_report(calculator, transactions)
@@ -4271,15 +4253,15 @@ def test_acquisitions_before_2010_join_the_pool() -> None:
     ("transactions", "message"),
     [
         pytest.param(
-            [_gbp_trade(datetime.date(1982, 4, 5), ActionType.BUY, "AAA", 100, 100)],
+            [_gbp_trade(dt.date(1982, 4, 5), ActionType.BUY, "AAA", 100, 100)],
             "shares held on 6 April 1982 are pooled at their 31 March 1982 "
             "market value",
             id="held on 6 April 1982",
         ),
         pytest.param(
             [
-                _gbp_trade(datetime.date(2005, 1, 3), ActionType.BUY, "AAA", 100, 100),
-                _gbp_trade(datetime.date(2008, 4, 5), ActionType.SELL, "AAA", 50, 200),
+                _gbp_trade(dt.date(2005, 1, 3), ActionType.BUY, "AAA", 100, 100),
+                _gbp_trade(dt.date(2008, 4, 5), ActionType.SELL, "AAA", 50, 200),
             ],
             "it disposes of shares or changes their cost before 6 April 2008",
             id="sold before 6 April 2008",
@@ -4300,8 +4282,8 @@ def test_history_from_the_first_day_each_rule_allows_is_used() -> None:
     """A purchase on 6 April 1982 and a sale on 6 April 2008 are both priced."""
     calculator = create_calculator(tax_year=2008, balance_check=False)
     transactions = [
-        _gbp_trade(datetime.date(1982, 4, 6), ActionType.BUY, "AAA", 100, 100),
-        _gbp_trade(datetime.date(2008, 4, 6), ActionType.SELL, "AAA", 50, 200),
+        _gbp_trade(dt.date(1982, 4, 6), ActionType.BUY, "AAA", 100, 100),
+        _gbp_trade(dt.date(2008, 4, 6), ActionType.SELL, "AAA", 50, 200),
     ]
 
     report = get_report(calculator, transactions)
@@ -4350,7 +4332,7 @@ def test_an_action_the_calculation_does_not_process_is_refused_by_name() -> None
     calculation from there; written by hand, it does.
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    cancel = _gbp_trade(datetime.date(2024, 5, 1), ActionType.CANCEL_BUY, "FOO", 1, 10)
+    cancel = _gbp_trade(dt.date(2024, 5, 1), ActionType.CANCEL_BUY, "FOO", 1, 10)
 
     with pytest.raises(
         InvalidTransactionError,

@@ -27,7 +27,7 @@ from .stock_splits import (
 from .util import indent_entry, strip_zeros
 
 if TYPE_CHECKING:
-    import datetime
+    import datetime as dt
 
     from .calculator_state import CalculatorState
     from .model import BrokerTransaction, TransactionSource
@@ -57,7 +57,7 @@ def source_account(transaction: BrokerTransaction) -> str:
 
 
 def _relative_to_split(
-    instants: tuple[datetime.datetime, ...],
+    instants: tuple[dt.datetime, ...],
     split_source: TransactionSource | None,
     other_source: TransactionSource | None,
 ) -> Literal["before", "after"] | None:
@@ -111,7 +111,7 @@ def _relative_to_split(
 
 def plan_stock_splits(
     state: CalculatorState,
-    date_index: datetime.date,
+    date_index: dt.date,
     day_transactions: list[BrokerTransaction],
 ) -> None:
     """Decide what each of the day's reorganisations does to a holding.
@@ -192,9 +192,9 @@ def _conflicting_reorganisation_times(
     for every file, so an index from one file says nothing about a row in
     another. Nothing here reads an index.
     """
-    times_by_source: dict[
-        tuple[str | None, str | None], list[datetime.datetime | None]
-    ] = defaultdict(list)
+    times_by_source: dict[tuple[str | None, str | None], list[dt.datetime | None]] = (
+        defaultdict(list)
+    )
     for row in rows:
         source = row.source
         source_key = (
@@ -217,7 +217,7 @@ def _conflicting_reorganisation_times(
 
 def _sole_reorganisation(
     symbol: str,
-    date_index: datetime.date,
+    date_index: dt.date,
     rows: list[BrokerTransaction],
 ) -> BrokerTransaction:
     """Return the one row the day's reorganisation of ``symbol`` is taken from.
@@ -289,7 +289,7 @@ def _sole_reorganisation(
 
 def _plan_stock_split(
     state: CalculatorState,
-    date_index: datetime.date,
+    date_index: dt.date,
     symbol: str,
     row: BrokerTransaction,
     day_transactions: list[BrokerTransaction],
@@ -455,7 +455,7 @@ def _plan_stock_split(
         state.history.split_day_capacity[name, date_index] = capacity
 
 
-def _split_instants(row: BrokerTransaction) -> tuple[datetime.datetime, ...]:
+def _split_instants(row: BrokerTransaction) -> tuple[dt.datetime, ...]:
     """Instants the export stamped on the rows behind a reorganisation."""
     if isinstance(row, StockSplitTransaction):
         return row.event.instants
@@ -468,9 +468,9 @@ def _stock_split_event(
     state: CalculatorState,
     row: BrokerTransaction,
     symbol: str,
-    date_index: datetime.date,
+    date_index: dt.date,
     holding_at_event: Decimal,
-    instants: tuple[datetime.datetime, ...],
+    instants: tuple[dt.datetime, ...],
     before_rows: list[BrokerTransaction],
 ) -> StockSplitEvent:
     """Return the reorganisation this row states.
@@ -529,7 +529,7 @@ def _stock_split_event(
 
 def _two_splits_message(
     symbol: str,
-    date_index: datetime.date,
+    date_index: dt.date,
     rows: list[BrokerTransaction],
 ) -> str:
     """Explain why two reorganisations of one holding cannot be combined."""
@@ -569,10 +569,10 @@ def _two_splits_message(
 
 def _split_chronology_message(
     symbol: str,
-    date_index: datetime.date,
+    date_index: dt.date,
     row: BrokerTransaction,
     other: BrokerTransaction,
-    instants: tuple[datetime.datetime, ...],
+    instants: tuple[dt.datetime, ...],
 ) -> str:
     """Explain why a same-day row cannot be placed around a reorganisation.
 
@@ -649,7 +649,7 @@ def _unresolved_scaling_message(event: StockSplitEvent) -> str:
 
 def _broker_split_delta_message(
     symbol: str,
-    date_index: datetime.date,
+    date_index: dt.date,
     account: str,
     others: list[str],
 ) -> str:

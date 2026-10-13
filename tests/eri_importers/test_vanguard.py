@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -22,7 +22,7 @@ HEADER: list[object] = [
     "Excess of reporting income",
 ]
 PERIOD = "01 January 2024 to 31 December 2024"
-PERIOD_END = datetime.date(2024, 12, 31)
+PERIOD_END = dt.date(2024, 12, 31)
 
 
 def test_parse_header_in_first_row(tmp_path: Path) -> None:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import datetime
+import datetime as dt
 from decimal import Decimal
 import logging
 from pathlib import Path
@@ -30,7 +30,7 @@ def year_type(value: str) -> int:
         raise argparse.ArgumentTypeError(f"invalid int value: '{value}'") from err
 
     min_year = EARLIEST_TAX_YEAR
-    max_year = datetime.datetime.now().year
+    max_year = dt.datetime.now().year
 
     if year < min_year or year > max_year:
         raise argparse.ArgumentTypeError(
@@ -54,10 +54,10 @@ def income_type(value: str) -> Decimal:
     return Decimal(value)
 
 
-def date_type(value: str) -> datetime.date:
+def date_type(value: str) -> dt.date:
     """Validate and convert ISO format date argument."""
     try:
-        return datetime.date.fromisoformat(value)
+        return dt.date.fromisoformat(value)
     except ValueError as err:
         raise argparse.ArgumentTypeError(
             f"invalid date value: '{value}', expected YYYY-MM-DD"

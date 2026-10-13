@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 import csv
-import datetime
+import datetime as dt
 from decimal import Decimal
 from enum import StrEnum
 from itertools import chain
@@ -47,7 +47,7 @@ HEADER_LINE: Final = ",".join(COLUMNS) + "\n"
 LOGGER = logging.getLogger(__name__)
 
 
-def _parse_timestamp(value: str) -> datetime.datetime:
+def _parse_timestamp(value: str) -> dt.datetime:
     """Convert a Revolut timestamp to the instant it names, in UTC.
 
     The export states its times in UTC, so a value without a zone is read
@@ -61,12 +61,12 @@ def _parse_timestamp(value: str) -> datetime.datetime:
     """
 
     try:
-        timestamp = datetime.datetime.fromisoformat(value)
+        timestamp = dt.datetime.fromisoformat(value)
     except ValueError as err:
         raise ValueError(f"Invalid timestamp: {value!r}") from err
     if timestamp.tzinfo is None:
-        timestamp = timestamp.replace(tzinfo=datetime.UTC)
-    return timestamp.astimezone(datetime.UTC)
+        timestamp = timestamp.replace(tzinfo=dt.UTC)
+    return timestamp.astimezone(dt.UTC)
 
 
 def _action_from_str(label: str, file: Path) -> ActionType:
@@ -277,9 +277,9 @@ class RevolutParser(StandardCSVParser[RevolutTransaction]):
                 "that tax is not shown as tax at source. See "
                 "https://cgt-calc.uk/brokers/revolut/#dividends-and-withholding-tax"
             )
-        corrections: defaultdict[
-            tuple[str | None, datetime.date, CurrencyCode], Decimal
-        ] = defaultdict(Decimal)
+        corrections: defaultdict[tuple[str | None, dt.date, CurrencyCode], Decimal] = (
+            defaultdict(Decimal)
+        )
         for transaction in transactions:
             if transaction.action is ActionType.DIVIDEND_TAX:
                 assert transaction.amount is not None, "a Revolut row has a total"

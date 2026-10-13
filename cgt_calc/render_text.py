@@ -16,7 +16,7 @@ from .model import RuleType
 from .util import exact_str, round_decimal, strip_zeros
 
 if TYPE_CHECKING:
-    import datetime
+    import datetime as dt
 
     from .model import CapitalGainsReport
 
@@ -167,7 +167,7 @@ def _summary_rows(
     ]
 
 
-def _rates_on(date: datetime.date) -> tuple[int, int]:
+def _rates_on(date: dt.date) -> tuple[int, int]:
     """Return the basic and higher Capital Gains Tax rates on a day's disposals."""
     return next(
         (basic, higher)

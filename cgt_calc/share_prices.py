@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
-import datetime
+import datetime as dt
 from decimal import Decimal, InvalidOperation
 from importlib import resources
 from pathlib import Path
@@ -32,7 +32,7 @@ SHARE_PRICES_COLUMNS_NUM: Final = len(SHARE_PRICES_HEADER)
 class SharePricesEntry:
     """Entry from a share prices file."""
 
-    date: datetime.date
+    date: dt.date
     symbol: str
     price: Decimal
 
@@ -54,10 +54,10 @@ class SharePricesEntry:
             )
 
     @staticmethod
-    def _parse_date(date_str: str, file: Path) -> datetime.date:
+    def _parse_date(date_str: str, file: Path) -> dt.date:
         """Parse date from string."""
         try:
-            return datetime.datetime.strptime(date_str, "%b %d, %Y").date()
+            return dt.datetime.strptime(date_str, "%b %d, %Y").date()
         except ValueError as err:
             raise ParsingError(
                 file,
@@ -78,7 +78,7 @@ class SharePrices:
         self.prices_file = prices_file
         self.prices = self._read_prices()
 
-    def get(self, date: datetime.date, symbol: str, currency: str) -> Decimal:
+    def get(self, date: dt.date, symbol: str, currency: str) -> Decimal:
         """Get the price of a share on a date, for a transaction in `currency`.
 
         A price from a file the user passed is in the transaction's currency.
@@ -92,7 +92,7 @@ class SharePrices:
             raise BundledPriceCurrencyError(symbol, date, currency)
         return self.prices[date][symbol]
 
-    def closing_prices(self) -> dict[str, dict[datetime.date, Decimal]]:
+    def closing_prices(self) -> dict[str, dict[dt.date, Decimal]]:
         """Return the prices of a file the user passed, by symbol then date.
 
         Empty when no file was passed. These price spin-offs as well as
@@ -100,7 +100,7 @@ class SharePrices:
         symbols and dates, and a spin-off priced from them would change runs
         that work today.
         """
-        prices: dict[str, dict[datetime.date, Decimal]] = {}
+        prices: dict[str, dict[dt.date, Decimal]] = {}
         if self.prices_file is None:
             return prices
         for date, by_symbol in self.prices.items():
@@ -108,9 +108,9 @@ class SharePrices:
                 prices.setdefault(symbol, {})[date] = price
         return prices
 
-    def _read_prices(self) -> dict[datetime.date, dict[str, Decimal]]:
+    def _read_prices(self) -> dict[dt.date, dict[str, Decimal]]:
         """Read share prices from CSV file."""
-        prices: dict[datetime.date, dict[str, Decimal]] = {}
+        prices: dict[dt.date, dict[str, Decimal]] = {}
         if self.prices_file is None:
             with (
                 resources.files(RESOURCES_PACKAGE)
@@ -131,7 +131,7 @@ class SharePrices:
             raise UnexpectedHeaderError(lines[0], SHARE_PRICES_HEADER, file)
         lines = lines[1:]
         # The ticker each price was written under, to name an earlier one.
-        stated: dict[tuple[datetime.date, str], str] = {}
+        stated: dict[tuple[dt.date, str], str] = {}
         for index, row in enumerate(lines, start=2):
             # Skip harmless blank rows left by editors or tooling.
             if is_blank_row(row):

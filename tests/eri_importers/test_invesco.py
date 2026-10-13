@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 from typing import TYPE_CHECKING, cast
 
@@ -127,7 +127,7 @@ def _build_pdf(
 
 
 def _check_result_transactions(
-    transactions: list[ERITransaction], period_end: datetime.date
+    transactions: list[ERITransaction], period_end: dt.date
 ) -> None:
     """Assert the transactions parsed from DATA_ROWS."""
     assert len(transactions) == 2
@@ -155,7 +155,7 @@ def test_parse_v1_report(tmp_path: Path) -> None:
 
     assert result is not None
     assert result.output_file_name == "invesco_eri.csv"
-    _check_result_transactions(result.transactions, datetime.date(2022, 6, 30))
+    _check_result_transactions(result.transactions, dt.date(2022, 6, 30))
 
 
 def test_parse_v2_report(tmp_path: Path) -> None:
@@ -172,7 +172,7 @@ def test_parse_v2_report(tmp_path: Path) -> None:
     result = InvescoImporter().parse(file)
 
     assert result is not None
-    _check_result_transactions(result.transactions, datetime.date(2023, 12, 31))
+    _check_result_transactions(result.transactions, dt.date(2023, 12, 31))
 
 
 def test_old_report_is_ignored(tmp_path: Path) -> None:
@@ -380,7 +380,7 @@ def test_short_data_row_fails_loudly(tmp_path: Path) -> None:
 
     with pytest.raises(ParsingError, match="has 2 cells, expected at least 3"):
         InvescoImporter._process_data_table(  # noqa: SLF001
-            1, data_table, datetime.date(2024, 12, 31), colmap, tmp_path / "x.pdf"
+            1, data_table, dt.date(2024, 12, 31), colmap, tmp_path / "x.pdf"
         )
 
 

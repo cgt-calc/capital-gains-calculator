@@ -7,7 +7,7 @@ means which event, what is counted, what the running totals come to.
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 
 import pytest
@@ -31,8 +31,8 @@ from cgt_calc.report_view import (
     build_report_view,
 )
 
-DAY = datetime.date(2024, 6, 10)
-OTHER_DAY = datetime.date(2024, 6, 11)
+DAY = dt.date(2024, 6, 10)
+OTHER_DAY = dt.date(2024, 6, 11)
 
 
 def _entry(
@@ -45,7 +45,7 @@ def _entry(
     allowable_cost: str = "0",
     new_quantity: str = "0",
     new_pool_cost: str = "0",
-    bed_and_breakfast_date_index: datetime.date | None = None,
+    bed_and_breakfast_date_index: dt.date | None = None,
     spin_off: SpinOff | None = None,
     dividend: Dividend | None = None,
     eris: list[ExcessReportedIncome] | None = None,
@@ -81,8 +81,8 @@ def _disposal(gain: str, *, quantity: str = "1") -> CalculationEntry:
 
 
 def _report(
-    log: dict[datetime.date, dict[str, list[CalculationEntry]]] | None = None,
-    yields: dict[datetime.date, dict[str, list[CalculationEntry]]] | None = None,
+    log: dict[dt.date, dict[str, list[CalculationEntry]]] | None = None,
+    yields: dict[dt.date, dict[str, list[CalculationEntry]]] | None = None,
 ) -> CapitalGainsReport:
     """Build a report carrying nothing but the calculation logs under test."""
     return CapitalGainsReport(

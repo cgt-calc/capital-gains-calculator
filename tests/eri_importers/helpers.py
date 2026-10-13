@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 if TYPE_CHECKING:
-    import datetime
+    import datetime as dt
     from decimal import Decimal
     from pathlib import Path
 
@@ -23,7 +23,7 @@ def write_xlsx(path: Path, rows: list[list[object]]) -> Path:
 def check_transaction(
     transaction: ERITransaction,
     isin: str,
-    date: datetime.date,
+    date: dt.date,
     price: Decimal,
     currency: str,
 ) -> None:

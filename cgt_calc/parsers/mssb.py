@@ -8,7 +8,7 @@ brokerage accounts.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import datetime
+import datetime as dt
 from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
@@ -73,7 +73,7 @@ class StockSplit:
     """A split whose earlier sales the withdrawal report leaves in old units."""
 
     symbol: str
-    date: datetime.date
+    date: dt.date
     """Last day on which the report prints sales in pre-split units.
 
     Morgan Stanley's notice puts sales "on or prior to" the split date in
@@ -84,7 +84,7 @@ class StockSplit:
 
 
 STOCK_SPLIT_INFO = [
-    StockSplit(symbol="GOOG", date=datetime.datetime(2022, 7, 15).date(), factor=20),
+    StockSplit(symbol="GOOG", date=dt.datetime(2022, 7, 15).date(), factor=20),
 ]
 
 
@@ -173,9 +173,7 @@ class MSSBParser(
         symbol = KNOWN_SYMBOL_DICT[plan]
 
         return BrokerTransaction(
-            date=datetime.datetime.strptime(
-                row[ReleaseColumn.VEST_DATE], "%d-%b-%Y"
-            ).date(),
+            date=dt.datetime.strptime(row[ReleaseColumn.VEST_DATE], "%d-%b-%Y").date(),
             action=ActionType.STOCK_ACTIVITY,
             symbol=symbol,
             description=plan,
@@ -236,7 +234,7 @@ class MSSBParser(
 
         symbol = KNOWN_SYMBOL_DICT[plan]
         transaction = BrokerTransaction(
-            date=datetime.datetime.strptime(
+            date=dt.datetime.strptime(
                 row[WithdrawalColumn.EXECUTION_DATE], "%d-%b-%Y"
             ).date(),
             action=action,

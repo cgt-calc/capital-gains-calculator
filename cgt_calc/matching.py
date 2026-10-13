@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, replace
-import datetime
+import datetime as dt
 from decimal import Decimal
 from fractions import Fraction
 import logging
@@ -47,7 +47,7 @@ class WalkResult(NamedTuple):
     disposal_count: int
     disposal_proceeds: Decimal
     allowable_costs: Decimal
-    gains_by_date: dict[datetime.date, Decimal]
+    gains_by_date: dict[dt.date, Decimal]
     """Each day's gains: the rate a gain is taxed at depends on its date."""
     capital_loss: Decimal
     gift_loss: Decimal
@@ -79,7 +79,7 @@ class DisposalContext:
     symbol: str
     identity: DayIdentity
     cost_holder: str
-    date_index: datetime.date
+    date_index: dt.date
     no_gain_no_loss: bool
     disposal: HmrcTransactionData
     disposal_quantity: Decimal
@@ -138,10 +138,10 @@ class Matcher:
     def __init__(
         self,
         state: CalculatorState,
-        tax_year_start_date: datetime.date,
-        tax_year_end_date: datetime.date,
+        tax_year_start_date: dt.date,
+        tax_year_end_date: dt.date,
         interest_fund_tickers: list[str],
-        date_in_tax_year: Callable[[datetime.date], bool],
+        date_in_tax_year: Callable[[dt.date], bool],
         is_cgt_exempt: Callable[[str], bool],
     ):
         """Create matcher object."""
@@ -157,11 +157,11 @@ class Matcher:
         # to tell a holding of a name's own from what the day put there.
         self._day_open_pools: dict[str, Position] = {}
 
-    def get_eri(self, symbol: str, date: datetime.date) -> ExcessReportedIncome | None:
+    def get_eri(self, symbol: str, date: dt.date) -> ExcessReportedIncome | None:
         """Return Excess Reported Income at specific date for the input symbol."""
         return self.history.eris.get(date, {}).get(symbol)
 
-    def _disposal_log_prefix(self, date_index: datetime.date, symbol: str) -> str:
+    def _disposal_log_prefix(self, date_index: dt.date, symbol: str) -> str:
         """Name the kind of disposal recorded for a symbol on a day.
 
         A sale with a gift to someone unconnected is one ordinary disposal,
@@ -184,7 +184,7 @@ class Matcher:
     def process_acquisition(
         self,
         symbol: str,
-        date_index: datetime.date,
+        date_index: dt.date,
     ) -> list[CalculationEntry]:
         """Process single acquisition."""
         record = self.history.acquisition_list[date_index][symbol]
@@ -361,7 +361,7 @@ class Matcher:
     def process_disposal(
         self,
         symbol: str,
-        date_index: datetime.date,
+        date_index: dt.date,
         *,
         no_gain_no_loss: bool = False,
     ) -> tuple[Decimal, list[CalculationEntry]]:
@@ -431,7 +431,7 @@ class Matcher:
         return ctx.chargeable_gain, ctx.calculation_entries
 
     def _pool_what_the_day_did_not_buy(
-        self, identity: DayIdentity, date_index: datetime.date
+        self, identity: DayIdentity, date_index: dt.date
     ) -> None:
         """Put what today added to the holding without buying it into its pool.
 
@@ -554,14 +554,14 @@ class Matcher:
             # multiplying rounded decimal multipliers day by day compounds the
             # very error the exact ratio removed.
             cumulative_ratio = Fraction(1)
-            unresolved_splits: list[tuple[datetime.date, StockSplitEvent]] = []
+            unresolved_splits: list[tuple[dt.date, StockSplitEvent]] = []
             # A rename recorded on the disposal date itself has taken effect by
             # the time the following days start, so the walk begins under the
             # name it leaves the holding under.
             effective_symbol = ctx.identity.end_name
 
             for i in range(BED_AND_BREAKFAST_DAYS):
-                search_index = ctx.date_index + datetime.timedelta(days=i + 1)
+                search_index = ctx.date_index + dt.timedelta(days=i + 1)
                 # HMRC treats renames as the same security for B&B purposes.
                 # A reorganisation is recorded under the name the holding
                 # carried when it happened, which on a day the holding is also
@@ -873,7 +873,7 @@ class Matcher:
             renamed_to=new,
         )
 
-    def apply_split_openings(self, date_index: datetime.date) -> None:
+    def apply_split_openings(self, date_index: dt.date) -> None:
         """Restate every holding a reorganisation touches today.
 
         A reorganisation restates the day's opening pool before any of the
@@ -1020,7 +1020,7 @@ class Matcher:
         """Return what this name held as the day opened, before its own rows."""
         return self._day_open_pools.get(symbol, Position())
 
-    def _shares_already_moved(self, symbol: str, date_index: datetime.date) -> bool:
+    def _shares_already_moved(self, symbol: str, date_index: dt.date) -> bool:
         """Whether the day's own earlier rows have moved shares from this name.
 
         What the name opened the day with, plus what the day bought under it,
@@ -1044,9 +1044,7 @@ class Matcher:
             != opened_with + self._matchable_acquisition(date_index, symbol).quantity
         )
 
-    def _holds_cost_without_shares(
-        self, symbol: str, date_index: datetime.date
-    ) -> bool:
+    def _holds_cost_without_shares(self, symbol: str, date_index: dt.date) -> bool:
         """Whether this name holds pooled cost that no shares of its own carry.
 
         A management fee is recorded as cost with no shares, so a name can
@@ -1069,9 +1067,7 @@ class Matcher:
             acquired.quantity == 0 and acquired.amount != 0
         )
 
-    def _same_day_claims(
-        self, date_index: datetime.date, symbol: str
-    ) -> HmrcTransactionData:
+    def _same_day_claims(self, date_index: dt.date, symbol: str) -> HmrcTransactionData:
         """Return what a day's own disposals take out of its acquisition first.
 
         The same-day rule comes before the 30-day rule (CG51560), so shares
@@ -1098,7 +1094,7 @@ class Matcher:
                     claimed = claimed + claims[date_index][name]
         return claimed
 
-    def _unclaimed_acquisition(self, date_index: datetime.date, symbol: str) -> Decimal:
+    def _unclaimed_acquisition(self, date_index: dt.date, symbol: str) -> Decimal:
         """Return what a day's purchases under this name still have to give.
 
         The same-day rule comes first (CG51560) and an earlier disposal's own
@@ -1116,7 +1112,7 @@ class Matcher:
         return acquisition.quantity - claimed
 
     def _day_identity(
-        self, symbol: str, date_index: datetime.date, *, after_renames: bool = False
+        self, symbol: str, date_index: dt.date, *, after_renames: bool = False
     ) -> DayIdentity:
         """Resolve which names are this holding on the day it is disposed of.
 
@@ -1221,7 +1217,7 @@ class Matcher:
     def _acquisition_identity(
         self,
         symbol: str,
-        date_index: datetime.date,
+        date_index: dt.date,
         end_name: str,
         pool_name: str,
         names: frozenset[str],
@@ -1249,8 +1245,8 @@ class Matcher:
 
     def record_split_reconciliations(
         self,
-        date_index: datetime.date,
-        tax_year_start_index: datetime.date,
+        date_index: dt.date,
+        tax_year_start_index: dt.date,
         calculation_log: CalculationLog,
     ) -> None:
         """Reconcile every reorganisation today to the broker's own count.
@@ -1309,7 +1305,7 @@ class Matcher:
                 )
             ]
 
-    def verify_split_day_closes(self, date_index: datetime.date) -> None:
+    def verify_split_day_closes(self, date_index: dt.date) -> None:
         """Check every reorganisation today left the holding where it said.
 
         A holding renamed today is checked under the name it was renamed to:
@@ -1337,7 +1333,7 @@ class Matcher:
     @staticmethod
     def _rename_and_split_message(
         symbol: str,
-        date_index: datetime.date,
+        date_index: dt.date,
         other: str,
         rename: tuple[str, str],
     ) -> str:
@@ -1360,8 +1356,8 @@ class Matcher:
     def _unresolved_bnb_message(
         event: StockSplitEvent,
         symbol: str,
-        date_index: datetime.date,
-        search_index: datetime.date,
+        date_index: dt.date,
+        search_index: dt.date,
     ) -> str:
         """Explain why an unrecoverable ratio blocks a bed and breakfast match."""
         assert isinstance(event.ratio, UnresolvedRatio)
@@ -1378,8 +1374,8 @@ class Matcher:
     @staticmethod
     def _merged_repurchase_message(
         symbol: str,
-        date_index: datetime.date,
-        search_index: datetime.date,
+        date_index: dt.date,
+        search_index: dt.date,
         names: list[str],
         bought_under: list[str],
     ) -> str:
@@ -1406,8 +1402,8 @@ class Matcher:
     @staticmethod
     def _split_repurchase_message(
         symbol: str,
-        date_index: datetime.date,
-        search_index: datetime.date,
+        date_index: dt.date,
+        search_index: dt.date,
         bought_under: list[str],
     ) -> str:
         """Explain why a day's purchases under two names block a 30-day match."""
@@ -1424,7 +1420,7 @@ class Matcher:
             "(consider professional advice)."
         )
 
-    def _spin_off_pool(self, date_index: datetime.date, source: str, dest: str) -> str:
+    def _spin_off_pool(self, date_index: dt.date, source: str, dest: str) -> str:
         """Return the symbol whose pool a spin-off from `source` draws on today.
 
         A rename on the day is applied after the day's acquisitions, so a
@@ -1503,7 +1499,7 @@ class Matcher:
             )
         return holding[0] if holding else source
 
-    def _acquisition_order(self, date_index: datetime.date) -> list[str]:
+    def _acquisition_order(self, date_index: dt.date) -> list[str]:
         """Return the day's acquired symbols, each spun-off holding after its source.
 
         A spin-off takes its share of the source's pool as it stands on the
@@ -1556,8 +1552,8 @@ class Matcher:
         cumulative_ratio: Fraction,
         *,
         symbol: str,
-        date_index: datetime.date,
-        search_index: datetime.date,
+        date_index: dt.date,
+        search_index: dt.date,
     ) -> tuple[Decimal, Decimal]:
         """Match a disposal against an acquisition counted in other units.
 
@@ -1604,8 +1600,8 @@ class Matcher:
     @staticmethod
     def _unrepresentable_match_message(
         symbol: str,
-        date_index: datetime.date,
-        search_index: datetime.date,
+        date_index: dt.date,
+        search_index: dt.date,
         cumulative_ratio: Fraction,
     ) -> str:
         """Explain a match the two unit systems cannot both express."""
@@ -1621,7 +1617,7 @@ class Matcher:
 
     def _matchable_acquisition(
         self,
-        date_index: datetime.date,
+        date_index: dt.date,
         symbol: str,
     ) -> HmrcTransactionData:
         """Return all of a day's additions to a holding, spin-off cost corrected.
@@ -1645,7 +1641,7 @@ class Matcher:
 
     def _identifiable_acquisition(
         self,
-        date_index: datetime.date,
+        date_index: dt.date,
         symbol: str,
     ) -> HmrcTransactionData:
         """Return the part of a day a disposal may be identified against.
@@ -1674,9 +1670,9 @@ class Matcher:
     def _contending_acquisitions(
         self,
         identity: DayIdentity,
-        date_index: datetime.date,
-        bnb_claimed_before_today: dict[tuple[datetime.date, str], Decimal],
-    ) -> list[datetime.date]:
+        date_index: dt.date,
+        bnb_claimed_before_today: dict[tuple[dt.date, str], Decimal],
+    ) -> list[dt.date]:
         """Dates a same-day sale and transfer of one holding would both claim.
 
         Left to the Section 104 pool alone the two draw at the same average
@@ -1690,7 +1686,7 @@ class Matcher:
         effective_symbol = identity.end_name
 
         def has_shares_going_spare(
-            day: datetime.date, ticker: str, *, is_disposal_day: bool
+            day: dt.date, ticker: str, *, is_disposal_day: bool
         ) -> bool:
             # Only what is left over is worth arguing about, and only what
             # either of them could be identified against at all: shares a
@@ -1722,7 +1718,7 @@ class Matcher:
         ):
             dates.append(date_index)
         for i in range(BED_AND_BREAKFAST_DAYS):
-            search_index = date_index + datetime.timedelta(days=i + 1)
+            search_index = date_index + dt.timedelta(days=i + 1)
             # HMRC treats renames as the same security for B&B purposes, and a
             # rename that day leaves the purchase under either spelling, so
             # every name the day connects is asked. Reading one name here
@@ -1739,7 +1735,7 @@ class Matcher:
         return dates
 
     @staticmethod
-    def _show_dates(dates: list[datetime.date]) -> str:
+    def _show_dates(dates: list[dt.date]) -> str:
         """Name a few of the dates, and say how many more there are."""
         shown = ", ".join(str(date) for date in dates[:MAX_CONTENDED_DATES_SHOWN])
         if len(dates) > MAX_CONTENDED_DATES_SHOWN:
@@ -1748,8 +1744,8 @@ class Matcher:
 
     @staticmethod
     def _day_rows(
-        log: dict[datetime.date, dict[str, HmrcTransactionData]],
-        date_index: datetime.date,
+        log: dict[dt.date, dict[str, HmrcTransactionData]],
+        date_index: dt.date,
         identity: DayIdentity,
         *,
         skip: str | None = None,
@@ -1765,8 +1761,8 @@ class Matcher:
         self,
         identity: DayIdentity,
         symbol: str,
-        date_index: datetime.date,
-        contended: list[datetime.date],
+        date_index: dt.date,
+        contended: list[dt.date],
     ) -> str:
         """Explain why two transfer rows cannot share the day's purchase."""
         elsewhere = self._day_rows(
@@ -1799,8 +1795,8 @@ class Matcher:
         self,
         identity: DayIdentity,
         symbol: str,
-        date_index: datetime.date,
-        contended: list[datetime.date],
+        date_index: dt.date,
+        contended: list[dt.date],
     ) -> str:
         """Explain why a same-day sale and transfer cannot be calculated."""
         disposed = self._day_rows(self.history.disposal_list, date_index, identity)
@@ -1851,10 +1847,10 @@ class Matcher:
 
     def _record_transfers_to_spouse(
         self,
-        date_index: datetime.date,
-        tax_year_start_index: datetime.date,
+        date_index: dt.date,
+        tax_year_start_index: dt.date,
         calculation_log: CalculationLog,
-        bnb_claimed_before_today: dict[tuple[datetime.date, str], Decimal],
+        bnb_claimed_before_today: dict[tuple[dt.date, str], Decimal],
     ) -> None:
         """Process and log no gain/no loss transfers to spouse for a single day.
 
@@ -1914,7 +1910,7 @@ class Matcher:
     def process_eri(
         self,
         symbol: str,
-        date_index: datetime.date,
+        date_index: dt.date,
     ) -> CalculationEntry | None:
         """Process single excess reported income."""
         eri = self.get_eri(symbol, date_index)
@@ -1964,9 +1960,9 @@ class Matcher:
 
     def _record_option_disposals(
         self,
-        date_index: datetime.date,
+        date_index: dt.date,
         calculation_log: CalculationLog,
-        gains_by_date: dict[datetime.date, Decimal],
+        gains_by_date: dict[dt.date, Decimal],
     ) -> tuple[int, Decimal, Decimal, Decimal]:
         """Add one day's written-option grants to the report totals and log."""
         count = 0
@@ -2009,7 +2005,7 @@ class Matcher:
         disposal_count = 0
         disposal_proceeds = Decimal(0)
         allowable_costs = Decimal(0)
-        gains_by_date: dict[datetime.date, Decimal] = defaultdict(Decimal)
+        gains_by_date: dict[dt.date, Decimal] = defaultdict(Decimal)
         capital_loss = Decimal(0)
         gift_loss = Decimal(0)
         exempt_disposal_count = 0
@@ -2022,7 +2018,7 @@ class Matcher:
         calculation_log: CalculationLog = defaultdict(dict)
 
         for date_index in (
-            begin_index + datetime.timedelta(days=x)
+            begin_index + dt.timedelta(days=x)
             for x in range((end_index - begin_index).days + 1)
         ):
             # What earlier disposals have already bed-and-breakfasted, captured

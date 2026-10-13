@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import csv
-import datetime
+import datetime as dt
 from decimal import Decimal
 import io
 import logging
@@ -381,7 +381,7 @@ def test_read_raw_transactions_ignores_spaces_around_a_value(
 
     (transaction,) = RawParser().load_from_file(raw_file)
 
-    assert transaction.date == datetime.date(2024, 1, 2)
+    assert transaction.date == dt.date(2024, 1, 2)
     assert transaction.action == ActionType.BUY
     assert transaction.symbol == "BRK B"
 

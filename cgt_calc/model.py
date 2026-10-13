@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-import datetime
+import datetime as dt
 from decimal import Decimal
 from enum import Enum
 import re
@@ -95,7 +95,7 @@ class SpinOff:
     # Destination ticker to which SpinOff happened, e.g. SOLV for MMM
     dest: str
     # When the spin-off happened
-    date: datetime.date
+    date: dt.date
     # Shares received under this row, and the closing prices on the day. A
     # holding split across brokers arrives as one row per broker; the split
     # of value is worked out across all of them together.
@@ -124,8 +124,8 @@ class ExcessReportedIncome:
 
     price: Decimal
     symbol: str
-    date: datetime.date
-    distribution_date: datetime.date
+    date: dt.date
+    distribution_date: dt.date
     is_interest: bool
 
 
@@ -245,7 +245,7 @@ class OptionContract:
     """Identity and delivery terms of a standard equity option contract."""
 
     underlying: str
-    expiry: datetime.date
+    expiry: dt.date
     strike: Decimal
     option_type: OptionType
     multiplier: Decimal = Decimal(100)
@@ -268,7 +268,7 @@ class OptionContract:
 class DatedAmount:
     """An amount converted for tax at the exchange rate on its own date."""
 
-    date: datetime.date
+    date: dt.date
     amount: Decimal
     currency: CurrencyCode
 
@@ -312,18 +312,18 @@ class CapitalAdjustment:
     ``fees`` records the related incidental cost separately for reporting.
     """
 
-    date: datetime.date
+    date: dt.date
     net_amount: Decimal
     fees: Decimal
     currency: CurrencyCode
 
 
-HmrcTransactionLog = dict[datetime.date, dict[str, HmrcTransactionData]]
-AcquisitionLog = dict[datetime.date, dict[str, DayAcquisitions]]
-ForeignAmountLog = dict[tuple[str, datetime.date], ForeignCurrencyAmount]
-ExcessReportedIncomeLog = dict[datetime.date, dict[str, ExcessReportedIncome]]
+HmrcTransactionLog = dict[dt.date, dict[str, HmrcTransactionData]]
+AcquisitionLog = dict[dt.date, dict[str, DayAcquisitions]]
+ForeignAmountLog = dict[tuple[str, dt.date], ForeignCurrencyAmount]
+ExcessReportedIncomeLog = dict[dt.date, dict[str, ExcessReportedIncome]]
 ExcessReportedIncomeDistributionLog = dict[
-    datetime.date, dict[str, ExcessReportedIncomeDistribution]
+    dt.date, dict[str, ExcessReportedIncomeDistribution]
 ]
 
 
@@ -428,7 +428,7 @@ class TransactionSource:
     row: int | None = None
     index: int | None = None
     # The instant the export stated, where it states one at all.
-    timestamp: datetime.datetime | None = None
+    timestamp: dt.datetime | None = None
     # Whether this source documents that rows sharing a date are in the order
     # they happened. A hand-written RAW history says so; a broker export does
     # not, and several parsers reorder their rows for the calculation's sake,
@@ -440,7 +440,7 @@ class TransactionSource:
 class BrokerTransaction:
     """Broker transaction data."""
 
-    date: datetime.date
+    date: dt.date
     action: ActionType
     symbol: str | None
     description: str
@@ -615,7 +615,7 @@ class RuleType(Enum):
 class Dividend:
     """Class representing a dividend event."""
 
-    date: datetime.date
+    date: dt.date
     symbol: str
     amount: Decimal
     tax_at_source: Decimal
@@ -643,7 +643,7 @@ class CalculationEntry:
         new_pool_cost: Decimal,
         gain: Decimal | None = None,
         allowable_cost: Decimal | None = None,
-        bed_and_breakfast_date_index: datetime.date | None = None,
+        bed_and_breakfast_date_index: dt.date | None = None,
         spin_off: SpinOff | None = None,
         dividend: Dividend | None = None,
         eris: list[ExcessReportedIncome] | None = None,
@@ -712,7 +712,7 @@ class CalculationEntry:
         )
 
 
-CalculationLog = dict[datetime.date, dict[str, list[CalculationEntry]]]
+CalculationLog = dict[dt.date, dict[str, list[CalculationEntry]]]
 
 
 @dataclass
@@ -791,7 +791,7 @@ class CapitalGainsReport:
     disposal_proceeds: Decimal
     allowable_costs: Decimal
     # Each day's gains: the rate a gain is taxed at depends on its date.
-    gains_by_date: dict[datetime.date, Decimal]
+    gains_by_date: dict[dt.date, Decimal]
     capital_loss: Decimal
     capital_gain_allowance: Decimal | None
     dividend_allowance: Decimal | None
@@ -802,8 +802,8 @@ class CapitalGainsReport:
     total_interest_tax: Decimal
     show_unrealized_gains: bool
     # Custom reporting period within the tax year, if one was requested.
-    period_start: datetime.date | None = None
-    period_end: datetime.date | None = None
+    period_start: dt.date | None = None
+    period_end: dt.date | None = None
     # Losses on gifts, kept out of capital_loss: a loss on a disposal to a
     # connected person is a clogged loss (TCGA 1992 s18(3)). Negative or zero.
     gift_loss: Decimal = Decimal(0)

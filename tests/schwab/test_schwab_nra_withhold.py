@@ -7,7 +7,7 @@ such row stopped the whole import.
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -27,8 +27,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 HEADER = "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
-DIVIDEND_DATE = datetime.date(2024, 6, 27)
-REVERSAL_DATE = datetime.date(2024, 7, 5)
+DIVIDEND_DATE = dt.date(2024, 6, 27)
+REVERSAL_DATE = dt.date(2024, 7, 5)
 
 
 def build_calculator(*, balance_check: bool) -> CapitalGainsCalculator:

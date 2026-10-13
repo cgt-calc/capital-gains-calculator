@@ -14,7 +14,7 @@ intended:
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from fractions import Fraction
 from pathlib import Path
 import tempfile
@@ -45,14 +45,14 @@ if TYPE_CHECKING:
 GOLDEN_DIR = Path(__file__).parent / "data" / "latex"
 REGENERATE = "uv run python -m tests.general.test_render_latex_golden"
 
-JUNE_1 = datetime.date(2024, 6, 1)
-JUNE_3 = datetime.date(2024, 6, 3)
-JUNE_10 = datetime.date(2024, 6, 10)
-JUNE_11 = datetime.date(2024, 6, 11)
-JUNE_12 = datetime.date(2024, 6, 12)
-JUNE_13 = datetime.date(2024, 6, 13)
-JULY_2 = datetime.date(2024, 7, 2)
-JULY_3 = datetime.date(2024, 7, 3)
+JUNE_1 = dt.date(2024, 6, 1)
+JUNE_3 = dt.date(2024, 6, 3)
+JUNE_10 = dt.date(2024, 6, 10)
+JUNE_11 = dt.date(2024, 6, 11)
+JUNE_12 = dt.date(2024, 6, 12)
+JUNE_13 = dt.date(2024, 6, 13)
+JULY_2 = dt.date(2024, 7, 2)
+JULY_3 = dt.date(2024, 7, 3)
 US_ISIN = Isin("US9220427424")
 
 
@@ -80,7 +80,7 @@ def _exempt() -> CapitalGainsReport:
         ),
         [
             transaction(
-                datetime.date(2024, 5, 1),
+                dt.date(2024, 5, 1),
                 ActionType.BUY,
                 "T26",
                 100,
@@ -90,13 +90,13 @@ def _exempt() -> CapitalGainsReport:
                 GBP,
             ),
             transaction(
-                datetime.date(2024, 9, 1), ActionType.SELL, "T26", 50, 120, 0, 6000, GBP
+                dt.date(2024, 9, 1), ActionType.SELL, "T26", 50, 120, 0, 6000, GBP
             ),
             transaction(
-                datetime.date(2024, 9, 2), ActionType.SELL, "T26", 25, 100, 0, 2500, GBP
+                dt.date(2024, 9, 2), ActionType.SELL, "T26", 25, 100, 0, 2500, GBP
             ),
             transaction(
-                datetime.date(2024, 9, 3), ActionType.SELL, "T26", 25, 80, 0, 2000, GBP
+                dt.date(2024, 9, 3), ActionType.SELL, "T26", 25, 80, 0, 2000, GBP
             ),
         ],
     )
@@ -131,10 +131,10 @@ def _rename() -> CapitalGainsReport:
     return get_report(
         create_calculator(tax_year=2024, balance_check=False),
         [
-            _gbp_trade(datetime.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+            _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
             _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 100, 800),
             _rename_transaction(RENAME_DAY, "OLD", "NEW"),
-            _gbp_trade(datetime.date(2024, 5, 20), ActionType.BUY, "NEW", 100, 900),
+            _gbp_trade(dt.date(2024, 5, 20), ActionType.BUY, "NEW", 100, 900),
         ],
     )
 
@@ -199,7 +199,7 @@ def _fee_and_income() -> CapitalGainsReport:
 
 def _dividend_before_the_allowance() -> CapitalGainsReport:
     """Receive a dividend with treaty relief in 2012/13, before the dividend allowance."""
-    day = datetime.date(2012, 6, 1)
+    day = dt.date(2012, 6, 1)
     return get_report(
         create_calculator(tax_year=2012, balance_check=False),
         [

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 import logging
 from typing import TYPE_CHECKING
@@ -30,8 +30,8 @@ if TYPE_CHECKING:
 # The tax year under test, plus one date inside it and one in an earlier year,
 # so that a transaction can be placed inside or outside the reported year.
 TAX_YEAR = 2024
-IN_YEAR_DATE = datetime.date(2024, 6, 3)
-EARLIER_DATE = datetime.date(2022, 6, 3)
+IN_YEAR_DATE = dt.date(2024, 6, 3)
+EARLIER_DATE = dt.date(2022, 6, 3)
 
 
 def _calculator(
@@ -53,7 +53,7 @@ def _calculator(
 
 
 def _dividend_with_unexpected_withholding(
-    date: datetime.date,
+    date: dt.date,
 ) -> list[BrokerTransaction]:
     """Dividend taxed at 30% at source, twice the USA treaty rate."""
     return [
@@ -70,7 +70,7 @@ def _dividend_with_unexpected_withholding(
     ],
 )
 def test_treaty_mismatch_warning_scoped_to_tax_year(
-    date: datetime.date,
+    date: dt.date,
     expected_warnings: int,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -95,9 +95,9 @@ def test_bed_and_breakfast_in_tax_year_is_logged_at_info(
 ) -> None:
     """Matching a disposal to a repurchase is a record, not a problem."""
     transactions = [
-        buy_transaction(datetime.date(2024, 5, 1), "FOO", 10, 10, 0, -100),
-        sell_transaction(datetime.date(2024, 6, 3), "FOO", 10, 12, 0, 120),
-        buy_transaction(datetime.date(2024, 6, 10), "FOO", 10, 11, 0, -110),
+        buy_transaction(dt.date(2024, 5, 1), "FOO", 10, 10, 0, -100),
+        sell_transaction(dt.date(2024, 6, 3), "FOO", 10, 12, 0, 120),
+        buy_transaction(dt.date(2024, 6, 10), "FOO", 10, 11, 0, -110),
     ]
     calculator = _calculator(transactions)
 
@@ -120,9 +120,9 @@ def test_bed_and_breakfast_outside_tax_year_is_logged_at_debug(
 ) -> None:
     """The history walk records old matches without user-facing output."""
     transactions = [
-        buy_transaction(datetime.date(2023, 5, 1), "FOO", 10, 10, 0, -100),
-        sell_transaction(datetime.date(2023, 6, 3), "FOO", 10, 12, 0, 120),
-        buy_transaction(datetime.date(2023, 6, 10), "FOO", 10, 11, 0, -110),
+        buy_transaction(dt.date(2023, 5, 1), "FOO", 10, 10, 0, -100),
+        sell_transaction(dt.date(2023, 6, 3), "FOO", 10, 12, 0, 120),
+        buy_transaction(dt.date(2023, 6, 10), "FOO", 10, 11, 0, -110),
     ]
     calculator = _calculator(transactions)
 

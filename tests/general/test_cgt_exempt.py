@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 import logging
 import os
@@ -22,8 +22,8 @@ if TYPE_CHECKING:
     import pytest
 
 TAX_YEAR = 2024
-BUY_DATE = datetime.date(2024, 5, 1)
-SELL_DATE = datetime.date(2024, 9, 1)
+BUY_DATE = dt.date(2024, 5, 1)
+SELL_DATE = dt.date(2024, 9, 1)
 
 
 def test_exempt_disposal_at_gain_excluded_from_capital_gain() -> None:
@@ -81,8 +81,8 @@ def test_exempt_disposal_at_loss_excluded_from_capital_loss() -> None:
     assert "Exempt disposal proceeds: £8,000.00" in report_str
 
     # In a subsequent tax year with a chargeable gain, verify no allowable loss carried forward
-    next_year_buy = datetime.date(2025, 5, 1)
-    next_year_sell = datetime.date(2025, 9, 1)
+    next_year_buy = dt.date(2025, 5, 1)
+    next_year_sell = dt.date(2025, 9, 1)
     transactions_year2 = [
         *transactions_year1,
         transaction(next_year_buy, ActionType.BUY, "FOO", 50, 10, 0, -500, GBP),
@@ -177,7 +177,7 @@ def test_exempt_disposal_uses_same_day_matching() -> None:
 
 def test_exempt_disposal_uses_bed_and_breakfast_matching() -> None:
     """Thirty-day matching still runs, but its gain is disregarded."""
-    repurchase_date = SELL_DATE + datetime.timedelta(days=10)
+    repurchase_date = SELL_DATE + dt.timedelta(days=10)
     transactions = [
         transaction(BUY_DATE, ActionType.BUY, "T26", 100, 100, 0, -10000, GBP),
         transaction(SELL_DATE, ActionType.SELL, "T26", 100, 120, 0, 12000, GBP),
@@ -199,7 +199,7 @@ def test_exempt_disposal_uses_bed_and_breakfast_matching() -> None:
 
 def test_exempt_ticker_income_is_retained() -> None:
     """The override disregards CGT only, leaving taxable income in the report."""
-    income_date = datetime.date(2024, 7, 1)
+    income_date = dt.date(2024, 7, 1)
     transactions = [
         transaction(BUY_DATE, ActionType.BUY, "T26", 100, 100, 0, -10000, GBP),
         transaction(income_date, ActionType.DIVIDEND, "T26", amount=250, currency=GBP),
@@ -305,7 +305,7 @@ def test_pdf_report_rendering_exempt_disposal(tmp_path: Path) -> None:
 
 def test_pdf_report_rendering_exempt_bed_and_breakfast(tmp_path: Path) -> None:
     """A bed-and-breakfast exempt line keeps its match date and colon together."""
-    repurchase_date = SELL_DATE + datetime.timedelta(days=10)
+    repurchase_date = SELL_DATE + dt.timedelta(days=10)
     transactions = [
         transaction(BUY_DATE, ActionType.BUY, "T26", 100, 100, 0, -10000, GBP),
         transaction(SELL_DATE, ActionType.SELL, "T26", 100, 120, 0, 12000, GBP),
@@ -331,7 +331,7 @@ def test_pdf_reports_exempt_gift_with_neutral_valuation_wording(
     tmp_path: Path,
 ) -> None:
     """An exempt gift is not described as receiving sale proceeds."""
-    gift_date = datetime.date(2024, 9, 1)
+    gift_date = dt.date(2024, 9, 1)
     transactions = [
         transaction(BUY_DATE, ActionType.BUY, "T26", 100, 100, 0, -10000, GBP),
         transaction(gift_date, ActionType.GIFT, "T26", 100, 80, 0, None, GBP),

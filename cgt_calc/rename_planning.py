@@ -28,7 +28,7 @@ from .transaction_log import has_key
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
-    import datetime
+    import datetime as dt
 
     from .calculator_state import CalculatorState, PreparedHistory
     from .model import BrokerTransaction
@@ -142,7 +142,7 @@ def rename_pair(transaction: BrokerTransaction) -> tuple[str, str]:
 
 def plan_renames(
     state: CalculatorState,
-    date_index: datetime.date,
+    date_index: dt.date,
     day_transactions: list[BrokerTransaction],
 ) -> None:
     """Validate the day's renames and compute capacity for eligible components."""
@@ -199,7 +199,7 @@ def plan_renames(
 
 
 def rename_day_units(
-    history: PreparedHistory, date_index: datetime.date, symbol: str
+    history: PreparedHistory, date_index: dt.date, symbol: str
 ) -> Decimal | None:
     """Return capacity minus today's disposals under every connected ticker.
 
@@ -220,7 +220,7 @@ def rename_day_units(
     return component.capacity - taken
 
 
-def reconcile_rename_day(state: CalculatorState, date_index: datetime.date) -> None:
+def reconcile_rename_day(state: CalculatorState, date_index: dt.date) -> None:
     """Move positions left under retired tickers into the closing ticker.
 
     Every rename the day recorded, not only the components whose capacity was
@@ -245,7 +245,7 @@ def reconcile_rename_day(state: CalculatorState, date_index: datetime.date) -> N
 
 def two_renames_message(
     old_symbol: str,
-    date_index: datetime.date,
+    date_index: dt.date,
     first: str,
     second: str,
 ) -> str:
@@ -264,7 +264,7 @@ def rename_chain_message(
     old_symbol: str,
     middle: str,
     new_symbol: str,
-    date_index: datetime.date,
+    date_index: dt.date,
 ) -> str:
     """Explain why a holding renamed twice in a day cannot be worked out."""
     return (
@@ -307,7 +307,7 @@ def _components(pairs: list[tuple[str, str]]) -> Iterator[set[str]]:
 def _one_hop_renames(
     names: set[str],
     pairs: list[tuple[str, str]],
-    date_index: datetime.date,
+    date_index: dt.date,
 ) -> dict[str, str]:
     """Return one component's old to new mappings, refusing a split holding."""
     renames: dict[str, str] = {}
@@ -323,7 +323,7 @@ def _one_hop_renames(
     return renames
 
 
-def _refuse_rename_chain(renames: dict[str, str], date_index: datetime.date) -> None:
+def _refuse_rename_chain(renames: dict[str, str], date_index: dt.date) -> None:
     """Refuse chains and cycles, whose result would depend on rename row order.
 
     Sort names so either row order produces the same diagnostic.
