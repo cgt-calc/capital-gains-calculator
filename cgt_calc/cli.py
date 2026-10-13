@@ -26,6 +26,7 @@ from .render_text import render_text
 from .share_prices import SharePrices
 from .spin_off_handler import SpinOffHandler
 from .transaction_dumper import dump_transactions
+from .version import get_version
 
 if TYPE_CHECKING:
     import argparse
@@ -35,6 +36,18 @@ if TYPE_CHECKING:
     from .model import BrokerTransaction
 
 LOGGER = logging.getLogger(__name__)
+
+# Printed after the traceback of a failure cgt-calc did not expect. Each URL
+# stays whole on a line of its own. The link check reads this file as text, so
+# the documentation URL would stop being checked, without failing, if it were
+# split across two strings.
+REPORTING_FOOTER = """\
+This may need a cgt-calc update. Upgrade and retry; for an import, use a fresh,
+unchanged export. If it still fails, open an issue with cgt-calc {version}, the
+complete error, and the smallest redacted example that still fails:
+https://github.com/cgt-calc/capital-gains-calculator/issues/new
+Never upload unredacted data. What to send and what to redact:
+https://cgt-calc.uk/reporting-problems/"""
 
 
 def _paths_written_after_dump(args: argparse.Namespace) -> Iterator[tuple[Path, str]]:
@@ -213,6 +226,7 @@ def main() -> int:
         # Last-resort catch for unexpected exceptions
         LOGGER.critical("Unexpected error!")
         LOGGER.exception("Details:")
+        LOGGER.info(REPORTING_FOOTER.format(version=get_version()))
         return 1
 
     return 0

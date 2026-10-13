@@ -2779,21 +2779,67 @@ def test_run_with_example_files(request: pytest.FixtureRequest) -> None:
         )
 
 
-def test_main_returns_failure_on_unexpected_error(
-    monkeypatch: pytest.MonkeyPatch,
+def test_an_unexpected_error_prints_its_traceback_then_how_to_report_it(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """An unexpected exception must produce a failure exit code."""
+    """A failure cgt-calc did not expect ends with the advice on reporting it.
+
+    The advice is written out here as it was agreed, with a made-up version
+    where the running one goes. It follows the last line of the traceback and
+    the blank line that closes every error. The traceback itself still opens
+    the output, after the line saying the error was unexpected.
+    """
 
     def explode(args: argparse.Namespace) -> None:
         raise RuntimeError("boom")
 
     monkeypatch.setattr("cgt_calc.cli.calculate_cgt", explode)
+    monkeypatch.setattr("cgt_calc.cli.get_version", lambda: "9.8.7")
     monkeypatch.setattr(sys, "argv", ["cgt-calc", "--year", "2021"])
 
     # main() enables the FloatOperation trap on the active decimal context;
     # keep that from leaking into other tests in the same worker.
     with localcontext():
         assert main() == 1
+
+    err = capsys.readouterr().err
+    assert err.startswith(
+        "CRITICAL: Unexpected error!\n"
+        "\n"
+        "ERROR: Details:\n"
+        "Traceback (most recent call last):\n"
+    )
+    assert err.endswith(
+        "RuntimeError: boom\n"
+        "\n"
+        "This may need a cgt-calc update. Upgrade and retry; for an import, use a fresh,\n"
+        "unchanged export. If it still fails, open an issue with cgt-calc 9.8.7, the\n"
+        "complete error, and the smallest redacted example that still fails:\n"
+        "https://github.com/cgt-calc/capital-gains-calculator/issues/new\n"
+        "Never upload unredacted data. What to send and what to redact:\n"
+        "https://cgt-calc.uk/reporting-problems/\n"
+    )
+
+
+def test_a_known_error_prints_its_message_and_no_reporting_advice(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An error with a message of its own is all that is printed.
+
+    An error stands apart from the progress lines with a blank line before it
+    and one after, and nothing follows it.
+    """
+
+    def refuse(args: argparse.Namespace) -> None:
+        raise CalculationError("made-up refusal")
+
+    monkeypatch.setattr("cgt_calc.cli.calculate_cgt", refuse)
+    monkeypatch.setattr(sys, "argv", ["cgt-calc", "--year", "2021"])
+
+    with localcontext():
+        assert main() == 1
+
+    assert capsys.readouterr().err == "\nERROR: made-up refusal\n\n"
 
 
 def test_negative_balance_error_trims_long_history() -> None:
