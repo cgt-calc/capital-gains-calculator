@@ -13,7 +13,7 @@ example when a run ends with **Unexpected error!** and a traceback.
 1. [Upgrade cgt-calc](installation.md#upgrade-cgt-calc) and run the same command again. The problem
     may already be fixed.
 2. If the error came while cgt-calc was reading a broker file, download a fresh export and pass it
-    to cgt-calc unchanged.
+    to cgt-calc without editing it. Convert it first only if your broker guide tells you to.
 3. Read the troubleshooting section of the [guide for your broker](brokers/index.md). It may name
     the error and say what to do.
 
@@ -32,7 +32,8 @@ Redact the error and the command as well as the example.
 
 ## Make the smallest example that still fails
 
-A few rows that produce the error are more useful than a whole export, and safer to share.
+A few rows that produce the error are more useful than a whole export, and safer to share. These
+steps are for a file with one transaction on each row, such as a CSV.
 
 1. Copy the file into a new folder and work on the copy. If you pass cgt-calc a folder, copy the
     whole folder: cgt-calc reads every export in the folder you give it. Keep the original export
@@ -45,10 +46,18 @@ A few rows that produce the error are more useful than a whole export, and safer
 6. Redact what is left, then run the command once more to check that the redacted copy still gives
     the same error.
 
+A JSON file, such as a Schwab Equity Awards export, has no rows: each transaction is one `{...}`
+entry in its list of transactions. Follow the same steps, but remove whole entries and leave
+everything outside the list as it is, so that the file is still valid JSON.
+
+If you cannot cut the file down, or are not sure the result is safe to share, do not attach it. Open
+the issue with your version and the redacted error, and say that you need help preparing an example.
+
 ## What to redact
 
 Replace each of these with a made-up value of the same kind and length. Do not delete it, because a
-missing value can change how the row is read.
+missing value can change how the row is read. Check the lines above the column names as well as the
+rows: an export can begin with your name, a client number or a portfolio name.
 
 - **Names:** yours, and any account or portfolio name.
 - **Account and transaction IDs:** account and client numbers, order IDs and transaction references.
@@ -63,9 +72,11 @@ message can quote.
 
 The example has to be read the same way as your original file, so keep:
 
-- **The file format.** Send the same kind of file your broker exported. Edit a CSV in a text editor,
-    not a spreadsheet: a spreadsheet program can change how dates and numbers are written when it
-    saves.
-- **The headers.** Keep the column names, and any lines above them, exactly as exported.
+- **The file format.** Send the kind of file you passed to cgt-calc. If your broker guide had you
+    convert the export first, for example by saving a worksheet as a CSV, send the converted file:
+    that is the one that fails. Edit a CSV in a text editor, not a spreadsheet: a spreadsheet
+    program can change how dates and numbers are written when it saves.
+- **The headers.** Keep the column names exactly as exported. Keep any lines above them too, with
+    their labels and layout, and replace only the personal values they hold.
 - **The row structure.** Keep every column in the same order, including empty ones, and keep the
     wording of the action or type column and the way dates and numbers are written.

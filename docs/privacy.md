@@ -26,8 +26,9 @@ controls as your own tax records.
 
 **Error messages can quote your own data.** When cgt-calc refuses a transaction it prints that
 transaction, which can include the path of the file it was read from and the row number within it. A
-path can carry your username. The broker pages ask for the complete error message when you report a
-problem: read it first, and shorten a path or replace a figure you would rather not publish. See the
+path can carry your username. Before you report a problem, read the complete error first and replace
+anything you would rather not publish: [Reporting problems](reporting-problems.md#what-to-redact)
+says what to send and what to replace. See also the
 [instructions for your broker](brokers/index.md). The `--dump-transactions` export also includes the
 source file paths and, where recorded, row numbers.
 
