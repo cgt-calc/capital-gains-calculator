@@ -18,6 +18,7 @@ nav = [
       { "Docker" = "docker.md" },
     ] },
     { "Privacy & disclaimer" = "privacy.md" },
+    { "Reporting problems" = "reporting-problems.md" },
   ] },
   { "Brokers & data" = [
     { "Brokers" = [
