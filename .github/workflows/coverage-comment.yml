@@ -46,8 +46,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ vars.MERGE_BOT_CLIENT_ID }}
-          private-key: ${{ secrets.MERGE_BOT_PRIVATE_KEY }}
+          client-id: ${{ vars.CGTBOT_CLIENT_ID }}
+          private-key: ${{ secrets.CGTBOT_PRIVATE_KEY }}
           permission-pull-requests: write
 
       - name: Post or update the comment
