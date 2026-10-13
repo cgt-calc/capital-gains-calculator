@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 from typing import TYPE_CHECKING, cast
 
@@ -90,7 +90,7 @@ def _build_pdf(
 
 
 def _check_result_transactions(
-    transactions: list[ERITransaction], period_end: datetime.date
+    transactions: list[ERITransaction], period_end: dt.date
 ) -> None:
     """Assert the transactions parsed from DATA_ROWS."""
     assert len(transactions) == 3
@@ -117,7 +117,7 @@ def test_parse_summary_format(tmp_path: Path) -> None:
 
     assert result is not None
     assert result.output_file_name == "xtrackers_eri.csv"
-    _check_result_transactions(result.transactions, datetime.date(2024, 12, 31))
+    _check_result_transactions(result.transactions, dt.date(2024, 12, 31))
 
 
 def test_parse_investor_report_format(tmp_path: Path) -> None:
@@ -137,7 +137,7 @@ def test_parse_investor_report_format(tmp_path: Path) -> None:
     result = XtrackersImporter().parse(file)
 
     assert result is not None
-    _check_result_transactions(result.transactions, datetime.date(2024, 12, 31))
+    _check_result_transactions(result.transactions, dt.date(2024, 12, 31))
 
 
 def test_old_report_is_ignored(tmp_path: Path) -> None:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import csv
-import datetime
+import datetime as dt
 from decimal import Decimal
 from enum import StrEnum
 import io
@@ -225,7 +225,7 @@ class VanguardTransaction(BrokerTransaction):
 
         row = dict(zip(header, row_raw, strict=False))
 
-        date = datetime.datetime.strptime(row[CashColumn.DATE], "%d/%m/%Y").date()
+        date = dt.datetime.strptime(row[CashColumn.DATE], "%d/%m/%Y").date()
         self.details_text, self.is_reversal = _strip_reversal(row[CashColumn.DETAILS])
         self.action = action_from_str(self.details_text, file)
         self.amount = _parse_decimal(row[CashColumn.AMOUNT], CashColumn.AMOUNT.value)
@@ -263,7 +263,7 @@ class VanguardTransaction(BrokerTransaction):
     @classmethod
     def from_fields(
         cls,
-        date: datetime.date,
+        date: dt.date,
         action: ActionType,
         symbol: str | None,
         quantity: Decimal | None,
@@ -300,7 +300,7 @@ def _make_transaction_from_investment(
 ) -> VanguardTransaction | None:
     """Create a VanguardTransaction from an Investment row, or None for the NameChange zero-out half."""
     details, is_reversal = _strip_reversal(row[InvestmentColumn.TRANSACTION_DETAILS])
-    date = datetime.datetime.strptime(row[InvestmentColumn.DATE], "%d/%m/%Y").date()
+    date = dt.datetime.strptime(row[InvestmentColumn.DATE], "%d/%m/%Y").date()
     quantity = _parse_decimal(
         row[InvestmentColumn.QUANTITY], InvestmentColumn.QUANTITY.value
     )
@@ -441,7 +441,7 @@ def _looks_like_transaction(row: list[str]) -> bool:
     if not details.strip():
         return False
     try:
-        datetime.datetime.strptime(date_text.strip(), "%d/%m/%Y")
+        dt.datetime.strptime(date_text.strip(), "%d/%m/%Y")
     except ValueError:
         return False
     return True
@@ -628,8 +628,8 @@ def _find_investment_match(
     if len(candidates) == 1:
         return candidates[0]
 
-    def _investment_date(r: dict[str, str]) -> datetime.date:
-        return datetime.datetime.strptime(r[InvestmentColumn.DATE], "%d/%m/%Y").date()
+    def _investment_date(r: dict[str, str]) -> dt.date:
+        return dt.datetime.strptime(r[InvestmentColumn.DATE], "%d/%m/%Y").date()
 
     if txn.action == ActionType.BUY:
         after = [r for r in candidates if _investment_date(r) >= txn.date]

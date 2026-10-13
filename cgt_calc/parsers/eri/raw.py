@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import csv
-import datetime
+import datetime as dt
 from importlib import resources
 from typing import TYPE_CHECKING, Final, TextIO, override
 
@@ -48,7 +48,7 @@ class ERIRaw(ERITransaction):
             raise ParsingError(file, f"Invalid ISIN value '{isin_raw}' in ERI data")
         date_str = row["Fund Reporting Period End Date"]
         try:
-            date = datetime.datetime.strptime(date_str, RAW_DATE_FORMAT).date()
+            date = dt.datetime.strptime(date_str, RAW_DATE_FORMAT).date()
         except ValueError as err:
             raise ParsingError(file, f"Invalid date '{date_str}' in ERI data") from err
         currency_raw = row["Currency"]

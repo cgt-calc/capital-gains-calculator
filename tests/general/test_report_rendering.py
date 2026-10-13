@@ -15,7 +15,7 @@ A report that cannot be saved says why.
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 import os
 from pathlib import Path
@@ -33,10 +33,10 @@ from .test_calc import create_calculator, get_report
 
 PENNY = Decimal("0.01")
 
-POOL_DAY = datetime.date(2024, 6, 1)
-SPLIT_DAY = datetime.date(2024, 6, 10)
-BAR_BUY_DAY = datetime.date(2024, 7, 1)
-BAR_SALE_DAY = datetime.date(2024, 8, 1)
+POOL_DAY = dt.date(2024, 6, 1)
+SPLIT_DAY = dt.date(2024, 6, 10)
+BAR_BUY_DAY = dt.date(2024, 7, 1)
+BAR_SALE_DAY = dt.date(2024, 8, 1)
 
 # FOO: a pool of 100, then on one day a purchase of 20 and a sale of 120, so the
 # sale is matched same day for 20 and against the pool for 100 and the sale fee

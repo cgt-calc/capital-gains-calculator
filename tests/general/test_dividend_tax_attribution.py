@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 import logging
 
@@ -27,14 +27,14 @@ PLN = CurrencyCode("PLN")
 # various distances from that dividend: two days away, exactly at the
 # thirty-day limit, one day past it, and far outside.
 TAX_YEAR = 2024
-DIVIDEND_DATE = datetime.date(2024, 6, 3)
-LATER_DATE = DIVIDEND_DATE + datetime.timedelta(days=2)
-LIMIT_DATE = DIVIDEND_DATE + datetime.timedelta(days=30)
-BEYOND_LIMIT_DATE = DIVIDEND_DATE + datetime.timedelta(days=31)
+DIVIDEND_DATE = dt.date(2024, 6, 3)
+LATER_DATE = DIVIDEND_DATE + dt.timedelta(days=2)
+LIMIT_DATE = DIVIDEND_DATE + dt.timedelta(days=30)
+BEYOND_LIMIT_DATE = DIVIDEND_DATE + dt.timedelta(days=31)
 
 # A payment at the very end of 2024/25 whose withholding posts in 2025/26.
-BORDER_DIVIDEND_DATE = datetime.date(2025, 4, 2)
-BORDER_TAX_DATE = datetime.date(2025, 4, 8)
+BORDER_DIVIDEND_DATE = dt.date(2025, 4, 2)
+BORDER_TAX_DATE = dt.date(2025, 4, 8)
 
 
 def _calculator(
@@ -42,7 +42,7 @@ def _calculator(
     tax_year: int = TAX_YEAR,
     *,
     autoconvert_currency: bool = False,
-    gbp_prices: dict[datetime.date, dict[CurrencyCode, Decimal]] | None = None,
+    gbp_prices: dict[dt.date, dict[CurrencyCode, Decimal]] | None = None,
 ) -> CapitalGainsCalculator:
     """Create a calculator with supplied rates or flat 1:1 USD rates."""
     rates = (
@@ -69,8 +69,8 @@ def _reported(
     tax_year: int = TAX_YEAR,
     *,
     autoconvert_currency: bool = False,
-    gbp_prices: dict[datetime.date, dict[CurrencyCode, Decimal]] | None = None,
-) -> list[tuple[datetime.date, Decimal, Decimal, bool]]:
+    gbp_prices: dict[dt.date, dict[CurrencyCode, Decimal]] | None = None,
+) -> list[tuple[dt.date, Decimal, Decimal, bool]]:
     """Return date, amount, tax and whether a treaty applied, per reported row."""
     calculator = _calculator(
         transactions,
@@ -136,7 +136,7 @@ def _summary_dividend_lines(
 
 
 def _dividend_at(
-    date: datetime.date,
+    date: dt.date,
     amount: float,
     broker: str,
     currency: CurrencyCode = USD,
@@ -156,9 +156,7 @@ def _dividend_at(
     )
 
 
-def _dividend_tax_at(
-    date: datetime.date, amount: float, broker: str
-) -> BrokerTransaction:
+def _dividend_tax_at(date: dt.date, amount: float, broker: str) -> BrokerTransaction:
     """Create withholding taken by a named broker."""
     return BrokerTransaction(
         date,
@@ -183,9 +181,9 @@ def test_late_correction_belongs_to_the_payment_it_corrects(
     than to the one it corrects, so matching on distance alone moved it, and
     both payments then failed the treaty check.
     """
-    first = datetime.date(2024, 6, 3)
-    correction = datetime.date(2024, 6, 22)  # 19 days after, 11 days before
-    second = datetime.date(2024, 7, 3)
+    first = dt.date(2024, 6, 3)
+    correction = dt.date(2024, 6, 22)  # 19 days after, 11 days before
+    second = dt.date(2024, 7, 3)
     transactions = [
         dividend_transaction(first, "FOO", 100),
         dividend_tax_transaction(first, "FOO", 30),
@@ -209,8 +207,8 @@ def test_tax_on_a_payment_day_is_never_in_doubt(
     A monthly payer always has a second payment inside the window, and that
     must not make the ordinary case ambiguous.
     """
-    first = datetime.date(2024, 6, 3)
-    second = first + datetime.timedelta(days=30)
+    first = dt.date(2024, 6, 3)
+    second = first + dt.timedelta(days=30)
     transactions = [
         dividend_transaction(first, "FOO", 100),
         dividend_tax_transaction(first, "FOO", 15),
@@ -226,7 +224,7 @@ def test_tax_on_a_payment_day_is_never_in_doubt(
 
 
 def _tax_in_currency(
-    date: datetime.date,
+    date: dt.date,
     amount: float,
     currency: CurrencyCode,
     broker: str = "A",
@@ -296,13 +294,13 @@ def test_ambiguous_tax_warns_in_the_year_of_each_payment(
     nothing about why.
     """
     transactions = [
-        dividend_transaction(datetime.date(2025, 4, 2), "FOO", 100),
-        dividend_tax_transaction(datetime.date(2025, 4, 6), "FOO", 15),
-        dividend_transaction(datetime.date(2025, 4, 10), "FOO", 200),
+        dividend_transaction(dt.date(2025, 4, 2), "FOO", 100),
+        dividend_tax_transaction(dt.date(2025, 4, 6), "FOO", 15),
+        dividend_transaction(dt.date(2025, 4, 10), "FOO", 200),
     ]
 
     assert _reported(transactions, tax_year=2024) == [
-        (datetime.date(2025, 4, 2), Decimal(100), Decimal(0), False)
+        (dt.date(2025, 4, 2), Decimal(100), Decimal(0), False)
     ]
     assert len(_unattributed_warnings(transactions, caplog, tax_year=2024)) == 1
     assert len(_unattributed_warnings(transactions, caplog, tax_year=2025)) == 1
@@ -317,9 +315,9 @@ def test_tax_two_payments_could_claim_is_left_out(
     be a late correction of the first or ordinary tax on the second. The
     export does not say which, so neither payment is given it.
     """
-    first = datetime.date(2024, 6, 3)
-    correction = datetime.date(2024, 7, 1)
-    second = datetime.date(2024, 7, 3)
+    first = dt.date(2024, 6, 3)
+    correction = dt.date(2024, 7, 1)
+    second = dt.date(2024, 7, 3)
     transactions = [
         dividend_transaction(first, "FOO", 100),
         dividend_tax_transaction(first, "FOO", 30),
@@ -348,9 +346,9 @@ def test_further_withholding_two_payments_could_claim_is_left_out(
     Brokers map an adjustment and an ordinary withholding to one action, so
     a further debit cannot be told from tax on the payment that follows it.
     """
-    first = datetime.date(2024, 6, 3)
-    adjustment = datetime.date(2024, 7, 1)
-    second = datetime.date(2024, 7, 3)
+    first = dt.date(2024, 6, 3)
+    adjustment = dt.date(2024, 7, 1)
+    second = dt.date(2024, 7, 3)
     transactions = [
         dividend_transaction(first, "FOO", 100),
         dividend_tax_transaction(first, "FOO", 10),
@@ -370,9 +368,9 @@ def test_tax_left_out_is_still_summarised(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Tax no payment can claim still shows the broker took it."""
-    first = datetime.date(2024, 6, 3)
-    correction = datetime.date(2024, 7, 1)
-    second = datetime.date(2024, 7, 3)
+    first = dt.date(2024, 6, 3)
+    correction = dt.date(2024, 7, 1)
+    second = dt.date(2024, 7, 3)
     transactions = [
         dividend_transaction(first, "FOO", 100),
         dividend_tax_transaction(first, "FOO", 10),
@@ -390,9 +388,9 @@ def test_withholding_between_two_payments_is_left_out(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Tax a day before one payment and weeks after another is refused."""
-    first = datetime.date(2024, 6, 3)
-    tax = datetime.date(2024, 7, 2)
-    second = datetime.date(2024, 7, 3)
+    first = dt.date(2024, 6, 3)
+    tax = dt.date(2024, 7, 2)
+    second = dt.date(2024, 7, 3)
     transactions = [
         dividend_transaction(first, "FOO", 100),
         dividend_tax_transaction(first, "FOO", 15),
@@ -411,7 +409,7 @@ def test_withholding_too_far_before_its_dividend_is_not_claimed(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A payment further ahead than the lead window cannot claim the tax."""
-    dividend = DIVIDEND_DATE + datetime.timedelta(days=6)
+    dividend = DIVIDEND_DATE + dt.timedelta(days=6)
     transactions = [
         dividend_transaction(dividend, "FOO", 100),
         dividend_tax_transaction(DIVIDEND_DATE, "FOO", 15),
@@ -429,9 +427,9 @@ def test_withholding_stays_with_its_own_broker(
     The other broker's payment is nearer in time than the one the tax was
     taken from, so matching on symbol alone claimed it.
     """
-    first = datetime.date(2024, 6, 3)
-    late_tax = datetime.date(2024, 6, 20)
-    other = datetime.date(2024, 6, 25)
+    first = dt.date(2024, 6, 3)
+    late_tax = dt.date(2024, 6, 20)
+    other = dt.date(2024, 6, 25)
     transactions = [
         _dividend_at(first, 100, broker="A"),
         _dividend_tax_at(late_tax, 15, broker="A"),
@@ -567,12 +565,12 @@ def test_each_dividend_keeps_its_own_withholding(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Tax goes to the nearer payment when two could claim it."""
-    second_date = datetime.date(2024, 9, 5)
+    second_date = dt.date(2024, 9, 5)
     transactions = [
         dividend_transaction(DIVIDEND_DATE, "FOO", 100),
         dividend_tax_transaction(DIVIDEND_DATE, "FOO", 15),
         dividend_transaction(second_date, "FOO", 200),
-        dividend_tax_transaction(second_date + datetime.timedelta(days=4), "FOO", 30),
+        dividend_tax_transaction(second_date + dt.timedelta(days=4), "FOO", 30),
     ]
 
     assert _reported(transactions) == [
@@ -584,11 +582,11 @@ def test_each_dividend_keeps_its_own_withholding(
 
 @pytest.mark.parametrize(
     "tax_date",
-    [LIMIT_DATE, DIVIDEND_DATE - datetime.timedelta(days=5)],
+    [LIMIT_DATE, DIVIDEND_DATE - dt.timedelta(days=5)],
     ids=["thirty days after", "five days before"],
 )
 def test_withholding_at_the_limit_is_attributed(
-    caplog: pytest.LogCaptureFixture, tax_date: datetime.date
+    caplog: pytest.LogCaptureFixture, tax_date: dt.date
 ) -> None:
     """The last day of the window on either side still belongs to the dividend."""
     transactions = [
@@ -650,7 +648,7 @@ def test_unattributed_withholding_outside_tax_year_does_not_warn(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Only withholding of the computed year may warn, as for the treaty."""
-    transactions = [dividend_tax_transaction(datetime.date(2022, 6, 3), "FOO", 15)]
+    transactions = [dividend_tax_transaction(dt.date(2022, 6, 3), "FOO", 15)]
 
     assert _unattributed_warnings(transactions, caplog) == []
 
@@ -794,7 +792,7 @@ def test_autoconvert_converts_withholding_at_its_dividend_date() -> None:
     so combining the rows at the date they happened to post would convert the
     GBP part at one rate and read the total back at another.
     """
-    tax_date = datetime.date(2024, 7, 1)
+    tax_date = dt.date(2024, 7, 1)
     transactions = [
         _dividend_at(DIVIDEND_DATE, 100, "A", USD),
         _tax_in_currency(tax_date, -10, USD, "A"),

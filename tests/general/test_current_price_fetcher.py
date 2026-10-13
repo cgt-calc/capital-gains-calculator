@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 import sys
 from typing import TYPE_CHECKING
@@ -29,7 +29,7 @@ class FakeTicker:
 
 
 def _fetcher() -> CurrentPriceFetcher:
-    today = datetime.datetime.now().date()
+    today = dt.datetime.now().date()
     converter = CurrencyConverter(
         None,
         {
@@ -145,7 +145,7 @@ def test_raises_clear_error_when_no_market_data(
         lambda symbol: FakeEmptyHistoryTicker(),
     )
     with pytest.raises(MarketDataMissingError, match=r"FOO.*2021-05-10"):
-        _fetcher().get_closing_price("FOO", datetime.date(2021, 5, 10))
+        _fetcher().get_closing_price("FOO", dt.date(2021, 5, 10))
 
 
 class FakeHistoryTicker:
@@ -197,8 +197,8 @@ def test_closing_price_converted_at_historical_rate(
     Seeding today's rate with a different value pins the regression where
     the conversion silently used today's rate instead of the historical one.
     """
-    historical_date = datetime.date(2021, 5, 10)
-    today = datetime.datetime.now().date()
+    historical_date = dt.date(2021, 5, 10)
+    today = dt.datetime.now().date()
     converter = CurrencyConverter(
         None,
         {
@@ -247,7 +247,7 @@ def test_closing_price_is_the_price_traded_that_day(
         lambda symbol: FakeHistoryTicker(48.17, "GBP", splits=splits),
     )
 
-    price = _fetcher().get_closing_price("FOO", datetime.date(2024, 1, 2))
+    price = _fetcher().get_closing_price("FOO", dt.date(2024, 1, 2))
 
     assert price == expected
 
@@ -259,7 +259,7 @@ def test_closing_price_is_asked_for_without_dividend_adjustment(
     ticker = FakeHistoryTicker(48.17, "GBP")
     monkeypatch.setattr("yfinance.Ticker", lambda symbol: ticker)
 
-    _fetcher().get_closing_price("FOO", datetime.date(2024, 1, 2))
+    _fetcher().get_closing_price("FOO", dt.date(2024, 1, 2))
 
     assert ticker.requested.get("auto_adjust", True) is False
 
@@ -274,7 +274,7 @@ def test_a_history_starting_after_the_day_is_refused(
     )
 
     with pytest.raises(MarketDataMissingError, match=r"FOO.*2024-01-01"):
-        _fetcher().get_closing_price("FOO", datetime.date(2024, 1, 1))
+        _fetcher().get_closing_price("FOO", dt.date(2024, 1, 1))
 
 
 def test_a_run_that_fetches_no_price_loads_neither_yfinance_nor_pandas() -> None:

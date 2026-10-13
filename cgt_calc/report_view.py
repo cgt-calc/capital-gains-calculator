@@ -25,7 +25,7 @@ from .model import RuleType
 from .util import round_decimal
 
 if TYPE_CHECKING:
-    import datetime
+    import datetime as dt
 
     from .model import CalculationEntry, CapitalGainsReport
     from .stock_splits import StockSplitDetail
@@ -72,7 +72,7 @@ class EriLineView:
 
     cost: Decimal
     unit_price: Decimal
-    date: datetime.date
+    date: dt.date
 
 
 @dataclass(frozen=True)
@@ -86,7 +86,7 @@ class LineView:
     is_gain: bool
     proceeds: Decimal | None = None
     cost: Decimal | None = None
-    bnb_date: datetime.date | None = None
+    bnb_date: dt.date | None = None
     gain: Decimal | None = None
     amount: Decimal | None = None
     new_pool_cost: Decimal | None = None
@@ -132,7 +132,7 @@ class EventView:
 class DayView:
     """Capital gains events recorded on one day."""
 
-    date: datetime.date
+    date: dt.date
     events: tuple[EventView, ...]
 
 
@@ -157,7 +157,7 @@ class IncomeEventView:
 class IncomeDayView:
     """Income events recorded on one day."""
 
-    date: datetime.date
+    date: dt.date
     events: tuple[IncomeEventView, ...]
 
 

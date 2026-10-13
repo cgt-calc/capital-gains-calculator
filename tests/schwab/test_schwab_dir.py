@@ -8,7 +8,7 @@ of the merged result, and the overlap that cannot be deduplicated away.
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 import logging
 import os
@@ -169,9 +169,7 @@ def test_a_vest_dated_inside_the_older_export_is_not_an_overlap(
 
     transactions = load_via_cli(schwab_dir=str(directory), schwab_award_file=awards)
 
-    assert [t.date for t in transactions if t.symbol == "BAR"] == [
-        datetime.date(2023, 8, 15)
-    ]
+    assert [t.date for t in transactions if t.symbol == "BAR"] == [dt.date(2023, 8, 15)]
 
 
 def test_empty_directory_warns(

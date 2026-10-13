@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-import datetime
+import datetime as dt
 from decimal import Decimal
 import re
 from typing import TYPE_CHECKING, Final
@@ -87,16 +87,14 @@ _OCC_OPTION_SYMBOL: Final = re.compile(
 )
 
 
-def parse_option_contract(symbol: str, date: datetime.date) -> OptionContract | None:
+def parse_option_contract(symbol: str, date: dt.date) -> OptionContract | None:
     """Parse Schwab's human-readable or OCC equity-option symbol.
 
     `date` is the row's, which says what the underlying's ticker names.
     """
     human_match = _HUMAN_OPTION_SYMBOL.fullmatch(symbol)
     if human_match:
-        expiry = datetime.datetime.strptime(
-            human_match.group("expiry"), "%m/%d/%Y"
-        ).date()
+        expiry = dt.datetime.strptime(human_match.group("expiry"), "%m/%d/%Y").date()
         strike = Decimal(human_match.group("strike"))
         option_type = (
             OptionType.CALL
@@ -108,7 +106,7 @@ def parse_option_contract(symbol: str, date: datetime.date) -> OptionContract | 
         occ_match = _OCC_OPTION_SYMBOL.fullmatch(symbol)
         if not occ_match:
             return None
-        expiry = datetime.datetime.strptime(occ_match.group("expiry"), "%y%m%d").date()
+        expiry = dt.datetime.strptime(occ_match.group("expiry"), "%y%m%d").date()
         strike = Decimal(occ_match.group("strike")) / Decimal(1000)
         option_type = (
             OptionType.CALL
@@ -369,7 +367,7 @@ def _find_assignment_share_transaction(
         and transaction.quantity == assigned_shares
         and assignment.date
         <= transaction.date
-        <= assignment.date + datetime.timedelta(days=OPTION_SETTLEMENT_MATCH_DAYS)
+        <= assignment.date + dt.timedelta(days=OPTION_SETTLEMENT_MATCH_DAYS)
     ]
     settling = [
         candidate
@@ -489,7 +487,7 @@ class _OptionActivity:
     """What one account's option rows said, once read as lifecycles."""
 
     open_lots: dict[OptionContract, list[_WrittenOptionLot]]
-    assignments: dict[tuple[datetime.date, OptionContract], _OptionAssignment]
+    assignments: dict[tuple[dt.date, OptionContract], _OptionAssignment]
 
 
 def _record_close_costs(
@@ -519,7 +517,7 @@ def _scan_option_activity(
 ) -> _OptionActivity:
     """Validate option rows and allocate every outcome to its grants."""
     open_lots: dict[OptionContract, list[_WrittenOptionLot]] = defaultdict(list)
-    assignments: dict[tuple[datetime.date, OptionContract], _OptionAssignment] = {}
+    assignments: dict[tuple[dt.date, OptionContract], _OptionAssignment] = {}
 
     for transaction in transactions:
         contract = transaction.option_contract

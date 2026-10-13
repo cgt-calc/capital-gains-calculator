@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import datetime
+import datetime as dt
 
 import shtab
 
@@ -35,8 +35,8 @@ from .parsers.broker_registry import BrokerRegistry
 
 def get_last_elapsed_tax_year() -> int:
     """Get last ended tax year."""
-    now = datetime.datetime.now()
-    if now.date() >= datetime.date(now.year, 4, 6):
+    now = dt.datetime.now()
+    if now.date() >= dt.date(now.year, 4, 6):
         return now.year - 1
     return now.year - 2
 

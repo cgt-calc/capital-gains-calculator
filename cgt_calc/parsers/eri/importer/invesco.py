@@ -15,7 +15,7 @@ from cgt_calc.model import CurrencyCode, Isin
 from cgt_calc.util import round_decimal
 
 if TYPE_CHECKING:
-    import datetime
+    import datetime as dt
     from pathlib import Path
 
     from pdfplumber.page import CroppedPage, Page
@@ -46,7 +46,7 @@ class InvescoImporter(ERIImporter):
         super().__init__(name="Invesco")
 
     @staticmethod
-    def _extract_report_end_date(page: Page, prefix: str) -> datetime.date | None:
+    def _extract_report_end_date(page: Page, prefix: str) -> dt.date | None:
         matches = [
             line["text"]
             for line in page.extract_text_lines()
@@ -136,7 +136,7 @@ class InvescoImporter(ERIImporter):
     def _process_data_table(
         page_num: int,
         data_table: list[list[str | None]],
-        reporting_period_end: datetime.date,
+        reporting_period_end: dt.date,
         colmap: dict[int, int],
         file: Path,
     ) -> list[ERITransaction]:

@@ -26,7 +26,7 @@ from cgt_calc.parsers.eri.raw import COLUMNS, RAW_DATE_FORMAT, ERIRawParser
 from cgt_calc.util import approx_equal, display_str
 
 if TYPE_CHECKING:
-    import datetime
+    import datetime as dt
 
     from cgt_calc.parsers.eri.importer.model import ERIImporter
     from cgt_calc.parsers.eri.model import ERITransaction
@@ -49,9 +49,7 @@ def validate_and_remove_duplicates(
 
     Sort the final output by date for writing
     """
-    transaction_index: dict[
-        tuple[str, datetime.date], tuple[ERITransaction, Decimal]
-    ] = {}
+    transaction_index: dict[tuple[str, dt.date], tuple[ERITransaction, Decimal]] = {}
     result = []
     for transaction in transactions:
         price = transaction.price

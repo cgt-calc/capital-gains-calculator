@@ -10,7 +10,7 @@ the pooled cost does not move.
 from __future__ import annotations
 
 from dataclasses import replace
-import datetime
+import datetime as dt
 from decimal import Decimal
 from fractions import Fraction
 from pathlib import Path
@@ -54,17 +54,17 @@ if TYPE_CHECKING:
 
 GBP = CurrencyCode("GBP")
 
-POOL_DAY = datetime.date(2023, 5, 2)
-RENAME_DAY = datetime.date(2023, 5, 8)
-EVENT_DAY = datetime.date(2023, 5, 15)
-LATER_DAY = datetime.date(2023, 6, 10)
+POOL_DAY = dt.date(2023, 5, 2)
+RENAME_DAY = dt.date(2023, 5, 8)
+EVENT_DAY = dt.date(2023, 5, 15)
+LATER_DAY = dt.date(2023, 6, 10)
 # The instants the two halves of a paired reorganisation on the event day carry.
-SPLIT_OPENED = datetime.datetime(2023, 5, 15, 7, 44, 13, tzinfo=datetime.UTC)
-SPLIT_CLOSED = datetime.datetime(2023, 5, 15, 7, 44, 14, tzinfo=datetime.UTC)
+SPLIT_OPENED = dt.datetime(2023, 5, 15, 7, 44, 13, tzinfo=dt.UTC)
+SPLIT_CLOSED = dt.datetime(2023, 5, 15, 7, 44, 14, tzinfo=dt.UTC)
 
 
 def trade(
-    date: datetime.date,
+    date: dt.date,
     action: ActionType,
     symbol: str,
     quantity: str,
@@ -97,7 +97,7 @@ def trade(
 
 
 def legacy_split(
-    date: datetime.date,
+    date: dt.date,
     symbol: str,
     delta: str,
     *,
@@ -120,13 +120,13 @@ def legacy_split(
 
 
 def paired_split(
-    date: datetime.date,
+    date: dt.date,
     symbol: str,
     before: str,
     after: str,
     ratio: Fraction | UnresolvedRatio,
     *,
-    instants: tuple[datetime.datetime, ...] = (),
+    instants: tuple[dt.datetime, ...] = (),
     source: TransactionSource | None = None,
 ) -> StockSplitTransaction:
     """Build a reorganisation an export stated as two complete share counts."""
@@ -278,7 +278,7 @@ def test_a_consolidation_reduces_the_units_and_keeps_the_cost() -> None:
     assert calculator.portfolio["FOO"].amount == Decimal(700)
 
 
-def _malformed_purchase(date: datetime.date, symbol: str) -> BrokerTransaction:
+def _malformed_purchase(date: dt.date, symbol: str) -> BrokerTransaction:
     """Build a purchase stating a negative count."""
     return BrokerTransaction(
         date=date,
@@ -582,13 +582,13 @@ def test_a_same_day_row_from_another_input_is_refused() -> None:
     "stamp",
     [
         SPLIT_OPENED,
-        SPLIT_OPENED + datetime.timedelta(milliseconds=500),
+        SPLIT_OPENED + dt.timedelta(milliseconds=500),
         SPLIT_CLOSED,
     ],
     ids=["at the first half", "between", "at the second half"],
 )
 def test_a_row_at_or_between_the_two_halves_of_a_reorganisation_is_refused(
-    stamp: datetime.datetime,
+    stamp: dt.datetime,
 ) -> None:
     """Its unit system is exactly what cannot be told.
 
@@ -762,7 +762,7 @@ def test_an_unresolved_ratio_nothing_needs_is_calculated_normally() -> None:
         [
             trade(POOL_DAY, ActionType.BUY, "FOO", "0.0002", "1000"),
             trade(
-                EVENT_DAY - datetime.timedelta(days=1),
+                EVENT_DAY - dt.timedelta(days=1),
                 ActionType.SELL,
                 "FOO",
                 "0.0001",
@@ -781,7 +781,7 @@ def test_an_unresolved_ratio_blocks_a_bed_and_breakfast_conversion() -> None:
             [
                 trade(POOL_DAY, ActionType.BUY, "FOO", "0.0002", "1000"),
                 trade(
-                    EVENT_DAY - datetime.timedelta(days=1),
+                    EVENT_DAY - dt.timedelta(days=1),
                     ActionType.SELL,
                     "FOO",
                     "0.0001",
@@ -791,7 +791,7 @@ def test_an_unresolved_ratio_blocks_a_bed_and_breakfast_conversion() -> None:
                     EVENT_DAY, "FOO", "0.0001000000", "0.0000066700", UNRESOLVED
                 ),
                 trade(
-                    EVENT_DAY + datetime.timedelta(days=1),
+                    EVENT_DAY + dt.timedelta(days=1),
                     ActionType.BUY,
                     "FOO",
                     "0.000005",
@@ -806,15 +806,15 @@ def test_an_unresolved_ratio_blocks_a_bed_and_breakfast_conversion() -> None:
 
 def test_a_repurchase_after_a_split_is_matched_in_converted_units() -> None:
     """The 30-day rule identifies counts stated in two different units."""
-    sale_day = datetime.date(2023, 5, 10)
+    sale_day = dt.date(2023, 5, 10)
     calculator = create_calculator(tax_year=2023, balance_check=False)
     report = get_report(
         calculator,
         [
-            trade(datetime.date(2023, 4, 7), ActionType.BUY, "FOO", "12", "5"),
+            trade(dt.date(2023, 4, 7), ActionType.BUY, "FOO", "12", "5"),
             trade(sale_day, ActionType.SELL, "FOO", "2", "6"),
             legacy_split(EVENT_DAY, "FOO", "10"),
-            trade(datetime.date(2023, 6, 8), ActionType.BUY, "FOO", "2", "5"),
+            trade(dt.date(2023, 6, 8), ActionType.BUY, "FOO", "2", "5"),
         ],
     )
     entries = report.calculation_log[sale_day]["sell$FOO"]
@@ -830,15 +830,15 @@ def test_a_repurchase_after_a_split_is_matched_in_converted_units() -> None:
 
 def test_a_repurchase_after_a_consolidation_is_matched_in_converted_units() -> None:
     """The conversion works the same way for a ratio below one."""
-    sale_day = datetime.date(2023, 5, 10)
+    sale_day = dt.date(2023, 5, 10)
     calculator = create_calculator(tax_year=2023, balance_check=False)
     report = get_report(
         calculator,
         [
-            trade(datetime.date(2023, 4, 7), ActionType.BUY, "FOO", "12", "5"),
+            trade(dt.date(2023, 4, 7), ActionType.BUY, "FOO", "12", "5"),
             trade(sale_day, ActionType.SELL, "FOO", "4", "6"),
             legacy_split(EVENT_DAY, "FOO", "-4"),
-            trade(datetime.date(2023, 6, 8), ActionType.BUY, "FOO", "1", "20"),
+            trade(dt.date(2023, 6, 8), ActionType.BUY, "FOO", "1", "20"),
         ],
     )
     entries = report.calculation_log[sale_day]["sell$FOO"]
@@ -859,11 +859,11 @@ def test_two_reorganisations_compose_as_one_exact_fraction() -> None:
         [
             trade(POOL_DAY, ActionType.BUY, "FOO", "225", "1"),
             legacy_split(EVENT_DAY, "FOO", "-210"),
-            legacy_split(EVENT_DAY + datetime.timedelta(days=1), "FOO", "-14"),
+            legacy_split(EVENT_DAY + dt.timedelta(days=1), "FOO", "-14"),
         ]
     )
     first = calculator.splits[EVENT_DAY]["FOO"]
-    second = calculator.splits[EVENT_DAY + datetime.timedelta(days=1)]["FOO"]
+    second = calculator.splits[EVENT_DAY + dt.timedelta(days=1)]["FOO"]
     assert first.ratio is not None
     assert second.ratio is not None
     assert first.ratio * second.ratio == Fraction(1, 225)
@@ -877,10 +877,10 @@ def test_a_split_on_the_disposal_day_is_not_applied_twice() -> None:
     report = get_report(
         calculator,
         [
-            trade(datetime.date(2023, 4, 7), ActionType.BUY, "FOO", "12", "5"),
+            trade(dt.date(2023, 4, 7), ActionType.BUY, "FOO", "12", "5"),
             trade(EVENT_DAY, ActionType.SELL, "FOO", "2", "6"),
             legacy_split(EVENT_DAY, "FOO", "10"),
-            trade(datetime.date(2023, 6, 8), ActionType.BUY, "FOO", "4", "3"),
+            trade(dt.date(2023, 6, 8), ActionType.BUY, "FOO", "4", "3"),
         ],
     )
     entries = report.calculation_log[EVENT_DAY]["sell$FOO"]
@@ -951,7 +951,7 @@ def test_compounding_consolidations_follow_each_reported_count() -> None:
     on its own, and the two ratios compose to 1/345 exactly: it is composing
     their rounded quotients that would drift.
     """
-    second_day = EVENT_DAY + datetime.timedelta(days=30)
+    second_day = EVENT_DAY + dt.timedelta(days=30)
     calculator = run(
         [
             trade(POOL_DAY, ActionType.BUY, "FOO", "0.0953545300", "1000"),
@@ -980,13 +980,13 @@ def test_a_partly_matched_repurchase_keeps_both_unit_systems_straight() -> None:
     whole remainder is converted once, so neither side is over-consumed and
     neither remainder goes negative.
     """
-    sale_day = datetime.date(2023, 5, 10)
-    buy_back_day = datetime.date(2023, 6, 8)
+    sale_day = dt.date(2023, 5, 10)
+    buy_back_day = dt.date(2023, 6, 8)
     calculator = create_calculator(tax_year=2023, balance_check=False)
     report = get_report(
         calculator,
         [
-            trade(datetime.date(2023, 4, 7), ActionType.BUY, "FOO", "700", "1"),
+            trade(dt.date(2023, 4, 7), ActionType.BUY, "FOO", "700", "1"),
             trade(sale_day, ActionType.SELL, "FOO", "350", "2"),
             # 350 units left become 150: three new shares for every seven old.
             legacy_split(EVENT_DAY, "FOO", "-200"),
@@ -1012,13 +1012,13 @@ def test_a_partly_matched_repurchase_keeps_both_unit_systems_straight() -> None:
 
 def test_a_fully_consumed_repurchase_leaves_no_residual_share() -> None:
     """A ratio that repeats must not leave a sliver behind or take one twice."""
-    sale_day = datetime.date(2023, 5, 10)
-    buy_back_day = datetime.date(2023, 6, 8)
+    sale_day = dt.date(2023, 5, 10)
+    buy_back_day = dt.date(2023, 6, 8)
     calculator = create_calculator(tax_year=2023, balance_check=False)
     report = get_report(
         calculator,
         [
-            trade(datetime.date(2023, 4, 7), ActionType.BUY, "FOO", "600", "1"),
+            trade(dt.date(2023, 4, 7), ActionType.BUY, "FOO", "600", "1"),
             trade(sale_day, ActionType.SELL, "FOO", "300", "2"),
             # Three old units for every one new.
             legacy_split(EVENT_DAY, "FOO", "-200"),
@@ -1043,13 +1043,13 @@ def test_a_fully_consumed_repurchase_leaves_no_residual_share() -> None:
 
 def test_an_acquisition_before_an_unresolved_split_needs_no_ratio() -> None:
     """The match is settled in one unit system, so nothing crosses the event."""
-    sale_day = EVENT_DAY - datetime.timedelta(days=10)
+    sale_day = EVENT_DAY - dt.timedelta(days=10)
     calculator = run(
         [
             trade(POOL_DAY, ActionType.BUY, "FOO", "0.0002", "1000"),
             trade(sale_day, ActionType.SELL, "FOO", "0.0001", "1000"),
             trade(
-                sale_day + datetime.timedelta(days=1),
+                sale_day + dt.timedelta(days=1),
                 ActionType.BUY,
                 "FOO",
                 "0.0001",
@@ -1063,14 +1063,14 @@ def test_an_acquisition_before_an_unresolved_split_needs_no_ratio() -> None:
 
 def test_a_disposal_already_matched_does_not_reach_an_unresolved_split() -> None:
     """A later acquisition is only converted for a disposal still unmatched."""
-    sale_day = EVENT_DAY - datetime.timedelta(days=10)
+    sale_day = EVENT_DAY - dt.timedelta(days=10)
     calculator = run(
         [
             trade(POOL_DAY, ActionType.BUY, "FOO", "0.0002", "1000"),
             trade(sale_day, ActionType.SELL, "FOO", "0.0001", "1000"),
             # Matches the whole disposal before the reorganisation is reached.
             trade(
-                sale_day + datetime.timedelta(days=1),
+                sale_day + dt.timedelta(days=1),
                 ActionType.BUY,
                 "FOO",
                 "0.0001",
@@ -1078,7 +1078,7 @@ def test_a_disposal_already_matched_does_not_reach_an_unresolved_split() -> None
             ),
             paired_split(EVENT_DAY, "FOO", "0.0002000000", "0.0000133400", UNRESOLVED),
             trade(
-                EVENT_DAY + datetime.timedelta(days=1),
+                EVENT_DAY + dt.timedelta(days=1),
                 ActionType.BUY,
                 "FOO",
                 "0.0000066700",
@@ -1224,7 +1224,7 @@ def test_a_match_too_small_to_express_in_both_unit_systems_is_refused() -> None:
     by that is a crash, and matching against it is a disposal identified at
     nil cost.
     """
-    sale_day = POOL_DAY + datetime.timedelta(days=1)
+    sale_day = POOL_DAY + dt.timedelta(days=1)
     with pytest.raises(CalculationError, match="less than the ten decimal places"):
         run(
             [
@@ -1234,7 +1234,7 @@ def test_a_match_too_small_to_express_in_both_unit_systems_is_refused() -> None:
                     EVENT_DAY, "FOO", "5.0000000000", "5000.0000000000", Fraction(1000)
                 ),
                 trade(
-                    EVENT_DAY + datetime.timedelta(days=1),
+                    EVENT_DAY + dt.timedelta(days=1),
                     ActionType.BUY,
                     "FOO",
                     "0.00000001",
@@ -1250,7 +1250,7 @@ def test_a_disposal_too_small_to_reserve_any_acquisition_is_refused() -> None:
     Left alone this matched the disposal at nil allowable cost and reserved
     no units, leaving the whole acquisition free to be matched again.
     """
-    sale_day = POOL_DAY + datetime.timedelta(days=1)
+    sale_day = POOL_DAY + dt.timedelta(days=1)
     with pytest.raises(CalculationError, match="less than the ten decimal places"):
         run(
             [
@@ -1264,7 +1264,7 @@ def test_a_disposal_too_small_to_reserve_any_acquisition_is_refused() -> None:
                     Fraction(1, 1000),
                 ),
                 trade(
-                    EVENT_DAY + datetime.timedelta(days=1),
+                    EVENT_DAY + dt.timedelta(days=1),
                     ActionType.BUY,
                     "FOO",
                     "1",
@@ -1362,7 +1362,7 @@ def test_a_negative_reconciliation_does_not_hold_the_day_below_zero() -> None:
 
 
 def raw_split(
-    date: datetime.date,
+    date: dt.date,
     symbol: str,
     delta: str,
     *,
@@ -1376,7 +1376,7 @@ def raw_split(
     )
 
 
-def rename(date: datetime.date, old: str, new: str) -> BrokerTransaction:
+def rename(date: dt.date, old: str, new: str) -> BrokerTransaction:
     """Build the row that says a holding now trades under another ticker."""
     return BrokerTransaction(
         date=date,
@@ -1431,7 +1431,7 @@ def test_an_account_sold_out_of_is_no_longer_a_source() -> None:
             trade(RENAME_DAY, ActionType.SELL, "FOO", "10", "12", source=elsewhere(1)),
             trade(LATER_DAY, ActionType.BUY, "FOO", "4", "20", source=elsewhere(0)),
             legacy_split(
-                LATER_DAY + datetime.timedelta(days=1),
+                LATER_DAY + dt.timedelta(days=1),
                 "FOO",
                 "4",
                 source=elsewhere(1),
@@ -1475,7 +1475,7 @@ def test_a_holding_that_closes_a_day_empty_clears_its_sources() -> None:
             trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10", source=elsewhere(0)),
             trade(EVENT_DAY, ActionType.SELL, "FOO", "10", "12"),
             trade(
-                EVENT_DAY + datetime.timedelta(days=1),
+                EVENT_DAY + dt.timedelta(days=1),
                 ActionType.BUY,
                 "FOO",
                 "15",
@@ -1675,8 +1675,8 @@ def test_a_raw_row_does_not_collapse_untimed_rows_from_one_source() -> None:
 
 def test_different_sources_may_timestamp_one_reorganisation_differently() -> None:
     """Independent exports need not record one corporate action simultaneously."""
-    morning = datetime.datetime.combine(EVENT_DAY, datetime.time(9))
-    afternoon = datetime.datetime.combine(EVENT_DAY, datetime.time(11))
+    morning = dt.datetime.combine(EVENT_DAY, dt.time(9))
+    afternoon = dt.datetime.combine(EVENT_DAY, dt.time(11))
     first_source = replace(elsewhere(0, account="First account"), timestamp=morning)
     second_source = replace(elsewhere(0, account="Second account"), timestamp=afternoon)
 
@@ -1709,8 +1709,8 @@ def test_different_sources_may_timestamp_one_reorganisation_differently() -> Non
 
 def test_a_raw_row_does_not_collapse_separately_timed_reorganisations() -> None:
     """One export's distinct instants prove that it reports separate events."""
-    morning = datetime.datetime.combine(EVENT_DAY, datetime.time(9))
-    afternoon = datetime.datetime.combine(EVENT_DAY, datetime.time(11))
+    morning = dt.datetime.combine(EVENT_DAY, dt.time(9))
+    afternoon = dt.datetime.combine(EVENT_DAY, dt.time(11))
     first = legacy_split(EVENT_DAY, "FOO", "10", source=elsewhere(0))
     second = legacy_split(EVENT_DAY, "FOO", "15", source=elsewhere(1))
     assert first.source is not None
@@ -1744,8 +1744,8 @@ def test_one_accounts_events_conflict_even_from_different_files() -> None:
     the closing share count right, so nothing else noticed.
     """
     account = "One account"
-    morning = datetime.datetime.combine(EVENT_DAY, datetime.time(9))
-    afternoon = datetime.datetime.combine(EVENT_DAY, datetime.time(11))
+    morning = dt.datetime.combine(EVENT_DAY, dt.time(9))
+    afternoon = dt.datetime.combine(EVENT_DAY, dt.time(11))
     first = legacy_split(EVENT_DAY, "FOO", "10", source=elsewhere(0, account=account))
     second = legacy_split(EVENT_DAY, "FOO", "15", source=elsewhere(1, account=account))
     assert first.source is not None
@@ -1777,8 +1777,8 @@ def test_two_accounts_in_different_files_still_do_not_conflict() -> None:
     Two accounts timing one corporate action differently is the case the RAW
     override exists for, and it must survive keying the check on the account.
     """
-    morning = datetime.datetime.combine(EVENT_DAY, datetime.time(9))
-    afternoon = datetime.datetime.combine(EVENT_DAY, datetime.time(11))
+    morning = dt.datetime.combine(EVENT_DAY, dt.time(9))
+    afternoon = dt.datetime.combine(EVENT_DAY, dt.time(11))
     first = legacy_split(EVENT_DAY, "FOO", "5", source=elsewhere(0, account="First"))
     second = legacy_split(EVENT_DAY, "FOO", "5", source=elsewhere(0, account="Second"))
     assert first.source is not None
@@ -2199,7 +2199,7 @@ def test_a_purchase_under_either_of_the_day_s_tickers_joins_the_same_pool(
     [pytest.param(RENAME_DAY, id="earlier"), pytest.param(EVENT_DAY, id="same-day")],
 )
 def test_a_fee_under_the_new_ticker_is_not_a_second_holding(
-    fee_day: datetime.date,
+    fee_day: dt.date,
 ) -> None:
     """A management fee is cost with no shares, so it is not a second holding.
 
@@ -2317,11 +2317,9 @@ def test_a_repurchase_is_matched_across_a_split_recorded_under_the_old_name() ->
         [
             trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
             trade(EVENT_DAY, ActionType.SELL, "OLD", "5", "20"),
-            legacy_split(EVENT_DAY + datetime.timedelta(days=1), "OLD", "5"),
-            rename(EVENT_DAY + datetime.timedelta(days=1), "OLD", "NEW"),
-            trade(
-                EVENT_DAY + datetime.timedelta(days=2), ActionType.BUY, "NEW", "10", "6"
-            ),
+            legacy_split(EVENT_DAY + dt.timedelta(days=1), "OLD", "5"),
+            rename(EVENT_DAY + dt.timedelta(days=1), "OLD", "NEW"),
+            trade(EVENT_DAY + dt.timedelta(days=2), ActionType.BUY, "NEW", "10", "6"),
         ],
     )
     (entry,) = report.calculation_log[EVENT_DAY]["sell$OLD"]
@@ -2330,7 +2328,7 @@ def test_a_repurchase_is_matched_across_a_split_recorded_under_the_old_name() ->
     assert entry.quantity == Decimal(5)
     assert entry.allowable_cost == Decimal(60)
     assert entry.gain == Decimal(40)
-    reserved = calculator.bnb_list[EVENT_DAY + datetime.timedelta(days=2)]["NEW"]
+    reserved = calculator.bnb_list[EVENT_DAY + dt.timedelta(days=2)]["NEW"]
     assert reserved.quantity == Decimal(10)
     assert calculator.portfolio["NEW"].quantity == Decimal(20)
     assert calculator.portfolio["NEW"].amount == Decimal(100)
@@ -2349,14 +2347,10 @@ def test_a_repurchase_is_matched_across_a_split_recorded_under_the_new_name() ->
         [
             trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
             trade(EVENT_DAY, ActionType.SELL, "OLD", "10", "20"),
-            trade(
-                EVENT_DAY + datetime.timedelta(days=1), ActionType.BUY, "NEW", "5", "10"
-            ),
-            legacy_split(EVENT_DAY + datetime.timedelta(days=1), "NEW", "5"),
-            rename(EVENT_DAY + datetime.timedelta(days=1), "OLD", "NEW"),
-            trade(
-                EVENT_DAY + datetime.timedelta(days=2), ActionType.BUY, "NEW", "10", "6"
-            ),
+            trade(EVENT_DAY + dt.timedelta(days=1), ActionType.BUY, "NEW", "5", "10"),
+            legacy_split(EVENT_DAY + dt.timedelta(days=1), "NEW", "5"),
+            rename(EVENT_DAY + dt.timedelta(days=1), "OLD", "NEW"),
+            trade(EVENT_DAY + dt.timedelta(days=2), ActionType.BUY, "NEW", "10", "6"),
         ],
     )
     first, second = report.calculation_log[EVENT_DAY]["sell$OLD"]
@@ -2374,7 +2368,7 @@ def test_a_repurchase_is_matched_across_a_split_recorded_under_the_new_name() ->
 # ===== placing a same-day row by the instants an export stamped =====
 
 
-def _stamped(when: datetime.datetime) -> TransactionSource:
+def _stamped(when: dt.datetime) -> TransactionSource:
     """Provenance for a row from another input that states its instant."""
     return TransactionSource(
         parser="Testing",
@@ -2400,7 +2394,7 @@ def test_a_row_stamped_before_the_event_is_restated() -> None:
                 "FOO",
                 "2",
                 "10",
-                source=_stamped(SPLIT_OPENED - datetime.timedelta(minutes=1)),
+                source=_stamped(SPLIT_OPENED - dt.timedelta(minutes=1)),
             ),
             paired_split(
                 EVENT_DAY,
@@ -2428,7 +2422,7 @@ def test_a_row_stamped_after_the_event_is_left_alone() -> None:
                 "FOO",
                 "2",
                 "10",
-                source=_stamped(SPLIT_CLOSED + datetime.timedelta(minutes=1)),
+                source=_stamped(SPLIT_CLOSED + dt.timedelta(minutes=1)),
             ),
             paired_split(
                 EVENT_DAY,
@@ -2464,7 +2458,7 @@ def test_a_row_stamped_before_a_lone_booking_instant_is_refused() -> None:
                     "FOO",
                     "2",
                     "10",
-                    source=_stamped(SPLIT_OPENED - datetime.timedelta(minutes=1)),
+                    source=_stamped(SPLIT_OPENED - dt.timedelta(minutes=1)),
                 ),
                 legacy_split(EVENT_DAY, "FOO", "10", source=_stamped(SPLIT_OPENED)),
             ]
@@ -2490,7 +2484,7 @@ def test_a_row_stamped_after_a_lone_booking_instant_is_left_alone() -> None:
                 "FOO",
                 "10",
                 "10",
-                source=_stamped(SPLIT_OPENED - datetime.timedelta(days=1)),
+                source=_stamped(SPLIT_OPENED - dt.timedelta(days=1)),
             ),
             legacy_split(EVENT_DAY, "FOO", "10", source=_stamped(SPLIT_OPENED)),
             trade(
@@ -2499,7 +2493,7 @@ def test_a_row_stamped_after_a_lone_booking_instant_is_left_alone() -> None:
                 "FOO",
                 "2",
                 "10",
-                source=_stamped(SPLIT_CLOSED + datetime.timedelta(minutes=1)),
+                source=_stamped(SPLIT_CLOSED + dt.timedelta(minutes=1)),
             ),
         ]
     )

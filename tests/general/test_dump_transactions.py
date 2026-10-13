@@ -6,7 +6,7 @@ import argparse
 import csv
 import dataclasses
 from dataclasses import fields
-import datetime
+import datetime as dt
 from decimal import Decimal
 import io
 import json
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 RAW_HEADER = "date,action,symbol,quantity,price,fees,currency\n"
 
-DATE = datetime.date(2023, 4, 25)
+DATE = dt.date(2023, 4, 25)
 ZERO = Decimal(0)
 ONE = Decimal(1)
 USD = CurrencyCode("USD")
@@ -75,7 +75,7 @@ def _minimal(
 def _rich() -> BrokerTransaction:
     """Build a transaction that populates every exported field."""
     return BrokerTransaction(
-        date=datetime.date(2023, 4, 25),
+        date=dt.date(2023, 4, 25),
         action=ActionType.OPTION_GRANT,
         symbol="GOOG",
         description="Vest, tranche 2",
@@ -94,7 +94,7 @@ def _rich() -> BrokerTransaction:
         ambiguous_quantity=Decimal(21),
         option_contract=OptionContract(
             underlying="GOOG",
-            expiry=datetime.date(2024, 5, 17),
+            expiry=dt.date(2024, 5, 17),
             strike=Decimal(500),
             option_type=OptionType.CALL,
         ),
@@ -102,7 +102,7 @@ def _rich() -> BrokerTransaction:
             taxable_quantity=Decimal(2),
             close_costs=[
                 DatedAmount(
-                    date=datetime.date(2023, 6, 1),
+                    date=dt.date(2023, 6, 1),
                     amount=Decimal("12.34"),
                     currency=CurrencyCode("USD"),
                 )
@@ -110,7 +110,7 @@ def _rich() -> BrokerTransaction:
         ),
         capital_adjustments=[
             CapitalAdjustment(
-                date=datetime.date(2023, 5, 2),
+                date=dt.date(2023, 5, 2),
                 net_amount=Decimal("-3.5"),
                 fees=Decimal("0.25"),
                 currency=CurrencyCode("USD"),
@@ -124,7 +124,7 @@ def _rich() -> BrokerTransaction:
             file=Path("history/raw.csv"),
             row=7,
             index=3,
-            timestamp=datetime.datetime(2023, 4, 25, 14, 30, 5),
+            timestamp=dt.datetime(2023, 4, 25, 14, 30, 5),
             rows_in_time_order=True,
         ),
     )
@@ -405,9 +405,9 @@ def test_no_python_repr_reaches_the_file() -> None:
     [
         # JSON names entries with text, and none of these is text.
         7,
-        datetime.date(2023, 1, 1),
+        dt.date(2023, 1, 1),
         OptionType.CALL,
-        ("GOOG", datetime.date(2023, 1, 1)),
+        ("GOOG", dt.date(2023, 1, 1)),
     ],
 )
 def test_a_key_that_is_not_text_is_refused(key: object) -> None:

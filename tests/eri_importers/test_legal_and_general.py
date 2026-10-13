@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -86,7 +86,7 @@ DATA_ROWS: list[list[str]] = [
     ],
 ]
 
-PERIOD_END = datetime.date(2025, 6, 30)
+PERIOD_END = dt.date(2025, 6, 30)
 
 
 def _build_pdf(

@@ -6,7 +6,7 @@ import argparse
 from collections import OrderedDict, defaultdict
 import csv
 from dataclasses import dataclass, field, replace
-import datetime
+import datetime as dt
 from decimal import Decimal
 from enum import StrEnum
 import io
@@ -101,9 +101,9 @@ class RequiredAwardColumn(StrEnum):
 class AwardPrices:
     """Class to store initial stock prices."""
 
-    award_prices: dict[datetime.date, dict[str, Decimal]]
+    award_prices: dict[dt.date, dict[str, Decimal]]
 
-    lapse_priced_from: dict[str, datetime.date] = field(default_factory=dict)
+    lapse_priced_from: dict[str, dt.date] = field(default_factory=dict)
     """Earliest date each symbol is priced at, for prices read from Lapse rows.
 
     Those prices are stated in one file and the share counts they cost in
@@ -124,14 +124,14 @@ class AwardPrices:
         """Return True if not empty."""
         return bool(self.award_prices)
 
-    def get(self, date: datetime.date, symbol: str) -> tuple[datetime.date, Decimal]:
+    def get(self, date: dt.date, symbol: str) -> tuple[dt.date, Decimal]:
         """Return the award's own date and price for a vest posted on `date`."""
         # Award dates may go back a few days, depending on
         # holidays or weekends, so we do a linear search
         # in the past to find the award price
         symbol = current_ticker(symbol, date)
         for i in range(7):
-            to_search = date - datetime.timedelta(days=i)
+            to_search = date - dt.timedelta(days=i)
 
             if (
                 to_search in self.award_prices
@@ -294,7 +294,7 @@ class SchwabTransaction(BrokerTransaction):
         else:
             date_str = row_dict[date_header]
         try:
-            date = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
+            date = dt.datetime.strptime(date_str, "%m/%d/%Y").date()
         except ValueError as exc:
             raise ParsingError(
                 file, f"Invalid date format: {date_str} from row: {row_dict}"
@@ -784,12 +784,12 @@ class _Export:
     file_path: Path
 
     @property
-    def oldest(self) -> datetime.date:
+    def oldest(self) -> dt.date:
         """Earliest date the file states."""
         return min(row.posted_on for row in self.rows)
 
     @property
-    def newest(self) -> datetime.date:
+    def newest(self) -> dt.date:
         """Latest date the file states."""
         return max(row.posted_on for row in self.rows)
 
@@ -835,7 +835,7 @@ def _award_prices_from_lines(
     classified as the award-price CSV, so the first row holds every
     ``RequiredAwardColumn``.
     """
-    initial_prices: dict[datetime.date, dict[str, Decimal]] = defaultdict(dict)
+    initial_prices: dict[dt.date, dict[str, Decimal]] = defaultdict(dict)
 
     header = lines[0]
 
@@ -886,9 +886,9 @@ def _award_prices_from_lines(
         row_dict = OrderedDict(zip(header, row, strict=True))
         date_str = row_dict[RequiredAwardColumn.DATE.value]
         try:
-            date = datetime.datetime.strptime(date_str, "%Y/%m/%d").date()
+            date = dt.datetime.strptime(date_str, "%Y/%m/%d").date()
         except ValueError:
-            date = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
+            date = dt.datetime.strptime(date_str, "%m/%d/%Y").date()
         symbol_header = RequiredAwardColumn.SYMBOL.value
         symbol = row_dict[symbol_header] if row_dict[symbol_header] != "" else None
         fair_market_value_price_header = (
@@ -1152,7 +1152,7 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 raise CgtError(price_only_alone_message())
             rows, names = price_only
             lapse_prices = lapse_award_prices(rows, award_path, names)
-            first_priced: dict[str, datetime.date] = {}
+            first_priced: dict[str, dt.date] = {}
             for priced_date, prices in sorted(lapse_prices.items()):
                 for symbol in prices:
                     first_priced.setdefault(symbol, priced_date)

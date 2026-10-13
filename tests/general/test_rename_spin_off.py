@@ -13,7 +13,7 @@ the cost, goes to `DST`.
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 import itertools
 
@@ -34,8 +34,8 @@ from cgt_calc.util import round_decimal
 from .calc_test_data import GBP, transaction, transfer_to_spouse_transaction
 from .test_calc import _gbp_fee, get_report
 
-BUY_DAY = datetime.date(2024, 6, 1)
-DAY = datetime.date(2024, 7, 5)
+BUY_DAY = dt.date(2024, 6, 1)
+DAY = dt.date(2024, 7, 5)
 FLAT = Decimal(1)
 PRICES = {
     name: {DAY: Decimal(90) if name.startswith("SRC") else Decimal(10)}
@@ -67,7 +67,7 @@ def spin_off_row(symbol: str, units: int = 10) -> BrokerTransaction:
 def run(
     rows: list[BrokerTransaction],
     source: str,
-    prices: dict[str, dict[datetime.date, Decimal]] | None = None,
+    prices: dict[str, dict[dt.date, Decimal]] | None = None,
     sources: dict[str, str] | None = None,
 ) -> CapitalGainsReport:
     """Run these rows with the spin-offs file naming `source` for every ticker."""
@@ -320,7 +320,7 @@ def test_a_source_renamed_to_the_name_it_spins_off_is_refused(
         )
 
 
-def _priced(**prices: int) -> dict[str, dict[datetime.date, Decimal]]:
+def _priced(**prices: int) -> dict[str, dict[dt.date, Decimal]]:
     """Give each named ticker its own closing price on the spin-off day."""
     return {name: {DAY: Decimal(price)} for name, price in prices.items()}
 

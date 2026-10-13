@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 from pathlib import Path
 
@@ -40,7 +40,7 @@ from cgt_calc.exceptions import (
 )
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 
-DATE = datetime.date(2023, 1, 1)
+DATE = dt.date(2023, 1, 1)
 
 TRANSACTION = BrokerTransaction(
     date=DATE,

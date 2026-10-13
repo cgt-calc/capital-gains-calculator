@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 import os
 from pathlib import Path
@@ -76,14 +76,14 @@ def _report(
         (
             "META 05/17/2024 500.00 C",
             "META",
-            datetime.date(2024, 5, 17),
+            dt.date(2024, 5, 17),
             Decimal(500),
             OptionType.CALL,
         ),
         (
             "META  240517P00475500",
             "META",
-            datetime.date(2024, 5, 17),
+            dt.date(2024, 5, 17),
             Decimal("475.5"),
             OptionType.PUT,
         ),
@@ -92,12 +92,12 @@ def _report(
 def test_parse_option_contract_formats(
     symbol: str,
     underlying: str,
-    expiry: datetime.date,
+    expiry: dt.date,
     strike: Decimal,
     option_type: OptionType,
 ) -> None:
     """Parse both Schwab's readable and canonical OCC option symbols."""
-    contract = parse_option_contract(symbol, datetime.date(2024, 5, 1))
+    contract = parse_option_contract(symbol, dt.date(2024, 5, 1))
 
     assert contract is not None
     assert contract.underlying == underlying
@@ -120,7 +120,7 @@ def test_written_call_bought_to_close_reduces_grant_gain() -> None:
     assert report.disposal_proceeds == Decimal("30.00")
     assert report.allowable_costs == Decimal("11.30")
     assert report.capital_gain == Decimal("18.70")
-    entries = report.calculation_log[datetime.date(2024, 5, 1)][
+    entries = report.calculation_log[dt.date(2024, 5, 1)][
         "option$META call option expiring 2024-05-17 at a strike of 500"
     ]
     assert entries[0].rule_type is RuleType.OPTION
@@ -152,8 +152,8 @@ def test_closing_cost_uses_the_close_date_exchange_rate() -> None:
     converter = CurrencyConverter(
         None,
         {
-            datetime.date(2024, 5, 1): {USD: Decimal(2)},
-            datetime.date(2024, 5, 10): {USD: Decimal(1)},
+            dt.date(2024, 5, 1): {USD: Decimal(2)},
+            dt.date(2024, 5, 10): {USD: Decimal(1)},
         },
     )
     calculator = CapitalGainsCalculator(
@@ -275,9 +275,9 @@ def test_assignment_leaves_its_settlement_cash_on_the_settlement_date() -> None:
         if row.action is ActionType.TRANSFER and row.amount == Decimal("-5000.00")
     )
 
-    assert purchase.date == datetime.date(2024, 5, 17)
+    assert purchase.date == dt.date(2024, 5, 17)
     assert purchase.affects_cash_balance is False
-    assert settlement.date == datetime.date(2024, 5, 21)
+    assert settlement.date == dt.date(2024, 5, 21)
     assert settlement.affects_cash_balance is True
     # Quoted verbatim in docs/brokers/schwab.md, so pin the whole string.
     assert settlement.description == (
@@ -340,9 +340,9 @@ def test_assigned_call_leaves_its_proceeds_on_the_settlement_date() -> None:
     sale = next(row for row in transactions if row.action is ActionType.SELL)
     settlement = next(row for row in transactions if row.action is ActionType.TRANSFER)
 
-    assert sale.date == datetime.date(2024, 5, 17)
+    assert sale.date == dt.date(2024, 5, 17)
     assert sale.affects_cash_balance is False
-    assert settlement.date == datetime.date(2024, 5, 21)
+    assert settlement.date == dt.date(2024, 5, 21)
     assert settlement.amount == Decimal("35000.00")
 
 
@@ -420,7 +420,7 @@ def test_later_posted_assignment_share_row_keeps_the_assignment_date() -> None:
     sales = [row for row in transactions if row.action is ActionType.SELL]
 
     assert len(sales) == 1
-    assert sales[0].date == datetime.date(2025, 4, 4)
+    assert sales[0].date == dt.date(2025, 4, 4)
     assert sales[0].amount == Decimal("10000.00")
 
 
@@ -513,7 +513,7 @@ def test_option_opened_and_closed_in_different_export_files() -> None:
 )
 def test_contract_not_delivering_100_shares_is_refused(symbol: str) -> None:
     """An adjusted or cash-settled contract is not 100 shares of anything."""
-    assert parse_option_contract(symbol, datetime.date(2024, 5, 1)) is None
+    assert parse_option_contract(symbol, dt.date(2024, 5, 1)) is None
 
     with pytest.raises(ParsingError, match="Cannot parse the option contract"):
         _read(f"05/01/2024,Sell to Open,{symbol},Open,$1.00,1,$0.65,$99.35")
@@ -604,7 +604,7 @@ def test_settlement_posted_after_a_long_weekend_is_matched() -> None:
     sales = [row for row in transactions if row.action is ActionType.SELL]
 
     assert len(sales) == 1
-    assert sales[0].date == datetime.date(2024, 5, 24)
+    assert sales[0].date == dt.date(2024, 5, 24)
     assert sales[0].quantity == Decimal(100)
 
 
@@ -627,7 +627,7 @@ def test_a_share_row_settles_an_assignment_up_to_seven_days_later() -> None:
     )
 
     sales = [row for row in transactions if row.action is ActionType.SELL]
-    assert [sale.date for sale in sales] == [datetime.date(2024, 5, 13)]
+    assert [sale.date for sale in sales] == [dt.date(2024, 5, 13)]
     with pytest.raises(ParsingError, match="on or within 7 days of the assignment"):
         _read(
             "05/21/2024,Sell,META,META PLATFORMS INC,$350.00,100,,$35000.00", *history

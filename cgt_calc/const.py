@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 from enum import Enum
 import os
@@ -51,11 +51,11 @@ CAPITAL_GAIN_ALLOWANCES: Final[dict[int, int]] = {
 # from 23 June 2010, both cut from 6 April 2016 and raised from 30 October 2024.
 # https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg10246
 # https://www.gov.uk/guidance/capital-gains-tax-rates-and-allowances
-CAPITAL_GAINS_TAX_RATES: Final[tuple[tuple[datetime.date, int, int], ...]] = (
-    (datetime.date(2008, 4, 6), 18, 18),
-    (datetime.date(2010, 6, 23), 18, 28),
-    (datetime.date(2016, 4, 6), 10, 20),
-    (datetime.date(2024, 10, 30), 18, 24),
+CAPITAL_GAINS_TAX_RATES: Final[tuple[tuple[dt.date, int, int], ...]] = (
+    (dt.date(2008, 4, 6), 18, 18),
+    (dt.date(2010, 6, 23), 18, 28),
+    (dt.date(2016, 4, 6), 10, 20),
+    (dt.date(2024, 10, 30), 18, 24),
 )
 
 # Income Tax basic rate limit: the taxable income below which a gain is taxed
@@ -189,8 +189,8 @@ FIRST_DIVIDEND_ALLOWANCE_YEAR: Final = 2016
 # 31 March 1982 value. Disposals before 2008 followed other rules (LIFO,
 # indexation, taper) that decide which shares were left.
 # See: https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51550
-POOLING_RULES_START_DATE: Final = datetime.date(2008, 4, 6)
-REBASING_DATE: Final = datetime.date(1982, 4, 6)
+POOLING_RULES_START_DATE: Final = dt.date(2008, 4, 6)
+REBASING_DATE: Final = dt.date(1982, 4, 6)
 
 # Actions refused before POOLING_RULES_START_DATE: each disposes of shares or
 # changes a pool's cost in a way the pre-2008 rules could treat differently.

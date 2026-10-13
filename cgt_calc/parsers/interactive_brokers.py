@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from decimal import Decimal
 from enum import StrEnum
 from itertools import chain
@@ -145,7 +145,7 @@ class InteractiveBrokersTransaction(BrokerTransaction):
     ):
         """Create transaction from CSV row."""
         date_str = row[InteractiveBrokersColumn.DATE]
-        date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+        date = dt.datetime.strptime(date_str, "%Y-%m-%d").date()
 
         action = _action_from_str(
             row[InteractiveBrokersColumn.TRANSACTION_TYPE], file_path

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-import datetime
+import datetime as dt
 from decimal import Decimal
 from pathlib import Path
 from typing import override
@@ -84,7 +84,7 @@ def test_isin_parse_normalises_valid_input() -> None:
 
 def _transaction(isin: Isin | None, currency: CurrencyCode = USD) -> BrokerTransaction:
     return BrokerTransaction(
-        date=datetime.date(2023, 1, 1),
+        date=dt.date(2023, 1, 1),
         action=ActionType.BUY,
         symbol="FOO",
         description="test",
@@ -265,7 +265,7 @@ class _HashedTransaction(BrokerTransaction):
 
 def _hashed(source: TransactionSource) -> _HashedTransaction:
     return _HashedTransaction(
-        date=datetime.date(2023, 1, 1),
+        date=dt.date(2023, 1, 1),
         action=ActionType.BUY,
         symbol="FOO",
         description="test",
@@ -294,7 +294,7 @@ def test_source_is_not_part_of_transaction_equality() -> None:
             file=Path("2026-01.csv"),
             row=7,
             index=5,
-            timestamp=datetime.datetime(2026, 1, 5, 9, 30, tzinfo=datetime.UTC),
+            timestamp=dt.datetime(2026, 1, 5, 9, 30, tzinfo=dt.UTC),
         )
     )
     second = _hashed(
@@ -314,7 +314,7 @@ def test_source_is_not_part_of_transaction_equality() -> None:
 def _sale(**changes: object) -> BrokerTransaction:
     """Build a disposal to render, with any field overridden."""
     transaction = BrokerTransaction(
-        date=datetime.date(2024, 6, 27),
+        date=dt.date(2024, 6, 27),
         action=ActionType.SELL,
         symbol="FOO",
         description="FOO INC",
