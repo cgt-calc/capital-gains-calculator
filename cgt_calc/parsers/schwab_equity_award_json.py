@@ -42,7 +42,7 @@ from cgt_calc.util import is_blank_row, round_decimal
 from .base_parsers import BaseSingleFileParser
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Generator, Sequence
     from pathlib import Path
 
 OPTIONAL_DETAILS_NAME: Final = "Details"
@@ -1520,7 +1520,7 @@ def _reject_symbols_a_split_could_restate(
 
 
 @contextmanager
-def _csv_row_errors(row_index: int | None, file_path: Path) -> Iterator[None]:
+def _csv_row_errors(row_index: int | None, file_path: Path) -> Generator[None]:
     """Point whatever a row raises at the CSV line it was stated on.
 
     A JSON export gives an error nothing better than the file to name, and is

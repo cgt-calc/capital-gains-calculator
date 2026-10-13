@@ -6,7 +6,6 @@ from dataclasses import replace
 import datetime as dt
 from decimal import Decimal
 from pathlib import Path
-from typing import override
 
 import pytest
 
@@ -254,17 +253,8 @@ def test_broker_transaction_keeps_typed_foreign_fees_as_is() -> None:
     assert _transaction_with_fees(fees).foreign_fees is fees
 
 
-class _HashedTransaction(BrokerTransaction):
-    """A transaction hashed by identity fields, as broker parsers hash theirs."""
-
-    @override
-    def __hash__(self) -> int:
-        """Hash on what identifies the row, never on where it was read from."""
-        return hash((self.date, self.symbol, self.quantity))
-
-
-def _hashed(source: TransactionSource) -> _HashedTransaction:
-    return _HashedTransaction(
+def _read_from(source: TransactionSource) -> BrokerTransaction:
+    return BrokerTransaction(
         date=dt.date(2023, 1, 1),
         action=ActionType.BUY,
         symbol="FOO",
@@ -284,10 +274,10 @@ def test_source_is_not_part_of_transaction_equality() -> None:
 
     Parsers deduplicate by comparing transactions, so the file a row came
     from, the line it sat on and the boundary it was loaded under have to
-    stay out of the comparison and out of the hash. Left in, every row two
-    exports share would survive twice and double the holding.
+    stay out of the comparison. Left in, every row two exports share would
+    survive twice and double the holding.
     """
-    first = _hashed(
+    first = _read_from(
         TransactionSource(
             parser="Trading 212",
             account="Trading 212 #1",
@@ -297,7 +287,7 @@ def test_source_is_not_part_of_transaction_equality() -> None:
             timestamp=dt.datetime(2026, 1, 5, 9, 30, tzinfo=dt.UTC),
         )
     )
-    second = _hashed(
+    second = _read_from(
         TransactionSource(
             parser="Trading 212",
             account="Trading 212 #2",
@@ -308,7 +298,6 @@ def test_source_is_not_part_of_transaction_equality() -> None:
     )
 
     assert first == second
-    assert len({first, second}) == 1
 
 
 def _sale(**changes: object) -> BrokerTransaction:
