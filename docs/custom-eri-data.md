@@ -58,6 +58,9 @@ ETFs. Check the fund company in your fund documents if you are unsure.
 BlackRock UK publishes annual Reportable Income reports here:
 <https://www.blackrock.com/uk/solutions/adviser-resources/reporting-fund-status>
 
+If the report you need is not linked there, look in BlackRock's document library:
+<https://www.blackrock.com/uk/education/library?userType=individual&materialType=tax+information>
+
 BlackRock groups its reports by fund range, such as BGIF, BGF and BSF. Choose the range named in the
 fund documents.
 
