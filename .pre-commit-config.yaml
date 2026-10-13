@@ -68,7 +68,7 @@ repos:
         entry: env CGT_TEST_MODE_STRICT=1 uv run pytest
         pass_filenames: false
   - repo: https://github.com/cdce8p/python-typing-update
-    rev: v0.8.1
+    rev: v0.9.0
     hooks:
       # Run `python-typing-update` hook manually from time to time
       # to update python typing syntax.
