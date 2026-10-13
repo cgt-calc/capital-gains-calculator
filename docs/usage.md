@@ -154,9 +154,10 @@ Three other labels are not matching rules:
     [written equity options](brokers/schwab.md#written-equity-options).
 
 A [transfer to a spouse or civil partner](brokers/raw.md#transfers-to-a-spouse-or-civil-partner) has
-no labelled lines, so the PDF does not say which matching rule applied. It shows the base cost that
-passes to the recipient instead. The matching rules still apply, so a purchase on the same day or in
-the following 30 days can make that cost differ from the average cost of your pooled holding.
+no labelled lines of its own, so its entry in the PDF does not say which matching rule applied. It
+shows the base cost that passes to the recipient instead. The matching rules still apply, so a
+purchase on the same day or in the following 30 days can make that cost differ from the average cost
+of your pooled holding.
 
 ## Use the figures
 
