@@ -4,7 +4,7 @@
 # request and not on whichever build comes next. Dependabot bumps it.
 # It reads only FROM lines, which is why the pin is a stage of its own
 # and not an image named in COPY --from.
-FROM ghcr.io/astral-sh/uv:0.12.23 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.0 AS uv
 
 FROM python:3.14-slim-trixie AS base
 
