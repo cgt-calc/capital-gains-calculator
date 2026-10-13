@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from .util import display_str, is_blank_row, strip_zeros
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Generator, Sequence
     import datetime as dt
     from decimal import Decimal
     from pathlib import Path
@@ -49,7 +49,7 @@ class ParsingError(CgtError):
 
 
 @contextmanager
-def reading_as(encoding: str, file: Path) -> Iterator[None]:
+def reading_as(encoding: str, file: Path) -> Generator[None]:
     """Report text that is not in ``encoding`` as a parsing error naming the file.
 
     Text is decoded as it is read, not when the file is opened, so this wraps
@@ -75,7 +75,7 @@ def reading_as(encoding: str, file: Path) -> Iterator[None]:
 
 
 @contextmanager
-def saving(what: str, file: Path, instead: str) -> Iterator[None]:
+def saving(what: str, file: Path, instead: str) -> Generator[None]:
     """Report a failure to write `file` as a message; `instead` is the way round it."""
     try:
         yield
