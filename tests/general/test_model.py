@@ -270,12 +270,10 @@ def _read_from(source: TransactionSource) -> BrokerTransaction:
 
 
 def test_source_is_not_part_of_transaction_equality() -> None:
-    """One row two overlapping exports both state stays one row.
+    """The source does not affect transaction equality.
 
-    Parsers deduplicate by comparing transactions, so the file a row came
-    from, the line it sat on and the boundary it was loaded under have to
-    stay out of the comparison. Left in, every row two exports share would
-    survive twice and double the holding.
+    Two otherwise identical transactions stay equal when they were read from
+    different accounts, files and rows.
     """
     first = _read_from(
         TransactionSource(
