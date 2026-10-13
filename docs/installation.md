@@ -72,19 +72,48 @@ cgt-calc --version
 If you use `uvx` instead of installing cgt-calc, run `uvx cgt-calc --version`. Once the command
 prints a version, choose your [broker](brokers/index.md) and follow the [report guide](usage.md).
 
+### If the command is not found
+
+If installation succeeded but your terminal cannot find `cgt-calc`, use the step for your install
+method, then try `cgt-calc --version` again:
+
+- **uv:** run `uv tool update-shell`, then open a new terminal. This adds uv's tool directory to the
+    places your shell searches for commands; see
+    [uv's instructions](https://docs.astral.sh/uv/guides/tools/#installing-tools).
+- **pipx:** run `pipx ensurepath`, then open a new terminal.
+- **pip:** activate the same Python virtual environment you used to install cgt-calc.
+
+## Upgrade cgt-calc
+
+Use the same method you used to install it:
+
+| Install method                                                                                      | Upgrade command                            |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| [uv](https://docs.astral.sh/uv/guides/tools/#upgrading-tools)                                       | `uv tool upgrade cgt-calc`                 |
+| [pipx](https://pipx.pypa.io/latest/how-to/manage-installed-apps.html#upgrade-one)                   | `pipx upgrade cgt-calc`                    |
+| [pip](https://pip.pypa.io/en/stable/cli/pip_install/#examples), in the original virtual environment | `python -m pip install --upgrade cgt-calc` |
+
+Run `cgt-calc --version` afterwards to check the installed version. If you use `uvx`, run
+`uvx cgt-calc@latest --version` to fetch and check the latest release, then use
+`uvx cgt-calc@latest` with your usual report options. Docker users should follow
+[Updating the image](docker.md#updating-the-image).
+
 ## Shell completions (optional)
 
 `cgt-calc` can generate a tab completion script for `bash`, `zsh`, `fish`, `tcsh` and PowerShell.
-Save it where your shell looks for completions, e.g.:
+Create the directory and save the script for your shell:
 
 ```shell
 # bash
+mkdir -p ~/.local/share/bash-completion/completions
 cgt-calc --print-completion bash > ~/.local/share/bash-completion/completions/cgt-calc
 
 # zsh (the target directory must be in your $fpath)
+mkdir -p ~/.zfunc
 cgt-calc --print-completion zsh > ~/.zfunc/_cgt-calc
 
 # fish
+mkdir -p ~/.config/fish/completions
 cgt-calc --print-completion fish > ~/.config/fish/completions/cgt-calc.fish
 ```
 

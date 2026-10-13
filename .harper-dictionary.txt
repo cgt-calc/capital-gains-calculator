@@ -76,6 +76,7 @@ CMF5
 codepage
 codespell
 Colima
+Colima's
 colorama
 colorama's
 ConsoleUI
