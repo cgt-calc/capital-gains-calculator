@@ -36,6 +36,12 @@ starting `vis-plc-` are recognised once you add `vanguard-` to the start of the 
 cannot read older Vanguard PDF reports, or an Invesco or Xtrackers report that is still skipped once
 its name matches the pattern; add their data manually as described below.
 
+A recognised report can also stop the script with an error. For example, the renamed Vanguard
+Investment Series plc spreadsheet for 2022 stops it with **Cannot process ERI columns**, because its
+column headings differ from the ones the importer reads. Nothing is imported from that file or from
+any file after it in the folder. Move the file out of the folder, run the script again for the other
+reports, and add its data manually as described below.
+
 Amundi reports, and Legal & General reports other than the UCITS ETF plc one, have no automatic
 importer; add their data manually as described below.
 
