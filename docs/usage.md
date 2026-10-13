@@ -129,6 +129,8 @@ within the day; check your broker's cash history if you need to verify that.
 A successful run means cgt-calc could parse and calculate the supplied transactions. It does not
 prove that the supplied history was complete or that every part of your tax position is supported.
 
+### Labels in the PDF
+
 The PDF shows the matching rules applied to each disposal. A sale or other disposal is matched first
 with shares bought or received on the same day (**SAME DAY**), then with shares bought or received
 in the following 30 days (**BED AND BREAKFAST**), then with older shares in your pooled holding
@@ -136,6 +138,26 @@ in the following 30 days (**BED AND BREAKFAST**), then with older shares in your
 matched under the same-day or 30-day rules: they join your Section 104 holding at their share of the
 original cost. Check any unexpected matches against HMRC's
 [guidance for shares and Capital Gains Tax](https://www.gov.uk/government/publications/shares-and-capital-gains-tax-hs284-self-assessment-helpsheet).
+
+An acquisition is labelled too. Shares matched to a disposal, or to a transfer to a spouse or civil
+partner, in the previous 30 days read **BED AND BREAKFAST**. The rest read **SECTION 104**,
+including shares matched on the same day: only the disposal reads **SAME DAY**.
+
+Three other labels are not matching rules:
+
+- **SPIN OFF:** the original holding's pooled cost before and after part of that cost moved to the
+    spun-off shares. See
+    [how the cost is split at a spin-off](extra-data-and-options.md#missing-share-prices).
+- **EXCESS REPORTED INCOME:** the pooled cost of a fund holding before and after the fund's excess
+    reported income was added to it. See the [offshore funds guide](offshore-funds.md).
+- **OPTION:** the grant of an option you wrote, with its allowable cost and gain or loss. See
+    [written equity options](brokers/schwab.md#written-equity-options).
+
+A [transfer to a spouse or civil partner](brokers/raw.md#transfers-to-a-spouse-or-civil-partner) has
+no labelled lines of its own, so its entry in the PDF does not say which matching rule applied. It
+shows the base cost that passes to the recipient instead. The matching rules still apply, so a
+purchase on the same day or in the following 30 days can make that cost differ from the average cost
+of your pooled holding.
 
 ## Use the figures
 
