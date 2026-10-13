@@ -75,6 +75,119 @@ def test_parse_header_after_preamble_with_trailing_table(tmp_path: Path) -> None
     )
 
 
+def test_investment_series_file_name_is_accepted(tmp_path: Path) -> None:
+    """Read an Investment Series report under the name Vanguard publishes it.
+
+    Those names start ``vis-plc-`` and do not contain "vanguard".
+    """
+    file = write_xlsx(
+        tmp_path / "vis-plc-excess-reportable-income-31-december-2024.xlsx",
+        [HEADER, ["IE00B3RBWM25", PERIOD, "USD", "1.23456"]],
+    )
+
+    result = VanguardImporter().parse(file)
+
+    assert result is not None
+    assert result.output_file_name == "vanguard_eri.csv"
+    assert len(result.transactions) == 1
+
+
+def test_parse_investment_series_2022_layout(tmp_path: Path) -> None:
+    """Read the columns of the 2022 Investment Series report.
+
+    It heads the ERI column "reportable" where the other years' spreadsheets
+    say "reporting"; the report's own note defines both as the income reported
+    per share in excess of the distributions paid. Columns on both sides hold
+    other per-share figures, the amounts are numbers to be rounded, and the
+    second class stopped reporting in the middle of the year.
+    """
+    header: list[object] = [
+        "ISIN₁",
+        "Umbrella Name",
+        "Fund Name",
+        "Share Class Name",
+        "Reporting Period",
+        "Distributing / Accumulating",
+        "Share Class Currency",
+        "Income distributed per share in respect of the reporting period2,8,9",
+        "Ex-date on which distribution was declared₃ DD/MM/YYYY",
+        "Excess of reportable income over distribution₄",
+        "Fund distribution date₅",
+        (
+            "Equalisation amount per unit in relation to any interest acquired in "
+            "the fund in the reporting period 7"
+        ),
+        "Fund classification10",
+        (
+            "Did the share class remain a reporting fund at the date this report "
+            "was made available?"
+        ),
+    ]
+
+    def class_row(
+        isin: str, period: str, currency: str, income: float, eri: float
+    ) -> list[object]:
+        return [
+            isin,
+            "Vanguard Investment Series plc",
+            "Foo Index Fund",
+            f"{currency} Dist",
+            period,
+            "Distributing",
+            currency,
+            income,
+            "30/12/2022",
+            eri,
+            "30 June 2023",
+            0.25,
+            "Equity Fund",
+            "Yes",
+        ]
+
+    # The report's title is in a text box, which leaves the rows above the
+    # header empty.
+    blank: list[object] = [None] * len(header)
+    file = write_xlsx(
+        tmp_path / "vanguard-eri-2022.xlsx",
+        [
+            blank,
+            blank,
+            header,
+            class_row(
+                "IE00B3RBWM25",
+                "01 January 2022 - 31 December 2022",
+                "GBP",
+                0.5,
+                1.234564,
+            ),
+            class_row(
+                "IE00BK5BQV03", "01 January 2022 - 14 June 2022", "USD", 0.75, 2.345678
+            ),
+        ],
+    )
+
+    result = VanguardImporter().parse(file)
+
+    assert result is not None
+    assert len(result.transactions) == 2
+    # Amounts are kept to five decimal places: 1.234564 rounds down and
+    # 2.345678 rounds up.
+    check_transaction(
+        result.transactions[0],
+        "IE00B3RBWM25",
+        dt.date(2022, 12, 31),
+        Decimal("1.23456"),
+        "GBP",
+    )
+    check_transaction(
+        result.transactions[1],
+        "IE00BK5BQV03",
+        dt.date(2022, 6, 14),
+        Decimal("2.34568"),
+        "USD",
+    )
+
+
 def test_unmatched_file_name_is_not_accepted(tmp_path: Path) -> None:
     """Return None for files from other providers."""
     file = write_xlsx(tmp_path / "blackrock-eri-2024.xlsx", [HEADER])
