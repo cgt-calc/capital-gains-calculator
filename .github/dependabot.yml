@@ -15,7 +15,7 @@ updates:
       # upper bound. Raise this bound when the requirement moves to the
       # next minor version, or the weekly bumps come back.
       - dependency-name: "uv-build"
-        versions: ["<0.13"]
+        versions: ["<0.14"]
   - package-ecosystem: pre-commit
     directory: "/"
     schedule:
