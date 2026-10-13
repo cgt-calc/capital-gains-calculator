@@ -18,7 +18,6 @@ REPO = "cgt-calc/capital-gains-calculator"
 # Not the login of the project's own App: the script knows the bot only by
 # what COMMENT_AUTHOR says.
 BOT = "comment-app[bot]"
-ACTIONS = "github-actions[bot]"
 # The docs-preview workflow's marker, and the coverage-comment workflow's.
 PREVIEW = "<!-- cgt-calc-docs-preview -->"
 COVERAGE = "<!-- cgt-calc-coverage -->"
@@ -49,10 +48,9 @@ class FakeComments:
 
         A call that sends a body is a POST unless it names another method. A
         body is sent only when the call names it as a field read from
-        standard input, and a deletion sends none. The listing is answered
-        only when every page is asked for, and comes back one JSON document a
-        line, with characters outside ASCII left as they are, which is how jq
-        writes them.
+        standard input. The listing is answered only when every page is asked
+        for, and comes back one JSON document a line, with characters outside
+        ASCII left as they are, which is how jq writes them.
         """
         path = next(arg for arg in args if arg.startswith("repos/"))
         body = stdin if args[-2:] == ("--field", "body=@-") else None
@@ -62,9 +60,6 @@ class FakeComments:
             raise subprocess.CalledProcessError(1, ["gh", "api", *args])
         if method in {"POST", "PATCH"} and body is not None:
             self.writes.append((method, path, body))
-            return ""
-        if method == "DELETE" and stdin is None:
-            self.writes.append((method, path, ""))
             return ""
         if method == "GET" and path == self.listing and "--paginate" in args:
             return "".join(
@@ -84,26 +79,19 @@ LINK = ["--create", FIRST, "--update", EDITED]
 NO_CHANGE = ["--update", UNCHANGED]
 # Comments that are not the docs preview's to manage. One holding a line
 # separator, which once split the listing in two and stopped the run; a
-# person's that starts with the marker; one of GitHub Actions' and one of the
-# bot's that only mention it later; and the coverage comment, from each of
-# the two.
+# person's that starts with the marker; one of the bot's that only mentions
+# it later; and the bot's coverage comment.
 OTHERS = [
     (20, "someone", "pasted\u2028text"),
     (21, "someone", f"{PREVIEW}\nquoted by a person"),
-    (22, ACTIONS, f"The preview is below. {PREVIEW}"),
     (23, BOT, f"The preview is below. {PREVIEW}"),
-    (24, ACTIONS, f"{COVERAGE}\nfigures"),
     (25, BOT, f"{COVERAGE}\nfigures"),
 ]
 OWN = (30, BOT, f"{PREVIEW}\nan earlier preview")
 # Two runs racing could each post a comment.
 OWN_COPY = (33, BOT, f"{PREVIEW}\na second copy")
-OLD = (31, ACTIONS, f"{PREVIEW}\nfrom before the bot wrote these")
-OLD_COPY = (32, ACTIONS, f"{PREVIEW}\na second copy")
 NEW = f"repos/{REPO}/issues/7/comments"
 OF_OWN = f"repos/{REPO}/issues/comments/30"
-OF_OLD = f"repos/{REPO}/issues/comments/31"
-OF_OLD_COPY = f"repos/{REPO}/issues/comments/32"
 NOTHING_TO_UPDATE = "The pull request has no comment to update.\n"
 
 
@@ -140,24 +128,6 @@ def run(
             id="the bot's earlier comment is edited in place",
         ),
         pytest.param(
-            [OLD, *OTHERS, OLD_COPY],
-            LINK,
-            [
-                ("POST", NEW, EDITED),
-                ("DELETE", OF_OLD, ""),
-                ("DELETE", OF_OLD_COPY, ""),
-            ],
-            "",
-            id="the bot's comment replaces every copy GitHub Actions wrote",
-        ),
-        pytest.param(
-            [*OTHERS, OLD, OWN],
-            LINK,
-            [("PATCH", OF_OWN, EDITED), ("DELETE", OF_OLD, "")],
-            "",
-            id="a comment of each is left as one, the bot's",
-        ),
-        pytest.param(
             OTHERS,
             NO_CHANGE,
             [],
@@ -171,13 +141,6 @@ def run(
             "",
             id="no text for a first one, but the bot's is brought up to date",
         ),
-        pytest.param(
-            [*OTHERS, OLD],
-            NO_CHANGE,
-            [("POST", NEW, UNCHANGED), ("DELETE", OF_OLD, "")],
-            "",
-            id="no text for a first one, but GitHub Actions' is still replaced",
-        ),
     ],
 )
 def test_what_a_run_writes_to_the_pull_request(
@@ -188,14 +151,11 @@ def test_what_a_run_writes_to_the_pull_request(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """One run leaves the pull request with one comment, and it is the bot's.
+    """One run writes one comment at most, and it is the bot's.
 
     The comment is the bot's own that starts with the marker, the older of
-    two. Where GitHub Actions wrote it instead, the bot posts the text for a
-    comment that is already there, since for the reader it is, and only then
-    deletes every copy of GitHub Actions'. Nobody else's comment is edited or
-    deleted, whatever it starts with, and neither is one of the bot's or of
-    GitHub Actions' that starts with anything else.
+    two. Nobody else's comment is edited, whatever it starts with, and
+    neither is one of the bot's that starts with anything else.
     """
     github = FakeComments(REPO, 7, comments)
 
@@ -206,28 +166,19 @@ def test_what_a_run_writes_to_the_pull_request(
 
 
 @pytest.mark.parametrize(
-    ("comments", "refuses", "error", "writes"),
+    ("comments", "refuses", "error"),
     [
         pytest.param(
-            [*OTHERS, OLD],
+            OTHERS,
             "POST",
             r"issues/7/comments', '--field'.*exit status 1",
-            [],
             id="the bot's comment cannot be posted",
         ),
         pytest.param(
-            [*OTHERS, OLD, OWN],
+            [*OTHERS, OWN],
             "PATCH",
             r"'PATCH', .*issues/comments/30'.*exit status 1",
-            [],
             id="the bot's comment cannot be edited",
-        ),
-        pytest.param(
-            [*OTHERS, OLD, OLD_COPY],
-            "DELETE",
-            r"'DELETE', .*issues/comments/31'.*exit status 1",
-            [("POST", NEW, EDITED)],
-            id="GitHub Actions' comment cannot be deleted",
         ),
     ],
 )
@@ -235,22 +186,19 @@ def test_refusal_from_github_stops_the_run(
     comments: list[tuple[int, str, str]],
     refuses: str,
     error: str,
-    writes: list[tuple[str, str, str]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """GitHub Actions' comment goes only after the bot's is written.
+    """The run fails at the write that GitHub refuses, where it is seen.
 
-    When the bot's comment cannot be written, the run fails with nothing
-    deleted, so the pull request keeps the comment it had. When a deletion is
-    refused, the run fails at that one, where it is seen: the bot's comment is
-    up, and the next run edits it and tries the deletions again.
+    Nothing is written in its place: a comment that cannot be edited is not
+    posted again.
     """
     github = FakeComments(REPO, 7, comments, refuses=refuses)
 
     with pytest.raises(subprocess.CalledProcessError, match=error):
         run(LINK, github, monkeypatch)
 
-    assert github.writes == writes
+    assert github.writes == []
 
 
 runs_a_script_by_name = pytest.mark.skipif(
@@ -305,7 +253,7 @@ def test_call_that_gh_reports_as_failed_raises(
 ) -> None:
     """A write that GitHub refuses is an error, not an empty answer.
 
-    It is what stops a run before anything is deleted.
+    It is what stops the run.
     """
     gh_exiting(1, tmp_path, monkeypatch)
 

@@ -1013,11 +1013,11 @@ BEHIND_MAIN: Reports = {
 NO_BASE_REPORT: Reports = {**BEHIND_MAIN, AGAINST_BASE: 404}
 COVERED = "### :white_check_mark: 100.00% of changed lines covered\n"
 NOTHING = "### No measured lines changed\n"
-# A comment of GitHub Actions' that is not this one, though the marker appears
-# later in it, and someone else's that only looks like it. Neither may be
-# taken for the comment to edit, or for one to replace.
+# One of the bot's that is not this one, though the marker appears later in
+# it, and someone else's that only looks like it. Neither may be taken for the
+# comment to edit.
 OTHERS = [
-    (10, "github-actions[bot]", f"The docs preview is ready. {MARKER}"),
+    (10, BOT, f"The docs preview is ready. {MARKER}"),
     (12, "someone", f"{MARKER}\nnot the bot's"),
 ]
 OWN = (11, BOT, f"{MARKER}\nfigures for an earlier commit")
