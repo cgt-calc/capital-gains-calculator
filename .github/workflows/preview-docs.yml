@@ -51,11 +51,13 @@ jobs:
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
         run: |
+          # Matching the head commit too stops a rerun of an older build from
+          # replacing the preview of the PR's current commit.
           PR=$(gh api "repos/${GH_REPO}/pulls?state=open" --paginate |
-            jq -c --arg b "${HEAD_BRANCH}" --arg r "${HEAD_REPO}" \
-              'first(.[] | select(.head.ref == $b and .head.repo.full_name == $r) | {number, base_sha: .base.sha})')
+            jq -c --arg b "${HEAD_BRANCH}" --arg r "${HEAD_REPO}" --arg s "${HEAD_SHA}" \
+              'first(.[] | select(.head.ref == $b and .head.repo.full_name == $r and .head.sha == $s) | {number, base_sha: .base.sha})')
           if [ -z "${PR}" ] || [ "${PR}" = "null" ]; then
-            echo "No matching open PR for ${HEAD_REPO}:${HEAD_BRANCH}; nothing to preview."
+            echo "No open PR for ${HEAD_REPO}:${HEAD_BRANCH} at ${HEAD_SHA}; nothing to preview."
             exit 0
           fi
           {
@@ -79,6 +81,17 @@ jobs:
           path: site
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # The build ran the pull request's own code, so the site may hold
+      # anything. Cloudflare Pages runs a _worker.js file or directory as
+      # server-side code, so the preview carries static files only.
+      - name: Reject server-side code
+        if: steps.pr.outputs.number
+        run: |
+          if [ -e site/_worker.js ]; then
+            echo "::error::The built site contains _worker.js, which Cloudflare Pages would run as a Worker."
+            exit 1
+          fi
 
       - name: Download PR digest
         if: steps.pr.outputs.number
