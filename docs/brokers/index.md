@@ -16,6 +16,7 @@ plan, and Sharesight requires equity grants to be recorded in a particular way.
 | [Interactive Brokers](interactive-brokers.md) | `--interactive-brokers-file`                             | Transaction history CSV                            |
 | [Morgan Stanley](morgan-stanley.md)           | `--mssb-dir`                                             | Alphabet GSU reports only                          |
 | [Revolut](revolut.md)                         | `--revolut-file`                                         | Invest account statement CSV                       |
+| [Revolut crypto](revolut-crypto.md)           | `--revolut-crypto-file`                                  | Crypto account statement CSV                       |
 | [Sharesight](sharesight.md)                   | `--sharesight-dir`                                       | Multi-broker portfolio tracker                     |
 | [Trading 212](trading212.md)                  | `--trading212-dir`                                       | Folder of yearly exports                           |
 | [Vanguard](vanguard.md)                       | `--vanguard-file`                                        | Client Transactions Listing CSV                    |
@@ -25,9 +26,10 @@ plan, and Sharesight requires equity grants to be recorded in a particular way.
 
 UK share matching and the tax year boundary run on UK calendar days. [Freetrade](freetrade.md),
 [Revolut](revolut.md) and [Trading 212](trading212.md) timestamp each transaction in UTC, and
-cgt-calc converts those to UK time before taking the date. Every other export above states a date
-with no time, so cgt-calc reads that date as the broker wrote it and cannot correct one that was
-recorded in another time zone.
+cgt-calc converts those to UK time before taking the date. The [Revolut crypto](revolut-crypto.md)
+statement gives times without a time zone, which cgt-calc reads as UK time. Every other export above
+states a date with no time, so cgt-calc reads that date as the broker wrote it and cannot correct
+one that was recorded in another time zone.
 
 If your broker is not listed, try the [RAW format](raw.md). Contributions for new brokers are very
 welcome — see [Adding a broker](../development/adding-a-broker.md).

@@ -29,7 +29,11 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, Final, TextIO, override
 
-from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.exceptions import (
+    ParsingError,
+    UnexpectedColumnCountError,
+    UnsupportedActionError,
+)
 from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
@@ -39,7 +43,7 @@ from cgt_calc.model import (
 from cgt_calc.ticker_renames import current_ticker
 from cgt_calc.util import is_blank_row, round_decimal
 
-from .base_parsers import BaseSingleFileParser
+from .base_parsers import BaseSingleFileParser, read_supported_row
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Sequence
@@ -332,7 +336,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label == "Gift":
         return ActionType.UNCLASSIFIED_GIFT
 
-    raise ParsingError(file, f"Unknown action: {label}")
+    raise UnsupportedActionError(file, f"Unknown action: {label}")
 
 
 class _UnparseableNumber(decimal.InvalidOperation):
@@ -1668,9 +1672,8 @@ class SchwabEquityAwardsParser(BaseSingleFileParser[SchwabAwardTransaction]):
         # record that can contradict it.
         _check_lapse_units(rows, file_path, fields)
 
-        transactions = [
-            _csv_aware_transaction(transac, file_path, fields)
-            for transac in rows
+        transactions: list[SchwabAwardTransaction] = []
+        for transac in rows:
             # Journal and Wire Transfer move cash between accounts.
             #
             # Lapse is the payroll side of a vest and duplicates its Deposit,
@@ -1681,8 +1684,14 @@ class SchwabEquityAwardsParser(BaseSingleFileParser[SchwabAwardTransaction]):
             # Tax Withholding is deliberately not skipped: it is US tax at
             # source on dividends, and it is needed for SA106 and foreign tax
             # credit relief.
-            if transac[fields.action] not in DISCARDED_ACTIONS
-        ]
+            if transac[fields.action] in DISCARDED_ACTIONS:
+                continue
+            # A CSV row already carries its line; a JSON one has none.
+            transaction = read_supported_row(
+                None, _csv_aware_transaction, transac, file_path, fields
+            )
+            if transaction is not None:
+                transactions.append(transaction)
 
         # A purchase whose every share went to tax acquired nothing, so it is
         # not offered as an acquisition of zero, which the calculator rightly

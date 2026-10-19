@@ -170,6 +170,14 @@ Documentation: https://cgt-calc.uk/
         "usually means transactions are missing from the export",
     )
     calc_group.add_argument(
+        "--skip-unsupported-rows",
+        action="store_true",
+        default=False,
+        help="leave out, with a warning, broker rows whose action or type "
+        "cgt-calc does not support, instead of stopping; check each skipped "
+        "row yourself",
+    )
+    calc_group.add_argument(
         "--autoconvert-currency",
         action="store_true",
         default=False,

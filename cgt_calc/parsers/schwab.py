@@ -30,6 +30,7 @@ from cgt_calc.exceptions import (
     SymbolMissingError,
     UnexpectedColumnCountError,
     UnexpectedRowCountError,
+    UnsupportedActionError,
     reading_as,
 )
 from cgt_calc.logging import parsing_msg
@@ -60,6 +61,7 @@ from .base_parsers import (
     next_account_token,
     read_csv_rows,
     read_input,
+    read_supported_row,
     use_current_tickers,
 )
 
@@ -249,7 +251,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label in {"Full Redemption", "Full Redemption Adj"}:
         return ActionType.FULL_REDEMPTION
 
-    raise ParsingError(file, f"Unknown action: '{label}'")
+    raise UnsupportedActionError(file, f"Unknown action: '{label}'")
 
 
 def _parse_decimal(
@@ -1344,7 +1346,9 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 )
 
             try:
-                transaction = SchwabTransaction.create(
+                transaction = read_supported_row(
+                    index,
+                    SchwabTransaction.create,
                     OrderedDict(zip(header, row, strict=True)),
                     file_path,
                     cls.awards_prices,
@@ -1355,6 +1359,8 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
             except ValueError as err:
                 raise ParsingError(file_path, str(err), row_index=index) from err
 
+            if transaction is None:
+                continue
             transaction.source = TransactionSource(row=index)
             transactions.append(transaction)
         # Cancel Buy matching compares tickers before the shared loader's

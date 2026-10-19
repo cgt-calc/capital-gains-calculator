@@ -15,6 +15,7 @@ from cgt_calc.exceptions import (
     InvalidTransactionError,
     ParsingError,
     UnexpectedColumnCountError,
+    UnsupportedActionError,
 )
 from cgt_calc.model import (
     ActionType,
@@ -24,7 +25,7 @@ from cgt_calc.model import (
 )
 from cgt_calc.util import parse_decimal
 
-from .base_parsers import BaseDirParser
+from .base_parsers import BaseDirParser, read_supported_row
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -154,6 +155,15 @@ TRADE_COLUMN_ALIASES: Final[dict[str, TradeColumn]] = {
     "Value": TradeColumn.VALUE,
     "Comments": TradeColumn.COMMENTS,
 }
+
+
+def _trade_action(trade_type: str, file: Path) -> ActionType:
+    """Convert the Type of a trade to its action."""
+    if trade_type == "Buy":
+        return ActionType.BUY
+    if trade_type == "Sell":
+        return ActionType.SELL
+    raise UnsupportedActionError(file, f"Unknown action: {trade_type}")
 
 
 class SharesightTransaction(BrokerTransaction):
@@ -440,13 +450,11 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
                 if column is not None
             }
 
-            trade_type = row_dict[TradeColumn.TYPE]
-            if trade_type == "Buy":
-                action = ActionType.BUY
-            elif trade_type == "Sell":
-                action = ActionType.SELL
-            else:
-                raise ValueError(f"Unknown action: {trade_type}")
+            action = read_supported_row(
+                rows.line, _trade_action, row_dict[TradeColumn.TYPE], file
+            )
+            if action is None:
+                continue
 
             market = row_dict[TradeColumn.MARKET]
             symbol = f"{market}:{row_dict[TradeColumn.CODE]}"
