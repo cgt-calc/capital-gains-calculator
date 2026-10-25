@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 import logging
 import re
@@ -18,7 +19,6 @@ from cgt_calc.util import is_blank_row, round_decimal
 from .model import ERIImporter, ERIImporterOutput
 
 if TYPE_CHECKING:
-    import datetime as dt
     from pathlib import Path
 
     from pdfplumber.page import CroppedPage, Page
@@ -43,13 +43,51 @@ CURRENCY_COLUMN = 1
 ERI_COLUMN = 2
 MIN_VALID_YEAR = 2018
 
+# Headings of the columns read from the participants report (from 2025),
+# compared with whitespace folded and case ignored. The ERI heading
+# continues "IN RESPECT OF THE REPORTING PERIOD", so it is matched by its
+# start; the others must match exactly.
+PARTICIPANTS_ISIN = "ISIN CODE"
+PARTICIPANTS_PERIOD = "REPORTING PERIOD"
+PARTICIPANTS_CURRENCY = "CLASS CURRENCY"
+PARTICIPANTS_ERI = "EXCESS OF REPORTED INCOME PER UNIT OVER DISTRIBUTIONS"
+PARTICIPANTS_HEADINGS = (
+    PARTICIPANTS_ISIN,
+    PARTICIPANTS_PERIOD,
+    PARTICIPANTS_CURRENCY,
+    PARTICIPANTS_ERI,
+)
+ISIN_LIKE_REGEX = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
+REPORTING_PERIOD_REGEX = re.compile(r"^(\d{2}\.\d{2}\.\d{4}) - (\d{2}\.\d{2}\.\d{4})$")
+
+
+def _is_heading(cell: str, heading: str) -> bool:
+    """Return whether a participants report header cell is the given heading."""
+    cell = cell.upper()
+    return cell == heading or (heading == PARTICIPANTS_ERI and cell.startswith(heading))
+
+
+def _class_period_end(period: str) -> dt.date | None:
+    """Return the end of a "DD.MM.YYYY - DD.MM.YYYY" period, or None if invalid."""
+    match = REPORTING_PERIOD_REGEX.match(period)
+    if match is None:
+        return None
+    try:
+        start, end = (
+            dt.datetime.strptime(value, "%d.%m.%Y").date() for value in match.groups()
+        )
+    except ValueError:
+        return None
+    return end if start <= end else None
+
 
 class XtrackersImporter(ERIImporter):
     """Parser for Xtrackers ERI reports.
 
     Covers the three Xtrackers umbrellas published by DWS: Xtrackers
     (summary format), and Xtrackers II / Xtrackers (IE) Plc (investor
-    report format).
+    report format), up to 2024; and all three in the participants report
+    format from 2025.
     """
 
     def __init__(self) -> None:
@@ -72,6 +110,7 @@ class XtrackersImporter(ERIImporter):
             parsers = [
                 XtrackersImporter._parse_summary_format,
                 XtrackersImporter._parse_investor_report_format,
+                XtrackersImporter._parse_participants_report_format,
             ]
             for parser in parsers:
                 parsed_data = parser(pdf, file)
@@ -267,3 +306,170 @@ class XtrackersImporter(ERIImporter):
             return []
 
         return XtrackersImporter._parse_pages(pdf, reporting_period_end, file)
+
+    @staticmethod
+    def _parse_participants_report_format(
+        pdf: PDF, file: Path
+    ) -> list[ERITransaction] | None:
+        """Parse the participants report used by all three umbrellas from 2025.
+
+        Each page is one drawn table, so its rows are read as pdfplumber
+        finds them. The header is on the first page and repeated on later
+        pages only in some reports.
+        """
+        text = (pdf.pages[0].extract_text() or "").lower()
+        if "report to participants" not in text or "xtrackers" not in text:
+            return None
+        LOGGER.info("Detected Xtrackers participants report format")
+
+        transactions: list[ERITransaction] = []
+        colmap: dict[str, int] | None = None
+        header_page = header_width = 0
+        found_class = False
+        for page_num, page in enumerate(pdf.pages, 1):
+            tables = page.find_tables()
+            if len(tables) != 1:
+                raise ParsingError(
+                    file, f"Expected one table on page {page_num}, found {len(tables)}"
+                )
+            rows = [
+                [" ".join((cell or "").split()) for cell in row]
+                for row in tables[0].extract()
+            ]
+            header_idx = next(
+                (
+                    idx
+                    for idx, row in enumerate(rows)
+                    if any(
+                        _is_heading(cell, heading)
+                        for cell in row
+                        for heading in PARTICIPANTS_HEADINGS
+                    )
+                ),
+                None,
+            )
+            if header_idx is not None:
+                if any(
+                    ISIN_LIKE_REGEX.match(cell)
+                    for row in rows[:header_idx]
+                    for cell in row
+                ):
+                    raise ParsingError(
+                        file, f"Share class row before the header on page {page_num}"
+                    )
+                colmap = XtrackersImporter._map_participants_header(
+                    rows[header_idx], file, page_num
+                )
+                header_page, header_width = page_num, len(rows[header_idx])
+                first_row = header_idx + 1
+            elif colmap is None:
+                raise ParsingError(file, f"No header row on page {page_num}")
+            elif rows and len(rows[0]) != header_width:
+                raise ParsingError(
+                    file,
+                    f"Table on page {page_num} has {len(rows[0])} columns; "
+                    f"the header on page {header_page} has {header_width}",
+                )
+            else:
+                first_row = 0
+
+            for row_num in range(first_row + 1, len(rows) + 1):
+                row = rows[row_num - 1]
+                if not row[colmap[PARTICIPANTS_ISIN]]:
+                    if any(
+                        row[colmap[heading]] for heading in PARTICIPANTS_HEADINGS[1:]
+                    ):
+                        raise ParsingError(
+                            file,
+                            f"Value without an ISIN on page {page_num}, row {row_num}",
+                        )
+                    # Titles, section labels and second-distribution rows.
+                    continue
+                found_class = True
+                transaction = XtrackersImporter._participants_row(
+                    row, colmap, file, page_num, row_num
+                )
+                if transaction is not None:
+                    transactions.append(transaction)
+        if not found_class:
+            raise ParsingError(file, "No share class rows found")
+        return transactions
+
+    @staticmethod
+    def _map_participants_header(
+        header: list[str], file: Path, page_num: int
+    ) -> dict[str, int]:
+        colmap = {}
+        for heading in PARTICIPANTS_HEADINGS:
+            matches = [
+                idx for idx, cell in enumerate(header) if _is_heading(cell, heading)
+            ]
+            if not matches:
+                raise ParsingError(
+                    file, f"No column matching {heading!r} on page {page_num}"
+                )
+            if len(matches) > 1:
+                raise ParsingError(
+                    file,
+                    f"Multiple columns match {heading!r} on page {page_num}: {matches}",
+                )
+            colmap[heading] = matches[0]
+        return colmap
+
+    @staticmethod
+    def _participants_row(
+        row: list[str],
+        colmap: dict[str, int],
+        file: Path,
+        page_num: int,
+        row_num: int,
+    ) -> ERITransaction | None:
+        isin_raw = row[colmap[PARTICIPANTS_ISIN]]
+        isin = Isin.parse(isin_raw)
+        if isin is None:
+            raise ParsingError(
+                file, f"Invalid ISIN on page {page_num}, row {row_num}: {isin_raw!r}"
+            )
+
+        # The date is the share class's own period end: a class that
+        # closed during the year has an earlier one than the report.
+        period = row[colmap[PARTICIPANTS_PERIOD]]
+        end = _class_period_end(period)
+        if end is None:
+            raise ParsingError(
+                file,
+                f"Invalid reporting period on page {page_num}, row {row_num}: "
+                f"{period!r}",
+            )
+        if end.year < MIN_VALID_YEAR:
+            return None
+
+        currency_raw = row[colmap[PARTICIPANTS_CURRENCY]]
+        currency = CurrencyCode.parse(currency_raw.replace("JPN", "JPY"))
+        if currency is None:
+            raise ParsingError(
+                file,
+                f"Invalid currency on page {page_num}, row {row_num}: {currency_raw!r}",
+            )
+
+        eri = row[colmap[PARTICIPANTS_ERI]]
+        if not eri:
+            # Missing is not zero: the report gives no figure for this
+            # class, so no row is added for it.
+            LOGGER.warning(
+                "Xtrackers report gives no excess reportable income for %s "
+                "on page %d; no row added",
+                isin_raw,
+                page_num,
+            )
+            return None
+        if not re.match(AMOUNT_REGEX, eri):
+            raise ParsingError(
+                file, f"Invalid amount on page {page_num}, row {row_num}: {eri!r}"
+            )
+        return ERITransaction(
+            isin=isin,
+            date=end,
+            price=round_decimal(Decimal(eri), 5),
+            currency=currency,
+        )
