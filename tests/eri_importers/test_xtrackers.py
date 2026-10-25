@@ -11,6 +11,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import (
     Flowable,
+    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -140,234 +141,6 @@ def test_parse_investor_report_format(tmp_path: Path) -> None:
     _check_result_transactions(result.transactions, dt.date(2024, 12, 31))
 
 
-# SICAV 2025 investor format (v11): the table pdfplumber finds is not
-# header-only. It starts with a title row and a period row, then the
-# column-name row, then a section label row, then the data rows.
-# The header phrases are shortened for this synthetic PDF (the real
-# headers are longer) but contain exactly the phrases the parser
-# matches: ISIN CODE, CLASS CURRENCY and EXCESS OF REPORTED INCOME.
-SICAV_HEADER = [
-    "HMRC share class reference",
-    "ISIN CODE",
-    "UMBRELLA FUND",
-    "SUB FUND",
-    "CLASS NAME",
-    "REPORTING PERIOD",
-    "CLASS CURRENCY",
-    "DISTRIBUTION(S) PER UNIT",
-    "DISTRIBUTION DATE(S)",
-    "EXCESS OF REPORTED INCOME PER UNIT",
-    "FUND DISTRIBUTION DATE",
-    "DID THE SHARE CLASS REMAIN A REPORTING FUND?",
-]
-
-SICAV_DATA_ROWS: list[list[str]] = [
-    [
-        "X0004-0064",
-        "LU0274208692",
-        "Xtrackers",
-        "MSCI WORLD SWAP",
-        "1C",
-        "01.01.2025 - 31.12.2025",
-        "USD",
-        "N/A",
-        "N/A",
-        "1.8345",
-        "30/06/2026",
-        "Yes",
-    ],
-    [
-        "X0004-0022",
-        "LU0274209237",
-        "Xtrackers",
-        "MSCI EUROPE",
-        "1C",
-        "01.01.2025 - 31.12.2025",
-        "USD",
-        "N/A",
-        "N/A",
-        "2.9484",
-        "30/06/2026",
-        "Yes",
-    ],
-    [
-        "X0004-0068",
-        "LU0274209740",
-        "Xtrackers",
-        "MSCI JAPAN",
-        "1C",
-        "01.01.2025 - 31.12.2025",
-        "USD",
-        "N/A",
-        "N/A",
-        "1.7031",
-        "30/06/2026",
-        "Yes",
-    ],
-    # Zero ERI row, kept in the SICAV format as well.
-    [
-        "X0004-0011",
-        "LU0292106167",
-        "Xtrackers",
-        "BLOOMBERG COMMODITY",
-        "1C - EUR HEDGED",
-        "01.01.2025 - 31.12.2025",
-        "EUR",
-        "N/A",
-        "N/A",
-        "0.0000",
-        "30/06/2026",
-        "Yes",
-    ],
-]
-
-
-def _build_sicav_pdf(
-    path: Path, preamble: list[str], data_rows: list[list[str]] | None = None
-) -> Path:
-    """Build a SICAV 2025 PDF: title, period, header, section, data.
-
-    All of those rows are inside one table, as pdfplumber finds them
-    in the real report, so the parser must find the header at row 2,
-    the section label at row 3, and the first data row at row 4.
-    """
-    styles = getSampleStyleSheet()
-    doc = SimpleDocTemplate(
-        str(path),
-        pagesize=PAGESIZE,
-        leftMargin=36,
-        rightMargin=36,
-        topMargin=36,
-        bottomMargin=36,
-    )
-    story: list[Flowable] = [Paragraph(line, styles["Normal"]) for line in preamble]
-    story.append(Spacer(1, 20))
-    rows = [
-        ["UK Reporting Fund Status (UKRFS) Report to Participants", *[""] * 11],
-        ["Xtrackers Period ended: 31/12/2025 Date of Report: 25/09/2026", *[""] * 11],
-        SICAV_HEADER,
-        ["Accumulating shares:", *[""] * 11],
-        *(data_rows if data_rows is not None else SICAV_DATA_ROWS),
-    ]
-    table = Table(rows, colWidths=[140.0] * len(SICAV_HEADER))
-    table.setStyle(
-        TableStyle(
-            [
-                ("GRID", (0, 0), (-1, -1), 1, colors.black),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("LEFTPADDING", (0, 0), (-1, -1), 2),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 2),
-                # Title and period rows span the whole table, as in
-                # the real report, where their text is in the first
-                # cell and the remaining cells are empty.
-                ("SPAN", (0, 0), (-1, 0)),
-                ("SPAN", (0, 1), (-1, 1)),
-            ]
-        )
-    )
-    story.append(table)
-    doc.build(story)
-    return path
-
-
-def test_parse_sicav_2025_investor_format(tmp_path: Path) -> None:
-    """Parse the SICAV 2025 investor format, including its first row.
-
-    Regression test for v11: the parser used to crop after
-    start_row + 2, which on this layout is the first data row
-    itself, so LU0274208692 was lost whatever the header crop
-    epsilon. It must now be the first transaction returned.
-    Also covers the numeric reporting date (31/12/2025) and the
-    section label row, which must be skipped, not raised on.
-    """
-    file = _build_sicav_pdf(
-        tmp_path / "Xtrackers SICAV - Investor Report_31.12.2025.pdf",
-        [
-            "Xtrackers SICAV",
-            "UK reporting fund status report to participants",
-            "Period ended: 31/12/2025",
-        ],
-    )
-
-    result = XtrackersImporter().parse(file)
-
-    assert result is not None
-    assert result.output_file_name == "xtrackers_eri.csv"
-    assert len(result.transactions) == 4
-    check_transaction(
-        result.transactions[0],
-        "LU0274208692",
-        dt.date(2025, 12, 31),
-        Decimal("1.8345"),
-        "USD",
-    )
-    check_transaction(
-        result.transactions[1],
-        "LU0274209237",
-        dt.date(2025, 12, 31),
-        Decimal("2.9484"),
-        "USD",
-    )
-    check_transaction(
-        result.transactions[2],
-        "LU0274209740",
-        dt.date(2025, 12, 31),
-        Decimal("1.7031"),
-        "USD",
-    )
-    check_transaction(
-        result.transactions[3],
-        "LU0292106167",
-        dt.date(2025, 12, 31),
-        Decimal(0),
-        "EUR",
-    )
-
-
-def test_reporting_date_on_next_line(tmp_path: Path) -> None:
-    """A reporting date on the line after its prefix is still found.
-
-    Covers _extract_report_end_date's next-line branch: the prefix
-    line alone has no date, so the following line is tried.
-    """
-    file = _build_pdf(
-        tmp_path / "Xtrackers-Report-2024.pdf",
-        [
-            "Summary of reportable income calculations",
-            "Period ended:",
-            "31 December 2024",
-        ],
-    )
-
-    result = XtrackersImporter().parse(file)
-
-    assert result is not None
-    _check_result_transactions(result.transactions, dt.date(2024, 12, 31))
-
-
-def test_prefix_without_date_returns_no_transactions(tmp_path: Path) -> None:
-    """A prefix line with no date after it produces no transactions.
-
-    Covers the other side of the next-line branch (no following
-    line) and the empty-date continue: the date extraction returns
-    None, so the summary parser returns an empty result, not a
-    guessed date.
-    """
-    file = _build_pdf(
-        tmp_path / "Xtrackers-Report-2024.pdf",
-        [
-            "Summary of reportable income calculations",
-            "Period ended:",
-        ],
-        with_table=False,
-    )
-
-    result = XtrackersImporter().parse(file)
-
-    assert result is not None
-    assert result.transactions == []
-
-
 def test_old_report_is_ignored(tmp_path: Path) -> None:
     """Reports before the minimum valid year produce no transactions."""
     file = _build_pdf(
@@ -433,41 +206,6 @@ def test_bad_data_row_fails_loudly(
     assert "page 1" in str(exc_info.value)
 
 
-def test_partial_data_rows_are_skipped_not_raised(tmp_path: Path) -> None:
-    """Rows missing either ISIN or ERI are skipped, not raised on.
-
-    Since v7, no_isin_no_eri matches if EITHER column is missing,
-    and it runs before the invalid* checks, so a partial row must
-    never reach the Invalid ISIN / Invalid amount raises, and the
-    complete rows around it must still parse.
-    """
-    file = _build_pdf(
-        tmp_path / "Xtrackers-Report-2024.pdf",
-        SUMMARY_PREAMBLE,
-        data_rows=[
-            ["LU0000000009", "USD", "1.23456", "Fund A", "Acc"],
-            ["LU0000000009", "USD", "", "Fund A", "Acc"],
-            ["", "USD", "1.23456", "Fund A", "Acc"],
-            ["LU0000000124", "EUR", "0.0000", "Fund C", "Acc"],
-        ],
-    )
-
-    result = XtrackersImporter().parse(file)
-
-    assert result is not None
-    assert len(result.transactions) == 2
-    check_transaction(
-        result.transactions[0],
-        "LU0000000009",
-        dt.date(2024, 12, 31),
-        Decimal("1.23456"),
-        "USD",
-    )
-    check_transaction(
-        result.transactions[1], "LU0000000124", dt.date(2024, 12, 31), Decimal(0), "EUR"
-    )
-
-
 def test_report_without_a_table_fails_loudly(tmp_path: Path) -> None:
     """A recognised report page with no table at all is invalid input."""
     file = _build_pdf(
@@ -492,16 +230,8 @@ def test_header_only_table_fails_loudly(tmp_path: Path) -> None:
         XtrackersImporter().parse(file)
 
 
-def test_duplicate_header_columns_use_first_match(tmp_path: Path) -> None:
-    """Duplicate header columns no longer fail loudly.
-
-    Since v3, _extract_header does not raise on a pattern matching
-    several columns; it takes the first match and lets the data
-    rows disambiguate. This replaces the old test that expected
-    "Multiple columns match", which the current parser no longer
-    raises: with a data row present, the first ISIN column wins
-    and the row parses normally.
-    """
+def test_duplicate_header_columns_fail_loudly(tmp_path: Path) -> None:
+    """Two columns claiming the same field make the table ambiguous."""
     file = _build_pdf(
         tmp_path / "Xtrackers-Report-2024.pdf",
         SUMMARY_PREAMBLE,
@@ -512,20 +242,11 @@ def test_duplicate_header_columns_use_first_match(tmp_path: Path) -> None:
             "ISIN again",
             "Sub fund",
         ],
-        data_rows=[["LU0000000009", "USD", "1.23456", "Fund A", "Acc"]],
+        data_rows=[],
     )
 
-    result = XtrackersImporter().parse(file)
-
-    assert result is not None
-    assert len(result.transactions) == 1
-    check_transaction(
-        result.transactions[0],
-        "LU0000000009",
-        dt.date(2024, 12, 31),
-        Decimal("1.23456"),
-        "USD",
-    )
+    with pytest.raises(ParsingError, match=r"Multiple columns match .* on page 1"):
+        XtrackersImporter().parse(file)
 
 
 def test_missing_header_column_fails_loudly(tmp_path: Path) -> None:
@@ -573,139 +294,485 @@ def test_empty_extracted_header_fails_loudly(tmp_path: Path) -> None:
         )
 
 
-def test_process_data_table_realigns_shifted_columns(tmp_path: Path) -> None:
-    """Data rows shifted by one against the header map still parse.
+# The participants report used from 2025 by all three umbrellas. Its
+# columns are cut down to those the importer reads plus a distribution
+# column, which must never be taken for ERI.
+PARTICIPANTS_FILE = "Xtrackers SICAV - Investor Report_31.12.2025.pdf"
+PARTICIPANTS_TITLE = "UK Reporting Fund Status (UKRFS) Report to Participants"
+PARTICIPANTS_PERIOD_LINE = "Xtrackers Period ended: 31/12/2025"
+PARTICIPANTS_HEADER = [
+    "HMRC share class\nreference",
+    "ISIN CODE",
+    "SUB FUND",
+    "REPORTING PERIOD",
+    "CLASS CURRENCY",
+    "DISTRIBUTION(S) PER UNIT IN\nRESPECT OF THE REPORTING PERIOD",
+    (
+        "EXCESS OF REPORTED INCOME PER UNIT OVER\nDISTRIBUTIONS IN RESPECT OF THE\n"
+        "REPORTING PERIOD"
+    ),
+]
+SECTION_ROW = ["Accumulating shares:", "", "", "", "", "", ""]
+YEAR_2025 = "01.01.2025 - 31.12.2025"
+YEAR_END_2025 = dt.date(2025, 12, 31)
 
-    In the real SICAV 2025 cropped extraction the data rows have
-    ISIN at column 0, currency at 5 and ERI at 8, while the header
-    map says 1, 6 and 9. _process_data_table must shift every
-    column by the ISIN discrepancy, not read ISIN as 'Xtrackers'
-    and raise Invalid ISIN.
+
+def _class_row(
+    isin: str,
+    currency: str,
+    eri: str,
+    period: str = YEAR_2025,
+    distribution: str = "N/A",
+) -> list[str]:
+    """Return a share class row in PARTICIPANTS_HEADER's column order."""
+    return ["X0004-0001", isin, "MSCI World", period, currency, distribution, eri]
+
+
+def _header_with(index: int, heading: str) -> list[str]:
+    """Return PARTICIPANTS_HEADER with one heading replaced."""
+    header = list(PARTICIPANTS_HEADER)
+    header[index] = heading
+    return header
+
+
+def _build_participants_pdf(
+    path: Path,
+    pages: list[list[list[str]] | None],
+    title: str = PARTICIPANTS_TITLE,
+    period_line: str = PARTICIPANTS_PERIOD_LINE,
+    second_table: list[list[str]] | None = None,
+) -> Path:
+    """Build a participants report with one drawn table per page.
+
+    As in the published reports, the first page's table starts with a
+    title row and a period row spanning the table. A page given as None
+    has a line of text and no table. second_table adds a separate table
+    below the first page's one.
     """
-    data_rows: list[list[str | None]] = [
+    styles = getSampleStyleSheet()
+    doc = SimpleDocTemplate(str(path), pagesize=PAGESIZE)
+    story: list[Flowable] = []
+    for page_num, rows in enumerate(pages):
+        if page_num:
+            story.append(PageBreak())
+        if rows is None:
+            story.append(Paragraph("Notes", styles["Normal"]))
+            continue
+        width = len(rows[0])
+        if page_num == 0:
+            rows = [
+                [title, *[""] * (width - 1)],
+                [period_line, *[""] * (width - 1)],
+                *rows,
+            ]
+        table = Table(rows, colWidths=[170.0] * width)
+        table.setStyle(
+            TableStyle(
+                [
+                    ("GRID", (0, 0), (-1, -1), 1, colors.black),
+                    ("FONTSIZE", (0, 0), (-1, -1), 7),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                ]
+            )
+        )
+        if page_num == 0:
+            table.setStyle(
+                TableStyle([("SPAN", (0, 0), (-1, 0)), ("SPAN", (0, 1), (-1, 1))])
+            )
+        story.append(table)
+        if page_num == 0 and second_table is not None:
+            extra = Table(second_table, colWidths=[170.0] * len(second_table[0]))
+            extra.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 1, colors.black)]))
+            story += [Spacer(1, 40), extra]
+    doc.build(story)
+    return path
+
+
+def _summary(transactions: list[ERITransaction]) -> list[tuple[object, ...]]:
+    """Return each transaction's ISIN, date, price and currency."""
+    return [(t.isin, t.date, t.price, t.currency) for t in transactions]
+
+
+def test_parse_participants_report(tmp_path: Path) -> None:
+    """Read a two-page participants report with the header on page 1 only.
+
+    Page 1's table has the title and period rows, the header and a section
+    label before its classes, and page 2 continues without a header. The
+    expected values are the fixture's own cells: JPN is read as JPY, a zero
+    ERI is kept, and the distributing class's ERI is 0.3004, not its
+    distributions of 0.1004 and 0.0553.
+    """
+    file = _build_participants_pdf(
+        tmp_path / PARTICIPANTS_FILE,
         [
-            "LU0274208692",
-            "Xtrackers",
-            "MSCI WORLD SWAP",
-            "1C",
-            "01.01.2025 - 31.12.2025",
-            "USD",
-            "N/A",
-            "N/A",
-            "1.8345",
-            "30/06/2026",
+            [
+                PARTICIPANTS_HEADER,
+                SECTION_ROW,
+                _class_row("LU0000000017", "USD", "1.8345"),
+                _class_row("IE0000000020", "JPN", "0.5555"),
+                _class_row("LU0000000033", "EUR", "0.0000"),
+                _class_row("IE0000000046", "USD", "0.3004", distribution="0.1004"),
+                ["", "", "", "", "", "0.0553", ""],
+            ],
+            [
+                _class_row("LU0000000058", "EUR", "2.9484"),
+                _class_row("IE0000000061", "GBP", "0.0635"),
+            ],
         ],
+    )
+
+    result = XtrackersImporter().parse(file)
+
+    assert result is not None
+    assert result.output_file_name == "xtrackers_eri.csv"
+    assert _summary(result.transactions) == [
+        ("LU0000000017", YEAR_END_2025, Decimal("1.8345"), "USD"),
+        ("IE0000000020", YEAR_END_2025, Decimal("0.5555"), "JPY"),
+        ("LU0000000033", YEAR_END_2025, Decimal(0), "EUR"),
+        ("IE0000000046", YEAR_END_2025, Decimal("0.3004"), "USD"),
+        ("LU0000000058", YEAR_END_2025, Decimal("2.9484"), "EUR"),
+        ("IE0000000061", YEAR_END_2025, Decimal("0.0635"), "GBP"),
+    ]
+
+
+def test_participants_header_repeated_on_a_later_page(tmp_path: Path) -> None:
+    """A page that repeats the header is read by its own header.
+
+    Page 2's header puts the currency before the sub fund and the ERI
+    before the distribution, so reading it with page 1's columns would
+    give the wrong values.
+    """
+    page_2_header = [
+        PARTICIPANTS_HEADER[0],
+        PARTICIPANTS_HEADER[1],
+        PARTICIPANTS_HEADER[4],
+        PARTICIPANTS_HEADER[2],
+        PARTICIPANTS_HEADER[3],
+        PARTICIPANTS_HEADER[6],
+        PARTICIPANTS_HEADER[5],
+    ]
+    file = _build_participants_pdf(
+        tmp_path / PARTICIPANTS_FILE,
         [
-            "LU0274209237",
-            "Xtrackers",
-            "MSCI EUROPE",
-            "1C",
-            "01.01.2025 - 31.12.2025",
-            "USD",
-            "N/A",
-            "N/A",
-            "2.9484",
-            "30/06/2026",
+            [PARTICIPANTS_HEADER, _class_row("LU0000000017", "USD", "1.8345")],
+            [
+                page_2_header,
+                [
+                    "X0004-0002",
+                    "IE0000000020",
+                    "CHF",
+                    "MSCI Europe",
+                    YEAR_2025,
+                    "1.2000",
+                    "0.4000",
+                ],
+            ],
         ],
+    )
+
+    result = XtrackersImporter().parse(file)
+
+    assert result is not None
+    assert _summary(result.transactions) == [
+        ("LU0000000017", YEAR_END_2025, Decimal("1.8345"), "USD"),
+        ("IE0000000020", YEAR_END_2025, Decimal("1.2000"), "CHF"),
     ]
-    transactions = XtrackersImporter._process_data_table(  # noqa: SLF001
-        1,
-        data_rows,
-        dt.date(2025, 12, 31),
-        {0: 1, 1: 6, 2: 9},
-        tmp_path / "report.pdf",
-    )
-
-    assert len(transactions) == 2
-    check_transaction(
-        transactions[0], "LU0274208692", dt.date(2025, 12, 31), Decimal("1.8345"), "USD"
-    )
-    check_transaction(
-        transactions[1], "LU0274209237", dt.date(2025, 12, 31), Decimal("2.9484"), "USD"
-    )
 
 
-def test_first_data_row_finds_first_isin_row() -> None:
-    """_first_data_row stops at the first row with a real ISIN.
+@pytest.mark.parametrize(
+    ("eris", "expected"),
+    [
+        pytest.param(
+            ["1.8345", "", "0.0635"],
+            [
+                ("LU0000000017", YEAR_END_2025, Decimal("1.8345"), "USD"),
+                ("LU0000000033", YEAR_END_2025, Decimal("0.0635"), "USD"),
+            ],
+            id="one-blank",
+        ),
+        pytest.param(["", "", ""], [], id="all-blank"),
+    ],
+)
+def test_participants_blank_eri_is_left_out_with_a_warning(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    eris: list[str],
+    expected: list[tuple[object, ...]],
+) -> None:
+    """A class with an empty ERI cell gets no row and a warning naming it.
 
-    On SICAV 2025 page 1 that is row 4, after the header row (2)
-    and the section label row (3), which has no ISIN. A row whose
-    ISIN merely looks like one (format only, checksum not checked
-    here) still counts as data, so a corrupted first row is not
-    mistaken for header. With no data row at all it returns None,
-    and _extract_header falls back to the 3-row merge.
+    The report gives no figure, so it is not read as zero and its
+    distribution of 0.0809 is not used instead. A report whose classes all
+    lack ERI gives no rows, not a refusal.
     """
-    rows: list[list[str | None]] = [
-        ["UK Reporting Fund Status", *[""] * 11],
-        ["Xtrackers Period ended: 31/12/2025", *[""] * 11],
-        ["HMRC share class reference", "ISIN CODE", *[""] * 10],
-        ["Accumulating shares:", *[""] * 11],
-        ["X0004-0064", "LU0274208692", *[""] * 10],
+    isins = ["LU0000000017", "IE0000000020", "LU0000000033"]
+    file = _build_participants_pdf(
+        tmp_path / PARTICIPANTS_FILE,
+        [
+            [
+                PARTICIPANTS_HEADER,
+                *(
+                    _class_row(isin, "USD", eri, distribution="0.0809")
+                    for isin, eri in zip(isins, eris, strict=True)
+                ),
+            ]
+        ],
+    )
+
+    result = XtrackersImporter().parse(file)
+
+    assert result is not None
+    assert _summary(result.transactions) == expected
+    warned = [isin for isin, eri in zip(isins, eris, strict=True) if not eri]
+    assert [r.getMessage() for r in caplog.records if r.levelname == "WARNING"] == [
+        f"Xtrackers report gives no excess reportable income for {isin} on page 1; "
+        "no row added"
+        for isin in warned
     ]
-    assert XtrackersImporter._first_data_row(rows, 2) == 4  # noqa: SLF001
-    assert XtrackersImporter._first_data_row(rows[:4], 2) is None  # noqa: SLF001
-    # The appended row needs its own list[str | None] annotation:
-    # an inline list[str] literal would not be assignable to
-    # list[str | None] either, even inside the unpacking.
-    corrupt_row: list[str | None] = ["X0004-0000", "LU0000000000", *[""] * 10]
-    assert (
-        XtrackersImporter._first_data_row(  # noqa: SLF001
-            [*rows[:4], corrupt_row], 2
-        )
-        == 4
+
+
+VALID_CLASS = _class_row("LU0000000017", "USD", "1.8345")
+
+
+@pytest.mark.parametrize(
+    ("pages", "error_match"),
+    [
+        pytest.param(
+            [[_header_with(1, "ISIN"), VALID_CLASS]],
+            "No column matching 'ISIN CODE' on page 1",
+            id="no-isin-heading",
+        ),
+        pytest.param(
+            [[_header_with(3, "PERIOD"), VALID_CLASS]],
+            "No column matching 'REPORTING PERIOD' on page 1",
+            id="no-period-heading",
+        ),
+        pytest.param(
+            [[_header_with(4, "CURRENCY"), VALID_CLASS]],
+            "No column matching 'CLASS CURRENCY' on page 1",
+            id="no-currency-heading",
+        ),
+        pytest.param(
+            [[_header_with(6, "EXCESS INCOME"), VALID_CLASS]],
+            "No column matching 'EXCESS OF REPORTED INCOME PER UNIT OVER "
+            "DISTRIBUTIONS' on page 1",
+            id="no-eri-heading",
+        ),
+        pytest.param(
+            [[_header_with(2, "CLASS CURRENCY"), VALID_CLASS]],
+            r"Multiple columns match 'CLASS CURRENCY' on page 1: \[2, 4\]",
+            id="two-currency-headings",
+        ),
+        pytest.param(
+            [[VALID_CLASS]],
+            "No header row on page 1",
+            id="no-header-row",
+        ),
+        pytest.param(
+            [[VALID_CLASS, PARTICIPANTS_HEADER, VALID_CLASS]],
+            "Share class row before the header on page 1",
+            id="class-before-header",
+        ),
+        pytest.param(
+            [[PARTICIPANTS_HEADER, SECTION_ROW]],
+            "No share class rows found",
+            id="no-class-rows",
+        ),
+        pytest.param(
+            [[PARTICIPANTS_HEADER, VALID_CLASS], [VALID_CLASS[:6]]],
+            "Table on page 2 has 6 columns; the header on page 1 has 7",
+            id="continuation-width",
+        ),
+        pytest.param(
+            [[PARTICIPANTS_HEADER, VALID_CLASS, ["", "", "", "", "", "", "1.0000"]]],
+            "Value without an ISIN on page 1, row 5",
+            id="eri-without-isin",
+        ),
+        pytest.param(
+            [[PARTICIPANTS_HEADER, VALID_CLASS, ["", "", "", "", "USD", "", ""]]],
+            "Value without an ISIN on page 1, row 5",
+            id="currency-without-isin",
+        ),
+        pytest.param(
+            [[PARTICIPANTS_HEADER, VALID_CLASS, ["", "", "", YEAR_2025, "", "", ""]]],
+            "Value without an ISIN on page 1, row 5",
+            id="period-without-isin",
+        ),
+        pytest.param(
+            [[PARTICIPANTS_HEADER, _class_row("LU0000000000", "USD", "1.8345")]],
+            "Invalid ISIN on page 1, row 4: 'LU0000000000'",
+            id="bad-isin",
+        ),
+        pytest.param(
+            [
+                [
+                    PARTICIPANTS_HEADER,
+                    _class_row("LU0000000017", "not-a-currency", "1.8345"),
+                ]
+            ],
+            "Invalid currency on page 1, row 4: 'not-a-currency'",
+            id="bad-currency",
+        ),
+        pytest.param(
+            [[PARTICIPANTS_HEADER, _class_row("LU0000000017", "USD", "N/A")]],
+            "Invalid amount on page 1, row 4: 'N/A'",
+            id="eri-not-applicable",
+        ),
+        pytest.param(
+            [
+                [
+                    PARTICIPANTS_HEADER,
+                    _class_row(
+                        "LU0000000017",
+                        "USD",
+                        "1.8345",
+                        period="01.01.2025 - 31.13.2025",
+                    ),
+                ]
+            ],
+            "Invalid reporting period on page 1, row 4: '01.01.2025 - 31.13.2025'",
+            id="bad-period",
+        ),
+        pytest.param(
+            [
+                [
+                    PARTICIPANTS_HEADER,
+                    _class_row("LU0000000017", "USD", "1.8345", period="31.12.2025"),
+                ]
+            ],
+            "Invalid reporting period on page 1, row 4: '31.12.2025'",
+            id="period-not-a-range",
+        ),
+        pytest.param(
+            [
+                [
+                    PARTICIPANTS_HEADER,
+                    _class_row(
+                        "LU0000000017",
+                        "USD",
+                        "1.8345",
+                        period="01.02.2025 - 31.01.2025",
+                    ),
+                ]
+            ],
+            "Invalid reporting period on page 1, row 4: '01.02.2025 - 31.01.2025'",
+            id="period-ends-before-start",
+        ),
+        pytest.param(
+            [[PARTICIPANTS_HEADER, VALID_CLASS], None],
+            "Expected one table on page 2, found 0",
+            id="page-without-table",
+        ),
+    ],
+)
+def test_participants_report_refusals(
+    tmp_path: Path, pages: list[list[list[str]] | None], error_match: str
+) -> None:
+    """Refuse a participants report the importer cannot read with certainty."""
+    file = _build_participants_pdf(tmp_path / PARTICIPANTS_FILE, pages)
+
+    with pytest.raises(ParsingError, match=error_match):
+        XtrackersImporter().parse(file)
+
+
+def test_participants_class_period_end_is_the_row_date(tmp_path: Path) -> None:
+    """Each class is dated by its own reporting period, not the report's."""
+    file = _build_participants_pdf(
+        tmp_path / PARTICIPANTS_FILE,
+        [
+            [
+                PARTICIPANTS_HEADER,
+                _class_row(
+                    "LU0000000017", "USD", "1.0000", period="01.01.2025 - 30.09.2025"
+                ),
+                _class_row("IE0000000020", "USD", "2.0000"),
+            ]
+        ],
     )
 
+    result = XtrackersImporter().parse(file)
 
-class _TextPage:
-    """Page stub returning fixed text lines for date extraction."""
-
-    def __init__(self, lines: list[str]) -> None:
-        self._lines = lines
-
-    def extract_text_lines(self) -> list[dict[str, str]]:
-        return [{"text": line} for line in self._lines]
+    assert result is not None
+    assert _summary(result.transactions) == [
+        ("LU0000000017", dt.date(2025, 9, 30), Decimal("1.0000"), "USD"),
+        ("IE0000000020", YEAR_END_2025, Decimal("2.0000"), "USD"),
+    ]
 
 
-def test_extract_report_end_date_next_line() -> None:
-    """Date extraction: prefix alone, date on the next line."""
-    page = cast("Page", _TextPage(["Period ended:", "31 December 2024"]))
-
-    assert XtrackersImporter._extract_report_end_date(  # noqa: SLF001
-        page, "Period ended:"
-    ) == dt.date(2024, 12, 31)
-
-
-def test_extract_report_end_date_unparseable_returns_none() -> None:
-    """Date extraction: first parse fails, fallback finds no date.
-
-    Covers the fallback's no-match branch: the remainder contains
-    no date pattern at all, so extraction returns None.
-    """
-    page = cast("Page", _TextPage(["Period ended: not a date at all"]))
-
-    assert (
-        XtrackersImporter._extract_report_end_date(  # noqa: SLF001
-            page, "Period ended:"
-        )
-        is None
+@pytest.mark.parametrize(
+    ("periods", "expected"),
+    [
+        pytest.param(
+            ["01.01.2017 - 31.12.2017", "01.01.2018 - 31.12.2018"],
+            [("IE0000000020", dt.date(2018, 12, 31), Decimal("1.0000"), "USD")],
+            id="2017-left-out-2018-kept",
+        ),
+        pytest.param(
+            ["01.01.2015 - 31.12.2015", "01.01.2015 - 31.12.2015"],
+            [],
+            id="old-report-gives-no-rows",
+        ),
+    ],
+)
+def test_participants_classes_before_minimum_year_are_ignored(
+    tmp_path: Path, periods: list[str], expected: list[tuple[object, ...]]
+) -> None:
+    """A class whose period ends before 2018 gives no row and no refusal."""
+    file = _build_participants_pdf(
+        tmp_path / PARTICIPANTS_FILE,
+        [
+            [
+                PARTICIPANTS_HEADER,
+                _class_row("LU0000000017", "USD", "1.0000", period=periods[0]),
+                _class_row("IE0000000020", "USD", "1.0000", period=periods[1]),
+            ]
+        ],
     )
 
+    result = XtrackersImporter().parse(file)
 
-def test_extract_report_end_date_invalid_day_returns_none() -> None:
-    """Date extraction: first parse fails, fallback match also fails.
+    assert result is not None
+    assert _summary(result.transactions) == expected
 
-    31 February is a date pattern, so the fallback finds it, but
-    parsing it fails again, so the fallback's except-pass branch
-    is taken and extraction returns None.
-    """
-    page = cast("Page", _TextPage(["Period ended: 31 February 2025"]))
 
-    assert (
-        XtrackersImporter._extract_report_end_date(  # noqa: SLF001
-            page, "Period ended:"
-        )
-        is None
+def test_participants_page_with_two_tables_is_refused(tmp_path: Path) -> None:
+    """A page with a second table is refused, not read from its first."""
+    file = _build_participants_pdf(
+        tmp_path / PARTICIPANTS_FILE,
+        [[PARTICIPANTS_HEADER, VALID_CLASS]],
+        second_table=[_class_row("IE0000000020", "USD", "2.0000")],
     )
+
+    with pytest.raises(ParsingError, match="Expected one table on page 1, found 2"):
+        XtrackersImporter().parse(file)
+
+
+@pytest.mark.parametrize(
+    ("title", "period_line"),
+    [
+        pytest.param(
+            "UK Reporting Fund Status (UKRFS)",
+            PARTICIPANTS_PERIOD_LINE,
+            id="no-participants-marker",
+        ),
+        pytest.param(
+            PARTICIPANTS_TITLE, "Period ended: 31/12/2025", id="no-xtrackers-marker"
+        ),
+    ],
+)
+def test_participants_report_needs_both_markers(
+    tmp_path: Path, title: str, period_line: str
+) -> None:
+    """A readable grid is not taken for an Xtrackers report without both markers."""
+    file = _build_participants_pdf(
+        tmp_path / PARTICIPANTS_FILE,
+        [[PARTICIPANTS_HEADER, VALID_CLASS]],
+        title=title,
+        period_line=period_line,
+    )
+
+    assert XtrackersImporter().parse(file) is None
 
 
 def test_unknown_content_is_not_accepted(tmp_path: Path) -> None:
@@ -717,211 +784,6 @@ def test_unknown_content_is_not_accepted(tmp_path: Path) -> None:
     )
 
     assert XtrackersImporter().parse(file) is None
-
-
-def test_shift_isin_column_rejects_out_of_range_shift() -> None:
-    """An ISIN shift that would leave the table is rejected.
-
-    Covers _shift_isin_column's out-of-range return, and its
-    empty-row continue: the data has an empty row, then a row
-    whose ISIN is at column 9 while the header map says 1, so
-    shifting by +8 would put currency and ERI outside the table.
-    The original map is returned unchanged.
-    """
-    data_table: list[list[str | None]] = [
-        [],
-        ["", "", "", "", "", "", "", "", "", "LU0274208692"],
-    ]
-    result = XtrackersImporter._shift_isin_column(  # noqa: SLF001
-        data_table, {0: 1, 1: 6, 2: 9}
-    )
-
-    assert result == {0: 1, 1: 6, 2: 9}
-
-
-def test_disambiguate_currency_and_eri_from_data(tmp_path: Path) -> None:
-    """Currency and ERI are found from data when the header is wrong.
-
-    Covers _disambiguate_currency_eri's assign branches, which
-    the shift-only SICAV test does not reach: the header map says
-    currency 8 and ERI 9, but the data has a junk column at 8,
-    currency at 9 and amounts at 10. The third row's ERI is N/A,
-    so it is skipped as eri_na_blank, which also covers the
-    skipped-ISINs logging path in _process_data_table.
-    """
-    data_rows: list[list[str | None]] = [
-        [
-            "LU0274208692",
-            "Fund A",
-            "x",
-            "x",
-            "x",
-            "x",
-            "x",
-            "x",
-            "SHARE CLASS",
-            "EUR",
-            "2.5000",
-        ],
-        [
-            "LU0274209237",
-            "Fund B",
-            "x",
-            "x",
-            "x",
-            "x",
-            "x",
-            "x",
-            "SHARE CLASS",
-            "USD",
-            "0.7500",
-        ],
-        [
-            "LU0274209740",
-            "Fund C",
-            "x",
-            "x",
-            "x",
-            "x",
-            "x",
-            "x",
-            "SHARE CLASS",
-            "GBP",
-            "N/A",
-        ],
-    ]
-    transactions = XtrackersImporter._process_data_table(  # noqa: SLF001
-        1,
-        data_rows,
-        dt.date(2025, 12, 31),
-        {0: 0, 1: 8, 2: 9},
-        tmp_path / "report.pdf",
-    )
-
-    assert len(transactions) == 2
-    check_transaction(
-        transactions[0], "LU0274208692", dt.date(2025, 12, 31), Decimal("2.5000"), "EUR"
-    )
-    check_transaction(
-        transactions[1], "LU0274209237", dt.date(2025, 12, 31), Decimal("0.7500"), "USD"
-    )
-
-
-def test_disambiguate_with_no_qualifying_column_keeps_header_map() -> None:
-    """No column reaching the threshold leaves the map unchanged.
-
-    Covers the other sides of the currency and amount
-    realignment branches: currency and amount codes are scattered
-    one row per column, so no column reaches 50% and there are
-    no amount candidates at all.
-    """
-    data_table: list[list[str | None]] = [
-        ["LU0274208692", "x", "x", "x", "x", "EUR", "x", "x", "2.5000", "x", "x"],
-        ["LU0274209237", "x", "x", "x", "x", "x", "USD", "x", "x", "0.7500", "x"],
-        ["LU0274209740", "x", "x", "x", "x", "x", "x", "GBP", "x", "x", "1.0000"],
-    ]
-    result = XtrackersImporter._disambiguate_currency_eri(  # noqa: SLF001
-        data_table, {0: 0, 1: 5, 2: 8}
-    )
-
-    assert result == {0: 0, 1: 5, 2: 8}
-
-
-def test_process_data_table_empty_returns_no_transactions(tmp_path: Path) -> None:
-    """An empty data table returns no transactions, without error."""
-    transactions = XtrackersImporter._process_data_table(  # noqa: SLF001
-        1,
-        [],
-        dt.date(2025, 12, 31),
-        {0: 0, 1: 1, 2: 2},
-        tmp_path / "report.pdf",
-    )
-
-    assert transactions == []
-
-
-def test_eri_na_blank_rows_are_skipped(tmp_path: Path) -> None:
-    """N/A, Nil and blank ERI rows are skipped, not raised on.
-
-    Covers _process_row's eri_na_blank return and
-    _process_data_table's skipped-ISINs path, which no earlier
-    test reached (earlier data had amounts, never N/A ERI).
-    A fully blank row is skipped as blank, not as eri_na_blank.
-    """
-    file = _build_pdf(
-        tmp_path / "Xtrackers-Report-2024.pdf",
-        SUMMARY_PREAMBLE,
-        data_rows=[
-            ["LU0000000009", "USD", "1.23456", "Fund A", "Acc"],
-            ["LU0000000009", "USD", "N/A", "Fund A", "Acc"],
-            ["LU0000000009", "USD", "Nil", "Fund A", "Acc"],
-            ["", "", "", "", ""],
-            ["LU0000000124", "EUR", "0.0000", "Fund C", "Acc"],
-        ],
-    )
-
-    result = XtrackersImporter().parse(file)
-
-    assert result is not None
-    assert len(result.transactions) == 2
-    check_transaction(
-        result.transactions[0],
-        "LU0000000009",
-        dt.date(2024, 12, 31),
-        Decimal("1.23456"),
-        "USD",
-    )
-    check_transaction(
-        result.transactions[1], "LU0000000124", dt.date(2024, 12, 31), Decimal(0), "EUR"
-    )
-
-
-def test_missing_isin_column_fails_loudly(tmp_path: Path) -> None:
-    """A table with no ISIN column at all is invalid input.
-
-    Covers the start-row search completing without finding an
-    ISIN row, and the last-resort raise for the ISIN column.
-    Requires the v13 _parse_pages behaviour: a header error
-    with no header ever found is raised, not silently returned
-    as zero transactions.
-    """
-    file = _build_pdf(
-        tmp_path / "Xtrackers-Report-2024.pdf",
-        SUMMARY_PREAMBLE,
-        header=[
-            "Fund",
-            "Share class currency",
-            "Excess reported income per share",
-            "Fund name",
-            "Sub fund",
-        ],
-        data_rows=[],
-    )
-
-    with pytest.raises(ParsingError, match=r"No column matching .* on page 1"):
-        XtrackersImporter().parse(file)
-
-
-def test_header_only_sicav_table_fails_loudly(tmp_path: Path) -> None:
-    """A SICAV table with headers but no data rows is invalid input.
-
-    Covers _extract_header's fallback when the header table
-    contains no data row (first_data_row is None, so the header
-    ends at start_row + 2): the header is found, the crop is
-    after the section row, and data extraction then fails.
-    """
-    file = _build_sicav_pdf(
-        tmp_path / "Xtrackers SICAV - Investor Report_31.12.2025.pdf",
-        [
-            "Xtrackers SICAV",
-            "UK reporting fund status report to participants",
-            "Period ended: 31/12/2025",
-        ],
-        data_rows=[],
-    )
-
-    with pytest.raises(ParsingError, match="Could not extract data table on page 1"):
-        XtrackersImporter().parse(file)
 
 
 def test_unmatched_file_name_is_not_accepted(tmp_path: Path) -> None:

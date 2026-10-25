@@ -84,10 +84,25 @@ DWS UK publishes annual Reportable Income reports here:
 Choose the report for the fund company named in your fund documents: Xtrackers, Xtrackers II or
 Xtrackers IE.
 
+The column names changed in 2025. For reports on periods ending in 2025 or later:
+
+- **ISIN:** ISIN CODE column
+- **Fund Reporting Period End Date:** End date in the REPORTING PERIOD column for your share class
+- **Currency:** CLASS CURRENCY column
+- **Excess of reporting income over distribution:** EXCESS OF REPORTED INCOME PER UNIT OVER
+    DISTRIBUTIONS IN RESPECT OF THE REPORTING PERIOD column, not the DISTRIBUTION(S) PER UNIT column
+
+If that column is empty for your share class, the report gives no figure. Do not enter 0; ask DWS
+for the figure.
+
+For earlier reports:
+
 - **ISIN:** same name column
 - **Fund Reporting Period End Date:** Period Ended date at the top of the PDF
-- **Currency:** Share class currency column
-- **Excess of reporting income over distribution:** Excess reported income per share column
+- **Currency:** Share class currency column (Currency of the following amounts in Xtrackers II and
+    Xtrackers IE reports)
+- **Excess of reporting income over distribution:** Excess reported income per share column (Per
+    unit excess reportable income over distributions in Xtrackers II and Xtrackers IE reports)
 
 ### Amundi
 

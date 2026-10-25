@@ -207,6 +207,7 @@ P60
 ParsingError
 pdf
 pdflatex
+pdfplumber
 PermissionError
 pipx
 plc
