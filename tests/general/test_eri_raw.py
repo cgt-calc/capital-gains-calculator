@@ -11,6 +11,7 @@ import pytest
 from cgt_calc.args_parser import create_parser
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.parsers.eri.raw import ERIRawParser
+from tests.utils import build_cmd, report_path, run_cli
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -38,6 +39,92 @@ def test_eri_raw_file_option_adds_its_rows_to_the_bundled_ones(tmp_path: Path) -
         (VALID_ISIN, dt.date(2023, 2, 1), Decimal("1.23"))
     ]
     assert len(transactions) > len(given)
+
+
+@pytest.mark.parametrize(
+    ("bought", "sold", "year", "eri_lines", "allowable_costs", "outcome"),
+    [
+        # Held at 31/10/2020 only, a period KPMG states in pounds: 10 x 2.3578
+        # is £23.58, paid on 30/04/2021, in 2021/22, with no conversion.
+        pytest.param(
+            "2020-10-01",
+            "2021-06-01",
+            "2021",
+            ["CSH2: £23.58 (included as dividend)"],
+            "£11,833.58",
+            ("Gain:", "£266.42"),
+            id="2021-22-pounds",
+        ),
+        # Held at 31/10/2023 only: 10 x 34.5541 EUR at HMRC's October 2023
+        # rate of 1.1555 is £299.04, paid on 30/04/2024, in 2024/25.
+        pytest.param(
+            "2023-10-02",
+            "2024-06-03",
+            "2024",
+            ["CSH2: £299.04 (included as dividend)"],
+            "£12,109.04",
+            ("Loss:", "£9.04"),
+            id="2024-25",
+        ),
+        # Held at 31/10/2024, 07/03/2025 and 30/09/2025, all paid in 2025/26:
+        # 10 x 60.7270 / 1.1876 = £511.34, 10 x 25.0609 / 1.2073 = £207.58
+        # and 10 x 32.5745 / 1.1573 = £281.47, at HMRC's rates for October
+        # 2024, March 2025 and September 2025; £1,000.39 in all.
+        pytest.param(
+            "2024-10-01",
+            "2025-11-03",
+            "2025",
+            [
+                "CSH2: £511.34 (included as dividend)",
+                "CSH2: £207.58 (included as dividend)",
+                "CSH2: £281.47 (included as dividend)",
+            ],
+            "£12,810.39",
+            ("Loss:", "£710.39"),
+            id="2025-26",
+        ),
+    ],
+)
+def test_bundled_csh2_eri_is_read_in_the_currency_kpmg_states(
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+    bought: str,
+    sold: str,
+    year: str,
+    eri_lines: list[str],
+    allowable_costs: str,
+    outcome: tuple[str, str],
+) -> None:
+    """Amundi CSH2's bundled ERI is in pounds to 2021 and in euros from 2022.
+
+    KPMG Reporting Funds gives LU1230136894's excess reportable income in GBP
+    for the periods to 31 October 2021 and in EUR from the period ending
+    31 October 2022 (#1332). Ten units are bought at 1,180.00 and sold at
+    1,210.00, each with a 5.00 fee, so the costs are 11,810.00 plus the ERI,
+    against proceeds of 12,100.00. Read as pounds, the four euro amounts
+    would be between 16% and 21% higher; read as euros, the pound amounts
+    would be lower.
+    """
+    raw = tmp_path / "raw.csv"
+    raw.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        f"{bought},TRANSFER,,1,11805.00,0.00,GBP\n"
+        f"{bought},BUY,CSH2,10,1180.00,5.00,GBP\n"
+        f"{sold},SELL,CSH2,10,1210.00,5.00,GBP\n",
+        encoding="utf-8",
+    )
+
+    result = run_cli(
+        build_cmd(
+            "--year", year, "--raw-file", str(raw), "--output", report_path(request)
+        )
+    )
+
+    lines = [line.strip() for line in result.stdout.splitlines()]
+    assert [line for line in lines if line.startswith("CSH2:")] == eri_lines
+    assert f"Allowable costs:    {allowable_costs}" in lines
+    label, amount = outcome
+    assert any(line.startswith(label) and line.endswith(f" {amount}") for line in lines)
 
 
 def test_read_eri_raw_raises_on_invalid_date(tmp_path: Path) -> None:
