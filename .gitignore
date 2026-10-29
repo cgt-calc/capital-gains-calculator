@@ -18,3 +18,5 @@ site/
 .wrangler/
 exchange_rates.csv
 .lycheecache
+# Personal broker exports kept next to the checkout
+/data/

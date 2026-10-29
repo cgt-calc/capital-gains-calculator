@@ -11,7 +11,7 @@ from typing import ClassVar, TextIO, override
 
 import pdfplumber
 
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import ParsingError, UnsupportedActionError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
 from cgt_calc.parsers.base_parsers import BaseDirParser, StandardCSVParser
 from cgt_calc.util import parse_decimal
@@ -177,7 +177,7 @@ class HargreavesLansdownParser(
         description = row.get("Description", "")
         action_type = cls._determine_action_type(reference)
         if not action_type:
-            raise ParsingError(
+            raise UnsupportedActionError(
                 file_path,
                 f"Unknown transaction type for reference '{reference}' "
                 f"(description: '{description}')",

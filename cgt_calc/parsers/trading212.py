@@ -14,7 +14,11 @@ from pathlib import Path
 from typing import ClassVar, Final, NoReturn, TextIO, override
 
 from cgt_calc.const import UK_CURRENCY, UK_TIMEZONE
-from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.exceptions import (
+    ParsingError,
+    UnexpectedColumnCountError,
+    UnsupportedActionError,
+)
 from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
@@ -36,7 +40,7 @@ from cgt_calc.util import (
     parse_decimal,
 )
 
-from .base_parsers import BaseDirParser, read_csv_rows
+from .base_parsers import BaseDirParser, read_csv_rows, read_supported_row
 
 
 class Trading212Column(StrEnum):
@@ -376,13 +380,13 @@ def action_from_str(label: str, file: Path) -> ActionType:
         return ActionType.ADJUSTMENT
 
     if label in UNSUPPORTED_ACTIONS:
-        raise ParsingError(
+        raise UnsupportedActionError(
             file,
             f"{label} rows are not supported. See "
             "https://cgt-calc.uk/brokers/trading212/#known-limitations",
         )
 
-    raise ParsingError(file, f"Unknown action: {label}")
+    raise UnsupportedActionError(file, f"Unknown action: {label}")
 
 
 class Trading212Transaction(BrokerTransaction):
@@ -1222,12 +1226,16 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
         transactions: list[BrokerTransaction] = []
         for index, row in enumerate(lines, start=2):
             try:
-                transaction = Trading212Transaction(header, row, file_path)
+                transaction = read_supported_row(
+                    index, Trading212Transaction, header, row, file_path
+                )
             except ParsingError as err:
                 err.add_row_context(index)
                 raise
             except ValueError as err:
                 raise ParsingError(file_path, str(err), row_index=index) from err
+            if transaction is None:
+                continue
             transaction.source = TransactionSource(
                 row=index, timestamp=transaction.datetime
             )
