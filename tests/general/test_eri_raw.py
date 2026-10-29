@@ -42,8 +42,19 @@ def test_eri_raw_file_option_adds_its_rows_to_the_bundled_ones(tmp_path: Path) -
 
 
 @pytest.mark.parametrize(
-    ("bought", "sold", "year", "eri_lines", "allowable_costs", "loss"),
+    ("bought", "sold", "year", "eri_lines", "allowable_costs", "outcome"),
     [
+        # Held at 31/10/2020 only, a period KPMG states in pounds: 10 x 2.3578
+        # is £23.58, paid on 30/04/2021, in 2021/22, with no conversion.
+        pytest.param(
+            "2020-10-01",
+            "2021-06-01",
+            "2021",
+            ["CSH2: £23.58 (included as dividend)"],
+            "£11,833.58",
+            ("Gain:", "£266.42"),
+            id="2021-22-pounds",
+        ),
         # Held at 31/10/2023 only: 10 x 34.5541 EUR at HMRC's October 2023
         # rate of 1.1555 is £299.04, paid on 30/04/2024, in 2024/25.
         pytest.param(
@@ -52,7 +63,7 @@ def test_eri_raw_file_option_adds_its_rows_to_the_bundled_ones(tmp_path: Path) -
             "2024",
             ["CSH2: £299.04 (included as dividend)"],
             "£12,109.04",
-            "£9.04",
+            ("Loss:", "£9.04"),
             id="2024-25",
         ),
         # Held at 31/10/2024, 07/03/2025 and 30/09/2025, all paid in 2025/26:
@@ -69,12 +80,12 @@ def test_eri_raw_file_option_adds_its_rows_to_the_bundled_ones(tmp_path: Path) -
                 "CSH2: £281.47 (included as dividend)",
             ],
             "£12,810.39",
-            "£710.39",
+            ("Loss:", "£710.39"),
             id="2025-26",
         ),
     ],
 )
-def test_bundled_csh2_eri_is_converted_from_euros(
+def test_bundled_csh2_eri_is_read_in_the_currency_kpmg_states(
     tmp_path: Path,
     request: pytest.FixtureRequest,
     bought: str,
@@ -82,15 +93,17 @@ def test_bundled_csh2_eri_is_converted_from_euros(
     year: str,
     eri_lines: list[str],
     allowable_costs: str,
-    loss: str,
+    outcome: tuple[str, str],
 ) -> None:
-    """Amundi CSH2's bundled ERI from 2022 is read as euros, as KPMG states it.
+    """Amundi CSH2's bundled ERI is in pounds to 2021 and in euros from 2022.
 
-    KPMG Reporting Funds gives LU1230136894's excess reportable income in EUR
-    from the period ending 31 October 2022 (#1332). Ten units are bought at
-    1,180.00 and sold at 1,210.00, each with a 5.00 fee, so the costs are
-    11,810.00 plus the ERI, against proceeds of 12,100.00. Read as pounds,
-    the four euro amounts would be between 16% and 21% higher.
+    KPMG Reporting Funds gives LU1230136894's excess reportable income in GBP
+    for the periods to 31 October 2021 and in EUR from the period ending
+    31 October 2022 (#1332). Ten units are bought at 1,180.00 and sold at
+    1,210.00, each with a 5.00 fee, so the costs are 11,810.00 plus the ERI,
+    against proceeds of 12,100.00. Read as pounds, the four euro amounts
+    would be between 16% and 21% higher; read as euros, the pound amounts
+    would be lower.
     """
     raw = tmp_path / "raw.csv"
     raw.write_text(
@@ -110,7 +123,8 @@ def test_bundled_csh2_eri_is_converted_from_euros(
     lines = [line.strip() for line in result.stdout.splitlines()]
     assert [line for line in lines if line.startswith("CSH2:")] == eri_lines
     assert f"Allowable costs:    {allowable_costs}" in lines
-    assert any(line.startswith("Loss:") and line.endswith(f" {loss}") for line in lines)
+    label, amount = outcome
+    assert any(line.startswith(label) and line.endswith(f" {amount}") for line in lines)
 
 
 def test_read_eri_raw_raises_on_invalid_date(tmp_path: Path) -> None:
