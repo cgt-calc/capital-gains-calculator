@@ -1397,9 +1397,6 @@ class TransactionIngester:
                 "Excess reported income price must be finite and non-negative.",
             )
 
-        if transaction.price == Decimal(0):
-            return
-
         cutoff = self.eri_exclude_distributions_from
         if cutoff is not None and distribution_date >= cutoff:
             LOGGER.info(
@@ -1410,6 +1407,9 @@ class TransactionIngester:
                 distribution_date,
                 cutoff,
             )
+            return
+
+        if transaction.price == Decimal(0):
             return
 
         price = self.currency_converter.to_gbp_for(
