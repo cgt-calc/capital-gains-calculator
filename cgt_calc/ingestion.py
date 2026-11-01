@@ -73,6 +73,7 @@ if TYPE_CHECKING:
     from .current_price_fetcher import CurrentPriceFetcher
     from .income import IncomeProcessor
     from .isin_converter import IsinConverter
+    from .model import NonResidencePeriod
     from .share_prices import SharePrices
     from .spin_off_handler import SpinOffHandler
 
@@ -300,7 +301,7 @@ class TransactionIngester:
         balance_check: bool,
         autoconvert_currency: bool = False,
         gifts_to_spouse: bool = False,
-        eri_exclude_distributions_from: dt.date | None = None,
+        non_uk_resident_periods: list[NonResidencePeriod] | None = None,
         date_in_tax_year: Callable[[dt.date], bool],
     ):
         """Create transaction ingester object."""
@@ -318,7 +319,7 @@ class TransactionIngester:
         self.balance_check = balance_check
         self.autoconvert_currency = autoconvert_currency
         self.gifts_to_spouse = gifts_to_spouse
-        self.eri_exclude_distributions_from = eri_exclude_distributions_from
+        self.non_uk_resident_periods = non_uk_resident_periods or []
         self.date_in_tax_year = date_in_tax_year
 
     def add_acquisition(
@@ -1379,9 +1380,9 @@ class TransactionIngester:
         whose ISIN is known by one of its tickers is still found on the dates
         it was held under another.
 
-        A report whose fund distribution date is on or after the cut-off
-        given on the command line is left out, both as income and as an
-        addition to cost: only income charged to UK tax is added to the
+        A report whose fund distribution date falls in a period the user was
+        not UK resident is left out, both as income and as an addition to
+        cost: only income charged to UK tax is added to the
         acquisition cost (Offshore Funds (Tax) Regulations 2009, reg 99(3)),
         so ERI distributed while not UK resident is neither.
         """
@@ -1397,15 +1398,16 @@ class TransactionIngester:
                 "Excess reported income price must be finite and non-negative.",
             )
 
-        cutoff = self.eri_exclude_distributions_from
-        if cutoff is not None and distribution_date >= cutoff:
+        if any(
+            period.includes(distribution_date)
+            for period in self.non_uk_resident_periods
+        ):
             LOGGER.info(
                 "Leaving out the ERI of %s for the period ending %s: its fund "
-                "distribution date %s is on or after %s",
+                "distribution date %s falls in a period of non-residence",
                 transaction.isin,
                 transaction.date,
                 distribution_date,
-                cutoff,
             )
             return
 

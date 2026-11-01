@@ -128,41 +128,50 @@ def test_bundled_csh2_eri_is_read_in_the_currency_kpmg_states(
 
 
 @pytest.mark.parametrize(
-    ("cutoff", "eri_lines", "allowable_costs", "outcome"),
+    ("periods", "eri_lines", "allowable_costs", "outcome"),
     [
-        # Without a cut-off both periods count: £65.82 is income in 2020/21,
-        # and the £23.58 distributed in 2021/22 is still added to the cost.
+        # Resident throughout, both periods count: £65.82 is income in
+        # 2020/21, and the £23.58 distributed in 2021/22 is still added to cost.
         pytest.param(
             None,
             ["CSH2: £65.82 (included as dividend)"],
             "£11,899.40",
             ("Gain:", "£200.60"),
-            id="none-left-out",
+            id="resident",
         ),
-        # 30/04/2020, the first distribution date, is on the cut-off, so both
-        # periods are left out and the costs are the purchase alone.
+        # Abroad from 30/04/2020, the first distribution date, and not back:
+        # both periods are left out and the costs are the purchase alone.
         pytest.param(
-            "2020-04-30", [], "£11,810.00", ("Gain:", "£290.00"), id="all-left-out"
+            "2020-04-30:", [], "£11,810.00", ("Gain:", "£290.00"), id="left-for-good"
         ),
-        # A day later the first period stays and the second is left out.
+        # Abroad from a day later: the first period stays, the second goes.
         pytest.param(
-            "2020-05-01",
+            "2020-05-01:",
             ["CSH2: £65.82 (included as dividend)"],
             "£11,875.82",
             ("Gain:", "£224.18"),
-            id="first-kept",
+            id="left-after-first",
+        ),
+        # Abroad for 2020 only: the first period goes and the second, paid
+        # after coming back, stays.
+        pytest.param(
+            "2020-01-01:2020-12-31",
+            [],
+            "£11,833.58",
+            ("Gain:", "£266.42"),
+            id="came-back",
         ),
     ],
 )
-def test_eri_exclude_distributions_from_drops_income_and_cost_uplift(
+def test_non_uk_resident_periods_drop_eri_income_and_cost_uplift(
     tmp_path: Path,
     request: pytest.FixtureRequest,
-    cutoff: str | None,
+    periods: str | None,
     eri_lines: list[str],
     allowable_costs: str,
     outcome: tuple[str, str],
 ) -> None:
-    """ERI distributed on or after the cut-off is neither income nor cost.
+    """ERI distributed while not UK resident is neither income nor cost.
 
     Ten CSH2 units are held over the periods ending 31/10/2019 and
     31/10/2020, whose ERI KPMG states in pounds: £6.5820 and £2.3578 a unit,
@@ -179,7 +188,7 @@ def test_eri_exclude_distributions_from_drops_income_and_cost_uplift(
         "2020-11-16,SELL,CSH2,10,1210.00,5.00,GBP\n",
         encoding="utf-8",
     )
-    option = [] if cutoff is None else ["--eri-exclude-distributions-from", cutoff]
+    option = [] if periods is None else ["--non-uk-resident-periods", periods]
 
     result = run_cli(
         build_cmd(

@@ -104,6 +104,20 @@ class SpinOff:
     dest_price: Decimal | None = None
 
 
+class NonResidencePeriod(NamedTuple):
+    """Days on which the user was not UK resident, both ends included.
+
+    An open period, with no end, is one the user has not come back from.
+    """
+
+    start: dt.date
+    end: dt.date | None
+
+    def includes(self, date: dt.date) -> bool:
+        """Tell whether `date` falls in the period."""
+        return self.start <= date and (self.end is None or date <= self.end)
+
+
 @dataclass
 class TaxTreaty:
     """Class representing a treaty between UK and different countries."""

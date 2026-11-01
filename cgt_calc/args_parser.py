@@ -16,6 +16,7 @@ from .args_validators import (
     existing_file_or_stdin_type,
     existing_file_type,
     income_type,
+    non_residence_periods_type,
     optional_cache_file_type,
     output_path_type,
     set_completer,
@@ -196,13 +197,16 @@ Documentation: https://cgt-calc.uk/
         "reported as foreign interest rather than dividends",
     )
     calc_group.add_argument(
-        "--eri-exclude-distributions-from",
-        type=date_type,
-        metavar="YYYY-MM-DD",
-        help="leave out excess reported income whose fund distribution date, six "
-        "months after the reporting period ends, is on or after this date: it is "
-        "neither income nor an addition to cost, e.g. from the first day you were "
-        "not UK resident (Offshore Funds (Tax) Regulations 2009, reg 99(3))",
+        "--non-uk-resident-periods",
+        type=non_residence_periods_type,
+        metavar="START:END[,START:END...]",
+        default=[],
+        help="periods you were not UK resident, with dates as YYYY-MM-DD, both "
+        "included; leave END empty for one that has not ended, e.g. 2025-04-06: "
+        "(for a split year, start on the first day of the overseas part). Used "
+        "only for excess reported income: one whose fund distribution date falls "
+        "in a period is neither income nor added to the cost of the units "
+        "(Offshore Funds (Tax) Regulations 2009, reg 99(3))",
     )
     calc_group.add_argument(
         "--cgt-exempt-tickers",
