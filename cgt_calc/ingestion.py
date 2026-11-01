@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import datetime as dt
 from decimal import Decimal
 import logging
 import sys
@@ -18,6 +19,7 @@ from .const import (
     POOLING_RULES_START_DATE,
     PRE_POOLING_REFUSED_ACTIONS,
     REBASING_DATE,
+    UK_CURRENCY,
 )
 from .exceptions import (
     AmountMissingError,
@@ -66,7 +68,6 @@ from .util import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
-    import datetime as dt
 
     from .calculator_state import CalculatorState
     from .currency_converter import CurrencyConverter
@@ -318,6 +319,9 @@ class TransactionIngester:
         self.autoconvert_currency = autoconvert_currency
         self.gifts_to_spouse = gifts_to_spouse
         self.date_in_tax_year = date_in_tax_year
+        # The day of the run, which decides whether the distribution date of
+        # excess reported income has come and so whether its rate is known.
+        self.today = dt.datetime.now().date()
 
     def add_acquisition(
         self,
@@ -1359,6 +1363,15 @@ class TransactionIngester:
            depending on the fund type) at a future date, exactly 6 calendar
            months since the reporting day.
 
+        Both use one sterling figure, converted at the rate for the fund
+        distribution date, when the income is treated as received (Offshore
+        Funds (Tax) Regulations 2009, reg 94(3)). The cost added is the income
+        charged to tax (reg 99(3)), so it is converted at the same rate. Adding
+        it at the period end gives the same pool cost at every later disposal
+        as adding it on the distribution date or just before an earlier
+        disposal (reg 99(4) and (5)). Until the distribution date comes, its
+        rate is not known, and the period-end rate is used provisionally.
+
         Note that ERI also takes into account Bed and Breakfast so you're due
         ERI even if you sell before the reporting day and buy within 30 days.
         See https://www.rawknowledge.ltd/eri-explained-four-tricky-questions-answered/
@@ -1392,11 +1405,6 @@ class TransactionIngester:
         if transaction.price == Decimal(0):
             return
 
-        price = self.currency_converter.to_gbp_for(
-            transaction.price,
-            transaction,
-        )
-
         known = self.isin_converter.get_symbols(transaction.isin)
         # A name with an ISIN of its own keeps that fund's reports: what the
         # ISIN data states outranks what a rename row implies.
@@ -1414,8 +1422,10 @@ class TransactionIngester:
 
             for report_date, report_by_symbol in self.history.eris.items():
                 if symbol in report_by_symbol and report_date == transaction.date:
-                    previous_price = report_by_symbol[symbol].price
-                    if approx_equal(previous_price, price, Decimal("0.0001")):
+                    previous = report_by_symbol[symbol]
+                    if self._same_eri(
+                        previous, transaction.price, transaction.currency
+                    ):
                         LOGGER.warning(
                             "Skipping duplicated ERI transaction: %s", transaction
                         )
@@ -1423,17 +1433,61 @@ class TransactionIngester:
                     raise InvalidTransactionError(
                         transaction,
                         f"A conflicting ERI report at {report_date} for "
-                        f"{symbol} of £{price} has been found at "
-                        f"{report_date} of £{previous_price}.",
+                        f"{symbol} of {transaction.price} {transaction.currency} "
+                        f"has been found at {report_date} of {previous.price} "
+                        f"{previous.currency}.",
                     )
 
+            # Kept in the fund's currency: the matcher converts it when it
+            # first uses it, so a report never used needs no exchange rate.
             self.history.eris[transaction.date][symbol] = ExcessReportedIncome(
-                price=price,
+                price=transaction.price,
                 symbol=symbol,
                 date=transaction.date,
                 distribution_date=distribution_date,
                 is_interest=symbol in self.interest_fund_tickers,
+                currency=transaction.currency,
             )
+
+    def _same_eri(
+        self, previous: ExcessReportedIncome, price: Decimal, currency: CurrencyCode
+    ) -> bool:
+        """Tell whether a second report gives the same ERI per unit as `previous`.
+
+        Reports in one currency are compared as they are. Reports in two are
+        compared in pounds, at the rate the ERI is converted at.
+        """
+        tolerance = Decimal("0.0001")
+        if previous.currency == currency:
+            return approx_equal(previous.price, price, tolerance)
+        second = replace(previous, price=price, currency=currency)
+        return approx_equal(
+            self.eri_in_pounds(previous).price,
+            self.eri_in_pounds(second).price,
+            tolerance,
+        )
+
+    def eri_in_pounds(self, eri: ExcessReportedIncome) -> ExcessReportedIncome:
+        """Return the report with its price per unit converted to pounds.
+
+        The rate is the one for the fund distribution date, when the ERI is
+        treated as received. Until that date comes, its rate is not known, so
+        the period-end rate is used and the result is marked provisional.
+        """
+        if eri.currency == UK_CURRENCY:
+            return eri
+        provisional = eri.distribution_date > self.today
+        price = self.currency_converter.to_gbp(
+            eri.price,
+            eri.currency,
+            eri.date if provisional else eri.distribution_date,
+        )
+        return replace(
+            eri,
+            price=price,
+            currency=CurrencyCode(UK_CURRENCY),
+            provisional_rate=provisional,
+        )
 
     def add_rename(self, transaction: BrokerTransaction) -> None:
         """Apply a ticker rename during the first calculation pass.

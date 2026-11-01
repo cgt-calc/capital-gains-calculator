@@ -113,6 +113,10 @@ class TaxTreaty:
     treaty_rate: Decimal
 
 
+# The currency of an excess reported income price once converted.
+_POUNDS: Final = CurrencyCode("GBP")
+
+
 @dataclass
 class ExcessReportedIncome:
     """Class representing Excess Reported Income on a fund.
@@ -127,6 +131,12 @@ class ExcessReportedIncome:
     date: dt.date
     distribution_date: dt.date
     is_interest: bool
+    # The currency of `price`: the fund's own until the ERI is first used,
+    # when it is converted to pounds.
+    currency: CurrencyCode = _POUNDS
+    # Converted at the period-end rate because the distribution date, whose
+    # rate is the one to use, had not come when cgt-calc ran.
+    provisional_rate: bool = False
 
 
 @dataclass

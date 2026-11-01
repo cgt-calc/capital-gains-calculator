@@ -25,6 +25,17 @@ accumulating and distributing share classes.
     income outside the tool and do not use its income totals. See HMRC's
     [income classification](https://www.gov.uk/government/publications/offshore-funds-self-assessment-helpsheet-hs265/hs265-offshore-funds).
 
+## Exchange rate
+
+cgt-calc converts ERI in a foreign currency at HMRC's rate for the fund distribution date, when the
+ERI counts as income. The same pound figure is reported as income and added to the cost of your
+units ([regulation 99(3)](https://www.legislation.gov.uk/uksi/2009/3001/regulation/99) of the
+Offshore Funds (Tax) Regulations 2009).
+
+If the distribution date hasn't come yet, its rate isn't known. cgt-calc then uses the rate for the
+end of the reporting period and warns you. Run it again after the distribution date for the final
+figure.
+
 ## Bundled data
 
 cgt-calc currently bundles:
