@@ -67,6 +67,7 @@ class CapitalGainsCalculator:
         autoconvert_currency: bool = False,
         calc_unrealized_gains: bool = False,
         gifts_to_spouse: bool = False,
+        eri_exclude_distributions_from: dt.date | None = None,
         period_start: dt.date | None = None,
         period_end: dt.date | None = None,
     ):
@@ -74,6 +75,8 @@ class CapitalGainsCalculator:
 
         period_start/period_end narrow the reporting window within the
         tax year, e.g. for the HMRC 2024/25 CGT adjustment calculation.
+        eri_exclude_distributions_from leaves out every excess reported
+        income whose fund distribution date is on or after it.
         """
         self.tax_year = tax_year
         self.period_start = period_start
@@ -117,6 +120,7 @@ class CapitalGainsCalculator:
             balance_check=balance_check,
             autoconvert_currency=autoconvert_currency,
             gifts_to_spouse=gifts_to_spouse,
+            eri_exclude_distributions_from=eri_exclude_distributions_from,
             date_in_tax_year=self.date_in_tax_year,
         )
         self.matcher = Matcher(

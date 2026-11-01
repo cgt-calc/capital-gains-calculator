@@ -300,6 +300,7 @@ class TransactionIngester:
         balance_check: bool,
         autoconvert_currency: bool = False,
         gifts_to_spouse: bool = False,
+        eri_exclude_distributions_from: dt.date | None = None,
         date_in_tax_year: Callable[[dt.date], bool],
     ):
         """Create transaction ingester object."""
@@ -317,6 +318,7 @@ class TransactionIngester:
         self.balance_check = balance_check
         self.autoconvert_currency = autoconvert_currency
         self.gifts_to_spouse = gifts_to_spouse
+        self.eri_exclude_distributions_from = eri_exclude_distributions_from
         self.date_in_tax_year = date_in_tax_year
 
     def add_acquisition(
@@ -1376,6 +1378,12 @@ class TransactionIngester:
         on its date. ``renames`` is every rename of the run, so that a fund
         whose ISIN is known by one of its tickers is still found on the dates
         it was held under another.
+
+        A report whose fund distribution date is on or after
+        ``eri_exclude_distributions_from`` is left out, both as income and as
+        an addition to cost: only income charged to UK tax is added to the
+        acquisition cost (Offshore Funds (Tax) Regulations 2009, reg 99(3)),
+        so ERI distributed while not UK resident is neither.
         """
         distribution_date = transaction.date + ERI_TAX_DATE_DELTA
 
@@ -1390,6 +1398,18 @@ class TransactionIngester:
             )
 
         if transaction.price == Decimal(0):
+            return
+
+        cutoff = self.eri_exclude_distributions_from
+        if cutoff is not None and distribution_date >= cutoff:
+            LOGGER.info(
+                "Leaving out the ERI of %s for the period ending %s: its fund "
+                "distribution date %s is on or after %s",
+                transaction.isin,
+                transaction.date,
+                distribution_date,
+                cutoff,
+            )
             return
 
         price = self.currency_converter.to_gbp_for(

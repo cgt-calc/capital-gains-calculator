@@ -25,6 +25,15 @@ accumulating and distributing share classes.
     income outside the tool and do not use its income totals. See HMRC's
     [income classification](https://www.gov.uk/government/publications/offshore-funds-self-assessment-helpsheet-hs265/hs265-offshore-funds).
 
+## Years you were not UK resident
+
+ERI is treated as received on the fund distribution date, six months after the reporting period
+ends, and only ERI charged to UK tax is added to your acquisition cost
+([regulation 99(3)](https://www.legislation.gov.uk/uksi/2009/3001/regulation/99) of the Offshore
+Funds (Tax) Regulations 2009). If you stopped being UK resident, pass the first day you were not
+resident, for example `--eri-exclude-distributions-from 2025-04-06`, to leave out every ERI
+distributed on or after that date, both as income and as an addition to cost.
+
 ## Bundled data
 
 cgt-calc currently bundles:

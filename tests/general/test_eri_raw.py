@@ -127,6 +127,70 @@ def test_bundled_csh2_eri_is_read_in_the_currency_kpmg_states(
     assert any(line.startswith(label) and line.endswith(f" {amount}") for line in lines)
 
 
+@pytest.mark.parametrize(
+    ("cutoff", "eri_lines", "allowable_costs", "outcome"),
+    [
+        # 30/04/2025, the first distribution date, is on the cut-off, so all
+        # three periods are left out and the costs are the purchase alone.
+        pytest.param(
+            "2025-04-30", [], "£11,810.00", ("Gain:", "£290.00"), id="all-left-out"
+        ),
+        # A day later the 31/10/2024 period, paid on 30/04/2025, stays: £511.34.
+        # Those paid on 07/09/2025 and 30/03/2026 are left out.
+        pytest.param(
+            "2025-05-01",
+            ["CSH2: £511.34 (included as dividend)"],
+            "£12,321.34",
+            ("Loss:", "£221.34"),
+            id="first-kept",
+        ),
+    ],
+)
+def test_eri_exclude_distributions_from_drops_income_and_cost_uplift(
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+    cutoff: str,
+    eri_lines: list[str],
+    allowable_costs: str,
+    outcome: tuple[str, str],
+) -> None:
+    """ERI distributed on or after the cut-off is neither income nor cost.
+
+    The holding is the 2025/26 case above: ten CSH2 units held over the
+    periods ending 31/10/2024, 07/03/2025 and 30/09/2025, whose ERI is
+    £511.34, £207.58 and £281.47, paid six months later. Only ERI charged to
+    UK tax is added to cost (Offshore Funds (Tax) Regulations 2009, reg
+    99(3)), so a left-out period drops from the allowable costs as well.
+    """
+    raw = tmp_path / "raw.csv"
+    raw.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2024-10-01,TRANSFER,,1,11805.00,0.00,GBP\n"
+        "2024-10-01,BUY,CSH2,10,1180.00,5.00,GBP\n"
+        "2025-11-03,SELL,CSH2,10,1210.00,5.00,GBP\n",
+        encoding="utf-8",
+    )
+
+    result = run_cli(
+        build_cmd(
+            "--year",
+            "2025",
+            "--raw-file",
+            str(raw),
+            "--eri-exclude-distributions-from",
+            cutoff,
+            "--output",
+            report_path(request),
+        )
+    )
+
+    lines = [line.strip() for line in result.stdout.splitlines()]
+    assert [line for line in lines if line.startswith("CSH2:")] == eri_lines
+    assert f"Allowable costs:    {allowable_costs}" in lines
+    label, amount = outcome
+    assert any(line.startswith(label) and line.endswith(f" {amount}") for line in lines)
+
+
 def test_read_eri_raw_raises_on_invalid_date(tmp_path: Path) -> None:
     """Raise ParsingError when ERI date field is invalid."""
     file_path = tmp_path / "eri.csv"

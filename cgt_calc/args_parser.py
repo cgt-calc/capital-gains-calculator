@@ -196,6 +196,15 @@ Documentation: https://cgt-calc.uk/
         "reported as foreign interest rather than dividends",
     )
     calc_group.add_argument(
+        "--eri-exclude-distributions-from",
+        type=date_type,
+        metavar="YYYY-MM-DD",
+        help="leave out excess reported income whose fund distribution date, six "
+        "months after the reporting period ends, is on or after this date: it is "
+        "neither income nor an addition to cost, e.g. from the first day you were "
+        "not UK resident (Offshore Funds (Tax) Regulations 2009, reg 99(3))",
+    )
+    calc_group.add_argument(
         "--cgt-exempt-tickers",
         type=ticker_list_type,
         metavar="TICKER[,TICKER...]",
