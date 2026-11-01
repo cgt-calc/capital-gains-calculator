@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from .currency_converter import CurrencyConverter
     from .current_price_fetcher import CurrentPriceFetcher
     from .isin_converter import IsinConverter
+    from .model import DatePeriod
     from .share_prices import SharePrices
     from .spin_off_handler import SpinOffHandler
     from .stock_splits import SplitTransformation
@@ -67,6 +68,7 @@ class CapitalGainsCalculator:
         autoconvert_currency: bool = False,
         calc_unrealized_gains: bool = False,
         gifts_to_spouse: bool = False,
+        non_uk_resident_periods: list[DatePeriod] | None = None,
         period_start: dt.date | None = None,
         period_end: dt.date | None = None,
     ):
@@ -74,6 +76,8 @@ class CapitalGainsCalculator:
 
         period_start/period_end narrow the reporting window within the
         tax year, e.g. for the HMRC 2024/25 CGT adjustment calculation.
+        Excess reported income whose fund distribution date falls in one of
+        the periods of non-residence is left out.
         """
         self.tax_year = tax_year
         self.period_start = period_start
@@ -117,6 +121,7 @@ class CapitalGainsCalculator:
             balance_check=balance_check,
             autoconvert_currency=autoconvert_currency,
             gifts_to_spouse=gifts_to_spouse,
+            non_uk_resident_periods=non_uk_resident_periods,
             date_in_tax_year=self.date_in_tax_year,
         )
         self.matcher = Matcher(

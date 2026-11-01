@@ -12,6 +12,7 @@ from .args_validators import (
     DeprecatedAction,
     StoreOnceAction,
     VersionAction,
+    date_periods_type,
     date_type,
     existing_file_or_stdin_type,
     existing_file_type,
@@ -194,6 +195,18 @@ Documentation: https://cgt-calc.uk/
         default=[],
         help="tickers of offshore bond funds, including ETFs, whose income is "
         "reported as foreign interest rather than dividends",
+    )
+    calc_group.add_argument(
+        "--non-uk-resident-periods",
+        type=date_periods_type,
+        metavar="START:END[,START:END...]",
+        default=[],
+        help="periods you were not UK resident, with dates as YYYY-MM-DD, both "
+        "included; leave END empty for one that has not ended, e.g. 2025-04-06: "
+        "(for a split year, start on the first day of the overseas part). Used "
+        "only for excess reported income: one whose fund distribution date falls "
+        "in a period is neither income nor added to the cost of the units "
+        "(Offshore Funds (Tax) Regulations 2009, reg 99(3))",
     )
     calc_group.add_argument(
         "--cgt-exempt-tickers",

@@ -73,6 +73,7 @@ if TYPE_CHECKING:
     from .current_price_fetcher import CurrentPriceFetcher
     from .income import IncomeProcessor
     from .isin_converter import IsinConverter
+    from .model import DatePeriod
     from .share_prices import SharePrices
     from .spin_off_handler import SpinOffHandler
 
@@ -300,6 +301,7 @@ class TransactionIngester:
         balance_check: bool,
         autoconvert_currency: bool = False,
         gifts_to_spouse: bool = False,
+        non_uk_resident_periods: list[DatePeriod] | None = None,
         date_in_tax_year: Callable[[dt.date], bool],
     ):
         """Create transaction ingester object."""
@@ -317,6 +319,7 @@ class TransactionIngester:
         self.balance_check = balance_check
         self.autoconvert_currency = autoconvert_currency
         self.gifts_to_spouse = gifts_to_spouse
+        self.non_uk_resident_periods = non_uk_resident_periods or []
         self.date_in_tax_year = date_in_tax_year
 
     def add_acquisition(
@@ -1376,6 +1379,12 @@ class TransactionIngester:
         on its date. ``renames`` is every rename of the run, so that a fund
         whose ISIN is known by one of its tickers is still found on the dates
         it was held under another.
+
+        A report whose fund distribution date falls in a period the user was
+        not UK resident is left out, both as income and as an addition to
+        cost: only income charged to UK tax is added to the
+        acquisition cost (Offshore Funds (Tax) Regulations 2009, reg 99(3)),
+        so ERI distributed while not UK resident is neither.
         """
         distribution_date = transaction.date + ERI_TAX_DATE_DELTA
 
@@ -1388,6 +1397,19 @@ class TransactionIngester:
                 transaction,
                 "Excess reported income price must be finite and non-negative.",
             )
+
+        if any(
+            period.includes(distribution_date)
+            for period in self.non_uk_resident_periods
+        ):
+            LOGGER.info(
+                "Leaving out the ERI of %s for the period ending %s: its fund "
+                "distribution date %s falls in a period of non-residence",
+                transaction.isin,
+                transaction.date,
+                distribution_date,
+            )
+            return
 
         if transaction.price == Decimal(0):
             return

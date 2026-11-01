@@ -36,6 +36,7 @@ from cgt_calc.const import (
     EARLIEST_TAX_YEAR,
 )
 from cgt_calc.main import main
+from cgt_calc.model import DatePeriod
 
 ReturnType = TextIO | IO[bytes]
 DirIterator = Iterator[Path]
@@ -165,6 +166,44 @@ def test_output_accepts_a_path(option: str, value: str) -> None:
 
     assert args.output == Path(value)
     assert args.no_report is False
+
+
+def test_non_uk_resident_periods_parse_closed_and_open_periods() -> None:
+    """Periods are START:END, comma-separated, with END empty if not ended."""
+    args = create_parser().parse_args(
+        ["--non-uk-resident-periods", "2019-04-06:2021-04-05, 2025-04-06:"]
+    )
+
+    assert args.non_uk_resident_periods == [
+        DatePeriod(dt.date(2019, 4, 6), dt.date(2021, 4, 5)),
+        DatePeriod(dt.date(2025, 4, 6), None),
+    ]
+
+
+def test_non_uk_resident_periods_default_to_none() -> None:
+    """Without the option the user is taken as resident throughout."""
+    assert create_parser().parse_args([]).non_uk_resident_periods == []
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        ("2025-04-06", "expected START:END"),
+        (":2025-04-06", "expected START:END"),
+        ("2025-04-06:2025-04-05", "ends before it starts"),
+        ("2025-13-01:", "expected YYYY-MM-DD"),
+    ],
+    ids=["no colon", "no start", "end before start", "bad date"],
+)
+def test_non_uk_resident_periods_refuse_a_malformed_period(
+    value: str, message: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A malformed period stops the run and says what is wrong."""
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(["--non-uk-resident-periods", value])
+
+    assert exc_info.value.code == 2
+    assert message in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("value", ["", "   "], ids=["empty", "whitespace"])
@@ -838,6 +877,7 @@ def test_an_option_given_twice_is_refused(
         "optional_cache_file_type": files,
         "existing_directory_type": (str(first_dir), str(second_dir)),
         "ticker_list_type": ("AAA", "BBB"),
+        "date_periods_type": ("2021-04-06:", "2022-04-06:"),
         "output_path_type": (str(tmp_path / "a.pdf"), str(tmp_path / "b.pdf")),
     }[getattr(value_type, "__name__", "")]
 

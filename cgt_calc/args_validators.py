@@ -11,6 +11,7 @@ import re
 from typing import TYPE_CHECKING, override
 
 from .const import EARLIEST_TAX_YEAR
+from .model import DatePeriod
 from .version import DISTRIBUTION_NAME, get_version
 
 STDIN_PATH = Path("-")
@@ -62,6 +63,26 @@ def date_type(value: str) -> dt.date:
         raise argparse.ArgumentTypeError(
             f"invalid date value: '{value}', expected YYYY-MM-DD"
         ) from err
+
+
+def date_periods_type(value: str) -> list[DatePeriod]:
+    """Parse comma-separated START:END periods, END empty for an open one."""
+    periods = []
+    for item in value.split(","):
+        start_text, colon, end_text = item.strip().partition(":")
+        if not colon or not start_text:
+            raise argparse.ArgumentTypeError(
+                f"invalid period: '{item.strip()}', expected START:END with dates "
+                "as YYYY-MM-DD, or START: for a period that has not ended"
+            )
+        start = date_type(start_text)
+        end = date_type(end_text) if end_text else None
+        if end is not None and end < start:
+            raise argparse.ArgumentTypeError(
+                f"invalid period: '{item.strip()}', it ends before it starts"
+            )
+        periods.append(DatePeriod(start, end))
+    return periods
 
 
 def ticker_list_type(value: str) -> list[str]:

@@ -161,6 +161,7 @@ def calculate_cgt(args: argparse.Namespace) -> None:
         autoconvert_currency=args.autoconvert_currency,
         calc_unrealized_gains=args.calc_unrealized_gains,
         gifts_to_spouse=args.gifts_to_spouse,
+        non_uk_resident_periods=args.non_uk_resident_periods,
         period_start=args.period_from,
         period_end=args.period_to,
     )
