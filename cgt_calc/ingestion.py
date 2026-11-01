@@ -1379,9 +1379,9 @@ class TransactionIngester:
         whose ISIN is known by one of its tickers is still found on the dates
         it was held under another.
 
-        A report whose fund distribution date is on or after
-        ``eri_exclude_distributions_from`` is left out, both as income and as
-        an addition to cost: only income charged to UK tax is added to the
+        A report whose fund distribution date is on or after the cut-off
+        given on the command line is left out, both as income and as an
+        addition to cost: only income charged to UK tax is added to the
         acquisition cost (Offshore Funds (Tax) Regulations 2009, reg 99(3)),
         so ERI distributed while not UK resident is neither.
         """

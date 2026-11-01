@@ -75,8 +75,8 @@ class CapitalGainsCalculator:
 
         period_start/period_end narrow the reporting window within the
         tax year, e.g. for the HMRC 2024/25 CGT adjustment calculation.
-        eri_exclude_distributions_from leaves out every excess reported
-        income whose fund distribution date is on or after it.
+        The excess reported income cut-off leaves out every report whose
+        fund distribution date is on or after it.
         """
         self.tax_year = tax_year
         self.period_start = period_start
