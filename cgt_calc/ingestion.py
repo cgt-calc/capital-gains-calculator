@@ -73,7 +73,7 @@ if TYPE_CHECKING:
     from .current_price_fetcher import CurrentPriceFetcher
     from .income import IncomeProcessor
     from .isin_converter import IsinConverter
-    from .model import NonResidencePeriod
+    from .model import DatePeriod
     from .share_prices import SharePrices
     from .spin_off_handler import SpinOffHandler
 
@@ -301,7 +301,7 @@ class TransactionIngester:
         balance_check: bool,
         autoconvert_currency: bool = False,
         gifts_to_spouse: bool = False,
-        non_uk_resident_periods: list[NonResidencePeriod] | None = None,
+        non_uk_resident_periods: list[DatePeriod] | None = None,
         date_in_tax_year: Callable[[dt.date], bool],
     ):
         """Create transaction ingester object."""

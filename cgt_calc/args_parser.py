@@ -12,11 +12,11 @@ from .args_validators import (
     DeprecatedAction,
     StoreOnceAction,
     VersionAction,
+    date_periods_type,
     date_type,
     existing_file_or_stdin_type,
     existing_file_type,
     income_type,
-    non_residence_periods_type,
     optional_cache_file_type,
     output_path_type,
     set_completer,
@@ -198,7 +198,7 @@ Documentation: https://cgt-calc.uk/
     )
     calc_group.add_argument(
         "--non-uk-resident-periods",
-        type=non_residence_periods_type,
+        type=date_periods_type,
         metavar="START:END[,START:END...]",
         default=[],
         help="periods you were not UK resident, with dates as YYYY-MM-DD, both "

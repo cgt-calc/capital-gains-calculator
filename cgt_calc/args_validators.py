@@ -11,7 +11,7 @@ import re
 from typing import TYPE_CHECKING, override
 
 from .const import EARLIEST_TAX_YEAR
-from .model import NonResidencePeriod
+from .model import DatePeriod
 from .version import DISTRIBUTION_NAME, get_version
 
 STDIN_PATH = Path("-")
@@ -65,7 +65,7 @@ def date_type(value: str) -> dt.date:
         ) from err
 
 
-def non_residence_periods_type(value: str) -> list[NonResidencePeriod]:
+def date_periods_type(value: str) -> list[DatePeriod]:
     """Parse comma-separated START:END periods, END empty for an open one."""
     periods = []
     for item in value.split(","):
@@ -81,7 +81,7 @@ def non_residence_periods_type(value: str) -> list[NonResidencePeriod]:
             raise argparse.ArgumentTypeError(
                 f"invalid period: '{item.strip()}', it ends before it starts"
             )
-        periods.append(NonResidencePeriod(start, end))
+        periods.append(DatePeriod(start, end))
     return periods
 
 

@@ -36,7 +36,7 @@ from cgt_calc.const import (
     EARLIEST_TAX_YEAR,
 )
 from cgt_calc.main import main
-from cgt_calc.model import NonResidencePeriod
+from cgt_calc.model import DatePeriod
 
 ReturnType = TextIO | IO[bytes]
 DirIterator = Iterator[Path]
@@ -175,8 +175,8 @@ def test_non_uk_resident_periods_parse_closed_and_open_periods() -> None:
     )
 
     assert args.non_uk_resident_periods == [
-        NonResidencePeriod(dt.date(2019, 4, 6), dt.date(2021, 4, 5)),
-        NonResidencePeriod(dt.date(2025, 4, 6), None),
+        DatePeriod(dt.date(2019, 4, 6), dt.date(2021, 4, 5)),
+        DatePeriod(dt.date(2025, 4, 6), None),
     ]
 
 
@@ -877,7 +877,7 @@ def test_an_option_given_twice_is_refused(
         "optional_cache_file_type": files,
         "existing_directory_type": (str(first_dir), str(second_dir)),
         "ticker_list_type": ("AAA", "BBB"),
-        "non_residence_periods_type": ("2021-04-06:", "2022-04-06:"),
+        "date_periods_type": ("2021-04-06:", "2022-04-06:"),
         "output_path_type": (str(tmp_path / "a.pdf"), str(tmp_path / "b.pdf")),
     }[getattr(value_type, "__name__", "")]
 

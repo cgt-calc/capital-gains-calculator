@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from .currency_converter import CurrencyConverter
     from .current_price_fetcher import CurrentPriceFetcher
     from .isin_converter import IsinConverter
-    from .model import NonResidencePeriod
+    from .model import DatePeriod
     from .share_prices import SharePrices
     from .spin_off_handler import SpinOffHandler
     from .stock_splits import SplitTransformation
@@ -68,7 +68,7 @@ class CapitalGainsCalculator:
         autoconvert_currency: bool = False,
         calc_unrealized_gains: bool = False,
         gifts_to_spouse: bool = False,
-        non_uk_resident_periods: list[NonResidencePeriod] | None = None,
+        non_uk_resident_periods: list[DatePeriod] | None = None,
         period_start: dt.date | None = None,
         period_end: dt.date | None = None,
     ):

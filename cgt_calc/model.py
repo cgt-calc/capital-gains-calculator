@@ -104,10 +104,10 @@ class SpinOff:
     dest_price: Decimal | None = None
 
 
-class NonResidencePeriod(NamedTuple):
-    """Days on which the user was not UK resident, both ends included.
+class DatePeriod(NamedTuple):
+    """A run of days, both ends included.
 
-    An open period, with no end, is one the user has not come back from.
+    An open period, with no end, runs on indefinitely.
     """
 
     start: dt.date
