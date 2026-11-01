@@ -161,6 +161,16 @@ def test_bundled_csh2_eri_is_read_in_the_currency_kpmg_states(
             ("Gain:", "£266.42"),
             id="came-back",
         ),
+        # Abroad over the first period end, 31/10/2019, but back before its
+        # distribution date, 30/04/2020. Only the distribution date counts
+        # (reg 94(3)), so both periods stay, as for a resident.
+        pytest.param(
+            "2019-10-01:2020-03-31",
+            ["CSH2: £65.82 (included as dividend)"],
+            "£11,899.40",
+            ("Gain:", "£200.60"),
+            id="abroad-at-period-end-only",
+        ),
     ],
 )
 def test_non_uk_resident_periods_drop_eri_income_and_cost_uplift(
