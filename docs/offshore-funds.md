@@ -30,9 +30,12 @@ accumulating and distributing share classes.
 ERI is treated as received on the fund distribution date, six months after the reporting period
 ends, and only ERI charged to UK tax is added to your acquisition cost
 ([regulation 99(3)](https://www.legislation.gov.uk/uksi/2009/3001/regulation/99) of the Offshore
-Funds (Tax) Regulations 2009). If you stopped being UK resident, pass the first day you were not
-resident, for example `--eri-exclude-distributions-from 2025-04-06`, to leave out every ERI
-distributed on or after that date, both as income and as an addition to cost.
+Funds (Tax) Regulations 2009). Someone who is not UK resident is not charged on it, as it comes from
+outside the UK ([section 368](https://www.legislation.gov.uk/ukpga/2005/5/section/368) of the Income
+Tax (Trading and Other Income) Act 2005). If you stopped being UK resident, pass the first day you
+were not resident, or the first day of the overseas part of a split year, for example
+`--eri-exclude-distributions-from 2025-04-06`. Every ERI distributed on or after that date is left
+out, both as income and as an addition to cost.
 
 ## Bundled data
 
