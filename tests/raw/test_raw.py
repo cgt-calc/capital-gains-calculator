@@ -371,6 +371,57 @@ def test_read_raw_transactions_negative_fees(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    ("rows", "first_row", "conflicting_row"),
+    [
+        (
+            [
+                ["2023-05-01", "BUY", "foo", "10", "50", "1", "GBP"],
+                ["2023-05-02", "BUY", "FOO", "10", "100", "1", "GBP"],
+                ["2023-06-10", "SELL", "FOO", "10", "110", "1", "GBP"],
+            ],
+            2,
+            3,
+        ),
+        (
+            [
+                ["2023-04-03", "BUY", "BAR", "5", "20", "1", "GBP"],
+                ["2023-05-01", "BUY", "foo", "10", "50", "1", "GBP"],
+                ["2023-05-15", "SELL", "BAR", "5", "22", "1", "GBP"],
+                ["2023-06-10", "SELL", "FOO", "10", "110", "1", "GBP"],
+            ],
+            3,
+            5,
+        ),
+    ],
+    ids=["observed", "another symbol before and between"],
+)
+def test_read_raw_transactions_refuses_symbols_differing_only_by_letter_case(
+    tmp_path: Path, rows: list[list[str]], first_row: int, conflicting_row: int
+) -> None:
+    """A symbol typed in another letter case is refused, naming both rows.
+
+    Symbols are matched exactly, so `foo` and `FOO` were two holdings. Before
+    this check, the observed file's sale was matched only with the `FOO`
+    purchase: a gain of 1,099 - 1,001 = 98. Pooled, the 20 shares cost 501 +
+    1,001 = 1,502, so the 10 sold cost 751 and the gain is 1,099 - 751 = 348.
+    In the second file the two spellings are not neighbours, and the first
+    spelling is not on the first data row (row 2; the header is row 1). The
+    parser stops at the first conflict; later conflicting rows are not reported.
+    """
+    raw_file = tmp_path / "raw_letter_case.csv"
+    _write_csv(raw_file, [COLUMNS, *rows])
+
+    with pytest.raises(ParsingError) as exc:
+        RawParser().load_from_file(raw_file)
+
+    assert str(exc.value) == (
+        f"While parsing {raw_file}: RAW symbols 'foo' (row {first_row}) and 'FOO' "
+        f"(row {conflicting_row}) differ only by letter case. "
+        "Use one spelling consistently."
+    )
+
+
+@pytest.mark.parametrize(
     "blank", ["", "   ", ",,,,,,"], ids=["empty line", "only spaces", "only commas"]
 )
 def test_read_raw_transactions_skips_a_blank_row(tmp_path: Path, blank: str) -> None:
