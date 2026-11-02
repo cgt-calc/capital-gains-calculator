@@ -1454,7 +1454,7 @@ class TransactionIngester:
                 symbol=symbol,
                 date=transaction.date,
                 distribution_date=distribution_date,
-                is_interest=symbol in self.interest_fund_tickers,
+                is_interest=symbol.upper() in self.interest_fund_tickers,
             )
 
     def add_rename(self, transaction: BrokerTransaction) -> None:

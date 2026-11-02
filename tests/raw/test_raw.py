@@ -69,6 +69,39 @@ def test_run_with_raw_files(request: pytest.FixtureRequest) -> None:
     assert_stdout_matches(result, cmd, expected_file)
 
 
+def test_bond_fund_typed_in_lower_case_is_reported_as_interest(tmp_path: Path) -> None:
+    """--interest-fund-tickers matches a symbol typed in lower case.
+
+    The option's values are upper case, so `iglt` never matched `IGLT` and
+    the bond fund's distribution was reported as a dividend. 100 units at
+    £0.25 pay £25.00, all foreign interest and none of it dividends.
+    """
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(
+        raw_file,
+        [
+            COLUMNS,
+            ["2023-05-02", "TRANSFER", "", "1", "1100.00", "0.00", "GBP"],
+            ["2023-05-02", "BUY", "iglt", "100", "11.00", "0.00", "GBP"],
+            ["2023-07-03", "DIVIDEND", "iglt", "100", "0.25", "0.00", "GBP"],
+        ],
+    )
+
+    cmd = build_cmd(
+        "--year",
+        "2023",
+        "--raw-file",
+        str(raw_file),
+        "--interest-fund-tickers",
+        "IGLT",
+        "--output",
+        str(tmp_path / "out"),
+    )
+    result = run_cli(cmd)
+    assert re.search(r"\n  Foreign proceeds: +£25\.00\n", result.stdout)
+    assert re.search(r"\n  Proceeds: +£0\.00\n", result.stdout)
+
+
 def test_run_with_raw_files_stdin(request: pytest.FixtureRequest) -> None:
     """Runs the script with stdin and verifies it works identically."""
     csv_file = Path("tests") / "raw" / "data" / "test_data.csv"
