@@ -9,7 +9,7 @@ from itertools import chain
 import re
 from typing import TYPE_CHECKING, ClassVar, Final, override
 
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import ParsingError, UnsupportedActionError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
 from cgt_calc.util import parse_decimal
 
@@ -109,7 +109,7 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
     }:
         return ActionType.ADJUSTMENT
 
-    raise ParsingError(file_path, f"Unknown type: '{action_type}'")
+    raise UnsupportedActionError(file_path, f"Unknown type: '{action_type}'")
 
 
 def _parse_str(row: dict[str, str], column: str) -> str | None:

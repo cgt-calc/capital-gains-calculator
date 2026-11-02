@@ -3,6 +3,7 @@ ActionTypes
 ADR
 AED
 AG
+airdrops
 amd64
 Amundi
 AMZN
@@ -30,6 +31,7 @@ BlackRock's
 BrokerTransaction
 BSF
 BST
+BTC
 calc
 calc's
 CalculationEntry
@@ -68,6 +70,9 @@ CG78310
 CNH
 CNY
 CON3
+CRYPTO22200
+cryptoasset
+cryptoassets
 CSH2
 cgt
 classmethod
@@ -328,6 +333,7 @@ unmapped
 unpriced
 unprovable
 UnresolvedRatio
+UnsupportedActionError
 unvalidated
 US9220427424
 usr

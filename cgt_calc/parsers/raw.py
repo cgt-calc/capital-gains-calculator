@@ -8,7 +8,11 @@ from enum import StrEnum
 import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, overload, override
 
-from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
+from cgt_calc.exceptions import (
+    ParsingError,
+    UnexpectedColumnCountError,
+    UnsupportedActionError,
+)
 from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
@@ -17,7 +21,7 @@ from cgt_calc.model import (
 )
 from cgt_calc.util import is_blank_row, parse_decimal
 
-from .base_parsers import BaseSingleFileParser, read_csv_rows
+from .base_parsers import BaseSingleFileParser, read_csv_rows, read_supported_row
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -45,7 +49,7 @@ def _action_from_str(label: str, file: Path) -> ActionType:
     try:
         return ActionType[label.upper()]
     except KeyError as err:
-        raise ParsingError(file, f"Unknown action: {label}") from err
+        raise UnsupportedActionError(file, f"Unknown action: {label}") from err
 
 
 @overload
@@ -228,12 +232,14 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
             if is_blank_row(row):
                 continue
             try:
-                transaction = RawTransaction(row, file_path)
+                transaction = read_supported_row(index, RawTransaction, row, file_path)
             except ParsingError as err:
                 err.add_row_context(index)
                 raise
             except ValueError as err:
                 raise ParsingError(file_path, str(err), row_index=index) from err
+            if transaction is None:
+                continue
             transaction.source = TransactionSource(row=index)
             transactions.append(transaction)
         return transactions

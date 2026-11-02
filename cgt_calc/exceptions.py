@@ -95,6 +95,16 @@ def without_file(option: str) -> str:
     )
 
 
+class UnsupportedActionError(ParsingError):
+    """Raised for a row whose action or type its parser does not support.
+
+    ``--skip-unsupported-rows`` turns this error, and no other, into a
+    warning that leaves the row out of the calculation. A row the parser
+    recognises but cannot read, such as one with a malformed number, still
+    stops the run.
+    """
+
+
 class UnsupportedBrokerCurrencyError(ParsingError):
     """Raised when a broker export uses an unsupported account currency."""
 

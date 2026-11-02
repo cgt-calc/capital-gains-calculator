@@ -36,6 +36,7 @@ from cgt_calc.exceptions import (
     UnexpectedColumnCountError,
     UnexpectedHeaderError,
     UnexpectedRowCountError,
+    UnsupportedActionError,
     UnsupportedBrokerCurrencyError,
 )
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
@@ -115,6 +116,10 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
     (
         CalculatedAmountDiscrepancyError(TRANSACTION, Decimal(-42), Decimal(-1)),
         ["-42", "-1", "FOO"],
+    ),
+    (
+        UnsupportedActionError(Path("f.csv"), "Unknown action: Gift", row_index=4),
+        ["f.csv", "row 4", "Gift"],
     ),
     (
         UnsupportedBrokerCurrencyError(Path("f.csv"), "TestBroker", "XXX"),

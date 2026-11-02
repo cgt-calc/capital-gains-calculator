@@ -13,6 +13,7 @@ from colorama import Fore
 from cgt_calc.const import RENAME_DESCRIPTION_PREFIX
 from cgt_calc.logging import style_text
 from cgt_calc.model import ActionType
+from cgt_calc.parsers.base_parsers import skipping_unsupported_rows
 from cgt_calc.parsers.eri.raw import ERIRawParser
 from cgt_calc.parsers.freetrade import FreetradeParser
 from cgt_calc.parsers.hl import HargreavesLansdownParser
@@ -20,6 +21,7 @@ from cgt_calc.parsers.interactive_brokers import InteractiveBrokersParser
 from cgt_calc.parsers.mssb import MSSBParser
 from cgt_calc.parsers.raw import RawParser
 from cgt_calc.parsers.revolut import RevolutParser
+from cgt_calc.parsers.revolut_crypto import RevolutCryptoParser
 from cgt_calc.parsers.schwab import SchwabParser
 from cgt_calc.parsers.sharesight import SharesightParser
 from cgt_calc.parsers.trading212 import Trading212Parser
@@ -150,6 +152,7 @@ class BrokerRegistry:
         InteractiveBrokersParser,
         MSSBParser,
         RevolutParser,
+        RevolutCryptoParser,
         SharesightParser,
         Trading212Parser,
         VanguardParser,
@@ -171,15 +174,19 @@ class BrokerRegistry:
     ) -> list[BrokerTransaction]:
         """Load transactions from all brokers."""
         all_transactions: list[BrokerTransaction] = []
-        for broker_class in BrokerRegistry._BROKERS:
-            transactions = broker_class.load_from_args(args)
-            if transactions:
-                LOGGER.info(
-                    "Loaded %d transactions from %s",
-                    len(transactions),
-                    broker_class.pretty_name,
-                )
-                all_transactions += transactions
+        # Callers that build the namespace themselves may leave the flag out.
+        with skipping_unsupported_rows(
+            enabled=getattr(args, "skip_unsupported_rows", False)
+        ):
+            for broker_class in BrokerRegistry._BROKERS:
+                transactions = broker_class.load_from_args(args)
+                if transactions:
+                    LOGGER.info(
+                        "Loaded %d transactions from %s",
+                        len(transactions),
+                        broker_class.pretty_name,
+                    )
+                    all_transactions += transactions
 
         # ERI transactions are appended after this count, so scope the wording.
         msg = f"Found {len(all_transactions)} broker transactions"

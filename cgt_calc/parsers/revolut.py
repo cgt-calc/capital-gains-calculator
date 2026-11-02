@@ -13,7 +13,7 @@ import re
 from typing import TYPE_CHECKING, ClassVar, Final, Literal, TextIO, overload, override
 
 from cgt_calc.const import UK_TIMEZONE
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import ParsingError, UnsupportedActionError
 from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
@@ -87,7 +87,7 @@ def _action_from_str(label: str, file: Path) -> ActionType:
         "CASH WITHDRAWAL": ActionType.TRANSFER,
     }.get(label)
     if action is None:
-        raise ParsingError(file, f"Unknown action: {label}")
+        raise UnsupportedActionError(file, f"Unknown action: {label}")
     return action
 
 
