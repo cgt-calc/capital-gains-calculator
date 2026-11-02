@@ -23,10 +23,10 @@ Depending on your investments, you may also need:
     Neither Vanguard nor Hargreaves Lansdown pays it into your account, and cgt-calc does not count
     it from their exports. Add it in a small RAW file, as described in
     [Income reinvested in accumulation units](brokers/raw.md#income-reinvested-in-accumulation-units),
-    and pass it alongside your export. Other brokers have not been checked. With another broker, run
-    cgt-calc without the RAW file first: if the PDF lists a dividend from the fund for that
-    distribution under **Interest and Dividends Events**, cgt-calc already counts that income, so do
-    not add the file.
+    and pass it alongside your export. Other brokers have not been checked. With another broker,
+    first run cgt-calc without the rows for this income: if the PDF lists a dividend from the fund
+    for that distribution under **Interest and Dividends Events**, cgt-calc already counts that
+    income, so do not add them.
 - **Extra income data for some funds outside the UK.** This can apply whether the fund pays income
     to you or reinvests it. Check the [offshore funds guide](offshore-funds.md).
 - **Transfers to or from a spouse or civil partner, recorded by hand.** No broker export marks
