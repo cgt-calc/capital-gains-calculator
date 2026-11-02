@@ -88,6 +88,12 @@ but any other non-blank reference stops the import with `Unknown transaction typ
 
 - Dividends, tax deductions, transfers of investments and corporate actions are not mapped. A
     non-blank row for any of them stops the import rather than being silently discarded.
+- Income from accumulation units of a UK fund is not paid into your account. HL says it is not shown
+    on your Income Account transaction history but is included on your
+    [consolidated tax certificate](https://www.hl.co.uk/help/profile-settings/investment-reports-tax-certificates/income-received-not-on-transaction-history),
+    and cgt-calc does not count it. Add it in a RAW file as described in
+    [Income reinvested in accumulation units](raw.md#income-reinvested-in-accumulation-units). For a
+    fund based outside the UK, see [Offshore Funds (ERI)](../offshore-funds.md) instead.
 - Every recognised buy or sell requires a matching PDF. The
     [HL service terms](https://www.hl.co.uk/__data/assets/pdf_file/0015/37122/Online-Ts-and-Cs.pdf)
     say that it does not issue contract notes for some fund transactions, including certain regular

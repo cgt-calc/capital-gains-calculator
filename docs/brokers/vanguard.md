@@ -148,6 +148,16 @@ the report rather than assuming that bundled ERI data was matched. Some bond-fun
 taxed as interest rather than dividends; see
 [Bond-fund income](../extra-data-and-options.md#bond-fund-income).
 
+Vanguard says it does not pay the income of an
+[accumulation share class](https://www.vanguardinvestor.co.uk/need-help/answer/see-dividend-with-accumulation-share-class)
+into your account, and cgt-calc reads Vanguard dividends only from `DIV:` rows, so it does not count
+that income. For a fund based in the UK, add it in a RAW file as described in
+[Income reinvested in accumulation units](raw.md#income-reinvested-in-accumulation-units). Vanguard
+says you can see details of the dividends reported for a UK fund under **Transactions**, on the
+**Corporate actions** tab. A fund from Vanguard Investment Series plc and an ETF from Vanguard Funds
+plc are based in Ireland: for those, follow the [offshore funds guide](../offshore-funds.md)
+instead. Check the fund company in your fund documents if you are unsure.
+
 ## Known limitations
 
 - When a file contains both tables, ordinary transactions come from Cash Transactions. An unmatched

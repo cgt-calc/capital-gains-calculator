@@ -17,6 +17,16 @@ Most users need:
 
 Depending on your investments, you may also need:
 
+- **Income kept by a UK accumulation fund, recorded by hand.** An accumulation share class, usually
+    with “Acc” or “Accumulation” in its name, adds its income to the value of your units instead of
+    paying it to you. That income is taxable, and it counts as an amount spent on your units.
+    Neither Vanguard nor Hargreaves Lansdown pays it into your account, and cgt-calc does not count
+    it from their exports. Add it in a small RAW file, as described in
+    [Income reinvested in accumulation units](brokers/raw.md#income-reinvested-in-accumulation-units),
+    and pass it alongside your export. Other brokers have not been checked. With another broker, run
+    cgt-calc without the RAW file first: if the PDF lists a dividend from the fund for that
+    distribution under **Interest and Dividends Events**, cgt-calc already counts that income, so do
+    not add the file.
 - **Extra income data for some funds outside the UK.** This can apply whether the fund pays income
     to you or reinvests it. Check the [offshore funds guide](offshore-funds.md).
 - **Transfers to or from a spouse or civil partner, recorded by hand.** No broker export marks
