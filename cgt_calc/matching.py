@@ -2200,7 +2200,7 @@ class Matcher:
             if date_index in self.run.eris_distribution:
                 for symbol in self.run.eris_distribution[date_index]:
                     data = self.run.eris_distribution[date_index][symbol]
-                    is_interest = symbol in self.interest_fund_tickers
+                    is_interest = symbol.upper() in self.interest_fund_tickers
                     if is_interest:
                         self.run.total_foreign_interest += data.amount
                     self.run.calculation_log_yields[date_index][

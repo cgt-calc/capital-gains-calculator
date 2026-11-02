@@ -339,7 +339,7 @@ class IncomeProcessor:
                 )
 
             treaty = None
-            is_interest_fund = symbol in self.interest_fund_tickers
+            is_interest_fund = symbol.upper() in self.interest_fund_tickers
             if tax.amount < 0:
                 if is_interest_fund:
                     LOGGER.warning(

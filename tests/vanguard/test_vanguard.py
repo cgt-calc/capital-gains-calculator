@@ -75,6 +75,49 @@ def test_fund_bought_and_sold_on_one_day_is_accepted(tmp_path: Path) -> None:
     assert re.search(r"Total gain: +£10\.00\n", result.stdout)
 
 
+def test_bond_fund_named_in_mixed_case_is_reported_as_interest(tmp_path: Path) -> None:
+    """--interest-fund-tickers matches a fund whose name is its symbol.
+
+    With no ticker in brackets, the fund's name is the symbol, in mixed case.
+    The option's values are upper case, so the name never matched and the
+    fund's excess reported income was reported as a dividend.
+
+    IE00B50W2R13 is Vanguard's Global Bond Index Fund, GBP Hedged
+    Accumulation. Its bundled ERI for the period ending 31/12/2022 is
+    £2.40626 a unit, distributed on 30/06/2023, in 2023/24: 10 units give
+    £24.06, all foreign interest and none of it dividends.
+    """
+    fund = "Global Bond Index Fund - GBP Hedged Accumulation"
+    vanguard_file = tmp_path / "vanguard.csv"
+    _write_csv(
+        vanguard_file,
+        [
+            COLUMNS,
+            ["01/12/2022", "Regular Deposit", "1500.00", "1500.00"],
+            ["01/12/2022", f"Bought 10 {fund}", "-1500.00", "0.00"],
+        ],
+    )
+    isin_file = tmp_path / "isins.csv"
+    isin_file.write_text(f"ISIN,symbol\nIE00B50W2R13,{fund}\n", encoding="utf-8")
+
+    cmd = build_cmd(
+        "--year",
+        "2023",
+        "--vanguard-file",
+        str(vanguard_file),
+        "--isin-translation-file",
+        str(isin_file),
+        "--interest-fund-tickers",
+        fund,
+        "--output",
+        str(tmp_path / "out"),
+    )
+    result = run_cli(cmd)
+    assert f"  {fund}: £24.06 (included as interest)\n" in result.stdout
+    assert re.search(r"\n  Foreign proceeds: +£24\.06\n", result.stdout)
+    assert re.search(r"\n  Proceeds: +£0\.00\n", result.stdout)
+
+
 def test_a_row_that_runs_over_several_lines_is_refused(tmp_path: Path) -> None:
     """A double quote left open takes in the rows below it; they are not dropped.
 
