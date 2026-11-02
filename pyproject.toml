@@ -1,6 +1,8 @@
 [build-system]
-requires = ["uv_build>=0.13.0,<0.14.0"]
-build-backend = "uv_build"
+# 1.27 is the first release to write license and license-files below
+# as PEP 639 metadata by default.
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
 
 [project]
 name = "cgt-calc"
@@ -92,8 +94,11 @@ links = [
   "lychee-bin>=0.24.2",
 ]
 
-[tool.uv.build-backend]
-module-root = "."
+[tool.hatch.build.targets.sdist]
+# hatchling adds pyproject.toml, the readme, the licence and
+# .gitignore itself. Without this it would also take every file
+# .gitignore allows, tests and docs included.
+only-include = ["cgt_calc"]
 
 [tool.ruff]
 required-version = ">=0.13.0"
