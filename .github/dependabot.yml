@@ -9,10 +9,11 @@ updates:
     ignore:
       # The build backend, hatchling, is required with no upper bound
       # from the oldest release that writes our licence as PEP 639
-      # metadata. Dependabot would raise that floor to each new
-      # release, as it did for uv_build, which changes nothing here and
-      # would only stop builds where a distribution packages an older
-      # hatchling.
+      # metadata. Dependabot would raise that lower bound to each new
+      # release, as it did for uv_build. A higher lower bound changes
+      # nothing for our builds, which already get the newest hatchling,
+      # and would only break builds in distributions that ship an older
+      # one.
       - dependency-name: "hatchling"
   - package-ecosystem: pre-commit
     directory: "/"
