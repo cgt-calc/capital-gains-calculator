@@ -38,10 +38,9 @@ FROM build AS requirements
 COPY pyproject.toml uv.lock /build/
 
 # The deps stage installs from the list alone, so it would silently
-# ignore a [tool.uv] setting. Stop the build if one is added, apart
-# from the wheel's build-backend table, until this file either passes
-# the setting on or allows it here.
-RUN python3 -c 'import sys, tomllib; extra = sorted(set(tomllib.load(open("pyproject.toml", "rb")).get("tool", {}).get("uv", {})) - {"build-backend"}); sys.exit(f"pyproject.toml has [tool.uv] settings the dependency stage would ignore: {extra}" if extra else 0)'
+# ignore a [tool.uv] setting. Stop the build if one is added, until
+# this file either passes the setting on or allows it here.
+RUN python3 -c 'import sys, tomllib; extra = sorted(tomllib.load(open("pyproject.toml", "rb")).get("tool", {}).get("uv", {})); sys.exit(f"pyproject.toml has [tool.uv] settings the dependency stage would ignore: {extra}" if extra else 0)'
 
 RUN uv export --frozen --no-dev --no-emit-project --quiet -o requirements.txt
 

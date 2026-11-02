@@ -1,6 +1,8 @@
 [build-system]
-requires = ["uv_build>=0.13.0,<0.14.0"]
-build-backend = "uv_build"
+# 1.27 is the first release to write license and license-files below
+# as PEP 639 metadata by default.
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
 
 [project]
 name = "cgt-calc"
@@ -92,8 +94,17 @@ links = [
   "lychee-bin>=0.24.2",
 ]
 
-[tool.uv.build-backend]
-module-root = "."
+[tool.hatch.build]
+# Choose the package's files by path, not by .gitignore, so a resource
+# whose name .gitignore matches still ships, and the Docker image,
+# built without .gitignore, gets the same files. Bytecode stays out.
+ignore-vcs = true
+
+[tool.hatch.build.targets.sdist]
+# The sdist holds cgt_calc/ plus pyproject.toml, the readme, the
+# licence and .gitignore, which hatchling always adds. Without this
+# it would take the whole project tree.
+only-include = ["cgt_calc"]
 
 [tool.ruff]
 required-version = ">=0.13.0"
