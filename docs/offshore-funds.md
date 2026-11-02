@@ -75,6 +75,17 @@ mapping does that for very few funds: a US fund it lists under its US symbol, su
 fund based outside the US whose over-the-counter symbol it lists. For any other fund, add the row;
 see [Funds based outside the US](brokers/schwab.md#funds-based-outside-the-us).
 
+## Exchange rate
+
+cgt-calc converts ERI in a foreign currency at HMRC's rate for the fund distribution date, when the
+ERI counts as income. The same pound figure is reported as income and added to the cost of your
+units ([regulation 99(3)](https://www.legislation.gov.uk/uksi/2009/3001/regulation/99) of the
+Offshore Funds (Tax) Regulations 2009).
+
+If the distribution date hasn't come yet, its rate isn't known. cgt-calc then uses the rate for the
+end of the reporting period and warns you. Run it again after the distribution date for the final
+figure.
+
 ## Unsupported functionality
 
 cgt-calc does not support:

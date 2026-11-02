@@ -143,6 +143,7 @@ class Matcher:
         interest_fund_tickers: list[str],
         date_in_tax_year: Callable[[dt.date], bool],
         is_cgt_exempt: Callable[[str], bool],
+        eri_in_pounds: Callable[[ExcessReportedIncome], ExcessReportedIncome],
     ):
         """Create matcher object."""
         self.history = state.history
@@ -152,14 +153,28 @@ class Matcher:
         self.interest_fund_tickers = interest_fund_tickers
         self.date_in_tax_year = date_in_tax_year
         self.is_cgt_exempt = is_cgt_exempt
+        self.eri_in_pounds = eri_in_pounds
+        # Each report converted to pounds, kept here because the prepared
+        # history is read-only to the matcher.
+        self._eris_in_pounds: dict[tuple[dt.date, str], ExcessReportedIncome] = {}
         # What each name holds as the day being walked opens, before any of
         # the day's rows. Only the days that record a rename need it, and only
         # to tell a holding of a name's own from what the day put there.
         self._day_open_pools: dict[str, Position] = {}
 
     def get_eri(self, symbol: str, date: dt.date) -> ExcessReportedIncome | None:
-        """Return Excess Reported Income at specific date for the input symbol."""
-        return self.history.eris.get(date, {}).get(symbol)
+        """Return Excess Reported Income at specific date for the input symbol.
+
+        The report is converted to pounds the first time it is asked for, and
+        the converted one is kept for the rest of the run.
+        """
+        key = (date, symbol)
+        if key not in self._eris_in_pounds:
+            eri = self.history.eris.get(date, {}).get(symbol)
+            if eri is None:
+                return None
+            self._eris_in_pounds[key] = self.eri_in_pounds(eri)
+        return self._eris_in_pounds[key]
 
     def _disposal_log_prefix(self, date_index: dt.date, symbol: str) -> str:
         """Name the kind of disposal recorded for a symbol on a day.
@@ -1925,6 +1940,17 @@ class Matcher:
 
         if allowable_cost == 0:
             return None
+
+        if eri.provisional_rate:
+            LOGGER.warning(
+                "The excess reported income of %s for the period ending %s is "
+                "converted at the period-end rate for now: its fund "
+                "distribution date, %s, has not come, so its rate is not known "
+                "yet. Run cgt-calc again after that date for the final figure.",
+                eri.symbol,
+                eri.date,
+                eri.distribution_date,
+            )
 
         new_amount = amount + allowable_cost
         LOGGER.debug(

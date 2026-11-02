@@ -22,6 +22,7 @@ from cgt_calc.const import (
     CAPITAL_GAIN_ALLOWANCES,
     CAPITAL_GAINS_TAX_RATES,
     DIVIDEND_ALLOWANCES,
+    ERI_TAX_DATE_DELTA,
     PERSONAL_ALLOWANCES,
     PRE_POOLING_REFUSED_ACTIONS,
     RENAME_DESCRIPTION_PREFIX,
@@ -352,6 +353,139 @@ def test_eri_conflicting_report_raises_invalid_transaction_error() -> None:
         calculator.prepare_history(transactions)
 
 
+# An ERI in dollars for the period ending 30 June 2024, distributed on
+# 30 December 2024, at different rates on those two dates.
+ERI_PERIOD_END = dt.date(2024, 6, 30)
+ERI_DISTRIBUTION_DATE = ERI_PERIOD_END + ERI_TAX_DATE_DELTA
+USD = CurrencyCode("USD")
+
+
+def _eri_calculator(
+    rates: dict[dt.date, dict[CurrencyCode, Decimal]], today: dt.date
+) -> CapitalGainsCalculator:
+    """Create a calculator with only `rates`, running on `today`."""
+    currency_converter = CurrencyConverter(None, rates)
+    calculator = CapitalGainsCalculator(
+        2024,
+        currency_converter,
+        IsinConverter(),
+        CurrentPriceFetcher(currency_converter, {}, {}),
+        SpinOffHandler(),
+        SharePrices(),
+        interest_fund_tickers=[],
+        balance_check=False,
+    )
+    calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
+    calculator.ingester.today = today
+    return calculator
+
+
+def _usd_eri(price: str) -> ERITransaction:
+    return ERITransaction(
+        date=ERI_PERIOD_END, isin=ERI_ISIN, price=Decimal(price), currency=USD
+    )
+
+
+@pytest.mark.parametrize(
+    ("today", "price", "provisional"),
+    [
+        # The distribution date has come: its rate, 1.60, is used.
+        pytest.param(ERI_DISTRIBUTION_DATE, Decimal("1.25"), False, id="known"),
+        # It has not: the period-end rate, 1.25, stands in for now.
+        pytest.param(
+            ERI_DISTRIBUTION_DATE - dt.timedelta(days=1),
+            Decimal("1.6"),
+            True,
+            id="provisional",
+        ),
+    ],
+)
+def test_eri_is_converted_at_the_fund_distribution_date_rate(
+    today: dt.date, price: Decimal, provisional: bool
+) -> None:
+    """ERI is income on its distribution date, so it is converted at that rate.
+
+    The cost added to the pool is the income charged to tax (Offshore Funds
+    (Tax) Regulations 2009, reg 99(3)), so it uses the same figure.
+    """
+    calculator = _eri_calculator(
+        {
+            ERI_PERIOD_END: {USD: Decimal("1.25")},
+            ERI_DISTRIBUTION_DATE: {USD: Decimal("1.60")},
+        },
+        today,
+    )
+    calculator.prepare_history([_usd_eri("2")])
+
+    eri = calculator.matcher.get_eri("VWRL", ERI_PERIOD_END)
+
+    assert eri is not None
+    assert (eri.price, eri.currency, eri.provisional_rate) == (
+        price,
+        GBP,
+        provisional,
+    )
+
+
+def test_the_same_eri_in_two_currencies_is_a_duplicate(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Reports in two currencies are compared in pounds, at the ERI's rate.
+
+    USD 2 at the distribution date rate of 1.60 is the £1.25 the other report
+    gives, so the second is skipped as the same report arriving twice.
+    """
+    calculator = _eri_calculator(
+        {ERI_DISTRIBUTION_DATE: {USD: Decimal("1.60")}}, ERI_DISTRIBUTION_DATE
+    )
+    pounds = ERITransaction(
+        date=ERI_PERIOD_END, isin=ERI_ISIN, price=Decimal("1.25"), currency=GBP
+    )
+
+    calculator.prepare_history([pounds, _usd_eri("2")])
+
+    assert "Skipping duplicated ERI transaction" in caplog.text
+
+
+def test_an_eri_that_is_never_used_needs_no_exchange_rate() -> None:
+    """A report is converted when first used, so an unused one needs no rate."""
+    calculator = _eri_calculator({}, ERI_DISTRIBUTION_DATE)
+
+    calculator.prepare_history([_usd_eri("2")])
+
+    assert calculator.eris[ERI_PERIOD_END]["VWRL"].currency == USD
+
+
+def test_a_provisional_eri_added_to_a_pool_is_flagged(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Units held at the period end and sold before the distribution date.
+
+    The run is on a day before the distribution date, so the period-end rate
+    is used for now, and a warning says the figure is not final. Ten units
+    with USD 2 each of ERI at 1.25 add £16 to the pool.
+    """
+    sale_date = dt.date(2024, 9, 2)
+    calculator = _eri_calculator(
+        {
+            date: {USD: Decimal("1.25")}
+            for date in (dt.date(2024, 6, 3), ERI_PERIOD_END, sale_date)
+        },
+        dt.date(2024, 12, 1),
+    )
+    transactions = [
+        transfer_transaction(dt.date(2024, 6, 3), 1000),
+        buy_transaction(dt.date(2024, 6, 3), "VWRL", 10, 100, 0, -1000),
+        _usd_eri("2"),
+        sell_transaction(sale_date, "VWRL", 10, 110, 0, 1100),
+    ]
+
+    report = calculator.calculate(transactions)
+
+    assert "has not come" in caplog.text
+    assert report.allowable_costs == Decimal("816.00")
+
+
 @pytest.mark.parametrize(
     ("isin", "price", "error"),
     [
@@ -537,9 +671,14 @@ def test_basic(
 ) -> None:
     """Generate basic tests for test data."""
     if gbp_prices is None:
-        gbp_prices = {
-            t.date: {CurrencyCode("USD"): Decimal(1)} for t in broker_transactions
+        # ERI is converted on its fund distribution date, so that date gets
+        # the flat rate as well.
+        dates = {t.date for t in broker_transactions} | {
+            t.date + ERI_TAX_DATE_DELTA
+            for t in broker_transactions
+            if t.action is ActionType.EXCESS_REPORTED_INCOME
         }
+        gbp_prices = {date: {CurrencyCode("USD"): Decimal(1)} for date in dates}
     currency_converter = CurrencyConverter(None, gbp_prices)
     isin_converter = IsinConverter()
     historical_prices = {
