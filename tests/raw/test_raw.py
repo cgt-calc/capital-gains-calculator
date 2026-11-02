@@ -370,6 +370,37 @@ def test_read_raw_transactions_negative_fees(tmp_path: Path) -> None:
     )
 
 
+def test_read_raw_transactions_refuses_symbols_differing_only_by_letter_case(
+    tmp_path: Path,
+) -> None:
+    """A symbol typed in another letter case is refused, naming both rows.
+
+    Symbols are matched exactly, so `foo` and `FOO` were two holdings. Before,
+    the sale was matched only with the `FOO` purchase: a gain of 1,099 - 1,001
+    = 98. Pooled, the 20 shares cost 501 + 1,001 = 1,502, so the 10 sold cost
+    751 and the gain is 1,099 - 751 = 348. Rows 3 and 4 spell `FOO` alike, so
+    only rows 2 and 3 are named.
+    """
+    raw_file = tmp_path / "raw_letter_case.csv"
+    _write_csv(
+        raw_file,
+        [
+            COLUMNS,
+            ["2023-05-01", "BUY", "foo", "10", "50", "1", "GBP"],
+            ["2023-05-02", "BUY", "FOO", "10", "100", "1", "GBP"],
+            ["2023-06-10", "SELL", "FOO", "10", "110", "1", "GBP"],
+        ],
+    )
+
+    with pytest.raises(ParsingError) as exc:
+        RawParser().load_from_file(raw_file)
+
+    assert str(exc.value) == (
+        f"While parsing {raw_file}: RAW symbols 'foo' (row 2) and 'FOO' (row 3) "
+        "differ only by letter case. Use one spelling consistently."
+    )
+
+
 @pytest.mark.parametrize(
     "blank", ["", "   ", ",,,,,,"], ids=["empty line", "only spaces", "only commas"]
 )

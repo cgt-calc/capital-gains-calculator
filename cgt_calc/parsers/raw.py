@@ -223,6 +223,11 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
             )
 
         transactions: list[RawTransaction] = []
+        # Symbols are matched exactly, so `foo` and `FOO` would be two holdings
+        # and a sale of one would not be matched with the other's purchases.
+        # A symbol written in two letter cases is refused, not folded into one.
+        # Maps each case-folded symbol to its first spelling and row.
+        spellings: dict[str, tuple[str, int]] = {}
         for index, row in enumerate(data_rows, start=start_index):
             # Skip harmless blank rows left by editors or tooling.
             if is_blank_row(row):
@@ -234,6 +239,17 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
                 raise
             except ValueError as err:
                 raise ParsingError(file_path, str(err), row_index=index) from err
+            if (symbol := transaction.symbol) is not None:
+                first, first_index = spellings.setdefault(
+                    symbol.casefold(), (symbol, index)
+                )
+                if first != symbol:
+                    raise ParsingError(
+                        file_path,
+                        f"RAW symbols '{first}' (row {first_index}) and '{symbol}' "
+                        f"(row {index}) differ only by letter case. "
+                        "Use one spelling consistently.",
+                    )
             transaction.source = TransactionSource(row=index)
             transactions.append(transaction)
         return transactions
