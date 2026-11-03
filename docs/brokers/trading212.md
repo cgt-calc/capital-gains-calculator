@@ -142,13 +142,14 @@ not match** the 10-for-1 split that day. It does not check other splits, a share
 split without trading it at Trading 212 afterwards, or rows without an ISIN, so the checks below
 still apply.
 
-A complete Schwab Equity Awards export already states NVIDIA shares at the new count (see
-[Share splits in complete exports](schwab.md#share-splits-in-complete-exports)), so cgt-calc does
-not check an NVIDIA holding that such an export has added shares to since the holding last ended a
-day empty. That stays true after those award shares are sold, while other shares keep the holding
-above zero. A split applies to the whole holding, and cgt-calc cannot restate only part of one: if
-such a holding also has Trading 212 shares bought before 10 June 2024, the result may be wrong
-without an error. Work the split out by hand (consider professional advice).
+cgt-calc reads the NVIDIA shares in a complete Schwab Equity Awards export at the new count (see
+[Share splits in complete exports](schwab.md#share-splits-in-complete-exports)), so it does not
+check an NVIDIA holding that such an export has added shares to since the holding last ended a day
+empty. That stays true after those award shares are sold, while other shares keep the holding above
+zero. A split applies to the whole holding, and cgt-calc cannot restate only part of one: if such a
+holding also has Trading 212 shares bought before 10 June 2024, the result may be wrong without an
+error. Work the split out by hand (consider professional advice). Do not add a split row for it: the
+row would restate the award shares too, and cgt-calc would not stop.
 
 Super Micro Computer's ISIN changed with the split. If your export lists the share under
 US86800U1043 before the split and US86800U3023 after it, cgt-calc stops earlier, with

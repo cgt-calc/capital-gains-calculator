@@ -2721,3 +2721,23 @@ def test_award_shares_sold_before_the_holding_emptied_exempt_nothing(
     )
 
     assert "ERROR: " + _missing("NVDA", "2024-06-10", "2") + "\n" in stderr
+
+
+def test_award_shares_vested_on_the_split_day_exempt_nothing(tmp_path: Path) -> None:
+    """The holding carried into 10 June is checked as it stood that morning.
+
+    The 2 Trading 212 shares were bought before the split and need it. A vest
+    of 30 award shares on 10 June itself joins the holding during that day,
+    so it does not stand for the shares carried into it.
+    """
+    awards = _award_export(
+        tmp_path, [_award_vest("06/10/2024", "NVDA", "30", "$120.00")]
+    )
+
+    stderr = _refusal(
+        _known_split_cmd(
+            tmp_path, _bought_then_sold(), extra=("--schwab-award-file", awards)
+        )
+    )
+
+    assert "ERROR: " + _missing("NVDA", "2024-06-10", "2") + "\n" in stderr
