@@ -879,19 +879,23 @@ def _missing_known_split_message(
     if "trading212" in sources:
         advice.append(
             "A split row in a Trading 212 file has a time that places trades "
-            "either side of it, so do not change its date: if it records this "
-            "split, replace it in a working copy of the export as the page "
-            "below describes."
+            "either side of it. Do not change the date of the export's own "
+            "split rows: if they record this split, replace them in a working "
+            "copy of the export as the page below describes. A Stock Split row "
+            f"you added to a working copy can have its time moved to {date}, "
+            "before your first trade at the new count, but only if no trade of "
+            f"{symbol} falls between its old time and the new one; otherwise "
+            "work the split out by hand (consider professional advice)."
         )
     if "other" in sources:
         advice.append(
-            "A split row from another broker's export can place that broker's "
-            "trades either side of it by its time or its order, so do not "
-            "change its date or add a split row beside it: if it records this "
-            "split, check it against that broker's records and correct or "
-            "replace it in that export's own format, and if its time and "
-            "order cannot be kept, work the split out by hand (consider "
-            "professional advice)."
+            "A split row from another broker's export is that broker's record "
+            "of the split, so do not add a split row beside it. If it records "
+            "this split, check it against that broker's records: if no trade "
+            f"of {symbol} falls between its date and {date}, change its date to "
+            f"{date} in a working copy of that export, and otherwise, or if "
+            "its time and order cannot be kept, work the split out by hand "
+            "(consider professional advice)."
         )
     advice.append(
         "If none of them records this split, add it "

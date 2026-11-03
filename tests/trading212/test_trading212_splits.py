@@ -2128,16 +2128,20 @@ RAW_ON_ANOTHER_DATE = (
 )
 TRADING212_ON_ANOTHER_DATE = (
     "A split row in a Trading 212 file has a time that places trades either "
-    "side of it, so do not change its date: if it records this split, replace "
-    "it in a working copy of the export as the page below describes."
+    "side of it. Do not change the date of the export's own split rows: if they "
+    "record this split, replace them in a working copy of the export as the "
+    "page below describes. A Stock Split row you added to a working copy can "
+    "have its time moved to 2024-06-10, before your first trade at the new "
+    "count, but only if no trade of NVDA falls between its old time and the new "
+    "one; otherwise work the split out by hand (consider professional advice)."
 )
 OTHER_BROKER_ON_ANOTHER_DATE = (
-    "A split row from another broker's export can place that broker's trades "
-    "either side of it by its time or its order, so do not change its date or "
-    "add a split row beside it: if it records this split, check it against "
-    "that broker's records and correct or replace it in that export's own "
-    "format, and if its time and order cannot be kept, work the split out by "
-    "hand (consider professional advice)."
+    "A split row from another broker's export is that broker's record of the "
+    "split, so do not add a split row beside it. If it records this split, "
+    "check it against that broker's records: if no trade of NVDA falls between "
+    "its date and 2024-06-10, change its date to 2024-06-10 in a working copy "
+    "of that export, and otherwise, or if its time and order cannot be kept, "
+    "work the split out by hand (consider professional advice)."
 )
 RAW_WRONG_RATIO = (
     "A STOCK_SPLIT row states how many shares the split added to the whole "
@@ -2432,6 +2436,70 @@ def test_another_broker_s_row_on_another_date_is_that_broker_s_to_fix(
     stderr = _refusal(cmd)
 
     _assert_listed_elsewhere(stderr, "20", "2024-06-07", OTHER_BROKER_ON_ANOTHER_DATE)
+
+
+def test_another_broker_s_row_moved_to_the_split_day_is_accepted(
+    tmp_path: Path,
+) -> None:
+    """The remedy the refusal gives: the same Schwab row, dated 10 June.
+
+    No trade falls between 7 and 10 June, so moving it changes nothing else.
+    Schwab's 2 shares become 2 + 18 = 20, and the Trading 212 purchase of 1
+    on 12 June makes 21.
+    """
+    cmd = _known_split_cmd(
+        tmp_path,
+        LATER_TRADING212_PURCHASE,
+        extra=("--schwab-file", _schwab_history(tmp_path, "06/10/2024", "18")),
+    )
+
+    result = run_cli(cmd)
+
+    assert "\n  NVDA: 21.00\n" in result.stdout, result.stdout
+
+
+def test_a_stock_split_row_giving_another_ratio_is_trading_212_s_to_fix(
+    tmp_path: Path,
+) -> None:
+    """A timed single row in the export is a Trading 212 row, like a pair.
+
+    It states 20, the count after the split, where 18 were added, so the 2
+    held become 22: ratio 11.
+    """
+    rows = [
+        *_bought_then_sold(sold="2024-06-10 15:00:00"),
+        legacy_split_row(
+            time="2024-06-10 00:00:00",
+            ticker="NVDA",
+            extra={Trading212Column.NO_OF_SHARES: "20"},
+        ),
+    ]
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    _assert_wrong_ratio(
+        stderr,
+        "NVDA on 2024-06-10 (2 -> 22 units, ratio 11)",
+        TRADING212_WRONG_RATIO,
+    )
+
+
+def test_a_stock_split_row_on_another_date_gets_the_trading_212_advice(
+    tmp_path: Path,
+) -> None:
+    """The single row of 18 on 7 June has restated 2 as 20 by 10 June."""
+    rows = [
+        *_bought_then_sold(),
+        legacy_split_row(
+            time="2024-06-07 21:00:00",
+            ticker="NVDA",
+            extra={Trading212Column.NO_OF_SHARES: "18"},
+        ),
+    ]
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    _assert_listed_elsewhere(stderr, "20", "2024-06-07", TRADING212_ON_ANOTHER_DATE)
 
 
 @pytest.mark.parametrize(

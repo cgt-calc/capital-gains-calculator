@@ -254,9 +254,12 @@ What to do depends on where the row is:
     [Holdings spread across brokers](raw.md#holdings-spread-across-brokers).
 
 - **A split row from another broker's export**, such as Schwab's or Revolut's. The steps above are
-    for Trading 212 files only. Check the row against that broker's records and correct or replace
-    it in that export's own format, without adding a split row beside it. If its time and order
-    cannot be kept, work the split out by hand (consider professional advice).
+    for Trading 212 files only. Do not add a split row beside it. Check the row against that
+    broker's records. If it records this split and is dated another day, change its date to the
+    split day in a working copy of that export, but only if no trade of the share falls between its
+    date and the split day. If it gives another ratio, correct its number there. If a trade does
+    fall in between, or the row's time and order cannot be kept, work the split out by hand
+    (consider professional advice).
 
 ### Dates and time zones
 
