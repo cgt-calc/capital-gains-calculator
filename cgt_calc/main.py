@@ -268,7 +268,9 @@ class CapitalGainsCalculator:
         unrealized_gains = None
         if self.calc_unrealized_gains:
             current_price = (
-                self.price_fetcher.get_current_market_price(symbol)
+                self.price_fetcher.get_current_market_price(
+                    symbol, self.isin_converter.transaction_isins.get(symbol)
+                )
                 if quantity > 0
                 else 0
             )

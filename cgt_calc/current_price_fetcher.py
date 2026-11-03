@@ -43,15 +43,37 @@ class CurrentPriceFetcher:
             raise ExchangeRateMissingError(currency or "USD", date)
         return self.converter.to_gbp(price, code, date)
 
-    def get_current_market_price(self, symbol: str) -> Decimal | None:
-        """Given a symbol gets the current market price."""
+    def get_current_market_price(
+        self, symbol: str, isin: str | None = None
+    ) -> Decimal | None:
+        """Get a symbol's current market price, by the first name Yahoo can price.
+
+        Yahoo reads a bare symbol as a US listing, which can be another security
+        entirely or nothing at all, while an ISIN names the security itself. So
+        the ISIN comes first if known, then the symbol, then the symbol's London
+        listing for one with no quote of its own.
+        """
         if self.current_prices_data is not None and symbol in self.current_prices_data:
             return self.current_prices_data[symbol]
 
+        if isin:
+            try:
+                price = self._fetch_market_price(isin)
+            except ValueError:  # how Yahoo's library reports an unknown ISIN
+                price = None
+            if price is not None:
+                return price
+        price = self._fetch_market_price(symbol)
+        if price is None and "." not in symbol:
+            price = self._fetch_market_price(f"{symbol}.L")
+        return price
+
+    def _fetch_market_price(self, name: str) -> Decimal | None:
+        """Ask Yahoo for the current price of a symbol or ISIN."""
         # Imported here because it loads pandas, and most runs fetch no price.
         import yfinance as yf  # type: ignore[import-untyped]  # noqa: PLC0415
 
-        ticker = yf.Ticker(symbol).info
+        ticker = yf.Ticker(name).info
         if not ticker:
             return None
         # ETFs often lack currentPrice, e.g. VTI only has regularMarketPrice
