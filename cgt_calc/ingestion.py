@@ -1569,7 +1569,7 @@ class TransactionIngester:
             planned.add(transaction.date)
             due = [split for split in known_splits if split.date <= transaction.date]
             # Read before planning: a split row on this date restates the pool.
-            held = [
+            held_at_open = [
                 self.run.portfolio.get(split.symbol, Position()).quantity
                 for split in due
             ]
@@ -1598,7 +1598,7 @@ class TransactionIngester:
             # that set would make this order wrong.
             plan_renames(self.state, transaction.date, days[transaction.date])
             plan_stock_splits(self.state, transaction.date, days[transaction.date])
-            for split, quantity in zip(due, held, strict=True):
+            for split, quantity in zip(due, held_at_open, strict=True):
                 known_splits.remove(split)
                 check_known_split(self.state, split, quantity, days)
         if quantity_sign(transaction.action) > 0 and transaction.symbol:

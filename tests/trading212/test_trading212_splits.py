@@ -2194,6 +2194,10 @@ def _assert_wrong_ratio(stderr: str, recorded: str, advice: str) -> None:
         "are:\n"
     ) in stderr
     assert f"\n{advice} See {OTHER_ROW_DOCS}" in stderr
+    # The one row the day's planning used, and nothing from other days.
+    listing = stderr.split("split rows are:\n", 1)[1].split(f"\n{advice}", 1)[0]
+    entries = re.findall(r"^  (\d{4}-\d\d-\d\d) ", listing, flags=re.MULTILINE)
+    assert entries == ["2024-06-10"], listing
     for other in WRONG_RATIO:
         assert (other in stderr) == (other == advice)
 
@@ -2486,8 +2490,9 @@ def test_a_history_the_check_cannot_prove_needs_the_split_runs(
     Respectively: nothing held going into 10 June; no Trading 212 row
     changing the holding after it; a Leverage Shares ETP whose ISIN is not
     Super Micro Computer's; and rows that cannot show which security they
-    are. The figures are not asserted: the last three are calculated as
-    they were before, without a split, which is the stated limit.
+    are. The figures are not asserted. The ETP did not split, so no split
+    is right for it; the dividend and blank-ISIN histories are calculated
+    as before, without the split, which is the stated limit.
     """
     result = run_cli(_known_split_cmd(tmp_path, rows))
 

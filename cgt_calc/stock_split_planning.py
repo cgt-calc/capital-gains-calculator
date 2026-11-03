@@ -700,8 +700,8 @@ KNOWN_TRADING212_SPLITS: Final = (
         ratio=Fraction(10),
         isins=frozenset({Isin("US67066G1040")}),
     ),
-    # Super Micro Computer's ten-for-one split, effective 1 October 2024,
-    # when its CUSIP changed from 86800U104 to 86800U302.
+    # Super Micro Computer's ten-for-one split: split-adjusted trading from
+    # 1 October 2024, when its CUSIP changed from 86800U104 to 86800U302.
     # https://www.nasdaqtrader.com/TraderNews.aspx?id=ECA2024-451
     # https://www.sec.gov/Archives/edgar/data/1375365/000137536525000005/smci-20240930.htm
     KnownSplit(
