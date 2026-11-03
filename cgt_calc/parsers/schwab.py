@@ -60,6 +60,7 @@ from .base_parsers import (
     next_account_token,
     read_csv_rows,
     read_input,
+    read_text,
     use_current_tickers,
 )
 
@@ -1228,7 +1229,10 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                     file_path.open(encoding=cls.encoding) as file,
                 ):
                     parsing_msg(file_path)
-                    rows = cls._read_rows(file, file_path, from_directory=True)
+                    text = read_text(file, file_path, cls.encoding)
+                    rows = cls._read_rows(
+                        io.StringIO(text), file_path, from_directory=True
+                    )
             except OSError as exc:
                 # Branch on what the path is, not on the exception type:
                 # opening a directory raises IsADirectoryError on POSIX but

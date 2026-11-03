@@ -110,3 +110,6 @@
 ^stock_split_planning\.py:.*`U(104|302)`
 # "Super Micro Computer" is the company's name, three words.
 ^stock_split_planning\.py:.*MicroComputer
+# "when its characters are ASCII, as a header's are" is possessive; SingleBe
+# reads "header's" as "header is".
+^base_parsers\.py:.*SingleBe

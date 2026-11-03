@@ -5,6 +5,7 @@ import argparse
 from collections.abc import Iterable, Sequence
 import csv
 import dataclasses
+import io
 import itertools
 import logging
 from pathlib import Path
@@ -20,7 +21,12 @@ from cgt_calc.args_validators import (
     existing_file_or_stdin_type,
     set_completer,
 )
-from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError, reading_as
+from cgt_calc.exceptions import (
+    ParsingError,
+    UnexpectedColumnCountError,
+    not_text_in,
+    reading_as,
+)
 from cgt_calc.logging import parsing_msg
 from cgt_calc.model import BrokerTransaction, TransactionSource
 from cgt_calc.ticker_renames import ambiguity, current_ticker
@@ -33,6 +39,23 @@ LOGGER = logging.getLogger(__name__)
 _ACCOUNT_COUNTER = itertools.count(1)
 
 
+def read_text(file: TextIO, file_path: Path, encoding: str) -> str:
+    """Read all of a broker input, refusing UTF-16 text without a byte-order mark.
+
+    Such text decodes without an error when its characters are ASCII, as a
+    header's are: UTF-8 and Windows-1252 read each two-byte character as the
+    character and a NUL. The parser would then report a header or a row it
+    cannot read, or find no rows at all, instead of the encoding. Only the
+    first line is checked: a NUL further down is left to the parser as
+    before, so a file padded with NULs after its last row still loads.
+    ``encoding`` is the one the refusal names.
+    """
+    text = file.read()
+    if "\x00" in text.partition("\n")[0]:
+        raise not_text_in(encoding, file_path)
+    return text
+
+
 def read_input(file_path: Path, encoding: str) -> str:
     """Read one input whole, so its contents can choose the reader.
 
@@ -42,9 +65,9 @@ def read_input(file_path: Path, encoding: str) -> str:
     """
     with reading_as(encoding, file_path):
         if file_path == STDIN_PATH:
-            return sys.stdin.read()
+            return read_text(sys.stdin, file_path, encoding)
         with file_path.open(encoding=encoding) as file:
-            return file.read()
+            return read_text(file, file_path, encoding)
 
 
 def read_csv_rows(
@@ -289,7 +312,8 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
         )
         if show_parsing_msg:
             parsing_msg("stdin" if file_path == STDIN_PATH else file_path)
-        transactions = cls.read_transactions(file, file_path)
+        text = read_text(file, file_path, cls.encoding)
+        transactions = cls.read_transactions(io.StringIO(text), file_path)
         use_current_tickers(transactions, file_path)
         if not transactions and warn_on_empty:
             LOGGER.warning("No transactions detected in file %s", file_path)

@@ -48,6 +48,24 @@ class ParsingError(CgtError):
         self._update_message()
 
 
+def not_text_in(encoding: str, file: Path) -> ParsingError:
+    """Say that ``file`` is not text in ``encoding``, and how to put it right."""
+    name = "UTF-8" if encoding.lower().startswith("utf") else encoding.title()
+    # The stdin marker, args_validators.STDIN_PATH, which cannot be
+    # imported here without a cycle.
+    if str(file) == "-":
+        detail = (
+            f"standard input is not {name} text. What is piped or redirected "
+            f"into it must be {name}."
+        )
+    else:
+        detail = (
+            f"this file is not {name} text. Save it as {name}, or use the "
+            "original file if another program re-saved it."
+        )
+    return ParsingError(file, detail)
+
+
 @contextmanager
 def reading_as(encoding: str, file: Path) -> Generator[None]:
     """Report text that is not in ``encoding`` as a parsing error naming the file.
@@ -58,20 +76,7 @@ def reading_as(encoding: str, file: Path) -> Generator[None]:
     try:
         yield
     except UnicodeDecodeError as err:
-        name = "UTF-8" if encoding.lower().startswith("utf") else encoding.title()
-        # The stdin marker, args_validators.STDIN_PATH, which cannot be
-        # imported here without a cycle.
-        if str(file) == "-":
-            detail = (
-                f"standard input is not {name} text. What is piped or redirected "
-                f"into it must be {name}."
-            )
-        else:
-            detail = (
-                f"this file is not {name} text. Save it as {name}, or use the "
-                "original file if another program re-saved it."
-            )
-        raise ParsingError(file, detail) from err
+        raise not_text_in(encoding, file) from err
 
 
 @contextmanager
