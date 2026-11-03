@@ -44,11 +44,12 @@ def read_text(file: TextIO, file_path: Path, encoding: str) -> str:
 
     UTF-8 and Windows-1252 read each ASCII character of such text as that
     character and a NUL, so a file whose characters are all ASCII, as nearly
-    all of an export's are, decodes without an error. The parser would then
-    report a header or a row it cannot read, or find no rows at all, instead
-    of the encoding. Only the first line is checked: a NUL further down is
-    left to the parser as before, so a file padded with NULs after its last
-    row still loads. ``encoding`` is the one the refusal names.
+    every character of an export is, decodes without an error. The parser
+    would then report a header or a row it cannot read, or find no rows at
+    all, instead of the encoding. Only the first line is checked: a NUL
+    further down is left to the parser as before, so a file that loaded with
+    NULs after its last row, as a Vanguard export can, still loads.
+    ``encoding`` is the one the refusal names.
     """
     text = file.read()
     if "\x00" in text.partition("\n")[0]:

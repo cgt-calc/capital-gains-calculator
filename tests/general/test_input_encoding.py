@@ -27,6 +27,8 @@ from tests.utils import tax_fields
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from cgt_calc.model import BrokerTransaction
+
 CSV_TEXT = "date,action,symbol\n2024-05-01,BUY,ACME\n"
 # With a byte-order mark, which is not valid UTF-8.
 UTF16_CSV = CSV_TEXT.encode("utf-16")
@@ -101,22 +103,51 @@ def test_utf16_without_a_byte_order_mark_is_reported_by_name(
     assert excinfo.value.file == path
 
 
-def test_nuls_after_the_first_line_are_left_to_the_parser(tmp_path: Path) -> None:
-    """A file padded with NULs after its last row still loads, as it did before.
+@pytest.mark.parametrize(
+    ("export", "add_nuls", "load"),
+    [
+        # An interrupted download or sync can leave NULs after the last row,
+        # and Vanguard reads past them.
+        (
+            Path("tests/vanguard/data/cash_investment_report.csv"),
+            lambda data: data + b"\x00" * 32,
+            lambda path: VanguardParser.load_from_file(path, show_parsing_msg=False),
+        ),
+        # As near the first line as a NUL can be: it starts the second line,
+        # a row of commas above the header, which Sharesight reads past.
+        (
+            Path("tests/sharesight/data/inputs/All Trades Report - Test.csv"),
+            lambda data: data.replace(b"\n", b"\n\x00", 1),
+            lambda path: SharesightParser.load_from_dir(path.parent),
+        ),
+    ],
+    ids=["after the last row", "at the start of the second line"],
+)
+def test_nuls_after_the_first_line_are_left_to_the_parser(
+    tmp_path: Path,
+    export: Path,
+    add_nuls: Callable[[bytes], bytes],
+    load: Callable[[Path], list[BrokerTransaction]],
+) -> None:
+    """A file that loaded with NULs after its first line still loads the same.
 
-    An interrupted download or sync can leave a file that way. Vanguard reads
-    past the padding, so refusing every NUL would stop a file that loads.
+    Refusing every NUL would stop such a file. Each copy is read from a
+    directory of its own, so a directory parser sees only that file.
     """
-    export = Path("tests/vanguard/data/cash_investment_report.csv")
-    padded = tmp_path / export.name
-    padded.write_bytes(export.read_bytes() + b"\x00" * 32)
+    clean = tmp_path / "clean" / export.name
+    with_nuls = tmp_path / "with_nuls" / export.name
+    for path, data in [
+        (clean, export.read_bytes()),
+        (with_nuls, add_nuls(export.read_bytes())),
+    ]:
+        path.parent.mkdir()
+        path.write_bytes(data)
 
-    loaded = VanguardParser.load_from_file(padded, show_parsing_msg=False)
+    loaded = load(with_nuls)
 
     assert loaded
     assert [tax_fields(row) for row in loaded] == [
-        tax_fields(row)
-        for row in VanguardParser.load_from_file(export, show_parsing_msg=False)
+        tax_fields(row) for row in load(clean)
     ]
 
 

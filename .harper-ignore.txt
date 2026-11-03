@@ -110,6 +110,3 @@
 ^stock_split_planning\.py:.*`U(104|302)`
 # "Super Micro Computer" is the company's name, three words.
 ^stock_split_planning\.py:.*MicroComputer
-# "as nearly all of an export's are" is possessive; SingleBe reads "export's"
-# as "export is".
-^base_parsers\.py:.*SingleBe
