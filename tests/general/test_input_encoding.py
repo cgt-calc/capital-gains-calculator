@@ -125,8 +125,16 @@ def test_nuls_after_the_first_line_are_left_to_the_parser(tmp_path: Path) -> Non
     [UTF16_CSV, *(CSV_TEXT.encode(order) for order in UTF16_ORDERS)],
     ids=["with a byte-order mark", *UTF16_ORDERS],
 )
+@pytest.mark.parametrize(
+    "read",
+    [
+        lambda: RawParser.load_from_file(STDIN_PATH, show_parsing_msg=False),
+        lambda: load_via_cli(schwab_award_file=str(STDIN_PATH)),
+    ],
+    ids=["broker file", "Schwab award file"],
+)
 def test_piped_input_that_is_not_utf8_is_reported(
-    monkeypatch: pytest.MonkeyPatch, piped: bytes
+    monkeypatch: pytest.MonkeyPatch, piped: bytes, read: Callable[[], object]
 ) -> None:
     """Standard input is checked too, with advice that fits a pipe or redirect."""
     monkeypatch.setattr(
@@ -136,7 +144,7 @@ def test_piped_input_that_is_not_utf8_is_reported(
     force_utf8_stdio()
 
     with pytest.raises(ParsingError, match="standard input is not UTF-8 text"):
-        RawParser.load_from_file(STDIN_PATH, show_parsing_msg=False)
+        read()
 
 
 def test_a_hargreaves_lansdown_file_names_its_own_encoding(tmp_path: Path) -> None:
