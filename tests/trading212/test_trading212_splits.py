@@ -9,9 +9,11 @@ which is what makes the pair checkable.
 
 from __future__ import annotations
 
+import csv
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from fractions import Fraction
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -21,6 +23,7 @@ import pytest
 
 from cgt_calc.exceptions import CalculationError, ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
+from cgt_calc.parsers.freetrade import FreetradeColumn
 from cgt_calc.parsers.trading212 import (
     SPLIT_CLOSE_ACTION,
     SPLIT_OPEN_ACTION,
@@ -29,6 +32,7 @@ from cgt_calc.parsers.trading212 import (
     Trading212Transaction,
 )
 from cgt_calc.stock_splits import StockSplitTransaction, UnresolvedRatio
+from tests.freetrade.test_freetrade import NEW_COLUMNS, _default_new_row
 from tests.general.test_calc import create_calculator
 from tests.utils import (
     assert_stdout_matches,
@@ -1980,3 +1984,828 @@ def test_the_same_event_in_two_exports_still_combines(tmp_path: Path) -> None:
     transactions = load(tmp_path, {"a.csv": [header, *rows], "b.csv": [header, *rows]})
     (event,) = transactions
     assert isinstance(event, StockSplitTransaction)
+
+
+# ===== a known split the history has no row for =====
+#
+# NVIDIA split 10-for-1 with split-adjusted trading from 10 June 2024, and
+# Super Micro Computer 10-for-1 from 1 October 2024; the Trading 212 exports
+# examined have no rows for either. Each history here buys 2 shares for
+# GBP 800 before the split and sells 1 for GBP 88 after it. With the split
+# supplied the 2 shares become 20, so the sale's cost is 800 x 1/20 = 40, its
+# gain 88 - 40 = 48, and 19 shares remain at a cost of 800 - 40 = 760.
+# Without it the sale takes 800 x 1/2 = 400, a loss of 312 with no error.
+
+NVDA_ISIN = "US67066G1040"
+# Super Micro Computer's ISIN changed with its CUSIP at the split.
+SMCI_ISIN_BEFORE = "US86800U1043"
+SMCI_ISIN_AFTER = "US86800U3023"
+NO_ROWS_DOCS = (
+    "https://cgt-calc.uk/brokers/trading212/#a-split-with-no-rows-in-the-export"
+)
+OTHER_ROW_DOCS = "https://cgt-calc.uk/brokers/trading212/#a-split-row-on-another-day-or-with-another-ratio"
+RAW_HEADER = "date,action,symbol,quantity,price,fees,currency"
+
+
+def _trade(
+    action: str,
+    time: str,
+    shares: str,
+    price: str,
+    *,
+    ticker: str = "NVDA",
+    isin: str = NVDA_ISIN,
+) -> list[str]:
+    """Build a sterling trade whose total is its shares times its price."""
+    total = Decimal(shares) * Decimal(price)
+    return _make_row(
+        HEADER_2026,
+        {
+            Trading212Column.ACTION: action,
+            Trading212Column.TIME: time,
+            Trading212Column.ISIN: isin,
+            Trading212Column.TICKER: ticker,
+            Trading212Column.NAME: ticker,
+            Trading212Column.NO_OF_SHARES: shares,
+            Trading212Column.PRICE_PER_SHARE: price,
+            Trading212Column.CURRENCY_PRICE_PER_SHARE: "GBP",
+            Trading212Column.TOTAL: f"{total:.2f}",
+            Trading212Column.CURRENCY_TOTAL: "GBP",
+            Trading212Column.TRANSACTION_ID: f"{action}-{time}",
+        },
+    )
+
+
+def _deposit(time: str) -> list[str]:
+    return _make_row(
+        HEADER_2026,
+        {
+            Trading212Column.ACTION: "Deposit",
+            Trading212Column.TIME: time,
+            Trading212Column.TOTAL: "1000.00",
+            Trading212Column.CURRENCY_TOTAL: "GBP",
+            Trading212Column.TRANSACTION_ID: f"deposit-{time}",
+        },
+    )
+
+
+def _bought_then_sold(
+    *,
+    ticker: str = "NVDA",
+    isin: str = NVDA_ISIN,
+    bought: str = "2024-06-03 14:00:00",
+    sold: str = "2024-06-12 14:00:00",
+    sold_as: str | None = None,
+) -> list[list[str]]:
+    """Buy 2 for GBP 800 and sell 1 for GBP 88, with the cash to pay for it."""
+    return [
+        _deposit("2024-06-01 09:00:00"),
+        _trade("Market buy", bought, "2", "400.00", ticker=ticker, isin=isin),
+        _trade("Market sell", sold, "1", "88.00", ticker=sold_as or ticker, isin=isin),
+    ]
+
+
+def _known_split_cmd(
+    tmp_path: Path,
+    rows: list[list[str]],
+    *,
+    raw_rows: tuple[str, ...] = (),
+    extra: tuple[str, ...] = (),
+) -> list[str]:
+    """Write a Trading 212 export, and a RAW file when given rows for one."""
+    folder = tmp_path / "trading212"
+    folder.mkdir()
+    _write_csv(folder / "export.csv", [HEADER_2026, *rows])
+    args = ["--year", "2024", "--trading212-dir", str(folder)]
+    if raw_rows:
+        raw_file = tmp_path / "splits.csv"
+        raw_file.write_text("\n".join([RAW_HEADER, *raw_rows]) + "\n", encoding="utf-8")
+        args += ["--raw-file", str(raw_file)]
+    return build_cmd(*args, *extra, "--output", str(tmp_path / "report"))
+
+
+def _refusal(cmd: list[str]) -> str:
+    """Run a history that has to stop, and return what it wrote to stderr."""
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
+    assert result.returncode != 0, result.stdout
+    return result.stderr
+
+
+def _carried(symbol: str, date: str, held: str) -> str:
+    """Return the opening every refusal for a missing row shares."""
+    return (
+        f"{symbol} traded at a new count from {date} after a 10-for-1 split, "
+        f"but no input has a split row for {symbol} dated {date}. The history "
+        f"holds {held} {symbol} going into that day, and Trading 212 rows "
+        f"change the {symbol} holding on or after it, so without the split "
+        "its purchases before that day would be counted in old shares and "
+        "its sales after it in new ones. "
+    )
+
+
+def _add_split(symbol: str, date: str) -> str:
+    return (
+        f"as one STOCK_SPLIT row dated {date} in a file passed with --raw-file, "
+        "stating how many shares it added to the whole holding, or, if you "
+        f"also traded {symbol} that day, as a Stock Split row in a working copy "
+        "of the export."
+    )
+
+
+def _missing(symbol: str, date: str, held: str) -> str:
+    """Return the refusal for a split with no row on any date."""
+    return (
+        _carried(symbol, date, held)
+        + f"Add the split {_add_split(symbol, date)} See {NO_ROWS_DOCS}"
+    )
+
+
+RAW_ON_ANOTHER_DATE = (
+    "If a STOCK_SPLIT row in your RAW file records this split rather than an "
+    "earlier one, change its date to 2024-06-10; if you also traded NVDA that "
+    "day, replace it with a Stock Split row in a working copy of the export "
+    "instead, because a RAW row has no time to place that day's trades against."
+)
+TRADING212_ON_ANOTHER_DATE = (
+    "A split row in a Trading 212 file has a time that places trades either "
+    "side of it. Do not change the date of the export's own split rows: if they "
+    "record this split, replace them in a working copy of the export as the "
+    "page below describes. A Stock Split row you added to a working copy can "
+    "have its time moved to 2024-06-10, before your first trade at the new "
+    "count, but only if no trade of NVDA falls between its old time and the new "
+    "one; otherwise work the split out by hand (consider professional advice)."
+)
+OTHER_BROKER_ON_ANOTHER_DATE = (
+    "A split row from another broker's export is that broker's record of the "
+    "split, so do not add a split row beside it. If it records this split, "
+    "check it against that broker's records: if no trade of NVDA falls between "
+    "its date and 2024-06-10, change its date to 2024-06-10 in a working copy "
+    "of that export, and otherwise, or if its time and order cannot be kept, "
+    "work the split out by hand (consider professional advice)."
+)
+RAW_WRONG_RATIO = (
+    "A STOCK_SPLIT row states how many shares the split added to the whole "
+    "holding, not the count after it: correct the number in your RAW file."
+)
+TRADING212_WRONG_RATIO = (
+    "These rows are in a Trading 212 file. If you added a Stock Split row, "
+    "correct its number of shares: it states how many shares the split added, "
+    "not the count after it. If they are the export's own rows, a RAW row "
+    "added beside them is refused or loses their times, so replace them in a "
+    "working copy of the export as the page below describes."
+)
+OTHER_BROKER_WRONG_RATIO = (
+    "This row is from another broker's export: check it against that broker's "
+    "records and correct or replace it in that export's own format, without "
+    "adding a split row beside it, and if its time and order cannot be kept, "
+    "work the split out by hand (consider professional advice)."
+)
+ON_ANOTHER_DATE = (
+    RAW_ON_ANOTHER_DATE,
+    TRADING212_ON_ANOTHER_DATE,
+    OTHER_BROKER_ON_ANOTHER_DATE,
+)
+WRONG_RATIO = (RAW_WRONG_RATIO, TRADING212_WRONG_RATIO, OTHER_BROKER_WRONG_RATIO)
+
+
+def _assert_listed_elsewhere(stderr: str, held: str, dated: str, advice: str) -> None:
+    """Check the refusal names the row on another date and only its advice."""
+    assert (
+        "ERROR: "
+        + _carried("NVDA", "2024-06-10", held)
+        + "The inputs have NVDA split rows on other dates:\n"
+    ) in stderr
+    listing = stderr.split("on other dates:\n", 1)[1].split("\nDo not add", 1)[0]
+    # One entry, the row and then where it was read from.
+    entries = re.findall(r"^  (\d{4}-\d\d-\d\d) ", listing, flags=re.MULTILINE)
+    assert entries == [dated], listing
+    assert (
+        "\nDo not add a split row for NVDA on 2024-06-10 while one of these may "
+        "record this split: two rows would apply it twice. "
+        + advice
+        + " If none of them records this split, add it "
+        + _add_split("NVDA", "2024-06-10")
+        + f" See {OTHER_ROW_DOCS}"
+    ) in stderr
+    for other in ON_ANOTHER_DATE:
+        assert (other in stderr) == (other == advice)
+
+
+def _assert_wrong_ratio(stderr: str, recorded: str, advice: str) -> None:
+    """Check the refusal names the ratio the history applied and only its advice."""
+    assert (
+        "ERROR: The NVDA split on 2024-06-10 does not match NVDA's 10-for-1 "
+        f"split that day: the history records {recorded}. The day's split rows "
+        "are:\n"
+    ) in stderr
+    assert f"\n{advice} See {OTHER_ROW_DOCS}" in stderr
+    # The one row the day's planning used, and nothing from other days.
+    listing = stderr.split("split rows are:\n", 1)[1].split(f"\n{advice}", 1)[0]
+    entries = re.findall(r"^  (\d{4}-\d\d-\d\d) ", listing, flags=re.MULTILINE)
+    assert entries == ["2024-06-10"], listing
+    for other in WRONG_RATIO:
+        assert (other in stderr) == (other == advice)
+
+
+def _assert_split_applied(stdout: str, symbol: str) -> None:
+    """Check the sale took a twentieth of the cost, as worked out above."""
+    assert re.search(r"Allowable costs:\s+£40\.00\n", stdout), stdout
+    assert re.search(r"\n  Gain:\s+£48\.00\n", stdout), stdout
+    assert f"  {symbol}: 19.00, £760.00\n" in stdout, stdout
+
+
+def test_a_holding_carried_across_a_known_split_without_a_row_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The NVIDIA history that used to report a loss of 312 now stops."""
+    stderr = _refusal(_known_split_cmd(tmp_path, _bought_then_sold()))
+
+    assert "ERROR: " + _missing("NVDA", "2024-06-10", "2") + "\n" in stderr
+
+
+@pytest.mark.parametrize(
+    "isin",
+    [
+        pytest.param(SMCI_ISIN_BEFORE, id="identifier before the split"),
+        pytest.param(SMCI_ISIN_AFTER, id="identifier after the split"),
+    ],
+)
+def test_super_micro_carried_across_its_split_is_refused(
+    tmp_path: Path, isin: str
+) -> None:
+    """Either of Super Micro Computer's identifiers names the common stock."""
+    rows = _bought_then_sold(
+        ticker="SMCI",
+        isin=isin,
+        bought="2024-09-24 14:00:00",
+        sold="2024-10-08 14:00:00",
+    )
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    assert "ERROR: " + _missing("SMCI", "2024-10-01", "2") + "\n" in stderr
+
+
+@pytest.mark.parametrize(
+    ("symbol", "rows", "raw_rows"),
+    [
+        pytest.param(
+            "NVDA",
+            _bought_then_sold(),
+            ("2024-06-10,STOCK_SPLIT,NVDA,18,0.00,0.00,USD",),
+            id="RAW row on the split day",
+        ),
+        pytest.param(
+            "NVDA",
+            [
+                *_bought_then_sold(sold="2024-06-10 15:00:00"),
+                legacy_split_row(
+                    time="2024-06-10 00:00:00",
+                    ticker="NVDA",
+                    extra={Trading212Column.NO_OF_SHARES: "18"},
+                ),
+            ],
+            (),
+            id="timed Stock Split row before a sale that day",
+        ),
+        pytest.param(
+            "SMCI",
+            _bought_then_sold(
+                ticker="SMCI",
+                isin=SMCI_ISIN_BEFORE,
+                bought="2024-09-24 14:00:00",
+                sold="2024-10-08 14:00:00",
+            ),
+            ("2024-10-01,STOCK_SPLIT,SMCI,18,0.00,0.00,USD",),
+            id="Super Micro with a RAW row",
+        ),
+    ],
+)
+def test_a_matching_split_row_lets_the_history_run(
+    tmp_path: Path, symbol: str, rows: list[list[str]], raw_rows: tuple[str, ...]
+) -> None:
+    """A row on the split day adding 18 to the 2 held is the 10-for-1 split."""
+    result = run_cli(_known_split_cmd(tmp_path, rows, raw_rows=raw_rows))
+
+    _assert_split_applied(result.stdout, symbol)
+
+
+def test_a_raw_row_stating_the_count_after_the_split_is_refused(
+    tmp_path: Path,
+) -> None:
+    """Writing the total of 20 rather than the 18 added gives 22 / 2 = 11."""
+    cmd = _known_split_cmd(
+        tmp_path,
+        _bought_then_sold(),
+        raw_rows=("2024-06-10,STOCK_SPLIT,NVDA,20,0.00,0.00,USD",),
+    )
+
+    stderr = _refusal(cmd)
+
+    _assert_wrong_ratio(
+        stderr, "NVDA on 2024-06-10 (2 -> 22 units, ratio 11)", RAW_WRONG_RATIO
+    )
+
+
+def test_an_export_pair_giving_another_ratio_is_refused(tmp_path: Path) -> None:
+    """The pair states 2 at GBP 110 and 22 at GBP 10, the same GBP 220, so 11."""
+    rows = [
+        *_bought_then_sold(),
+        close_row(
+            time="2024-06-10 05:00:00",
+            shares="2.0000000000",
+            price="110.00",
+            total="220.00",
+            ticker="NVDA",
+            isin=NVDA_ISIN,
+        ),
+        open_row(
+            time="2024-06-10 05:00:00",
+            shares="22.0000000000",
+            price="10.00",
+            total="220.00",
+            ticker="NVDA",
+            isin=NVDA_ISIN,
+        ),
+    ]
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    _assert_wrong_ratio(
+        stderr,
+        "NVDA on 2024-06-10 (2 -> 22 units, ratio 11)",
+        TRADING212_WRONG_RATIO,
+    )
+
+
+def _schwab_history(tmp_path: Path, split_date: str, added: str) -> str:
+    """Schwab holds 2 NVDA bought on 3 June and reports a split of its own."""
+    history = tmp_path / "schwab.csv"
+    history.write_text(
+        '"Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount"\n'
+        f'"{split_date}","Stock Split","NVDA","NVIDIA CORP","{added}","","",""\n'
+        '"06/03/2024","Buy","NVDA","NVIDIA CORP","2","$500.00","","-$1000.00"\n'
+        '"06/03/2024","Wire Funds Received","","WIRED FUNDS RECEIVED","","","","$1000.00"\n',
+        encoding="utf-8",
+    )
+    return str(history)
+
+
+# A Trading 212 purchase after the split, which is what brings the Schwab
+# holding under the check.
+LATER_TRADING212_PURCHASE = [
+    _deposit("2024-06-01 09:00:00"),
+    _trade("Market buy", "2024-06-12 14:00:00", "1", "100.00"),
+]
+
+
+def test_another_broker_s_row_giving_another_ratio_is_refused(tmp_path: Path) -> None:
+    """Schwab's row adds 20 to its 2, so 22 / 2 = 11, and it is Schwab's to fix."""
+    cmd = _known_split_cmd(
+        tmp_path,
+        LATER_TRADING212_PURCHASE,
+        extra=("--schwab-file", _schwab_history(tmp_path, "06/10/2024", "20")),
+    )
+
+    stderr = _refusal(cmd)
+
+    _assert_wrong_ratio(
+        stderr,
+        "NVDA on 2024-06-10 (2 -> 22 units, ratio 11)",
+        OTHER_BROKER_WRONG_RATIO,
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw_row", "held"),
+    [
+        # Already applied when 7 June opened: 2 + 18 = 20 going into 10 June.
+        pytest.param("2024-06-07,STOCK_SPLIT,NVDA,18,0.00,0.00,USD", "20", id="before"),
+        # Not applied yet when the first day from 10 June opens.
+        pytest.param("2024-06-11,STOCK_SPLIT,NVDA,18,0.00,0.00,USD", "2", id="after"),
+    ],
+)
+def test_a_raw_row_on_another_date_is_named_to_move(
+    tmp_path: Path, raw_row: str, held: str
+) -> None:
+    """A RAW row has no time, so the refusal says to change its date."""
+    cmd = _known_split_cmd(tmp_path, _bought_then_sold(), raw_rows=(raw_row,))
+
+    stderr = _refusal(cmd)
+
+    _assert_listed_elsewhere(stderr, held, raw_row[:10], RAW_ON_ANOTHER_DATE)
+
+
+def test_an_export_pair_on_another_date_is_not_to_be_moved(tmp_path: Path) -> None:
+    """The pair booked on 7 June has restated 2 as 20 by 10 June, at its times."""
+    rows = [
+        *_bought_then_sold(),
+        close_row(
+            time="2024-06-07 21:00:00",
+            shares="2.0000000000",
+            price="400.00",
+            total="800.00",
+            ticker="NVDA",
+            isin=NVDA_ISIN,
+        ),
+        open_row(
+            time="2024-06-07 21:00:00",
+            shares="20.0000000000",
+            price="40.00",
+            total="800.00",
+            ticker="NVDA",
+            isin=NVDA_ISIN,
+        ),
+    ]
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    _assert_listed_elsewhere(stderr, "20", "2024-06-07", TRADING212_ON_ANOTHER_DATE)
+
+
+def test_another_broker_s_row_on_another_date_is_that_broker_s_to_fix(
+    tmp_path: Path,
+) -> None:
+    """Schwab's own row of 7 June has restated its 2 shares as 20 by 10 June."""
+    cmd = _known_split_cmd(
+        tmp_path,
+        LATER_TRADING212_PURCHASE,
+        extra=("--schwab-file", _schwab_history(tmp_path, "06/07/2024", "18")),
+    )
+
+    stderr = _refusal(cmd)
+
+    _assert_listed_elsewhere(stderr, "20", "2024-06-07", OTHER_BROKER_ON_ANOTHER_DATE)
+
+
+def test_another_broker_s_row_moved_to_the_split_day_is_accepted(
+    tmp_path: Path,
+) -> None:
+    """The remedy the refusal gives: the same Schwab row, dated 10 June.
+
+    No trade falls between 7 and 10 June, so moving it changes nothing else.
+    Schwab's 2 shares become 2 + 18 = 20, and the Trading 212 purchase of 1
+    on 12 June makes 21.
+    """
+    cmd = _known_split_cmd(
+        tmp_path,
+        LATER_TRADING212_PURCHASE,
+        extra=("--schwab-file", _schwab_history(tmp_path, "06/10/2024", "18")),
+    )
+
+    result = run_cli(cmd)
+
+    assert "\n  NVDA: 21.00\n" in result.stdout, result.stdout
+
+
+def test_a_stock_split_row_giving_another_ratio_is_trading_212_s_to_fix(
+    tmp_path: Path,
+) -> None:
+    """A timed single row in the export is a Trading 212 row, like a pair.
+
+    It states 20, the count after the split, where 18 were added, so the 2
+    held become 22: ratio 11.
+    """
+    rows = [
+        *_bought_then_sold(sold="2024-06-10 15:00:00"),
+        legacy_split_row(
+            time="2024-06-10 00:00:00",
+            ticker="NVDA",
+            extra={Trading212Column.NO_OF_SHARES: "20"},
+        ),
+    ]
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    _assert_wrong_ratio(
+        stderr,
+        "NVDA on 2024-06-10 (2 -> 22 units, ratio 11)",
+        TRADING212_WRONG_RATIO,
+    )
+
+
+def test_a_stock_split_row_on_another_date_gets_the_trading_212_advice(
+    tmp_path: Path,
+) -> None:
+    """The single row of 18 on 7 June has restated 2 as 20 by 10 June."""
+    rows = [
+        *_bought_then_sold(),
+        legacy_split_row(
+            time="2024-06-07 21:00:00",
+            ticker="NVDA",
+            extra={Trading212Column.NO_OF_SHARES: "18"},
+        ),
+    ]
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    _assert_listed_elsewhere(stderr, "20", "2024-06-07", TRADING212_ON_ANOTHER_DATE)
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        pytest.param(
+            [
+                _deposit("2024-06-01 09:00:00"),
+                _trade("Market buy", "2024-06-03 14:00:00", "2", "400.00"),
+                _trade("Market sell", "2024-06-05 14:00:00", "2", "390.00"),
+                _trade("Market buy", "2024-06-11 14:00:00", "1", "40.00"),
+                _trade("Market sell", "2024-06-12 14:00:00", "1", "41.00"),
+            ],
+            id="sold out before the split",
+        ),
+        pytest.param(
+            [
+                _deposit("2024-06-01 09:00:00"),
+                _trade("Market buy", "2024-06-03 14:00:00", "2", "400.00"),
+                _make_row(
+                    HEADER_2026,
+                    {
+                        Trading212Column.ACTION: "Dividend (Ordinary)",
+                        Trading212Column.TIME: "2024-06-28 10:00:00",
+                        Trading212Column.ISIN: NVDA_ISIN,
+                        Trading212Column.TICKER: "NVDA",
+                        Trading212Column.NAME: "NVDA",
+                        Trading212Column.NO_OF_SHARES: "20",
+                        Trading212Column.PRICE_PER_SHARE: "0.01",
+                        Trading212Column.CURRENCY_PRICE_PER_SHARE: "USD",
+                        Trading212Column.EXCHANGE_RATE: "Not available",
+                        Trading212Column.TOTAL: "0.16",
+                        Trading212Column.CURRENCY_TOTAL: "GBP",
+                        Trading212Column.TRANSACTION_ID: "dividend-1",
+                    },
+                ),
+            ],
+            id="only a dividend after the split",
+        ),
+        pytest.param(
+            _bought_then_sold(
+                ticker="SMCI",
+                isin="XS2779863021",
+                bought="2024-09-24 14:00:00",
+                sold="2024-10-08 14:00:00",
+            ),
+            id="another security trading as SMCI",
+        ),
+        pytest.param(_bought_then_sold(isin=""), id="trades without an ISIN"),
+    ],
+)
+def test_a_history_the_check_cannot_prove_needs_the_split_runs(
+    rows: list[list[str]], tmp_path: Path
+) -> None:
+    """Each history lacks one thing the refusal needs, so nothing is refused.
+
+    Respectively: nothing held going into 10 June; no Trading 212 row
+    changing the holding after it; a Leverage Shares ETP whose ISIN is not
+    Super Micro Computer's; and rows that cannot show which security they
+    are. The figures are not asserted. The ETP did not split, so no split
+    is right for it; the dividend and blank-ISIN histories are calculated
+    as before, without the split, which is the stated limit.
+    """
+    result = run_cli(_known_split_cmd(tmp_path, rows))
+
+    assert "split row for" not in result.stderr
+
+
+def test_a_sale_on_the_split_day_itself_is_refused(tmp_path: Path) -> None:
+    """The check runs as 10 June opens, not only on a later day."""
+    rows = _bought_then_sold(sold="2024-06-10 15:00:00")
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    assert "ERROR: " + _missing("NVDA", "2024-06-10", "2") + "\n" in stderr
+
+
+def test_a_sale_exported_under_an_alias_is_the_same_holding(tmp_path: Path) -> None:
+    """NVD under NVIDIA's ISIN is read as NVDA before the check looks."""
+    rows = _bought_then_sold(sold_as="NVD")
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    assert "ERROR: " + _missing("NVDA", "2024-06-10", "2") + "\n" in stderr
+
+
+def test_another_broker_s_history_is_not_checked(tmp_path: Path) -> None:
+    """A Freetrade NVIDIA history crossing the split is outside the check.
+
+    Its rows carry NVIDIA's own ISIN, a holding of 2 and a sale after the
+    split, so only their broker keeps them out. The figures are not
+    asserted: without a split row they are wrong exactly as before.
+    """
+    history = tmp_path / "freetrade.csv"
+    rows = [
+        _default_new_row(
+            {
+                FreetradeColumn.TITLE.value: "Top up",
+                FreetradeColumn.TYPE.value: "TOP_UP",
+                FreetradeColumn.TIMESTAMP.value: "2024-06-01T09:00:00.000Z",
+                FreetradeColumn.BUY_SELL.value: "",
+                FreetradeColumn.TICKER.value: "",
+                FreetradeColumn.ISIN.value: "",
+                "Total Amount in Account Currency": "1000.00",
+            }
+        ),
+        _default_new_row(
+            {
+                FreetradeColumn.TITLE.value: "NVIDIA",
+                FreetradeColumn.TIMESTAMP.value: "2024-06-03T14:00:00.000Z",
+                FreetradeColumn.BUY_SELL.value: "BUY",
+                FreetradeColumn.TICKER.value: "NVDA",
+                FreetradeColumn.ISIN.value: NVDA_ISIN,
+                FreetradeColumn.QUANTITY.value: "2",
+                FreetradeColumn.PRICE_PER_SHARE_ACCOUNT.value: "400.00",
+                "Total Amount in Account Currency": "800.00",
+            }
+        ),
+        _default_new_row(
+            {
+                FreetradeColumn.TITLE.value: "NVIDIA",
+                FreetradeColumn.TIMESTAMP.value: "2024-06-12T14:00:00.000Z",
+                FreetradeColumn.BUY_SELL.value: "SELL",
+                FreetradeColumn.TICKER.value: "NVDA",
+                FreetradeColumn.ISIN.value: NVDA_ISIN,
+                FreetradeColumn.QUANTITY.value: "1",
+                FreetradeColumn.PRICE_PER_SHARE_ACCOUNT.value: "88.00",
+                "Total Amount in Account Currency": "88.00",
+            }
+        ),
+    ]
+    with history.open("w", encoding="utf-8", newline="") as handle:
+        csv.writer(handle).writerows([NEW_COLUMNS, *rows])
+
+    result = run_cli(
+        build_cmd(
+            "--year",
+            "2024",
+            "--freetrade-file",
+            str(history),
+            "--output",
+            str(tmp_path / "report"),
+        )
+    )
+
+    assert "split row for" not in result.stderr
+
+
+# Schwab's Equity Awards export states a vest at the count after any later
+# split, and cgt-calc restates its sales the same way for the splits in its
+# table, so NVIDIA award shares are already at the new count with no split
+# row. The dates are ones tests/exchange_rates_data.csv lists a USD rate for,
+# because the award rows are in dollars.
+
+
+def _award_export(tmp_path: Path, rows: list[dict[str, object]]) -> str:
+    """Write a complete Equity Awards export holding these rows."""
+    path = tmp_path / "awards.json"
+    export = {"FromDate": "01/01/2024", "ToDate": "12/31/2024", "Transactions": rows}
+    path.write_text(json.dumps(export), encoding="utf-8")
+    return str(path)
+
+
+def _award_vest(date: str, symbol: str, shares: str, price: str) -> dict[str, object]:
+    """Build a vest of restricted stock, as the export states one."""
+    return {
+        "Date": date,
+        "Action": "Deposit",
+        "Symbol": symbol,
+        "Quantity": shares,
+        "Description": "RS",
+        "FeesAndCommissions": None,
+        "DisbursementElection": None,
+        "Amount": None,
+        "TransactionDetails": [
+            {
+                "Details": {
+                    "AwardDate": "03/12/2022",
+                    "AwardId": "000002",
+                    "VestDate": date,
+                    "VestFairMarketValue": price,
+                }
+            }
+        ],
+    }
+
+
+def test_award_shares_already_at_the_new_count_are_not_refused(
+    tmp_path: Path,
+) -> None:
+    """30 vested before the split and 1 bought after it make 31 shares.
+
+    The vest is stated at the new count, so no split row is needed for it
+    and none can be added: one restating the whole holding 10-for-1 would
+    make it 300 + 1 = 301.
+    """
+    awards = _award_export(
+        tmp_path, [_award_vest("06/03/2024", "NVDA", "30", "$115.00")]
+    )
+    cmd = _known_split_cmd(
+        tmp_path, LATER_TRADING212_PURCHASE, extra=("--schwab-award-file", awards)
+    )
+
+    result = run_cli(cmd)
+
+    assert "\n  NVDA: 31.00\n" in result.stdout, result.stdout
+
+
+def test_award_shares_of_a_split_their_parser_does_not_restate_are_checked(
+    tmp_path: Path,
+) -> None:
+    """Only the splits in the Equity Awards parser's own table stand aside.
+
+    It has no entry for Super Micro Computer, so its 30 award shares are
+    read at the count they were vested at and carried into 1 October.
+    """
+    awards = _award_export(
+        tmp_path, [_award_vest("07/31/2024", "SMCI", "30", "$60.00")]
+    )
+    rows = [
+        _deposit("2024-06-01 09:00:00"),
+        _trade(
+            "Market buy",
+            "2024-10-08 14:00:00",
+            "1",
+            "30.00",
+            ticker="SMCI",
+            isin=SMCI_ISIN_BEFORE,
+        ),
+    ]
+
+    stderr = _refusal(
+        _known_split_cmd(tmp_path, rows, extra=("--schwab-award-file", awards))
+    )
+
+    assert "ERROR: " + _missing("SMCI", "2024-10-01", "30") + "\n" in stderr
+
+
+def test_award_shares_sold_before_the_holding_emptied_exempt_nothing(
+    tmp_path: Path,
+) -> None:
+    """A holding that ended a day empty is rebuilt without the award source.
+
+    The award vests 30 NVDA on 1 May and sells them all on 2 May. Schwab
+    writes the sale at its own day's count, 3 at USD 860, which cgt-calc
+    restates as 30, so the whole holding ends 2 May empty. The 2 shares
+    Trading 212 buys on 3 May are then all of the holding carried into
+    10 June, and they need the split.
+    """
+    sale: dict[str, object] = {
+        "Date": "05/02/2024",
+        "Action": "Sale",
+        "Symbol": "NVDA",
+        "Quantity": "3",
+        "Description": "Share Sale",
+        "FeesAndCommissions": "$0.00",
+        "DisbursementElection": "Cash",
+        "Amount": "$2,580.00",
+        "TransactionDetails": [
+            {
+                "Details": {
+                    "Type": "RS",
+                    "Shares": "3",
+                    "SalePrice": "$860.00",
+                    "GrossProceeds": "$2,580.00",
+                    "VestDate": "05/01/2024",
+                    "VestFairMarketValue": "$850.00",
+                    "TotalCostBasis": "$2,550.00",
+                    "RealizedGainLoss": "$30.00",
+                    "DispositionType": "Short",
+                    "HoldingPeriod": "Short",
+                }
+            }
+        ],
+    }
+    awards = _award_export(
+        tmp_path, [_award_vest("05/01/2024", "NVDA", "30", "$85.00"), sale]
+    )
+    rows = [
+        _deposit("2024-05-01 09:00:00"),
+        _trade("Market buy", "2024-05-03 14:00:00", "2", "400.00"),
+        _trade("Market sell", "2024-06-12 14:00:00", "1", "88.00"),
+    ]
+
+    stderr = _refusal(
+        _known_split_cmd(tmp_path, rows, extra=("--schwab-award-file", awards))
+    )
+
+    assert "ERROR: " + _missing("NVDA", "2024-06-10", "2") + "\n" in stderr
+
+
+def test_award_shares_vested_on_the_split_day_exempt_nothing(tmp_path: Path) -> None:
+    """The holding carried into 10 June is checked as it stood that morning.
+
+    The 2 Trading 212 shares were bought before the split and need it. A vest
+    of 30 award shares on 10 June itself joins the holding during that day,
+    so it does not stand for the shares carried into it.
+    """
+    awards = _award_export(
+        tmp_path, [_award_vest("06/10/2024", "NVDA", "30", "$120.00")]
+    )
+
+    stderr = _refusal(
+        _known_split_cmd(
+            tmp_path, _bought_then_sold(), extra=("--schwab-award-file", awards)
+        )
+    )
+
+    assert "ERROR: " + _missing("NVDA", "2024-06-10", "2") + "\n" in stderr

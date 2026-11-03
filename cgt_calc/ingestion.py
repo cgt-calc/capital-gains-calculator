@@ -52,7 +52,12 @@ from .rename_planning import (
     rename_day_units,
     rename_pair,
 )
-from .stock_split_planning import plan_stock_splits, source_account
+from .stock_split_planning import (
+    check_known_split,
+    known_splits_crossed,
+    plan_stock_splits,
+    source_account,
+)
 from .stock_splits import quantity_sign
 from .transaction_log import add_to_list, day_acquisitions
 from .util import (
@@ -76,6 +81,7 @@ if TYPE_CHECKING:
     from .model import DatePeriod
     from .share_prices import SharePrices
     from .spin_off_handler import SpinOffHandler
+    from .stock_split_planning import KnownSplit
 
 LOGGER = logging.getLogger(__name__)
 
@@ -1551,10 +1557,22 @@ class TransactionIngester:
         transaction: BrokerTransaction,
         days: dict[dt.date, list[BrokerTransaction]],
         planned: set[dt.date],
+        known_splits: list[KnownSplit],
     ) -> None:
-        """Plan the day's reorganisations, and note where units came from."""
+        """Plan the day's reorganisations, and note where units came from.
+
+        ``known_splits`` is what `known_splits_crossed` found and this run
+        has not reached yet. Each is checked on the first date on or after
+        it, against the pool as that day opens, and then dropped.
+        """
         if transaction.date not in planned:
             planned.add(transaction.date)
+            due = [split for split in known_splits if split.date <= transaction.date]
+            # Read before planning: a split row on this date restates the pool.
+            held_at_open = [
+                self.run.portfolio.get(split.symbol, Position()).quantity
+                for split in due
+            ]
             # Every earlier day has closed, so a holding absent from the
             # portfolio now is one that really emptied rather than one whose
             # running count touched zero between a same-day sale and buy. A
@@ -1580,6 +1598,9 @@ class TransactionIngester:
             # that set would make this order wrong.
             plan_renames(self.state, transaction.date, days[transaction.date])
             plan_stock_splits(self.state, transaction.date, days[transaction.date])
+            for split, quantity in zip(due, held_at_open, strict=True):
+                known_splits.remove(split)
+                check_known_split(self.state, split, quantity, days)
         if quantity_sign(transaction.action) > 0 and transaction.symbol:
             self.history.holding_sources[transaction.symbol].add(
                 source_account(transaction)
@@ -1622,6 +1643,9 @@ class TransactionIngester:
         self.isin_converter.add_from_transactions(transactions)
 
         transactions = self._resolve_gifts(transactions)
+        # After add_from_transactions, so that a row exported under an alias
+        # such as NVD is read under the ticker the pool and RAW rows use.
+        known_splits = known_splits_crossed(transactions)
         # The cash balance is judged once a day is complete rather than after
         # every row. Within one day the row order is not consistently reliable
         # for sequencing cash: a RAW file records it deliberately, a broker
@@ -1664,7 +1688,7 @@ class TransactionIngester:
         )
 
         for i, transaction in enumerate(transactions):
-            self._open_transaction_day(transaction, days, planned)
+            self._open_transaction_day(transaction, days, planned, known_splits)
             self._convert_foreign_fees(transaction)
             if transaction.action == ActionType.EXCESS_REPORTED_INCOME:
                 self.add_eri(transaction, run_renames)
