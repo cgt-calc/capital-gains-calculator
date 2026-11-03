@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import os
 from pathlib import Path
 import re
@@ -201,6 +202,87 @@ def test_interactive_prompt_uses_clear_spin_off_wording(
             "(symbol: NEW) was spun off on 2021-05-10: "
         )
     ]
+
+
+@pytest.mark.parametrize(
+    ("held", "listed"),
+    [
+        pytest.param(
+            10,
+            "Available choices: AAA, BBB, CCC, DDD, EEE, FFF, GGG, HHH, III, JJJ",
+            id="ten holdings, all listed",
+        ),
+        pytest.param(
+            12,
+            "Available choices (first 10 of 12): AAA, BBB, CCC, DDD, EEE, FFF, "
+            "GGG, HHH, III, JJJ",
+            id="twelve holdings, ten listed",
+        ),
+    ],
+)
+def test_a_ticker_not_held_lists_the_holdings_to_choose_from(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    held: int,
+    listed: str,
+) -> None:
+    """After a ticker not held, the holdings are listed as plain tickers.
+
+    They are comma-separated, at most ten. The holdings are AAA, BBB and so
+    on, `held` of them, put in the portfolio in reverse so the listing has to
+    sort them. Ten fit the list whole. Of twelve, the first ten are AAA to JJJ;
+    KKK and LLL are left out, and the label says the ten shown are out of 12.
+    """
+    tickers = [letter * 3 for letter in "ABCDEFGHIJKL"[:held]]
+    portfolio: dict[str, Position] = {
+        ticker: Position() for ticker in reversed(tickers)
+    }
+    answers = iter(["ACME", "AAA"])
+    handler = SpinOffHandler(tmp_path / "spin_offs.csv")
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
+
+    with caplog.at_level(logging.INFO):
+        source = handler.get_spin_off_source("NEW", SPIN_OFF_DATE, portfolio)
+
+    assert source == "AAA"
+    assert [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("Available choices")
+    ] == [listed]
+
+
+def test_with_no_holdings_the_choices_read_none(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """With nothing held, the choices line says none rather than ending blank.
+
+    No answer can name a holding, so the prompt repeats until input ends,
+    which stops the run as when there is no terminal.
+    """
+    answers = iter(["ACME"])
+
+    def answer(prompt: str) -> str:
+        if (reply := next(answers, None)) is None:
+            raise EOFError
+        return reply
+
+    handler = SpinOffHandler(tmp_path / "spin_offs.csv")
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", answer)
+
+    with caplog.at_level(logging.INFO), pytest.raises(InteractiveInputRequiredError):
+        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
+
+    assert [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("Available choices")
+    ] == ["Available choices: none"]
 
 
 def test_recording_spin_off_creates_missing_parent_directories(
