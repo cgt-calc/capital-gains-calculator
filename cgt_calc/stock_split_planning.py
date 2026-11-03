@@ -13,6 +13,10 @@ from typing import TYPE_CHECKING, Final, Literal
 from .exceptions import CalculationError, InvalidTransactionError, SymbolMissingError
 from .model import ActionType, Isin, Position
 from .parsers.raw import RawTransaction
+from .parsers.schwab_equity_award_json import (
+    SPLITS as SCHWAB_AWARD_SPLITS,
+    SchwabAwardTransaction,
+)
 from .parsers.trading212 import Trading212Transaction
 from .rename_planning import connected_names
 from .stock_splits import (
@@ -757,13 +761,45 @@ def check_known_split(
     already have restated the holding, and adding a second would apply the
     split twice.
     """
-    if held <= 0:
+    if held <= 0 or _restated_by_schwab_awards(state, split, days):
         return
     transformation = state.history.splits.get(split.date, {}).get(split.symbol)
     if transformation is None:
         raise CalculationError(_missing_known_split_message(split, held, days))
     if transformation.ratio != split.ratio:
         raise CalculationError(_wrong_known_split_message(split, transformation, days))
+
+
+def _restated_by_schwab_awards(
+    state: CalculatorState,
+    split: KnownSplit,
+    days: Mapping[dt.date, list[BrokerTransaction]],
+) -> bool:
+    """Say whether Schwab Equity Awards shares exempt this pool from the check.
+
+    That parser already states its counts at the new count for the splits in
+    its own table and writes no split row, so a pool it has added to is
+    positive with no row and needs none for those shares. A split applies to
+    the whole pool, so a pool that also holds old-count shares cannot be put
+    right by any row and is left unchecked.
+
+    ``holding_sources`` is source history, not what each account still
+    holds: an account stays in it until the whole pool ends a day empty. Read
+    here, after the day's cleanup and before the current row's own source is
+    added, it is the set the pool carried into this day.
+    """
+    history = SCHWAB_AWARD_SPLITS.get(split.symbol)
+    if history is None or (split.date, split.ratio) not in {
+        (date, Fraction(ratio)) for date, ratio in history.splits
+    }:
+        return False
+    award_accounts = {
+        source_account(row)
+        for rows in days.values()
+        for row in rows
+        if isinstance(row, SchwabAwardTransaction) and row.symbol == split.symbol
+    }
+    return bool(state.history.holding_sources.get(split.symbol, set()) & award_accounts)
 
 
 def _split_row_source(

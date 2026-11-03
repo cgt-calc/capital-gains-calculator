@@ -13,6 +13,7 @@ import csv
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from fractions import Fraction
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -2577,3 +2578,146 @@ def test_another_broker_s_history_is_not_checked(tmp_path: Path) -> None:
     )
 
     assert "split row for" not in result.stderr
+
+
+# Schwab's Equity Awards export states a vest at the count after any later
+# split, and cgt-calc restates its sales the same way for the splits in its
+# table, so NVIDIA award shares are already at the new count with no split
+# row. The dates are ones tests/exchange_rates_data.csv lists a USD rate for,
+# because the award rows are in dollars.
+
+
+def _award_export(tmp_path: Path, rows: list[dict[str, object]]) -> str:
+    """Write a complete Equity Awards export holding these rows."""
+    path = tmp_path / "awards.json"
+    export = {"FromDate": "01/01/2024", "ToDate": "12/31/2024", "Transactions": rows}
+    path.write_text(json.dumps(export), encoding="utf-8")
+    return str(path)
+
+
+def _award_vest(date: str, symbol: str, shares: str, price: str) -> dict[str, object]:
+    """Build a vest of restricted stock, as the export states one."""
+    return {
+        "Date": date,
+        "Action": "Deposit",
+        "Symbol": symbol,
+        "Quantity": shares,
+        "Description": "RS",
+        "FeesAndCommissions": None,
+        "DisbursementElection": None,
+        "Amount": None,
+        "TransactionDetails": [
+            {
+                "Details": {
+                    "AwardDate": "03/12/2022",
+                    "AwardId": "000002",
+                    "VestDate": date,
+                    "VestFairMarketValue": price,
+                }
+            }
+        ],
+    }
+
+
+def test_award_shares_already_at_the_new_count_are_not_refused(
+    tmp_path: Path,
+) -> None:
+    """30 vested before the split and 1 bought after it make 31 shares.
+
+    The vest is stated at the new count, so no split row is needed for it
+    and none can be added: one restating the whole holding 10-for-1 would
+    make it 300 + 1 = 301.
+    """
+    awards = _award_export(
+        tmp_path, [_award_vest("06/03/2024", "NVDA", "30", "$115.00")]
+    )
+    cmd = _known_split_cmd(
+        tmp_path, LATER_TRADING212_PURCHASE, extra=("--schwab-award-file", awards)
+    )
+
+    result = run_cli(cmd)
+
+    assert "\n  NVDA: 31.00\n" in result.stdout, result.stdout
+
+
+def test_award_shares_of_a_split_their_parser_does_not_restate_are_checked(
+    tmp_path: Path,
+) -> None:
+    """Only the splits in the Equity Awards parser's own table stand aside.
+
+    It has no entry for Super Micro Computer, so its 30 award shares are
+    read at the count they were vested at and carried into 1 October.
+    """
+    awards = _award_export(
+        tmp_path, [_award_vest("07/31/2024", "SMCI", "30", "$60.00")]
+    )
+    rows = [
+        _deposit("2024-06-01 09:00:00"),
+        _trade(
+            "Market buy",
+            "2024-10-08 14:00:00",
+            "1",
+            "30.00",
+            ticker="SMCI",
+            isin=SMCI_ISIN_BEFORE,
+        ),
+    ]
+
+    stderr = _refusal(
+        _known_split_cmd(tmp_path, rows, extra=("--schwab-award-file", awards))
+    )
+
+    assert "ERROR: " + _missing("SMCI", "2024-10-01", "30") + "\n" in stderr
+
+
+def test_award_shares_sold_before_the_holding_emptied_exempt_nothing(
+    tmp_path: Path,
+) -> None:
+    """A holding that ended a day empty is rebuilt without the award source.
+
+    The award vests 30 NVDA on 1 May and sells them all on 2 May. Schwab
+    writes the sale at its own day's count, 3 at USD 860, which cgt-calc
+    restates as 30, so the whole holding ends 2 May empty. The 2 shares
+    Trading 212 buys on 3 May are then all of the holding carried into
+    10 June, and they need the split.
+    """
+    sale: dict[str, object] = {
+        "Date": "05/02/2024",
+        "Action": "Sale",
+        "Symbol": "NVDA",
+        "Quantity": "3",
+        "Description": "Share Sale",
+        "FeesAndCommissions": "$0.00",
+        "DisbursementElection": "Cash",
+        "Amount": "$2,580.00",
+        "TransactionDetails": [
+            {
+                "Details": {
+                    "Type": "RS",
+                    "Shares": "3",
+                    "SalePrice": "$860.00",
+                    "GrossProceeds": "$2,580.00",
+                    "VestDate": "05/01/2024",
+                    "VestFairMarketValue": "$850.00",
+                    "TotalCostBasis": "$2,550.00",
+                    "RealizedGainLoss": "$30.00",
+                    "DispositionType": "Short",
+                    "HoldingPeriod": "Short",
+                }
+            }
+        ],
+    }
+    awards = _award_export(
+        tmp_path, [_award_vest("05/01/2024", "NVDA", "30", "$85.00"), sale]
+    )
+    rows = [
+        _deposit("2024-05-01 09:00:00"),
+        _trade("Market buy", "2024-05-03 14:00:00", "2", "400.00"),
+        _trade("Market sell", "2024-06-12 14:00:00", "1", "88.00"),
+    ]
+
+    stderr = _refusal(
+        _known_split_cmd(tmp_path, rows, extra=("--schwab-award-file", awards))
+    )
+
+    assert "ERROR: " + _missing("NVDA", "2024-06-10", "2") + "\n" in stderr
