@@ -213,6 +213,12 @@ def test_interactive_prompt_uses_clear_spin_off_wording(
             id="ten holdings, all listed",
         ),
         pytest.param(
+            11,
+            "Available choices (first 10 of 11): AAA, BBB, CCC, DDD, EEE, FFF, "
+            "GGG, HHH, III, JJJ",
+            id="eleven holdings, ten listed",
+        ),
+        pytest.param(
             12,
             "Available choices (first 10 of 12): AAA, BBB, CCC, DDD, EEE, FFF, "
             "GGG, HHH, III, JJJ",
@@ -231,8 +237,9 @@ def test_a_ticker_not_held_lists_the_holdings_to_choose_from(
 
     They are comma-separated, at most ten. The holdings are AAA, BBB and so
     on, `held` of them, put in the portfolio in reverse so the listing has to
-    sort them. Ten fit the list whole. Of twelve, the first ten are AAA to JJJ;
-    KKK and LLL are left out, and the label says the ten shown are out of 12.
+    sort them. Ten fit the list whole. Eleven is the first count the cap cuts:
+    the first ten are AAA to JJJ, KKK is left out, and the label says the ten
+    shown are out of 11. Of twelve, KKK and LLL are left out, out of 12.
     """
     tickers = [letter * 3 for letter in "ABCDEFGHIJKL"[:held]]
     portfolio: dict[str, Position] = {
