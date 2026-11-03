@@ -297,7 +297,9 @@ class SchwabTransaction(BrokerTransaction):
             date = dt.datetime.strptime(date_str, "%m/%d/%Y").date()
         except ValueError as exc:
             raise ParsingError(
-                file, f"Invalid date format: {date_str} from row: {row_dict}"
+                file,
+                f"Invalid date format: {date_str!r}, expected MM/DD/YYYY, "
+                "e.g. '01/15/2023'",
             ) from exc
         # The date the export states. A vest priced from the award file is
         # re-dated to its vest, but the file's own date range and its row

@@ -390,11 +390,23 @@ def test_read_transactions_as_of_date() -> None:
     assert transactions[0].date == dt.date(2023, 1, 15)
 
 
-def test_read_transactions_invalid_date() -> None:
-    """Raise on unparsable dates."""
-    content = SCHWAB_HEADER + "2023-01-15,Credit Interest,,Interest,,,,$1.00\n"
-    with pytest.raises(ParsingError, match="Invalid date format"):
+@pytest.mark.parametrize(
+    ("cell", "date"),
+    [
+        pytest.param("2023-01-15", "2023-01-15", id="another format"),
+        # Only the date before " as of " is parsed, so only that is named.
+        pytest.param("13/45/2023 as of 01/12/2023", "13/45/2023", id="as of"),
+    ],
+)
+def test_read_transactions_invalid_date(cell: str, date: str) -> None:
+    """An unparsable date is quoted, with its row and the format Schwab writes."""
+    content = SCHWAB_HEADER + f"{cell},Credit Interest,,Interest,,,,$1.00\n"
+    with pytest.raises(ParsingError) as excinfo:
         _read(content)
+    assert str(excinfo.value) == (
+        f"While parsing transactions.csv, row 2: Invalid date format: '{date}', "
+        "expected MM/DD/YYYY, e.g. '01/15/2023'"
+    )
 
 
 def test_read_transactions_ninth_column_must_be_empty() -> None:
