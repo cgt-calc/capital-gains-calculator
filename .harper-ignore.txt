@@ -105,3 +105,8 @@
 ^schwab\.md:.*OneOfTheSingular
 # "a narrow and a wide screen" describes screen widths, not the widescreen format.
 ^contributing\.md:.*CompoundNouns.*widescreen
+# Super Micro Computer's CUSIPs either side of its split, in the comment on the
+# table of known splits; Harper splits each code and flags the end of it.
+^stock_split_planning\.py:.*`U(104|302)`
+# "Super Micro Computer" is the company's name, three words.
+^stock_split_planning\.py:.*MicroComputer
