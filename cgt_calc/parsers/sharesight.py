@@ -30,6 +30,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 STOCK_ACTIVITY_COMMENT_MARKER: Final[str] = "Stock Activity"
+INCOME_REPORT: Final[str] = "Taxable Income Report*.csv"
+TRADE_REPORT: Final[str] = "All Trades Report*.csv"
 LOGGER = logging.getLogger(__name__)
 
 
@@ -197,16 +199,24 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
 
     @classmethod
     @override
+    def file_path_filter(cls, file_path: Path) -> bool:
+        """Choose the two reports, so that no other CSV in the directory is read."""
+        return file_path.match(INCOME_REPORT, case_sensitive=False) or file_path.match(
+            TRADE_REPORT, case_sensitive=False
+        )
+
+    @classmethod
+    @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[SharesightTransaction]:
         """Parse Sharesight transactions from reports."""
-        if file_path.match("Taxable Income Report*.csv", case_sensitive=False):
+        if file_path.match(INCOME_REPORT, case_sensitive=False):
             return list(cls._parse_income_report(file, file_path))
 
-        if file_path.match("All Trades Report*.csv", case_sensitive=False):
+        if file_path.match(TRADE_REPORT, case_sensitive=False):
             return list(cls._parse_trade_report(file, file_path))
-        return []
+        raise AssertionError(f"file_path_filter let through {file_path}")
 
     @classmethod
     @override

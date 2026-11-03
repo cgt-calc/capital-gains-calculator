@@ -456,8 +456,12 @@ def test_parse_income_report_section_without_rows(tmp_path: Path) -> None:
 
 
 def test_unknown_report_is_ignored(tmp_path: Path) -> None:
-    """Ignore CSV files that are not Sharesight reports."""
-    _write_csv(tmp_path / "Some Other Report.csv", [["Header"], ["Data"]])
+    """Ignore CSV files that are not Sharesight reports, without reading them.
+
+    The file is UTF-16, which the reports never are and which stops a run
+    when a report is in it, so reading it at all would fail the test.
+    """
+    (tmp_path / "Some Other Report.csv").write_bytes("Header\nData\n".encode("utf-16"))
 
     assert SharesightParser().load_from_dir(tmp_path) == []
 
