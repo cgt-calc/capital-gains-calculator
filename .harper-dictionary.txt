@@ -191,6 +191,8 @@ navPrice
 nixpkgs
 nonblank
 noqa
+NUL
+NULs
 num
 NVD
 NVDA
