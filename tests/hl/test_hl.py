@@ -277,7 +277,10 @@ def test_a_row_whose_value_is_not_under_its_heading_is_refused(
 def test_a_row_with_a_cell_under_each_heading_loads(
     tmp_path: Path, content: str
 ) -> None:
-    """Read the value from a row that has all 7 cells, whatever follows them."""
+    """Read the value from a row of 7 cells, with or without an empty cell after them.
+
+    A cell of spaces counts as empty.
+    """
     csv_file = tmp_path / "hl-transaction-summary.csv"
     csv_file.write_text(content, encoding="windows-1252")
 
