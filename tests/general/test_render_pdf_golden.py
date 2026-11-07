@@ -1,11 +1,13 @@
 """The text of the PDF report is pinned exactly.
 
-`test_run_with_example_files` pins the text of the example run's PDF. Every
-branch of `template.typ.j2` that run does not reach is rendered here from a
-small scenario, and the PDF's text, as pdfplumber extracts it, is compared
-with a golden file under `data/report_text/`. Together they are the standard
-for template changes: one that is not a deliberate wording change must leave
-every golden untouched.
+`test_run_with_example_files` pins the text of the example run's PDF. The
+small scenarios here render the rest of `template.typ.j2`, and the PDF's text,
+as pdfplumber extracts it, is compared with a golden file under
+`data/report_text/`. Between them they print every branch of the template
+that prints text, except the singular "contract" of a one-contract option
+grant, which `tests/schwab/test_schwab_options.py` asserts. They are the
+standard for template changes: one that is not a deliberate wording change
+must leave every golden untouched.
 
 The goldens pin words, line breaks and each page's text, not vertical space,
 so a lost paragraph break that leaves the line breaks alone needs its own
@@ -20,6 +22,7 @@ intended:
 from __future__ import annotations
 
 import datetime as dt
+from decimal import Decimal
 from fractions import Fraction
 from pathlib import Path
 import tempfile
@@ -28,6 +31,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from cgt_calc.model import ActionType, Isin
+from cgt_calc.parsers.eri.model import ERITransaction
 from cgt_calc.render_pdf import render_pdf
 from tests.schwab.test_schwab_options import _report as schwab_report
 from tests.utils import pdf_text
@@ -59,6 +63,8 @@ JUNE_12 = dt.date(2024, 6, 12)
 JUNE_13 = dt.date(2024, 6, 13)
 JULY_3 = dt.date(2024, 7, 3)
 US_ISIN = Isin("US9220427424")
+# Not in any data cgt-calc ships, so only the scenario's own ERI row applies.
+FUND_ISIN = Isin("USFOO0000006")
 
 
 def _gifts() -> CapitalGainsReport:
@@ -107,6 +113,29 @@ def _exempt() -> CapitalGainsReport:
     )
 
 
+def _exempt_with_fees() -> CapitalGainsReport:
+    """Sell a whole CGT-exempt holding with a sale fee.
+
+    100 T26 bought for £10,000 are sold at £120, £12,000, less a £10 fee. The
+    heading values them at £12,000 (£120.00/unit) and names the £10 expenses;
+    the illustrative cost is £10,000 + £10 = £10,010, so the disregarded gain is
+    £12,000 - £10,010 = £1,990.
+    """
+    return get_report(
+        create_calculator(
+            tax_year=2024, balance_check=False, cgt_exempt_tickers=["T26"]
+        ),
+        [
+            transaction(
+                dt.date(2024, 5, 1), ActionType.BUY, "T26", 100, 100, 0, -10000, GBP
+            ),
+            transaction(
+                dt.date(2024, 9, 1), ActionType.SELL, "T26", 100, 120, 10, 11990, GBP
+            ),
+        ],
+    )
+
+
 def _option_grant() -> CapitalGainsReport:
     """Write two option contracts that expire, as Schwab exports them."""
     return schwab_report(
@@ -140,6 +169,57 @@ def _rename() -> CapitalGainsReport:
             _gbp_trade(RENAME_DAY, ActionType.SELL, "OLD", 100, 800),
             _rename_transaction(RENAME_DAY, "OLD", "NEW"),
             _gbp_trade(dt.date(2024, 5, 20), ActionType.BUY, "NEW", 100, 900),
+        ],
+    )
+
+
+def _rename_with_units() -> CapitalGainsReport:
+    """Rename a holding still held: its 100 units carry their £1,000 pool cost across."""
+    return get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            transaction(JUNE_1, ActionType.BUY, "OLD", 100, 10, 0, -1000, GBP),
+            _rename_transaction(JUNE_10, "OLD", "NEW"),
+        ],
+    )
+
+
+def _interest_fund() -> CapitalGainsReport:
+    """Hold a fund named in --interest-fund-tickers that pays and reports income.
+
+    100 BND bought at £10 pay a £50 dividend, which counts as interest. The fund
+    then reports £0.50 a unit of excess income on 30 June 2024: £50 on 100
+    units, added to the pool (£1,000 + £50 = £1,050, £10.50 a unit) and treated
+    as distributed six months later, on 30 December 2024, also as interest.
+    Foreign interest is £50 + £50 = £100, of which £50 is the excess income.
+    """
+    calculator = create_calculator(
+        tax_year=2024, balance_check=False, interest_fund_tickers=["BND"]
+    )
+    calculator.isin_converter.data[FUND_ISIN] = {"BND"}
+    return get_report(
+        calculator,
+        [
+            transaction(
+                JUNE_1, ActionType.BUY, "BND", 100, 10, 0, -1000, GBP, isin=FUND_ISIN
+            ),
+            transaction(
+                JUNE_3,
+                ActionType.DIVIDEND,
+                "BND",
+                None,
+                None,
+                0,
+                50,
+                GBP,
+                isin=FUND_ISIN,
+            ),
+            ERITransaction(
+                date=dt.date(2024, 6, 30),
+                isin=FUND_ISIN,
+                price=Decimal("0.5"),
+                currency=GBP,
+            ),
         ],
     )
 
@@ -257,6 +337,16 @@ SCENARIOS: dict[str, tuple[Callable[[], CapitalGainsReport], list[str]]] = {
             "Number of exempt disposals",
         ],
     ),
+    "exempt_with_fees": (
+        _exempt_with_fees,
+        [
+            (
+                "valued at £12,000.00 (£120.00/unit), £10.00 disposal expenses "
+                "included in the illustrative calculation"
+            ),
+            "calculation: £10,010.00, disregarded gain: £1,990.00.",
+        ],
+    ),
     "option_grant": (
         _option_grant,
         ["grant of 2", "contracts of the", "does not change the Section 104 holding"],
@@ -268,6 +358,25 @@ SCENARIOS: dict[str, tuple[Callable[[], CapitalGainsReport], list[str]]] = {
     "rename": (
         _rename,
         ["was renamed to", "BED AND BREAKFAST"],
+    ),
+    "rename_with_units": (
+        _rename_with_units,
+        ["OLD was renamed to NEW: 100 units with pool cost £1,000.00 transferred"],
+    ),
+    "interest_fund": (
+        _interest_fund,
+        [
+            "Dividend 1: BND (interest) for £50.00",
+            (
+                "Excess Reported Income Distribution 1: BND (interest) for £50.00 "
+                "(£0.5000/unit)"
+            ),
+            "cost increased by £50.00",
+            (
+                "Total amount of foreign interests proceeds: £100.00 (including "
+                "£50.00 from excess reported income distributions)"
+            ),
+        ],
     ),
     "spouse_transfer": (
         _spouse_transfer,

@@ -245,6 +245,7 @@ def test_a_name_prints_on_one_line_and_composed(
         pytest.param("A\x00B", "U+0000", id="control character"),
         pytest.param("A\u00adB", "U+00AD", id="soft hyphen"),
         pytest.param("\u0410\u0483", "U+0483", id="combining mark"),
+        pytest.param("\u0410\u0488", "U+0488", id="enclosing mark"),
         pytest.param("A\u1f00B", "U+1F00", id="Greek Extended"),
         pytest.param(
             "A\u2329B", "U+3008, after Unicode normalisation", id="angle bracket"
@@ -258,8 +259,9 @@ def test_a_name_outside_the_verified_set_stops_the_pdf(
 
     The soft hyphen printed (invisibly) in the LaTeX report and Greek Extended
     letters may well be in a font, but neither is in the verified set. The
-    Cyrillic titlo U+0483 sits inside the Cyrillic range but is a combining
-    mark, which the set leaves out. NFC turns U+2329 into the CJK bracket
+    Cyrillic titlo U+0483 (a combining mark) and the Cyrillic hundred thousands
+    sign U+0488 (an enclosing mark) sit inside the Cyrillic range, but the set
+    leaves out both kinds of mark. NFC turns U+2329 into the CJK bracket
     U+3008, which the fonts lack.
     """
     report = name_report(name)

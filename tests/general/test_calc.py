@@ -126,6 +126,7 @@ def create_calculator(
     balance_check: bool = True,
     cgt_exempt_tickers: list[str] | None = None,
     gifts_to_spouse: bool = False,
+    interest_fund_tickers: list[str] | None = None,
 ) -> CapitalGainsCalculator:
     """Create a calculator with standard test configuration.
 
@@ -145,7 +146,7 @@ def create_calculator(
         price_fetcher,
         SpinOffHandler(),
         SharePrices(),
-        interest_fund_tickers=[],
+        interest_fund_tickers=interest_fund_tickers or [],
         cgt_exempt_tickers=cgt_exempt_tickers,
         balance_check=balance_check,
         gifts_to_spouse=gifts_to_spouse,
