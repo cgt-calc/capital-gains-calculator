@@ -13,7 +13,6 @@ Interest and Dividends Events
 03 June 2024
 Dividend 1: BAR for £100.00 (tax paid at source: £15.00), tax treaty amount: £15.00 (treaty
 rate for USA: 15.00%)
-02 July 2024
 Interest UK 1: Testing for £3.00
 03 July 2024
 Interest tax UK 1: GBP for £2.00

@@ -4,7 +4,7 @@
 
 - **Python 3.12** or newer (tested on 3.12, 3.13, and 3.14)
 
-cgt-calc creates the PDF report itself. You do not need LaTeX or any other program.
+cgt-calc creates the PDF report itself. You do not need LaTeX or any other program to create it.
 
 ## Install cgt-calc
 

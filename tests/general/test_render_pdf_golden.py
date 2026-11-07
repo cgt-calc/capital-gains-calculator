@@ -57,7 +57,6 @@ JUNE_10 = dt.date(2024, 6, 10)
 JUNE_11 = dt.date(2024, 6, 11)
 JUNE_12 = dt.date(2024, 6, 12)
 JUNE_13 = dt.date(2024, 6, 13)
-JULY_2 = dt.date(2024, 7, 2)
 JULY_3 = dt.date(2024, 7, 3)
 US_ISIN = Isin("US9220427424")
 
@@ -169,7 +168,12 @@ def _spin_off() -> CapitalGainsReport:
 
 
 def _fee_and_income() -> CapitalGainsReport:
-    """Add a cost with no new shares, pay UK interest and its tax, and a dividend with treaty relief."""
+    """Add a cost with no new shares, pay UK interest and its tax, and a dividend with treaty relief.
+
+    The interest is paid on the dividend's day, so the golden shows that two
+    income events on one day stay separate paragraphs: the dividend's line ends
+    in a template tag, whose line break trim_blocks removes.
+    """
     return get_report(
         create_calculator(tax_year=2024, balance_check=False),
         [
@@ -197,7 +201,7 @@ def _fee_and_income() -> CapitalGainsReport:
                 GBP,
                 isin=US_ISIN,
             ),
-            transaction(JULY_2, ActionType.INTEREST, None, None, None, 0, 3, GBP),
+            transaction(JUNE_3, ActionType.INTEREST, None, None, None, 0, 3, GBP),
             transaction(JULY_3, ActionType.INTEREST_TAX, None, None, None, 0, -2, GBP),
         ],
     )

@@ -179,7 +179,10 @@ def test_lines_add_up_to_their_heading_and_the_total(tmp_path: Path) -> None:
         "A @B",
         "A <B> C",
         "A `B` C",
-        "A\\B",
+        "A\\nB",
+        "A\\",
+        "A[B",
+        "A]B",
         'A "B" C',
         "A 'B' C",
         "A // B",
@@ -194,11 +197,12 @@ def test_a_name_prints_as_written(tmp_path: Path, name: str) -> None:
 
     Read as markup, `*80%*` and `_B_` would turn bold or italic and lose their
     marks, `#1` would be code printing 1, `$B$` maths, `@B` a reference to a
-    missing label and `<B>` a label, `` `B` `` code text, `\B` an escaped B,
-    the quotes would curl, `//` would start a comment that drops the rest of
-    the line, cost included, `/*` an unclosed comment, `--` and `...` a dash
-    and an ellipsis, and `~` a no-break space. `\` and `"` are the two the
-    string literal escapes.
+    missing label and `<B>` a label, `` `B` `` code text, a lone `[` or `]`
+    would open or close a block, the quotes would curl, `//` would start a
+    comment that drops the rest of the line, cost included, `/*` an unclosed
+    comment, `--` and `...` a dash and an ellipsis, and `~` a no-break space.
+    `\` and `"` are the two the string literal escapes: unescaped, `\n` would
+    become a line break and a final `\` would swallow the closing quote.
     """
     text = report_text(name_report(name), tmp_path)
 
@@ -240,6 +244,7 @@ def test_a_name_prints_on_one_line_and_composed(
         pytest.param("\u817e\u8baf", "U+817E, U+8BAF", id="CJK"),
         pytest.param("A\x00B", "U+0000", id="control character"),
         pytest.param("A\u00adB", "U+00AD", id="soft hyphen"),
+        pytest.param("\u0410\u0483", "U+0483", id="combining mark"),
         pytest.param("A\u1f00B", "U+1F00", id="Greek Extended"),
         pytest.param(
             "A\u2329B", "U+3008, after Unicode normalisation", id="angle bracket"
@@ -252,8 +257,10 @@ def test_a_name_outside_the_verified_set_stops_the_pdf(
     """A character the report's fonts are not checked to show is refused.
 
     The soft hyphen printed (invisibly) in the LaTeX report and Greek Extended
-    letters may well be in a font, but neither is in the verified set. NFC
-    turns U+2329 into the CJK bracket U+3008, which the fonts lack.
+    letters may well be in a font, but neither is in the verified set. The
+    Cyrillic titlo U+0483 sits inside the Cyrillic range but is a combining
+    mark, which the set leaves out. NFC turns U+2329 into the CJK bracket
+    U+3008, which the fonts lack.
     """
     report = name_report(name)
 

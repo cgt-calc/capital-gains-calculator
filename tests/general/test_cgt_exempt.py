@@ -289,20 +289,20 @@ def test_pdf_report_rendering_exempt_disposal(tmp_path: Path) -> None:
     )
     report = get_report(calc, transactions)
 
-    source_flat = report_text(report, tmp_path)
+    text = report_text(report, tmp_path)
 
     # Check per-disposal subsection
-    assert "Exempt disposal: 100 units of T26 valued at £12,000" in source_flat
-    assert "the gain or loss is disregarded" in source_flat
+    assert "Exempt disposal: 100 units of T26 valued at £12,000" in text
+    assert "the gain or loss is disregarded" in text
     # The cost label carries its colon like the chargeable branch does: no
     # stray space in front of it.
-    assert "cost used for this illustrative calculation: £10,000" in source_flat
-    assert "not allowable deductions against other gains" in source_flat
+    assert "cost used for this illustrative calculation: £10,000" in text
+    assert "not allowable deductions against other gains" in text
 
     # Check Overall section line
-    assert "Number of exempt disposals: 1" in source_flat
-    assert "Total exempt disposal proceeds: £12,000" in source_flat
-    assert "Number of disposals: 0" in source_flat
+    assert "Number of exempt disposals: 1" in text
+    assert "Total exempt disposal proceeds: £12,000" in text
+    assert "Number of disposals: 0" in text
 
 
 def test_pdf_report_rendering_exempt_bed_and_breakfast(tmp_path: Path) -> None:
@@ -318,12 +318,9 @@ def test_pdf_report_rendering_exempt_bed_and_breakfast(tmp_path: Path) -> None:
     )
     report = get_report(calc, transactions)
 
-    source_flat = report_text(report, tmp_path)
+    text = report_text(report, tmp_path)
 
-    assert (
-        "cost used for this illustrative calculation on 11 Sep 2024: £11,000"
-        in source_flat
-    )
+    assert "cost used for this illustrative calculation on 11 Sep 2024: £11,000" in text
 
 
 def test_pdf_reports_exempt_gift_with_neutral_valuation_wording(
@@ -344,8 +341,8 @@ def test_pdf_reports_exempt_gift_with_neutral_valuation_wording(
 
     assert "exempt$T26" in report.calculation_log[gift_date]
     assert "Gifts at market value" not in render_text(report)
-    source_flat = report_text(report, tmp_path)
-    assert "Exempt disposal: 100 units of T26 valued at £8,000.00" in source_flat
+    text = report_text(report, tmp_path)
+    assert "Exempt disposal: 100 units of T26 valued at £8,000.00" in text
 
 
 def test_run_with_exempt_tickers(

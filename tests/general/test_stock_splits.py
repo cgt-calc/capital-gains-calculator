@@ -911,12 +911,12 @@ def test_the_report_shows_a_reorganisation_rather_than_a_free_purchase(
             ),
         ],
     )
-    source = report_text(report, tmp_path)
+    text = report_text(report, tmp_path)
 
-    assert "Share reorganisation" in source
-    assert "ratio 1/9" in source
-    assert strip_zeros(Decimal("-1.1E-9")) in source
-    assert "0.1111111100"[:10] in source
+    assert "Share reorganisation" in text
+    assert "ratio 1/9" in text
+    assert strip_zeros(Decimal("-1.1E-9")) in text
+    assert "0.1111111100"[:10] in text
 
 
 def test_normalisation_leaves_the_exported_row_alone() -> None:
@@ -1105,9 +1105,9 @@ def test_a_substituted_holding_says_so_in_the_report(tmp_path: Path) -> None:
     assert entry.stock_split.ratio_description == (
         "unresolved — broker 0.0001 -> 0.00000667 used directly"
     )
-    source = report_text(report, tmp_path)
+    text = report_text(report, tmp_path)
     # LaTeX needed the arrow spelt out; the PDF prints it as typed.
-    assert "unresolved — broker 0.0001 -> 0.00000667 used directly" in source
+    assert "unresolved — broker 0.0001 -> 0.00000667 used directly" in text
 
 
 def _event(**overrides: object) -> StockSplitEvent:
