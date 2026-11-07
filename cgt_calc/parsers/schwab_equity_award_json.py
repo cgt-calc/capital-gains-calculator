@@ -1013,19 +1013,6 @@ class SchwabAwardTransaction(BrokerTransaction):
         self.acquired_nothing = False
         action = action_from_str(self.raw_action, file)
         symbol = row.get(names.symbol)
-        if symbol not in SPLITS:
-            LOGGER.warning(
-                "The Schwab Equity Awards parser was only tested for the "
-                "stocks whose splits it knows (%s), but found symbol '%s'. "
-                "Everything else is parsed as usual; what is not applied is "
-                "stock split normalization, which this parser only knows for "
-                "the symbols above. If '%s' has split since the earliest "
-                "transaction here, check the share counts against a broker "
-                "statement before filing.",
-                ", ".join(sorted(SPLITS)),
-                symbol,
-                symbol,
-            )
         quantity = _row_decimal(row, names.quantity, names, self.raw_action, file)
         amount = _row_decimal(row, names.amount, names, self.raw_action, file)
         fees = _row_decimal(row, names.fees, names, self.raw_action, file)
@@ -1683,6 +1670,21 @@ class SchwabEquityAwardsParser(BaseSingleFileParser[SchwabAwardTransaction]):
             # credit relief.
             if transac[fields.action] not in DISCARDED_ACTIONS
         ]
+
+        # Once per symbol, not per row. A row with no symbol, such as a cash
+        # transfer, has no holding whose counts could be checked.
+        for symbol in dict.fromkeys(transaction.symbol for transaction in transactions):
+            if symbol and symbol not in SPLITS:
+                LOGGER.warning(
+                    "cgt-calc corrects Schwab Equity Awards share counts for "
+                    "splits only for %s, so the counts for %s are used as the "
+                    "export states them. If %s has split since its first "
+                    "transaction in the export, check those counts against a "
+                    "Schwab statement before filing.",
+                    ", ".join(sorted(SPLITS)),
+                    symbol,
+                    symbol,
+                )
 
         # A purchase whose every share went to tax acquired nothing, so it is
         # not offered as an acquisition of zero, which the calculator rightly

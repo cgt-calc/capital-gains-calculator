@@ -128,7 +128,12 @@ def _summary_rows(
         capital += tax_rows
         capital_notes += tax_notes
     else:
-        capital_notes.append("WARNING: Missing allowance for this tax year")
+        capital_notes.append(
+            "WARNING: cgt-calc does not know the annual exempt amount for "
+            f"{report.tax_year}/{report.tax_year + 1}, so Taxable gain and any tax "
+            "estimate are left out. Update cgt-calc, or take the amount from "
+            "GOV.UK and work out the taxable gain yourself."
+        )
     if report.show_unrealized_gains:
         capital.append(("Unrealized gains", _pounds(report.total_unrealized_gains())))
         if any(h.unrealized_gains is None for h in report.portfolio):

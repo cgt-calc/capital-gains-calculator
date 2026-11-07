@@ -295,10 +295,36 @@ def _read_json(
     return parser.read_transactions(io.StringIO(content), Path("awards.json"))
 
 
-def test_unknown_symbol_warns(caplog: pytest.LogCaptureFixture) -> None:
-    """Warn about symbols without known split history."""
+def test_unknown_symbol_warns_once(caplog: pytest.LogCaptureFixture) -> None:
+    """Warn once per symbol without known split history, not once per row.
+
+    ZZZ and YYY each have two rows and each warn once, in the order they
+    first appear. The cash rows name no symbol, whether as null or blank, so
+    they hold nothing whose share counts could be checked and do not warn.
+    """
     content = (
-        '{"Transactions": [{"Date": "01/15/2023", "Action": "Dividend",'
+        '{"Transactions": ['
+        '{"Date": "02/15/2023", "Action": "Dividend",'
+        ' "Symbol": "ZZZ", "Description": "Div", "Quantity": null,'
+        ' "Amount": "$12.00", "FeesAndCommissions": null,'
+        ' "TransactionDetails": []},'
+        '{"Date": "02/10/2023", "Action": "Dividend",'
+        ' "Symbol": "YYY", "Description": "Div", "Quantity": null,'
+        ' "Amount": "$7.00", "FeesAndCommissions": null,'
+        ' "TransactionDetails": []},'
+        '{"Date": "01/25/2023", "Action": "Dividend",'
+        ' "Symbol": "YYY", "Description": "Div", "Quantity": null,'
+        ' "Amount": "$6.00", "FeesAndCommissions": null,'
+        ' "TransactionDetails": []},'
+        '{"Date": "01/20/2023", "Action": "MoneyLink Transfer",'
+        ' "Symbol": null, "Description": "Out", "Quantity": null,'
+        ' "Amount": "-$5.00", "FeesAndCommissions": null,'
+        ' "TransactionDetails": []},'
+        '{"Date": "01/18/2023", "Action": "Wire Funds",'
+        ' "Symbol": "", "Description": "Out", "Quantity": null,'
+        ' "Amount": "-$3.00", "FeesAndCommissions": null,'
+        ' "TransactionDetails": []},'
+        '{"Date": "01/15/2023", "Action": "Dividend",'
         ' "Symbol": "ZZZ", "Description": "Div", "Quantity": null,'
         ' "Amount": "$10.00", "FeesAndCommissions": null,'
         ' "TransactionDetails": []}]}'
@@ -307,9 +333,16 @@ def test_unknown_symbol_warns(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING):
         transactions = _read_json(content)
 
-    assert "check the share counts" in caplog.text
+    warning = (
+        "cgt-calc corrects Schwab Equity Awards share counts for splits only for "
+        "GOOG, GOOGL, NVDA, so the counts for {0} are used as the export states "
+        "them. If {0} has split since its first transaction in the export, check "
+        "those counts against a Schwab statement before filing."
+    )
+    assert caplog.messages == [warning.format("ZZZ"), warning.format("YYY")]
     assert transactions[0].action == ActionType.DIVIDEND
     assert transactions[0].amount == Decimal(10)
+    assert len(transactions) == 6
 
 
 def test_forced_disbursement_parses_as_transfer() -> None:
