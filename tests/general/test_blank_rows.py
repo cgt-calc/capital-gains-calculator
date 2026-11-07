@@ -144,7 +144,11 @@ TRADING_212 = Export(
 )
 SHARED_READER = [REVOLUT, MORGAN_STANLEY, HARGREAVES_LANSDOWN, INTERACTIVE_BROKERS]
 EXPORTS = [*SHARED_READER, TRADING_212]
-EXPORT_IDS = ["Revolut", "Morgan Stanley", "HL", "IBKR", "Trading 212"]
+
+
+def _export_id(export: Export) -> str:
+    """Name each test case after the broker it reads."""
+    return export.name
 
 
 def _blank_rows(width: int) -> dict[str, str]:
@@ -171,7 +175,7 @@ def _read(export: Export, path: Path) -> list[tuple[int | None, Decimal | None]]
 
 
 @pytest.mark.parametrize("shape", BLANK_SHAPES)
-@pytest.mark.parametrize("export", EXPORTS, ids=EXPORT_IDS)
+@pytest.mark.parametrize("export", EXPORTS, ids=_export_id)
 def test_a_blank_row_between_two_rows_is_skipped(
     tmp_path: Path, export: Export, shape: str
 ) -> None:
@@ -185,7 +189,7 @@ def test_a_blank_row_between_two_rows_is_skipped(
     assert _read(export, path) == [(2, export.amounts[0]), (4, export.amounts[1])]
 
 
-@pytest.mark.parametrize("export", EXPORTS, ids=EXPORT_IDS)
+@pytest.mark.parametrize("export", EXPORTS, ids=_export_id)
 def test_blank_rows_at_the_end_of_the_file_are_skipped(
     tmp_path: Path, export: Export
 ) -> None:
@@ -213,7 +217,7 @@ def test_blank_rows_at_the_end_of_the_file_are_skipped(
         pytest.param(lambda width: "," * width + "x", id="commas, then a value"),
     ],
 )
-@pytest.mark.parametrize("export", EXPORTS, ids=EXPORT_IDS)
+@pytest.mark.parametrize("export", EXPORTS, ids=_export_id)
 def test_a_row_too_wide_with_a_value_in_it_is_still_refused(
     tmp_path: Path, export: Export, row: Callable[[int], str]
 ) -> None:
@@ -231,7 +235,7 @@ def test_a_row_too_wide_with_a_value_in_it_is_still_refused(
     assert excinfo.value.row_index == 3
 
 
-@pytest.mark.parametrize("export", SHARED_READER, ids=EXPORT_IDS[:4])
+@pytest.mark.parametrize("export", SHARED_READER, ids=_export_id)
 def test_a_header_over_only_a_row_of_commas_loads_no_transactions(
     tmp_path: Path, export: Export, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -249,7 +253,7 @@ def test_a_header_over_only_a_row_of_commas_loads_no_transactions(
     assert f"No transactions detected in file {path}" in caplog.text
 
 
-@pytest.mark.parametrize("export", SHARED_READER, ids=EXPORT_IDS[:4])
+@pytest.mark.parametrize("export", SHARED_READER, ids=_export_id)
 def test_a_header_over_only_empty_lines_is_an_empty_file(
     tmp_path: Path, export: Export
 ) -> None:
