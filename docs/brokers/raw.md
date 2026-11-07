@@ -67,6 +67,10 @@ received and negative for money paid. A £250 deposit and a £40 withdrawal look
 2024-03-14,TRANSFER,,1,-40.00,0.00,GBP
 ```
 
+A positive amount on a `DIVIDEND_TAX` or `INTEREST_TAX` row is refused; enter tax still withheld as
+a negative `price`. If part of the tax for that payment was refunded, enter only the amount still
+withheld.
+
 Do not leave `quantity` or `price` blank. On a row that moves cash, such as a trade, dividend,
 deposit or withdrawal, cgt-calc then has no amount to apply and stops with `Amount missing`.
 

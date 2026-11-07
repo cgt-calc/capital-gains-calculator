@@ -15,10 +15,11 @@ import sys
 import pytest
 
 from cgt_calc.args_validators import STDIN_PATH
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import AmountMissingError, ParsingError
 from cgt_calc.logging import force_utf8_stdio
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.raw import COLUMNS, RawParser
+from tests.general.test_calc import create_calculator
 from tests.utils import (
     assert_stdout_matches,
     build_cmd,
@@ -368,6 +369,79 @@ def test_read_raw_transactions_negative_fees(tmp_path: Path) -> None:
     assert "Fees cannot be negative. Enter the fees you paid as a positive number." in (
         message
     )
+
+
+@pytest.mark.parametrize(
+    ("action", "symbol", "quantity", "price"),
+    [
+        ("DIVIDEND_TAX", "XYZ", "1", "5.00"),
+        ("INTEREST_TAX", "", "1", "5.00"),
+        ("DIVIDEND_TAX", "XYZ", "-1", "-5.00"),
+    ],
+    ids=["dividend tax", "interest tax", "negative quantity and price"],
+)
+def test_read_raw_transactions_refuses_positive_tax(
+    tmp_path: Path, action: str, symbol: str, quantity: str, price: str
+) -> None:
+    """Refuse tax with a positive amount, a sign typed the wrong way round.
+
+    If accepted, 1 x 5.00 would be reported as 5.00 of negative tax paid and
+    added to the cash balance instead of taken from it. The amount is what
+    is checked: -1 x -5.00 - 0.00 is 5.00 too, though the price is negative.
+    """
+    raw_file = tmp_path / "raw_positive_tax.csv"
+    rows = [COLUMNS, ["2024-06-15", action, symbol, quantity, price, "0.00", "USD"]]
+    _write_csv(raw_file, rows)
+
+    with pytest.raises(ParsingError) as exc:
+        RawParser().load_from_file(raw_file)
+
+    message = str(exc.value)
+    assert "row 2" in message
+    assert (
+        f"{action} cannot be positive. Enter the tax deducted as a negative "
+        "price; if some of it was refunded, enter only the part that was not."
+    ) in message
+
+
+@pytest.mark.parametrize(
+    ("action", "symbol", "quantity", "price", "amount"),
+    [
+        ("DIVIDEND_TAX", "XYZ", "-1", "5.00", "-5.00"),
+        ("INTEREST_TAX", "", "1", "0.00", "0"),
+    ],
+    ids=["negative quantity", "zero"],
+)
+def test_read_raw_transactions_accepts_tax_that_is_not_positive(
+    tmp_path: Path, action: str, symbol: str, quantity: str, price: str, amount: str
+) -> None:
+    """Accept tax whose amount is not positive, whatever the sign of its price.
+
+    The amount is quantity x price - fees: -1 x 5.00 - 0.00 is -5.00, the
+    same deduction as 1 x -5.00. Tax of nothing, 1 x 0.00, is not positive.
+    """
+    raw_file = tmp_path / "raw_tax.csv"
+    rows = [COLUMNS, ["2024-06-15", action, symbol, quantity, price, "0.00", "USD"]]
+    _write_csv(raw_file, rows)
+
+    transactions = RawParser().load_from_file(raw_file)
+
+    assert [transaction.amount for transaction in transactions] == [Decimal(amount)]
+
+
+def test_a_raw_tax_row_with_no_price_stops_as_amount_missing(tmp_path: Path) -> None:
+    """A tax row with a blank price has no amount to check the sign of.
+
+    It stops with the error any other row without an amount gives, which the
+    guide names, rather than failing inside the sign check.
+    """
+    raw_file = tmp_path / "raw_tax_no_price.csv"
+    rows = [COLUMNS, ["2024-06-15", "INTEREST_TAX", "", "1", "", "0.00", "GBP"]]
+    _write_csv(raw_file, rows)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    with pytest.raises(AmountMissingError, match=r"^Amount missing\.\n"):
+        calculator.prepare_history(list(RawParser().load_from_file(raw_file)))
 
 
 @pytest.mark.parametrize(
