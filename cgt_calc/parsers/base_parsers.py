@@ -30,6 +30,7 @@ from cgt_calc.exceptions import (
 from cgt_calc.logging import parsing_msg
 from cgt_calc.model import BrokerTransaction, TransactionSource
 from cgt_calc.ticker_renames import ambiguity, current_ticker
+from cgt_calc.util import is_blank_row
 
 if TYPE_CHECKING:
     import datetime as dt
@@ -441,10 +442,22 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
         transactions: list[T] = []
         saw_row = False
         for row in reader:
+            # Set before the blank check, so a header over rows of only commas
+            # or spaces loads no transactions, with the warning for that,
+            # rather than being refused as an empty file.
             saw_row = True
             # Counted from the lines the reader has taken, not from the rows
             # it has given: it skips an empty line without giving a row.
             index = header_row + reader.line_num - 1
+            # The fields past the header arrive as one list under the restkey.
+            # Spread them back out so the row is checked, counted and printed
+            # as the file states it.
+            stated = [value for key, value in row.items() if key is not None]
+            cells = [*stated, *row.get(None, [])]
+            # A row with nothing in any cell is a cleared spreadsheet row or a
+            # stray line, not a transaction, however many commas it has.
+            if is_blank_row(cells):
+                continue
             try:
                 # A row with MORE fields than the header collects the extras
                 # under DictReader's `None` key (`restkey`), which changes
@@ -459,12 +472,8 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                 # trying to parse a `None` field, and reported with row
                 # context rather than as an unhandled traceback.
                 if len(row) != expected_col_count:
-                    # The fields past the header arrive as one list under the
-                    # restkey. Spread them back out so the row is counted and
-                    # printed as the file states it.
-                    stated = [value for key, value in row.items() if key is not None]
                     raise UnexpectedColumnCountError(
-                        [*stated, *row.get(None, [])], expected_col_count, file_path
+                        cells, expected_col_count, file_path
                     )
                 transaction = cls.read_row(row, file_path)
                 if transaction:
