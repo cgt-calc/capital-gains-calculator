@@ -114,12 +114,15 @@ def _exempt() -> CapitalGainsReport:
 
 
 def _exempt_with_fees() -> CapitalGainsReport:
-    """Sell a whole CGT-exempt holding with a sale fee.
+    """Sell a CGT-exempt holding with a sale fee, half of it bought back within 30 days.
 
-    100 T26 bought for £10,000 are sold at £120, £12,000, less a £10 fee. The
-    heading values them at £12,000 (£120.00/unit) and names the £10 expenses;
-    the illustrative cost is £10,000 + £10 = £10,010, so the disregarded gain is
-    £12,000 - £10,010 = £1,990.
+    100 T26 bought for £10,000 are sold at £120, £12,000, less a £10 fee; 50 are
+    bought back ten days later for £5,500. The heading values the sale at
+    £12,000 (£120.00/unit) and names the £10 expenses. The sale splits into two
+    lines, each with half the proceeds (£6,000) and half the fee (£5):
+    bed and breakfast against the repurchase, cost £5,500 + £5 = £5,505, gain
+    £495; Section 104, cost £5,000 + £5 = £5,005, gain £995. The disregarded
+    gain is £495 + £995 = £1,490.
     """
     return get_report(
         create_calculator(
@@ -131,6 +134,9 @@ def _exempt_with_fees() -> CapitalGainsReport:
             ),
             transaction(
                 dt.date(2024, 9, 1), ActionType.SELL, "T26", 100, 120, 10, 11990, GBP
+            ),
+            transaction(
+                dt.date(2024, 9, 11), ActionType.BUY, "T26", 50, 110, 0, -5500, GBP
             ),
         ],
     )
@@ -344,7 +350,17 @@ SCENARIOS: dict[str, tuple[Callable[[], CapitalGainsReport], list[str]]] = {
                 "valued at £12,000.00 (£120.00/unit), £10.00 disposal expenses "
                 "included in the illustrative calculation"
             ),
-            "calculation: £10,010.00, disregarded gain: £1,990.00.",
+            "Gain is £1,490.00",
+            (
+                "BED AND BREAKFAST. Quantity: 50, disposal proceeds: £6,000.00, cost "
+                "used for this illustrative calculation on 11 Sep 2024: £5,505.00, "
+                "disregarded gain: £495.00."
+            ),
+            (
+                "SECTION 104. Quantity: 50, disposal proceeds: £6,000.00, cost used "
+                "for this illustrative calculation: £5,005.00, disregarded gain: "
+                "£995.00."
+            ),
         ],
     ),
     "option_grant": (
