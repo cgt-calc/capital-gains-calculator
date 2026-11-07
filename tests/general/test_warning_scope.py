@@ -85,7 +85,7 @@ def test_treaty_mismatch_warning_scoped_to_tax_year(
     warnings = [
         record
         for record in caplog.records
-        if "double taxation treaty does not match" in record.message
+        if "that cgt-calc expects for USA" in record.message
     ]
     assert len(warnings) == expected_warnings
 

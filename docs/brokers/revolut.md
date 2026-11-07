@@ -163,8 +163,8 @@ cgt-calc knows the ticker's ISIN, it takes the company's country from the curren
 is treated as US, which is wrong for a company outside the US that pays in dollars, so
 [check the country](../extra-data-and-options.md#income-reported-in-more-than-one-currency) for
 those. Where cgt-calc cannot tell the country, or the tax does not match the treaty rate, it prints
-a warning and leaves the relief out. If the warning says that the double taxation treaty does not
-match, first check that the RAW rows have the date of the dividend.
+a warning and leaves the relief out. If the warning says that the tax withheld does not match what
+cgt-calc expects, first check that the RAW rows have the date of the dividend.
 
 If you do not add the tax this way, add it to your dividend income yourself and, if you use
 [`--income`](../tax-estimates.md#estimate-the-tax-from-your-income), to the figure you pass.

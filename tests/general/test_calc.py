@@ -3181,6 +3181,36 @@ def test_taxable_gain_requires_an_allowance() -> None:
         report.taxable_gain()
 
 
+def test_summary_says_what_a_missing_allowance_leaves_out() -> None:
+    """A year with no annual exempt amount gets no Taxable gain row, and a note."""
+    report = CapitalGainsReport(
+        2027,
+        [],
+        0,
+        Decimal(0),
+        Decimal(0),
+        {},
+        Decimal(0),
+        None,
+        None,
+        {},
+        {},
+        Decimal(0),
+        Decimal(0),
+        Decimal(0),
+        show_unrealized_gains=False,
+    )
+
+    lines = render_text(report).splitlines()
+
+    assert not any(line.strip().startswith("Taxable gain:") for line in lines)
+    assert (
+        "WARNING: cgt-calc does not know the annual exempt amount for 2027/2028, so "
+        "Taxable gain and any tax estimate are left out. Update cgt-calc, or take "
+        "the amount from GOV.UK and work out the taxable gain yourself."
+    ) in lines
+
+
 def test_foreign_fees_folded_into_gbp_transaction() -> None:
     """Convert foreign fees to the transaction currency and re-derive price."""
     date = dt.date(2024, 5, 1)
@@ -4396,3 +4426,26 @@ def test_an_action_the_calculation_does_not_process_is_refused_by_name() -> None
         r" the actions listed at https://cgt-calc\.uk/brokers/raw/#actions-to-use\n",
     ):
         get_report(calculator, [cancel])
+
+
+def test_a_reinvested_dividend_row_is_ignored_with_a_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The row adds no income or holding, and the warning names it.
+
+    Schwab writes it, and a RAW file can name it too, so the warning names
+    no broker.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    row = _gbp_trade(dt.date(2024, 5, 1), ActionType.REINVEST_DIVIDENDS, "FOO", 1, 10)
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.ingestion"):
+        report = get_report(calculator, [row])
+
+    assert report.total_dividends_amount() == 0
+    assert report.portfolio == []
+    assert (
+        "Ignored the reinvested dividend row for FOO on 2024-05-01, so any dividend "
+        "or share purchase it records is left out of the report. Check your broker "
+        "statement that other rows record the dividend and the shares bought with it."
+    ) in caplog.messages

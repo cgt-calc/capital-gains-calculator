@@ -18,6 +18,8 @@ from cgt_calc.spin_off_handler import SpinOffHandler
 if TYPE_CHECKING:
     import pytest
 
+    from cgt_calc.model import CapitalGainsReport
+
 TAX_YEAR = 2024
 DATE = dt.date(2024, 6, 3)
 
@@ -56,8 +58,11 @@ def _dividend_pair(
     ]
 
 
-def _treaty_country(transactions: list[BrokerTransaction]) -> str | None:
-    """Run the calculation and return the treaty applied to the dividend."""
+def _report(
+    transactions: list[BrokerTransaction],
+    interest_fund_tickers: list[str] | None = None,
+) -> CapitalGainsReport:
+    """Run the calculation at a rate of 1 to GBP for every currency."""
     gbp_prices = {DATE: {t.currency: Decimal(1) for t in transactions}}
     currency_converter = CurrencyConverter(None, gbp_prices)
     calculator = CapitalGainsCalculator(
@@ -67,11 +72,16 @@ def _treaty_country(transactions: list[BrokerTransaction]) -> str | None:
         CurrentPriceFetcher(currency_converter, {}, {}),
         SpinOffHandler(),
         SharePrices(),
-        interest_fund_tickers=[],
+        interest_fund_tickers=interest_fund_tickers or [],
         balance_check=False,
     )
     calculator.prepare_history(transactions)
-    report = calculator.calculate_capital_gain()
+    return calculator.calculate_capital_gain()
+
+
+def _treaty_country(transactions: list[BrokerTransaction]) -> str | None:
+    """Run the calculation and return the treaty applied to the dividend."""
+    report = _report(transactions)
 
     entries = [
         entry
@@ -111,13 +121,40 @@ def test_no_treaty_when_the_source_country_cannot_be_determined(
     """Without an ISIN, GBP says nothing about where the income came from."""
     with caplog.at_level(logging.WARNING, logger="cgt_calc.income"):
         assert _treaty_country(_dividend_pair(CurrencyCode("GBP"), None)) is None
-    assert "Source country of the GBP dividend is unknown" in caplog.text
+    assert (
+        "The source country of the GBP dividend from FOO on 2024-06-03 is unknown, "
+        "so the report gives no treaty relief for the tax withheld from it. Add "
+        "the share's ISIN to the ISIN translation file, or check where the paying "
+        "company is resident and work out any relief outside cgt-calc."
+    ) in caplog.messages
+
+
+def test_no_treaty_when_none_is_on_file_for_the_country(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A German ISIN names a country, but only US and Polish treaties are known."""
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.income"):
+        assert (
+            _treaty_country(_dividend_pair(CurrencyCode("EUR"), Isin("DE0007164600")))
+            is None
+        )
+    assert (
+        "cgt-calc has no double taxation treaty on file for country code DE, so "
+        "the report gives no treaty relief for the tax withheld from the FOO "
+        "dividend on 2024-06-03. Check where the paying company is resident and "
+        "work out any relief under the UK's treaty with that country outside "
+        "cgt-calc."
+    ) in caplog.messages
 
 
 def test_no_treaty_when_withholding_does_not_match_the_treaty_rate(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Relief is refused when the rate deducted is not the treaty rate."""
+    """Relief is refused when the rate deducted is not the treaty rate.
+
+    30% of the 100 dividend is 30.00 withheld, where the US rate of 15%
+    expects 15.00.
+    """
     with caplog.at_level(logging.WARNING, logger="cgt_calc.income"):
         assert (
             _treaty_country(
@@ -125,4 +162,52 @@ def test_no_treaty_when_withholding_does_not_match_the_treaty_rate(
             )
             is None
         )
-    assert "does not match the base taxation rules" in caplog.text
+    assert (
+        "Tax of 30.00 withheld from the FOO dividend on 2024-06-03 does not match "
+        "the 15.00 (15%) that cgt-calc expects for USA, so the report gives it no "
+        "treaty relief. Check the tax against your broker's statement and work out "
+        "any relief outside cgt-calc."
+    ) in caplog.messages
+
+
+def test_withholding_mismatch_names_the_rate_the_country_withholds(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Poland withholds 19% but the treaty limits relief to 10%.
+
+    The warning compares with what is withheld: 19% of the 100 dividend is
+    19.00, against the 30.00 taken.
+    """
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.income"):
+        assert (
+            _treaty_country(_dividend_pair(CurrencyCode("PLN"), None, Decimal("0.30")))
+            is None
+        )
+    assert (
+        "Tax of 30.00 withheld from the FOO dividend on 2024-06-03 does not match "
+        "the 19.00 (19%) that cgt-calc expects for Poland, so the report gives it "
+        "no treaty relief. Check the tax against your broker's statement and work "
+        "out any relief outside cgt-calc."
+    ) in caplog.messages
+
+
+def test_bond_fund_withholding_is_left_out_of_the_interest_tax(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A bond fund's distribution is interest, but its withheld tax is in no total.
+
+    The 100 distribution counts as foreign interest. The 15.00 withheld from
+    it is not interest tax, and the warning says so.
+    """
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.income"):
+        report = _report(
+            _dividend_pair(CurrencyCode("USD"), US_ISIN), interest_fund_tickers=["FOO"]
+        )
+    assert report.total_foreign_interest == Decimal(100)
+    assert report.total_interest_tax == Decimal(0)
+    assert (
+        "Tax withheld from the FOO bond fund distribution on 2024-06-03 is not "
+        "counted in the report's interest tax paid, and the report gives it no "
+        "treaty relief. Take the tax from your broker's statement and work out any "
+        "foreign tax relief outside cgt-calc."
+    ) in caplog.messages

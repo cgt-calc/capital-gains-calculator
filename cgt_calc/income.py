@@ -342,24 +342,42 @@ class IncomeProcessor:
             is_interest_fund = symbol.upper() in self.interest_fund_tickers
             if tax.amount < 0:
                 if is_interest_fund:
+                    # Only INTEREST_TAX rows add to the interest tax paid, so
+                    # this withholding is not in it.
                     LOGGER.warning(
-                        "Cannot apply taxation treaty for bond fund %s", symbol
+                        "Tax withheld from the %s bond fund distribution on %s "
+                        "is not counted in the report's interest tax paid, and "
+                        "the report gives it no treaty relief. Take the tax from "
+                        "your broker's statement and work out any foreign tax "
+                        "relief outside cgt-calc.",
+                        symbol,
+                        date,
                     )
                 else:
                     country = self._dividend_source_country(symbol, currency)
                     if country is None:
                         LOGGER.warning(
-                            "Source country of the %s dividend is unknown (ticker: %s), "
-                            "double taxation rules cannot be determined!",
+                            "The source country of the %s dividend from %s on %s "
+                            "is unknown, so the report gives no treaty relief for "
+                            "the tax withheld from it. Add the share's ISIN to the "
+                            "ISIN translation file, or check where the paying "
+                            "company is resident and work out any relief outside "
+                            "cgt-calc.",
                             currency,
                             symbol,
+                            date,
                         )
                     elif country not in DIVIDEND_DOUBLE_TAXATION_RULES:
                         LOGGER.warning(
-                            "Taxation treaty for %s country is missing (ticker: %s), "
-                            "double taxation rules cannot be determined!",
+                            "cgt-calc has no double taxation treaty on file for "
+                            "country code %s, so the report gives no treaty relief "
+                            "for the tax withheld from the %s dividend on %s. Check "
+                            "where the paying company is resident and work out any "
+                            "relief under the UK's treaty with that country outside "
+                            "cgt-calc.",
                             country,
                             symbol,
+                            date,
                         )
                     else:
                         treaty = DIVIDEND_DOUBLE_TAXATION_RULES[country]
@@ -376,14 +394,20 @@ class IncomeProcessor:
                                 deducted_tax, tax_currency, date
                             )
                         if not approx_equal(expected_tax, deducted_tax):
+                            # Tax taken off a payment is negative; the message
+                            # states it as the amount taken.
                             LOGGER.warning(
-                                "Determined double taxation treaty does not match the "
-                                "base taxation rules (expected %.2f base tax for %s "
-                                "but %.2f was deducted) for %s ticker!",
-                                expected_tax,
-                                treaty.country,
-                                deducted_tax,
+                                "Tax of %.2f withheld from the %s dividend on %s "
+                                "does not match the %.2f (%s) that cgt-calc expects "
+                                "for %s, so the report gives it no treaty relief. "
+                                "Check the tax against your broker's statement and "
+                                "work out any relief outside cgt-calc.",
+                                -deducted_tax,
                                 symbol,
+                                date,
+                                -expected_tax,
+                                f"{treaty.country_rate:%}",
+                                treaty.country,
                             )
                             treaty = None
 

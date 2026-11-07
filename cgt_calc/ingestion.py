@@ -1794,7 +1794,15 @@ class TransactionIngester:
                 else:
                     self.add_gift(transaction)
             elif transaction.action is ActionType.REINVEST_DIVIDENDS:
-                LOGGER.warning("Ignoring unsupported action: %s", transaction.action)
+                # Neither income, an acquisition nor cash: nothing is recorded.
+                LOGGER.warning(
+                    "Ignored the reinvested dividend row for %s on %s, so any "
+                    "dividend or share purchase it records is left out of the "
+                    "report. Check your broker statement that other rows record "
+                    "the dividend and the shares bought with it.",
+                    transaction.symbol,
+                    transaction.date,
+                )
             else:
                 raise InvalidTransactionError(
                     transaction,
