@@ -3,6 +3,7 @@
 from decimal import Decimal
 import io
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -173,19 +174,125 @@ def test_hl_unknown_reference_raises(tmp_path: Path) -> None:
     assert "D302087099" in message
 
 
-def test_hl_blank_reference_skipped(tmp_path: Path) -> None:
-    """Rows with a blank reference (e.g. subtotal/summary lines) are skipped."""
+@pytest.mark.parametrize(
+    "row",
+    [
+        '"","","","Balance carried forward","","","0.00"\n',
+        '"","","","Balance carried forward"\n',
+    ],
+    ids=["a cell under each heading", "short of cells"],
+)
+def test_hl_blank_reference_skipped(tmp_path: Path, row: str) -> None:
+    """Rows with a blank reference (e.g. subtotal/summary lines) are skipped.
+
+    Even one short of cells: the width check is for transactions.
+    """
     csv_file = tmp_path / "hl-transaction-summary.csv"
-    csv_file.write_text(
-        HL_CSV_HEADER + '"","","","Balance carried forward","","","0.00"\n',
-        encoding="windows-1252",
-    )
+    csv_file.write_text(HL_CSV_HEADER + row, encoding="windows-1252")
 
     transactions = HargreavesLansdownParser().load_from_file(
         csv_file, warn_on_empty=False
     )
 
     assert transactions == []
+
+
+@pytest.mark.parametrize(
+    ("row", "message"),
+    [
+        pytest.param(
+            # The description has lost its closing quote, so it runs on into
+            # the next cell: 6 cells, with 3.87 under Quantity.
+            '"09/03/2026","09/03/2026","INTEREST","Interest From 10/02/2026 TO '
+            '09/03/2026,"n/a","n/a","3.87"\n',
+            "This row has 6 columns, not 7",
+            id="closing quote of the description missing",
+        ),
+        pytest.param(
+            '"09/03/2026","09/03/2026"\n',
+            "This row has 2 columns, not 7",
+            id="line cut short before its reference",
+        ),
+        pytest.param(
+            # One "n/a" too many puts 3.87 under the heading line's unnamed
+            # last column, and "n/a" under Value.
+            '"09/03/2026","09/03/2026","INTEREST","Interest From 10/02/2026 TO '
+            '09/03/2026","n/a","n/a","n/a","3.87"\n',
+            "This row has 8 columns, not 7",
+            id="one cell too many",
+        ),
+        pytest.param(
+            '"09/03/2026","09/03/2026","INTEREST","Interest From 10/02/2026 TO '
+            '09/03/2026","n/a","n/a",""\n',
+            "This row has no value in column 'Value (£)'",
+            id="value cell empty",
+        ),
+    ],
+)
+def test_a_row_whose_value_is_not_under_its_heading_is_refused(
+    tmp_path: Path, row: str, message: str
+) -> None:
+    """Refuse a row whose cells are not under their headings, or whose value is empty.
+
+    Each row is an edited copy of an interest row of 3.87. Without the check,
+    all but the line cut short would load with an amount of 0. The heading line
+    names 7 columns (Trade date, Settle date, Reference, Description, Unit
+    cost, Quantity, Value) and ends in a comma, which adds an unnamed 8th
+    that HL's rows leave out.
+    """
+    csv_file = tmp_path / "hl-transaction-summary.csv"
+    csv_file.write_text(HL_CSV_HEADER + row, encoding="windows-1252")
+
+    with pytest.raises(ParsingError, match=re.escape(message)) as excinfo:
+        HargreavesLansdownParser.load_from_file(csv_file)
+
+    # The heading line is line 6.
+    assert excinfo.value.row_index == 7
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        pytest.param(
+            HL_CSV_HEADER
+            + '"09/03/2026","09/03/2026","INTEREST","Interest From 10/02/2026 TO '
+            '09/03/2026","n/a","n/a","3.87",\n',
+            id="a comma after the last cell, as on the heading line",
+        ),
+        pytest.param(
+            HL_CSV_HEADER
+            + '"09/03/2026","09/03/2026","INTEREST","Interest From 10/02/2026 TO '
+            '09/03/2026","n/a","n/a","3.87", \n',
+            id="a space after that comma",
+        ),
+        pytest.param(
+            "Trade date,Settle date,Reference,Description,Unit cost (p),Quantity,"
+            "Value (£)\n"
+            "09/03/2026,09/03/2026,INTEREST,Interest From 10/02/2026 TO 09/03/2026,"
+            "n/a,n/a,3.87\n",
+            id="saved by a spreadsheet: no quotes and no unnamed column",
+        ),
+    ],
+)
+def test_a_row_with_a_cell_under_each_heading_loads(
+    tmp_path: Path, content: str
+) -> None:
+    """Read the value from a row of 7 cells, with or without an empty cell after them.
+
+    A cell of spaces counts as empty.
+    """
+    csv_file = tmp_path / "hl-transaction-summary.csv"
+    csv_file.write_text(content, encoding="windows-1252")
+
+    transactions = HargreavesLansdownParser.load_from_file(csv_file)
+
+    assert [(t.action, t.description, t.amount) for t in transactions] == [
+        (
+            ActionType.INTEREST,
+            "Interest From 10/02/2026 TO 09/03/2026",
+            Decimal("3.87"),
+        )
+    ]
 
 
 def test_hl_file_with_a_header_and_no_rows_is_called_a_csv(tmp_path: Path) -> None:
