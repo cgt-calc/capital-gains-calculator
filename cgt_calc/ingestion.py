@@ -1497,7 +1497,7 @@ class TransactionIngester:
             raise InvalidTransactionError(
                 transaction,
                 "Fee amount must not be positive: a positive fee would reduce "
-                "the pooled cost.",
+                "the pooled cost. Enter the charge as a negative price.",
             )
         transaction.fees = -amount
         transaction.quantity = Decimal(0)

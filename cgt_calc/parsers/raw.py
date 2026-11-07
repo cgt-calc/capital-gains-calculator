@@ -136,6 +136,21 @@ class RawTransaction(BrokerTransaction):
             amount -= fees
         else:
             amount = None
+        # Tax deducted is money paid, so a positive tax row would be reported
+        # as negative tax paid. A broker export can hold one, reversing an
+        # earlier deduction, so like the fees above this is checked only where
+        # a person types the value. The amount is checked rather than the
+        # price, as a negative quantity reverses the sign of the price.
+        if (
+            action in {ActionType.DIVIDEND_TAX, ActionType.INTEREST_TAX}
+            and amount is not None
+            and amount > 0
+        ):
+            raise ValueError(
+                f"{action.name} cannot be positive. Enter the tax deducted as a "
+                "negative price; if some of it was refunded, enter only the part "
+                "that was not."
+            )
 
         currency = CurrencyCode(row_values[RawColumn.CURRENCY])
         broker = "Unknown"

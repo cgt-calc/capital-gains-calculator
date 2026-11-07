@@ -371,6 +371,57 @@ def test_read_raw_transactions_negative_fees(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    ("action", "symbol"), [("DIVIDEND_TAX", "XYZ"), ("INTEREST_TAX", "")]
+)
+def test_read_raw_transactions_refuses_positive_tax(
+    tmp_path: Path, action: str, symbol: str
+) -> None:
+    """Refuse tax with a positive amount, a sign typed the wrong way round.
+
+    If accepted, 1 x 5.00 would be reported as 5.00 of negative tax paid and
+    added to the cash balance instead of taken from it.
+    """
+    raw_file = tmp_path / "raw_positive_tax.csv"
+    rows = [COLUMNS, ["2024-06-15", action, symbol, "1", "5.00", "0.00", "USD"]]
+    _write_csv(raw_file, rows)
+
+    with pytest.raises(ParsingError) as exc:
+        RawParser().load_from_file(raw_file)
+
+    message = str(exc.value)
+    assert "row 2" in message
+    assert (
+        f"{action} cannot be positive. Enter the tax deducted as a negative "
+        "price; if some of it was refunded, enter only the part that was not."
+    ) in message
+
+
+@pytest.mark.parametrize(
+    ("action", "symbol", "quantity", "price", "amount"),
+    [
+        ("DIVIDEND_TAX", "XYZ", "-1", "5.00", "-5.00"),
+        ("INTEREST_TAX", "", "1", "0.00", "0"),
+    ],
+    ids=["negative quantity", "zero"],
+)
+def test_read_raw_transactions_accepts_tax_that_is_not_positive(
+    tmp_path: Path, action: str, symbol: str, quantity: str, price: str, amount: str
+) -> None:
+    """Accept tax whose amount is not positive, whatever the sign of its price.
+
+    The amount is quantity x price - fees: -1 x 5.00 - 0.00 is -5.00, the
+    same deduction as 1 x -5.00. Tax of nothing, 1 x 0.00, is not positive.
+    """
+    raw_file = tmp_path / "raw_tax.csv"
+    rows = [COLUMNS, ["2024-06-15", action, symbol, quantity, price, "0.00", "USD"]]
+    _write_csv(raw_file, rows)
+
+    transactions = RawParser().load_from_file(raw_file)
+
+    assert [transaction.amount for transaction in transactions] == [Decimal(amount)]
+
+
+@pytest.mark.parametrize(
     ("rows", "first_row", "conflicting_row"),
     [
         (

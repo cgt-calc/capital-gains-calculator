@@ -418,7 +418,17 @@ def test_dividend_and_tax_currency_mismatch_has_a_calculation_error() -> None:
 @pytest.mark.parametrize(
     ("amount", "error_match"),
     [
-        (Decimal(1), "must not be positive"),
+        # The whole first line, so the sentence saying how to fix the row is
+        # checked as well as the reason.
+        (
+            Decimal(1),
+            "^"
+            + re.escape(
+                "Fee amount must not be positive: a positive fee would reduce the "
+                "pooled cost. Enter the charge as a negative price."
+            )
+            + "\n",
+        ),
         (Decimal("NaN"), "must be a finite number"),
         (Decimal("Infinity"), "must be a finite number"),
         (Decimal("-Infinity"), "must be a finite number"),
