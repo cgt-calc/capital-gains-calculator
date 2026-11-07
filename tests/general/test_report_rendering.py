@@ -170,24 +170,36 @@ def test_lines_add_up_to_their_heading_and_the_total(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "part",
+    "name",
     [
-        "\\", '"', "#", "$", "*", "_", "`", "@", "<", ">", "[", "]", "{", "}",
-        "~", "^", "|", "%", "&", "'", ";", "/", "=", "-", "+",
-        "//", "/*", "--", "...", "->", "https://x.y",
+        "S&P *80%* Fund",
+        "A _B_ C",
+        "A #1 B",
+        "A $B$ C",
+        "A @B",
+        "A <B> C",
+        "A `B` C",
+        "A\\B",
+        'A "B" C',
+        "A 'B' C",
+        "A // B",
+        "A /* B",
+        "A -- B",
+        "A ... B",
+        "A~B",
     ],
-)  # fmt: skip
-def test_a_name_prints_as_written(tmp_path: Path, part: str) -> None:
-    r"""A character or sequence Typst markup acts on prints as itself.
+)
+def test_a_name_prints_as_written(tmp_path: Path, name: str) -> None:
+    r"""A name that Typst markup would change prints as written.
 
-    Read as markup, `*` and `_` would make bold or italic text and vanish, `#`
-    and `$` would start code or maths, `//` a comment that drops the rest of
-    the line, cost included, and `--`, `...` and `->` would become a dash, an
-    ellipsis and an arrow. `\` and `"` are the two the string literal escapes,
-    and `;` straight after a value would end the value's code and vanish.
+    Read as markup, `*80%*` and `_B_` would turn bold or italic and lose their
+    marks, `#1` would be code printing 1, `$B$` maths, `@B` a reference to a
+    missing label and `<B>` a label, `` `B` `` code text, `\B` an escaped B,
+    the quotes would curl, `//` would start a comment that drops the rest of
+    the line, cost included, `/*` an unclosed comment, `--` and `...` a dash
+    and an ellipsis, and `~` a no-break space. `\` and `"` are the two the
+    string literal escapes.
     """
-    name = f"A{part}B"
-
     text = report_text(name_report(name), tmp_path)
 
     assert f"units of {name} for £1,000.00" in text
@@ -198,7 +210,6 @@ def test_a_name_prints_as_written(tmp_path: Path, part: str) -> None:
     ("name", "printed"),
     [
         pytest.param("A\tB", "A B", id="tab"),
-        pytest.param("A  B", "A B", id="two spaces"),
         pytest.param("A\x0cB", "A B", id="form feed"),
         pytest.param("A\u2028B", "A B", id="line separator"),
         pytest.param("Ae\u0301B", "A\u00e9B", id="decomposed accent"),

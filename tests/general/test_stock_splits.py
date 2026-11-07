@@ -1106,7 +1106,7 @@ def test_a_substituted_holding_says_so_in_the_report(tmp_path: Path) -> None:
         "unresolved — broker 0.0001 -> 0.00000667 used directly"
     )
     source = report_text(report, tmp_path)
-    # The arrow prints as typed; read as Typst markup, "->" would become "→".
+    # LaTeX needed the arrow spelt out; the PDF prints it as typed.
     assert "unresolved — broker 0.0001 -> 0.00000667 used directly" in source
 
 
