@@ -1,0 +1,143 @@
+name: Release docs
+
+# Publishes a stable release's docs to cgt-calc.uk. A release builds its own
+# tag. A manual run, dispatched from main, builds a release tag or a branch
+# docs/<tag> that adds docs-only changes to that release; any other run or ref
+# fails before the build. main's docs describe unreleased changes and go to
+# next.cgt-calc.uk through docs.yml instead.
+on:
+  release:
+    # Stable releases only, including a pre-release promoted to a release. A
+    # pre-release must not replace the docs of the version people install.
+    types:
+      - released
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Release tag, such as v3.0.0, or a branch docs/<tag> with docs-only fixes
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+    env:
+      REF: ${{ inputs.ref || github.event.release.tag_name }}
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+    steps:
+      # Before the checkout. The first check makes sure these rules are main's
+      # (manual run) or the release tag's own.
+      - name: Check the request
+        id: request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::Cannot publish to cgt-calc.uk: $1"; exit 1; }
+
+          # Supported runs: a manual run dispatched from main, whose copy of this file
+          # holds these checks, or a release building its own tag.
+          case "${GITHUB_EVENT_NAME}:${GITHUB_REF}" in
+            "workflow_dispatch:refs/heads/main" | "release:refs/tags/${RELEASE_TAG}") ;;
+            *) fail "run this workflow from main, or let a published release run it" ;;
+          esac
+
+          if [[ "${REF}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            tag="${REF}"
+            checkout="refs/tags/${REF}"
+          elif [[ "${REF}" =~ ^docs/(v[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            tag="${BASH_REMATCH[1]}"
+            checkout="refs/heads/${REF}"
+          else
+            fail "the ref must be a release tag such as v3.0.0, or a branch docs/<tag> made from one"
+          fi
+
+          # A published GitHub release that is neither a draft nor a pre-release.
+          stable=$(gh release view "${tag}" --json isDraft,isPrerelease --jq '(.isDraft or .isPrerelease) | not') ||
+            fail "${tag} has no published GitHub release"
+          [ "${stable}" = true ] || fail "${tag} is a draft or a pre-release"
+
+          # Fully qualified, so a tag named docs/<tag> never stands in for the branch.
+          {
+            echo "tag=${tag}"
+            echo "checkout=${checkout}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Check out the release
+        uses: actions/checkout@v7
+        with:
+          # Fully qualified by the request step: refs/tags/vX.Y.Z or
+          # refs/heads/docs/vX.Y.Z, never resolved by name.
+          ref: ${{ steps.request.outputs.checkout }}
+          # History and tags, to check a docs branch against its release.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Before anything from the checkout runs.
+      - name: Check the checkout
+        env:
+          TAG: ${{ steps.request.outputs.tag }}
+          CHECKOUT: ${{ steps.request.outputs.checkout }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::Cannot publish to cgt-calc.uk: $1"; exit 1; }
+
+          tag_commit=$(git rev-parse --verify --quiet "refs/tags/${TAG}^{commit}") || fail "there is no tag ${TAG}"
+          if [ "${CHECKOUT}" = "refs/tags/${TAG}" ]; then
+            [ "$(git rev-parse HEAD)" = "${tag_commit}" ] || fail "the checkout is not the commit tagged ${TAG}"
+          else
+            branch="${CHECKOUT#refs/heads/}"
+            [ "$(git rev-parse HEAD)" = "$(git rev-parse --verify --quiet "refs/remotes/origin/${branch}")" ] ||
+              fail "the checkout is not branch ${branch}"
+            # The release plus changes under docs/ only. --no-renames lists both
+            # sides of a move, so a file moved into docs/ still counts.
+            git merge-base --is-ancestor "${tag_commit}" HEAD || fail "${branch} does not contain ${TAG}"
+            outside=$(git diff --no-renames --name-only "${tag_commit}" HEAD -- . ':(exclude)docs/')
+            [ -z "${outside}" ] || fail "${branch} changes files outside docs/: ${outside//$'\n'/, }"
+          fi
+          echo "Publishing ${CHECKOUT}, based on release ${TAG}, to cgt-calc.uk"
+
+      # The release's own build action and config, so the site is exactly what
+      # that release's docs build, without the next site's banner.
+      - name: Build docs
+        uses: ./.github/actions/build-docs
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Upload site artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: site
+          path: site/
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy to Cloudflare Pages
+    if: github.repository_owner == 'cgt-calc'
+    needs: build
+    runs-on: ubuntu-latest
+    concurrency: docs-deploy
+    environment:
+      name: docs
+      url: https://cgt-calc.uk
+    steps:
+      - name: Download site artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: site
+          path: site
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy site --project-name=cgt-calc --branch=main --commit-dirty=true

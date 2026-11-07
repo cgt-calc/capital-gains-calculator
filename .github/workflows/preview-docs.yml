@@ -157,7 +157,7 @@ jobs:
           gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
             -f state=success -f context="${STATUS_CONTEXT}" \
             -f description="No rendered changes" \
-            -f target_url="https://cgt-calc.uk/"
+            -f target_url="https://next.cgt-calc.uk/"
 
       - name: Refresh the stale preview comment
         # An earlier preview comment would now link to stale content. Without
@@ -169,7 +169,7 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
         run: |
           UPDATED=$(TZ='Europe/London' date '+%Y-%m-%d %H:%M %Z')
-          BODY=$(printf '%s\n📖 No rendered changes — this PR matches the live docs at https://cgt-calc.uk/\n\n_Checked %s · updated %s_' \
+          BODY=$(printf '%s\n📖 No rendered changes — this PR matches the docs on main at https://next.cgt-calc.uk/\n\n_Checked %s · updated %s_' \
             "${COMMENT_MARKER}" "${HEAD_SHA:0:7}" "${UPDATED}")
           python3 main/scripts/pr_comment.py --repo "${GH_REPO}" --pull "${PR_NUMBER}" \
             --marker "${COMMENT_MARKER}" --update "${BODY}"

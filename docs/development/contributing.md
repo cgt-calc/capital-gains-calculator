@@ -83,6 +83,21 @@ Open the local address printed in the terminal. Follow the changed instructions 
 old address you redirected, and check that headings, tables and code blocks are readable on both a
 narrow and a wide screen.
 
+### Where the docs are published
+
+- [cgt-calc.uk](https://cgt-calc.uk/) shows the docs of the latest stable release. They are built
+    from the release’s tag when it is published, so they match the latest stable version on PyPI. If
+    you have an older version installed, they may describe newer behaviour.
+- [next.cgt-calc.uk](https://next.cgt-calc.uk/) shows the docs on `main`, including changes that are
+    not released yet. It is updated after each change to the docs on `main`. A banner on every page
+    says that the version is unreleased, and search engines are asked not to index the site.
+- A pull request that changes the rendered docs gets a preview, built like next.cgt-calc.uk. A
+    comment on the pull request links to it.
+
+A docs change you merge therefore reaches cgt-calc.uk with the next release. Maintainers can publish
+a fix to the released docs sooner, as described in
+[Fix the released docs without a release](releasing.md#fix-the-released-docs-without-a-release).
+
 ## Code layout
 
 The calculation has two passes:
