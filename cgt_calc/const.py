@@ -297,8 +297,8 @@ RENAME_DESCRIPTION_PREFIX: Final = "renamed from "
 assert __package__ is not None
 PACKAGE_NAME: Final = __package__
 
-# LaTeX template for calculations report
-LATEX_TEMPLATE_RESOURCE: Final = "template.tex.j2"
+# Typst template for calculations report
+TYPST_TEMPLATE_RESOURCE: Final = "template.typ.j2"
 
 # Bundled USD share prices for a few vests, used when no prices file is passed
 SHARE_PRICES_RESOURCE: Final = "share_prices.csv"

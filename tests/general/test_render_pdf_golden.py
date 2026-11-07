@@ -1,15 +1,20 @@
-"""The LaTeX source of the report is pinned byte for byte.
+"""The text of the PDF report is pinned exactly.
 
-`test_run_with_example_files` pins the source of the example run. Every
-branch of `template.tex.j2` that run does not reach is rendered here from a
-small scenario and compared with a golden file under `data/latex/`. Together
-they are the standard for template refactors: a change to the source that is
-not a deliberate wording change must leave every golden untouched.
+`test_run_with_example_files` pins the text of the example run's PDF. Every
+branch of `template.typ.j2` that run does not reach is rendered here from a
+small scenario, and the PDF's text, as pdfplumber extracts it, is compared
+with a golden file under `data/report_text/`. Together they are the standard
+for template changes: one that is not a deliberate wording change must leave
+every golden untouched.
+
+The goldens pin words, line breaks and each page's text, not vertical space,
+so a lost paragraph break that leaves the line breaks alone needs its own
+test (`test_report_rendering.py`).
 
 Regenerate the goldens on purpose, after checking the diff is the one
 intended:
 
-    uv run python -m tests.general.test_render_latex_golden
+    uv run python -m tests.general.test_render_pdf_golden
 """
 
 from __future__ import annotations
@@ -23,8 +28,9 @@ from typing import TYPE_CHECKING
 import pytest
 
 from cgt_calc.model import ActionType, Isin
-from cgt_calc.render_latex import render_pdf
+from cgt_calc.render_pdf import render_pdf
 from tests.schwab.test_schwab_options import _report as schwab_report
+from tests.utils import pdf_text
 
 from .calc_test_data import GBP, transaction
 from .test_calc import (
@@ -42,8 +48,8 @@ if TYPE_CHECKING:
 
     from cgt_calc.model import CapitalGainsReport
 
-GOLDEN_DIR = Path(__file__).parent / "data" / "latex"
-REGENERATE = "uv run python -m tests.general.test_render_latex_golden"
+GOLDEN_DIR = Path(__file__).parent / "data" / "report_text"
+REGENERATE = "uv run python -m tests.general.test_render_pdf_golden"
 
 JUNE_1 = dt.date(2024, 6, 1)
 JUNE_3 = dt.date(2024, 6, 3)
@@ -232,7 +238,7 @@ SCENARIOS: dict[str, tuple[Callable[[], CapitalGainsReport], list[str]]] = {
             "before any relief",
             "Clogged loss",
             "Losses on gifts to date",
-            "Chargeable \\textbf{loss}",
+            "Chargeable loss",
             "Neither a gain nor a loss.",
             "Losses on gifts, kept separate",
         ],
@@ -283,24 +289,23 @@ SCENARIOS: dict[str, tuple[Callable[[], CapitalGainsReport], list[str]]] = {
 }
 
 
-def _source(report: CapitalGainsReport, directory: Path) -> str:
-    """Render the report to LaTeX source without running pdflatex."""
-    render_pdf(report, directory / "report.pdf", skip_pdflatex=True)
-    return (directory / "report.tex").read_text(encoding="utf-8")
+def _text(report: CapitalGainsReport, directory: Path) -> str:
+    """Render the report to a PDF and return its text."""
+    render_pdf(report, directory / "report.pdf")
+    return pdf_text(directory / "report.pdf")
 
 
 @pytest.mark.parametrize("name", sorted(SCENARIOS))
-def test_latex_source_matches_golden(name: str, tmp_path: Path) -> None:
-    """The rendered source is byte-identical to the golden file."""
+def test_report_text_matches_golden(name: str, tmp_path: Path) -> None:
+    """The PDF's text is identical to the golden file."""
     build, phrases = SCENARIOS[name]
-    source = _source(build(), tmp_path)
+    text = _text(build(), tmp_path)
+    flat = " ".join(text.split())
     for phrase in phrases:
-        assert phrase in source, (
-            f"{name} no longer reaches the branch saying {phrase!r}"
-        )
-    golden = GOLDEN_DIR / f"{name}.tex"
-    assert source == golden.read_text(encoding="utf-8"), (
-        f"{golden} differs from the rendered source; if the change is intended, "
+        assert phrase in flat, f"{name} no longer reaches the branch saying {phrase!r}"
+    golden = GOLDEN_DIR / f"{name}.txt"
+    assert text == golden.read_text(encoding="utf-8"), (
+        f"{golden} differs from the PDF's text; if the change is intended, "
         f"regenerate with: {REGENERATE}"
     )
 
@@ -309,7 +314,7 @@ if __name__ == "__main__":
     GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as scratch:
         for scenario, (builder, _) in SCENARIOS.items():
-            (GOLDEN_DIR / f"{scenario}.tex").write_text(
-                _source(builder(), Path(scratch)), encoding="utf-8"
+            (GOLDEN_DIR / f"{scenario}.txt").write_text(
+                _text(builder(), Path(scratch)), encoding="utf-8"
             )
-            print(f"wrote {scenario}.tex")
+            print(f"wrote {scenario}.txt")

@@ -1,8 +1,8 @@
 # Docker
 
-The published Docker image includes cgt-calc, Python and LaTeX. Use it if you already have Docker
-and do not want to install these tools on your computer. Images are available for amd64 and arm64
-(Apple silicon).
+The published Docker image includes cgt-calc and Python. Use it if you already have Docker and do
+not want to install these tools on your computer. Images are available for amd64 and arm64 (Apple
+silicon).
 
 Open a terminal in the directory containing your transaction files, then start the container:
 

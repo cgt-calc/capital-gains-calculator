@@ -129,6 +129,7 @@ GE
 GIA
 GOOG
 GOOGL
+guillemets
 grantor
 GSU
 hashable
@@ -144,6 +145,7 @@ idx
 IndexError
 ingester
 intraday
+interrobang
 InvalidOperation
 InvalidTransactionError
 Invesco
@@ -179,7 +181,7 @@ matchable
 matchings
 md
 Meta's
-MiKTeX
+mille
 MMM
 mojibake
 msg
@@ -195,6 +197,7 @@ noqa
 NUL
 NULs
 num
+numero
 NVD
 NVDA
 NVIDIA

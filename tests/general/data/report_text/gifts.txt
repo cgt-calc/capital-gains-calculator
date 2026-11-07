@@ -1,0 +1,58 @@
+Capital Gains Tax Calculations for 2024-25
+Capital Gains Events
+01 June 2024
+Acquisition 1: 10 units of FOO for £100.00 (£10.00/unit)
+1. SECTION 104. Quantity: 10, actual cost: £100.00.
+Number of units in the pool: 10, new pool cost: £100.00 (£10.00/unit).
+10 June 2024
+Disposal 1: 2 units of FOO given away at a market value of £60.00 (£30.00/unit)
+Chargeable gain is £40.00, before any relief: a gift of shares that qualify for Gift Hold-over
+Relief has the gain deferred by a joint claim on your returns
+Capital gain to date is £40.00
+1. SECTION 104. Quantity: 2, allowable cost: £20.00, gain: £40.00.
+Number of units left in the pool: 8, new pool cost: £80.00 (£10.00/unit).
+11 June 2024
+Disposal 2: 2 units of FOO given away at a market value of £10.00 (£5.00/unit)
+Clogged loss of £10.00 on a gift, kept out of the loss total: a loss on a gift to a connected
+person can only be set against gains on disposals to the same person while still connected
+(TCGA 1992 s18(3)).
+Losses on gifts to date are £10.00
+1. SECTION 104. Quantity: 2, allowable cost: £20.00, loss: £10.00.
+Number of units left in the pool: 6, new pool cost: £60.00 (£10.00/unit).
+12 June 2024
+Disposal 3: 2 units of FOO given away at a market value of £10.00 (£5.00/unit)
+Chargeable loss is £10.00
+Capital loss to date is £10.00
+1. SECTION 104. Quantity: 2, allowable cost: £20.00, loss: £10.00.
+Number of units left in the pool: 4, new pool cost: £40.00 (£10.00/unit).
+13 June 2024
+Disposal 4: 2 units of FOO given away at a market value of £20.00 (£10.00/unit)
+Neither a gain nor a loss.
+1. SECTION 104. Quantity: 2, allowable cost: £20.00, loss: £0.00.
+Number of units left in the pool: 2, new pool cost: £20.00 (£10.00/unit).
+1
+Overall - Capital Gains
+Number of acquisitions: 1
+Number of disposals: 4
+Total disposal proceeds: £100.00
+Total allowable costs: £80.00
+Total capital gain before loss: £40.00
+Total capital loss: £10.00
+Losses on gifts, kept separate: £10.00
+Total capital gain after loss: £30.00
+Amounts are rounded to the nearest penny individually, so a line may differ from its
+components by a penny.
+Overall - Dividends and Interests
+Number of dividend distributions: 0
+Number of interest transactions: 0
+Number of interest tax transactions: 0
+Number of excess reported income distributions: 0
+Total amount of dividends proceeds: £0.00
+Total amount of dividends tax allowance due to double taxation
+treaties: £0.00
+Total amount of dividends tax yearly allowance: £500.00
+Total amount of taxable dividends proceeds: £0.00
+Total amount of UK interests proceeds: £0.00
+Total amount of foreign interests proceeds: £0.00
+Total amount of interest tax paid: £0.00
+2

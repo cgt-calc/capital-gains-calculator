@@ -5,8 +5,6 @@
 Most users need:
 
 - **cgt-calc installed.** Follow the [installation guide](installation.md) before continuing.
-- **LaTeX installed if you want a PDF report.** It is not needed for a terminal-only report using
-    `--no-report`.
 - **A complete transaction history from every relevant account.** Follow the instructions for each
     [supported broker](brokers/index.md). Earlier purchases or employer-share awards can establish
     the cost of shares sold later. Purchases in the 30 days after the report ends can be matched to
@@ -102,16 +100,16 @@ cgt-calc --year 2024 --schwab-file transactions.csv > report.txt
 
 Redirecting stdout does not change where the PDF is saved.
 
-Use `--no-report` instead of `--output` to print the terminal summary without generating a report.
-This creates neither a PDF nor LaTeX source and does not require `pdflatex`:
+Use `--no-report` instead of `--output` to print the terminal summary without creating a PDF:
 
 ```shell
 cgt-calc --year 2024 --schwab-file transactions.csv --no-report
 ```
 
-To save the LaTeX source without creating a PDF, use `--no-pdflatex`. The source follows the
-`--output` path with a `.tex` extension (by default, `out/calculations.tex`). For example,
-`--output reports/2024-25.pdf` writes `reports/2024-25.tex`.
+The PDF shows holding names written with Latin, Greek or Cyrillic letters, digits, common
+punctuation and currency signs. If a name in your files uses other characters, such as Chinese, Thai
+or emoji, cgt-calc prints the summary and then stops without creating the PDF, naming the
+characters. To get a PDF, change the name in your input file, or use `--no-report` to skip it.
 
 ## Check the result
 
@@ -249,7 +247,7 @@ Choose a new filename in an existing directory, separate from the report and cac
 refuses existing files, missing directories and paths the run would write later. If writing fails,
 the error names the path; remove any partly written file or choose another name before retrying.
 
-The usual input checks and `--output`, `--no-report` and `--no-pdflatex` options still apply.
+The usual input checks and the `--output` and `--no-report` options still apply.
 
 ## Report part of a tax year (advanced)
 

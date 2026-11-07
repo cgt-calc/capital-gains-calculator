@@ -37,6 +37,7 @@ from tests.general.test_calc import create_calculator
 from tests.utils import (
     assert_stdout_matches,
     build_cmd,
+    pdf_text,
     report_path,
     run_cli,
     stderr_alerts,
@@ -991,11 +992,10 @@ def test_a_full_run_renders_each_reorganisation(tmp_path: Path) -> None:
         "tests/trading212/data/splits/inputs/",
         "--output",
         str(tmp_path / "report"),
-        keep_tex=True,
     )
     result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
     assert result.returncode == 0, result.stderr
-    source = (tmp_path / "report.tex").read_text(encoding="utf-8")
+    source = " ".join(pdf_text(tmp_path / "report.pdf").split())
 
     assert (
         "Share reorganisation: 100 units of FOO restated as 1000 (ratio 10)" in source

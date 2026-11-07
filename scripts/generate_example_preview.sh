@@ -19,7 +19,7 @@ DPI=300
 
 # Height (in pixels) of the top strip to keep after rendering.
 # Width is taken as full page width automatically.
-CROP_HEIGHT=1975
+CROP_HEIGHT=2000
 
 # Margin (in pixels) to add after trimming.
 BORDER=20

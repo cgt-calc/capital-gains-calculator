@@ -3,8 +3,8 @@
 ## Prerequisites
 
 - **Python 3.12** or newer (tested on 3.12, 3.13, and 3.14)
-- **LaTeX** if you want a PDF report. Install `pdflatex` using the instructions below. You can run
-    cgt-calc without it by using `--no-report`.
+
+cgt-calc creates the PDF report itself. You do not need LaTeX or any other program.
 
 ## Install cgt-calc
 
@@ -36,30 +36,11 @@ uvx cgt-calc
 ## Nix
 
 The Nix community maintains a
-[`cgt-calc` package in nixpkgs](https://search.nixos.org/packages?query=cgt-calc), which bundles
-`pdflatex` so no separate LaTeX install is needed:
+[`cgt-calc` package in nixpkgs](https://search.nixos.org/packages?query=cgt-calc):
 
 ```shell
 nix run nixpkgs#cgt-calc
 ```
-
-## Installing LaTeX
-
-### macOS
-
-```shell
-brew install --cask mactex-no-gui
-```
-
-### Debian/Ubuntu
-
-```shell
-apt install texlive-latex-base
-```
-
-### Windows
-
-[Install MiKTeX.](https://miktex.org/download)
 
 ## Check the installation
 

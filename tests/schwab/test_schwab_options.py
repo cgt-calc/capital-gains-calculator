@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal
-import os
 from pathlib import Path
 import re
 import subprocess
@@ -12,7 +11,6 @@ import tempfile
 
 import pytest
 
-from cgt_calc import render_latex
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import CalculationError, ParsingError
@@ -30,7 +28,7 @@ from cgt_calc.parsers.schwab import SchwabParser
 from cgt_calc.parsers.schwab_options import parse_option_contract
 from cgt_calc.share_prices import SharePrices
 from cgt_calc.spin_off_handler import SpinOffHandler
-from tests.utils import build_cmd, stderr_alerts
+from tests.utils import build_cmd, pdf_text, report_text, stderr_alerts
 
 HEADER = "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount\n"
 USD = CurrencyCode("USD")
@@ -398,11 +396,8 @@ def test_written_option_is_rendered_as_an_option_grant(tmp_path: Path) -> None:
             "05/01/2024,Sell to Open,META 05/17/2024 500.00 C,Open,$1.00,1,$0.65,$99.35",
         ]
     )
-    output = tmp_path / "option-report.pdf"
+    rendered = report_text(report, tmp_path)
 
-    render_latex.render_pdf(report, output, skip_pdflatex=True)
-
-    rendered = output.with_suffix(".tex").read_text(encoding="utf-8")
     assert "Disposal 1: grant of 1" in rendered
     assert "contract of the META call option" in rendered
     assert "expiring 2024-05-17 at a strike of 500" in rendered
@@ -553,7 +548,6 @@ def test_malformed_option_row_is_refused(row: str, message: str) -> None:
 def test_schwab_options_run_from_csv_to_report(tmp_path: Path) -> None:
     """The whole path: a real export, the CLI, and the rendered report."""
     output = tmp_path / "schwab-options.pdf"
-    pdf_enabled = bool(os.getenv("ENABLE_PDFLATEX"))
     cmd = build_cmd(
         "--year",
         "2024",
@@ -561,7 +555,6 @@ def test_schwab_options_run_from_csv_to_report(tmp_path: Path) -> None:
         "tests/schwab/data/options/transactions.csv",
         "--output",
         str(output),
-        keep_tex=not pdf_enabled,
     )
 
     result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
@@ -570,12 +563,9 @@ def test_schwab_options_run_from_csv_to_report(tmp_path: Path) -> None:
     assert stderr_alerts(result.stderr) == []
     # The lapsed grant, and the assigned call folded into the share disposal.
     assert re.search(r"^\s+Disposals:\s+2$", result.stdout, re.MULTILINE) is not None
-    if pdf_enabled:
-        assert output.is_file()
-    else:
-        source = output.with_suffix(".tex").read_text(encoding="utf-8")
-        assert "META call option expiring 2024-05-17" in source
-        assert "does not change the Section 104 holding" in source
+    text = " ".join(pdf_text(output).split())
+    assert "META call option expiring 2024-05-17" in text
+    assert "does not change the Section 104 holding" in text
 
 
 def test_assignment_without_a_settlement_row_is_refused() -> None:

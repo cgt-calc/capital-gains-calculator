@@ -540,8 +540,8 @@ def _run(*args: str) -> subprocess.CompletedProcess[str]:
 def _run_bare(*args: str) -> subprocess.CompletedProcess[str]:
     """Run the CLI with exactly these arguments and nothing added.
 
-    build_cmd appends --no-pdflatex and its own exchange rate cache, which a
-    test choosing those paths itself has to be able to override.
+    build_cmd appends its own exchange rate cache, which a test choosing that
+    path itself has to be able to override.
     """
     return subprocess.run(
         [sys.executable, "-m", "cgt_calc.main", *args],
@@ -745,11 +745,6 @@ def test_cli_refuses_a_missing_parent_directory(tmp_path: Path) -> None:
     ("name", "extra"),
     [
         ("calculations.pdf", ()),
-        ("calculations.tex", ()),
-        # Written by pdflatex next to the report and removed afterwards.
-        ("calculations.latex.log", ()),
-        ("calculations.log", ()),
-        ("calculations.aux", ()),
         ("rates.csv", ("--exchange-rates-file", "{directory}/rates.csv")),
         ("isin.csv", ("--isin-translation-file", "{directory}/isin.csv")),
         ("spin_offs.csv", ("--spin-offs-file", "{directory}/spin_offs.csv")),
@@ -787,7 +782,7 @@ def test_cli_refuses_a_destination_it_would_overwrite(
 def test_cli_refuses_the_pdf_an_output_without_a_suffix_produces(
     tmp_path: Path,
 ) -> None:
-    """Pdflatex names the PDF after the report's stem, whatever --output said."""
+    """The PDF is named after the report's stem, whatever --output said."""
     directory = tmp_path / "out"
     directory.mkdir()
 

@@ -13,6 +13,7 @@ from cgt_calc.parsers.interactive_brokers import InteractiveBrokersParser
 from tests.utils import (
     assert_stdout_matches,
     build_cmd,
+    pdf_text,
     report_path,
     run_cli,
     stderr_alerts,
@@ -329,7 +330,6 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             str(csv_file),
             "--output",
             str(tmp_path / "out"),
-            keep_tex=True,
         )
         result = run_cli(cmd)
 
@@ -338,7 +338,8 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert "Final balance\n  Interactive Brokers: 1099.88 (GBP)" in result.stdout
         assert re.search(r"Allowable costs:\s+£500\.00\n", result.stdout)
         assert re.search(r"\n  Gain:\s+£100\.00\n", result.stdout)
-        report = (tmp_path / "out.tex").read_text(encoding="utf-8")
+        report = " ".join(pdf_text(tmp_path / "out.pdf").split())
+        assert "Disposal 1: 10 units of ARM" in report
         assert "Cost added to" not in report
 
     def test_withholding_without_a_security_is_reported_as_interest_tax(
@@ -580,12 +581,13 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             str(csv_file),
             "--output",
             str(tmp_path / "out"),
-            keep_tex=True,
         )
         result = run_cli(cmd)
         assert stderr_alerts(result.stderr) == []
         assert "Final balance\n  Interactive Brokers: 999.82 (GBP)" in result.stdout
-        assert "GBP.USD" not in (tmp_path / "out.tex").read_text(encoding="utf-8")
+        report = pdf_text(tmp_path / "out.pdf")
+        assert "Capital Gains Tax Calculations" in report
+        assert "GBP.USD" not in report
 
     @pytest.mark.parametrize(
         ("rows", "balance"),

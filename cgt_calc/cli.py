@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 
 from colorama import Fore
 
-from . import render_latex
 from .args_parser import (
     create_parser,
     reject_duplicate_stdin,
@@ -22,6 +21,7 @@ from .exceptions import CgtError, TransactionDumpError
 from .isin_converter import IsinConverter
 from .logging import setup_logging, style_text
 from .parsers.broker_registry import BrokerRegistry
+from .render_pdf import render_pdf
 from .render_text import render_text
 from .share_prices import SharePrices
 from .spin_off_handler import SpinOffHandler
@@ -55,23 +55,16 @@ def _paths_written_after_dump(args: argparse.Namespace) -> Iterator[tuple[Path, 
 
     The dump is saved before anything else, so a destination naming one of
     these would be silently replaced by the time the run finished. The report
-    names follow render_latex.render_pdf; pdflatex leaves its own log and aux
-    file next to the report and removes them again afterwards.
+    name follows render_pdf.render_pdf.
     """
     if not args.no_report:
-        directory = args.output.parent
-        jobname = args.output.stem
         yield args.output, "the report from --output"
-        yield directory / f"{jobname}.tex", "the LaTeX source from --output"
-        if not args.no_pdflatex:
-            # pdflatex names its output after the report's stem, so an
-            # --output carrying any other suffix, or none, still lands here.
-            yield directory / f"{jobname}.pdf", "the PDF report from --output"
-            for suffix in (".latex.log", ".log", ".aux"):
-                yield (
-                    directory / f"{jobname}{suffix}",
-                    "a pdflatex working file from --output",
-                )
+        # The PDF is named after the report's stem, so an --output carrying
+        # any other suffix, or none, still lands here.
+        yield (
+            args.output.parent / f"{args.output.stem}.pdf",
+            "the PDF report from --output",
+        )
     for cache, option in (
         (args.exchange_rates_file, "--exchange-rates-file"),
         (args.isin_translation_file, "--isin-translation-file"),
@@ -178,14 +171,10 @@ def calculate_cgt(args: argparse.Namespace) -> None:
 
     # Generate PDF report.
     if not args.no_report:
-        render_latex.render_pdf(
-            report,
-            output_path=args.output,
-            skip_pdflatex=args.no_pdflatex,
-        )
+        render_pdf(report, output_path=args.output)
     done_msg = (
         "Done! Calculations complete (PDF generation skipped)."
-        if args.no_pdflatex or args.no_report
+        if args.no_report
         else "Done! Report generated successfully."
     )
     LOGGER.info(style_text(done_msg, colour=Fore.GREEN, emoji="🎉", stream=sys.stderr))

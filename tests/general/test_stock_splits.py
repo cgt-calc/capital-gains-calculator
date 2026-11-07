@@ -898,7 +898,7 @@ def test_the_report_shows_a_reorganisation_rather_than_a_free_purchase(
     tmp_path: Path,
 ) -> None:
     """It is not a zero-cost buy, and must not be rendered as one."""
-    from cgt_calc.render_latex import render_pdf  # noqa: PLC0415
+    from tests.utils import report_text  # noqa: PLC0415
 
     calculator = create_calculator(tax_year=2023, balance_check=False)
     report = get_report(
@@ -911,8 +911,7 @@ def test_the_report_shows_a_reorganisation_rather_than_a_free_purchase(
             ),
         ],
     )
-    render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
-    source = (tmp_path / "report.tex").read_text(encoding="utf-8")
+    source = report_text(report, tmp_path)
 
     assert "Share reorganisation" in source
     assert "ratio 1/9" in source
@@ -1091,7 +1090,7 @@ def test_a_disposal_already_matched_does_not_reach_an_unresolved_split() -> None
 
 def test_a_substituted_holding_says_so_in_the_report(tmp_path: Path) -> None:
     """A reader has to be able to see that no ratio was used."""
-    from cgt_calc.render_latex import render_pdf  # noqa: PLC0415
+    from tests.utils import report_text  # noqa: PLC0415
 
     calculator = create_calculator(tax_year=2023, balance_check=False)
     report = get_report(
@@ -1106,12 +1105,9 @@ def test_a_substituted_holding_says_so_in_the_report(tmp_path: Path) -> None:
     assert entry.stock_split.ratio_description == (
         "unresolved — broker 0.0001 -> 0.00000667 used directly"
     )
-    render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
-    source = (tmp_path / "report.tex").read_text(encoding="utf-8")
-    # The arrow is spelt out for LaTeX, whose default font has no ">" sign.
-    assert (
-        r"unresolved — broker 0.0001 -\textgreater{} 0.00000667 used directly" in source
-    )
+    source = report_text(report, tmp_path)
+    # The arrow prints as typed; read as Typst markup, "->" would become "→".
+    assert "unresolved — broker 0.0001 -> 0.00000667 used directly" in source
 
 
 def _event(**overrides: object) -> StockSplitEvent:

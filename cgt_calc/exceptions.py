@@ -402,22 +402,6 @@ class BundledPriceCurrencyError(CalculationError):
         )
 
 
-class LatexRenderError(CgtError):
-    """Raised when LaTeX PDF rendering fails."""
-
-    def __init__(self, log_path: Path) -> None:
-        """Initialise."""
-        super().__init__(f"LaTeX compilation failed: see '{log_path}'")
-
-
-class MissingExternalToolError(CgtError):
-    """Raised when a required external command-line tool is missing."""
-
-    def __init__(self, tool: str):
-        """Initialise."""
-        super().__init__(f"Required tool '{tool}' is not available on PATH")
-
-
 class TransactionDumpError(CgtError):
     """Raised when the parsed-transaction CSV cannot be written."""
 

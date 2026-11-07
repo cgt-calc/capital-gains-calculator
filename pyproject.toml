@@ -41,7 +41,7 @@ requires-python = ">=3.12"
 dependencies = [
   "colorama>=0.4.6",
   "defusedxml>=0.7.1,<1.0.0",
-  "Jinja2>=2.11.3,<4.0.0",
+  "Jinja2>=3.0.0,<4.0.0",
   "pandas>=3.1.0",
   "pdfplumber>=0.11.9",
   "requests>=2.27.1",
@@ -50,6 +50,8 @@ dependencies = [
   "openpyxl>=3.1.5",
   "xlrd>=2.0.2",
   "shtab>=1.13.0",
+  # Typst changes its language between minor versions; Dependabot raises the cap.
+  "typst>=0.15.0,<0.16",
   # zoneinfo needs a tz database where the OS does not ship one.
   "tzdata>=2026.5; sys_platform == 'win32' or sys_platform == 'emscripten'",
 ]
@@ -259,7 +261,7 @@ blanket-ignore-comment = "error"
 
 [tool.codespell]
 quiet-level = 2
-skip = "uv.lock,./.git/*,./.mypy_cache/*,./.pytest_cache/*,./.ruff_cache/*,./.venv/*,./dist/*,*.csv,./env/*,./out/*,./site/*,./.wrangler/*"
+skip = "uv.lock,./.git/*,./.mypy_cache/*,./.pytest_cache/*,./.ruff_cache/*,./.venv/*,./dist/*,*.csv,*.pdf,./env/*,./out/*,./site/*,./.wrangler/*"
 
 [tool.pytest.ini_options]
 addopts = "-vv -n auto"
