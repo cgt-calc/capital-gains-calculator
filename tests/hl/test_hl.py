@@ -297,6 +297,33 @@ def test_a_row_with_a_cell_under_each_heading_loads(
     ]
 
 
+def test_an_unreadable_trade_date_is_quoted_with_the_format_hl_writes(
+    tmp_path: Path,
+) -> None:
+    """Quote the trade date that cannot be read and name the format HL writes.
+
+    The interest row of 9 March 2026 with its trade date written year first.
+    Its settle date is left day first, so the row fails only on the column the
+    parser reads, and the message names that column. The heading line is
+    line 6, so the row is line 7.
+    """
+    csv_file = tmp_path / "hl-transaction-summary.csv"
+    csv_file.write_text(
+        HL_CSV_HEADER
+        + '"2026-03-09","09/03/2026","INTEREST","Interest From 10/02/2026 TO '
+        '09/03/2026","n/a","n/a","3.87"\n',
+        encoding="windows-1252",
+    )
+
+    with pytest.raises(ParsingError) as excinfo:
+        HargreavesLansdownParser.load_from_file(csv_file)
+
+    assert str(excinfo.value) == (
+        f"While parsing {csv_file}, row 7: Invalid date in column 'Trade date': "
+        "'2026-03-09', expected DD/MM/YYYY, e.g. '25/02/2026'"
+    )
+
+
 def test_hl_file_with_a_header_and_no_rows_is_called_a_csv(tmp_path: Path) -> None:
     """The error names the format of the file read, not both formats `--hl-dir` takes."""
     csv_file = tmp_path / "hl-transaction-summary.csv"
@@ -599,19 +626,6 @@ def test_read_row_blank_reference_returns_none() -> None:
     row = {"Reference": " ", "Description": "x", "Trade date": "01/03/2026"}
 
     assert HargreavesLansdownParser.read_row(row, Path("statement.csv")) is None
-
-
-def test_read_row_invalid_date() -> None:
-    """Raise on rows with an invalid trade date."""
-    row = {
-        "Reference": "Interest",
-        "Description": "x",
-        "Trade date": "garbage",
-        "Value (£)": "1",
-    }
-
-    with pytest.raises(ParsingError, match="Invalid date format"):
-        HargreavesLansdownParser.read_row(row, Path("statement.csv"))
 
 
 def test_read_row_buy_with_uppercase_contract_note_extension(tmp_path: Path) -> None:
