@@ -18,8 +18,10 @@ OUTPUT_PATH="docs/assets/example_report_preview.webp"
 DPI=300
 
 # Height (in pixels) of the top strip to keep after rendering.
-# Width is taken as full page width automatically.
-CROP_HEIGHT=2000
+# Width is taken as full page width automatically. Page 1 is the summary;
+# this keeps all of it and stops above the footer, and the trim then drops
+# the blank space below the last row.
+CROP_HEIGHT=2400
 
 # Margin (in pixels) to add after trimming.
 BORDER=20

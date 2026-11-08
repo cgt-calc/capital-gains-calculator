@@ -50,7 +50,7 @@ BAR_SALE_DAY = dt.date(2024, 8, 1)
 # FOO: a pool of 100, then on one day a purchase of 20 and a sale of 120, so the
 # sale is matched same day for 20 and against the pool for 100 and the sale fee
 # is apportioned between the two lines. BAR: one purchase sold at a loss, one
-# matching line, so only the heading carries its proceeds. A fee on every leg.
+# matching line, whose row repeats the heading's proceeds. A fee on every leg.
 TRANSACTIONS = [
     transaction(POOL_DAY, ActionType.BUY, "FOO", 100, 10, 1, -1001, GBP),
     transaction(SPLIT_DAY, ActionType.BUY, "FOO", 20, 12, 1, -241, GBP),
@@ -60,12 +60,12 @@ TRANSACTIONS = [
 ]
 
 HEADING = re.compile(r"^Disposal \d+: \S+ units of (\w+) for £([\d,.]+)")
+# A row of a disposal's table: number, rule, quantity, then proceeds, allowable
+# cost and the gain or loss.
 ENTRY = re.compile(
-    r"\d+\. [A-Z0-9 ]+\. Quantity: [\d.]+, "
-    r"(?:disposal proceeds: £([\d,.]+), )?"
-    r"allowable cost(?: on [^:]+)?: £([\d,.]+), (gain|loss): £([\d,.]+)\."
+    r"\d+\. [A-Z0-9 ]+? [\d.]+ £([\d,.]+) £([\d,.]+) (gain|loss) £([\d,.]+)"
 )
-TOTAL = re.compile(r"Total disposal proceeds: £([\d,.]+)")
+TOTAL = re.compile(r"Total disposal proceeds £([\d,.]+)")
 
 # The verified character set, written out here apart from cgt_calc.render_pdf.
 VERIFIED_RANGES = [
@@ -102,7 +102,7 @@ def render(tmp_path: Path) -> str:
 
 def disposals(
     text: str,
-) -> list[tuple[str, Decimal, list[tuple[Decimal | None, Decimal, Decimal]]]]:
+) -> list[tuple[str, Decimal, list[tuple[Decimal, Decimal, Decimal]]]]:
     """Each disposal's symbol and proceeds with its (proceeds, cost, gain) lines."""
     found = []
     for block in re.split(r"(?=Disposal \d+: )", text)[1:]:
@@ -110,7 +110,7 @@ def disposals(
         assert heading is not None, block
         lines = [
             (
-                money(proceeds) if proceeds else None,
+                money(proceeds),
                 money(cost),
                 money(gain) if sign == "gain" else -money(gain),
             )
@@ -148,10 +148,9 @@ def test_each_line_reconciles_to_the_penny(tmp_path: Path) -> None:
     """Proceeds less allowable cost is the gain on every line, give or take a penny."""
     found = disposals(render(tmp_path))
     assert [len(lines) for _, _, lines in found] == [2, 1]
-    for _, heading_proceeds, lines in found:
+    for _, _, lines in found:
         for proceeds, cost, gain in lines:
-            shown = heading_proceeds if proceeds is None else proceeds
-            assert abs(shown - cost - gain) <= PENNY, (shown, cost, gain)
+            assert abs(proceeds - cost - gain) <= PENNY, (proceeds, cost, gain)
 
 
 def test_lines_add_up_to_their_heading_and_the_total(tmp_path: Path) -> None:
@@ -159,10 +158,8 @@ def test_lines_add_up_to_their_heading_and_the_total(tmp_path: Path) -> None:
     text = render(tmp_path)
     found = disposals(text)
     for _, heading_proceeds, lines in found:
-        if len(lines) > 1:
-            parts = [proceeds for proceeds, _, _ in lines if proceeds is not None]
-            assert len(parts) == len(lines)
-            assert abs(sum(parts) - heading_proceeds) <= PENNY * len(parts)
+        parts = [proceeds for proceeds, _, _ in lines]
+        assert abs(sum(parts) - heading_proceeds) <= PENNY * len(parts)
     total = TOTAL.search(text)
     assert total is not None
     headings = [proceeds for _, proceeds, _ in found]
@@ -288,6 +285,10 @@ def test_every_verified_character_prints_as_itself(tmp_path: Path) -> None:
     turns three Greek marks into the Latin characters they equal. With the
     font's ligatures on, the letters "IJ" earlier in the name took the glyph of
     Ĳ, and Ĳ then read back as "IJ".
+
+    The name prints three times, in the purchase and sale headings (SemiBold)
+    and in the dividend line (Regular), and each must read back: a character
+    that one weight draws wrongly would still leave the other copies intact.
     """
     characters = [
         char
@@ -310,11 +311,15 @@ def test_every_verified_character_prints_as_itself(tmp_path: Path) -> None:
         glyphs = "".join(char["text"] for page in pdf.pages for char in page.chars)
     assert "(cid:" not in glyphs
     expected = unicodedata.normalize("NFC", name).replace(" ", "")
-    assert expected in glyphs.replace(" ", "")
+    assert glyphs.replace(" ", "").count(expected) == 3
 
 
-def test_the_report_is_set_in_new_computer_modern(tmp_path: Path) -> None:
-    """Typst found the font the template names; it did not fall back to another."""
+def test_the_report_is_set_in_the_bundled_noto_sans(tmp_path: Path) -> None:
+    """Typst found the Noto Sans files the package ships, in all three weights.
+
+    Plain ASCII, so nothing should fall back: a misnamed family or a missing
+    font path shows up here as New Computer Modern.
+    """
     report = get_report(
         create_calculator(tax_year=2024, balance_check=False), TRANSACTIONS
     )
@@ -325,7 +330,7 @@ def test_the_report_is_set_in_new_computer_modern(tmp_path: Path) -> None:
         fonts = {
             char["fontname"].split("+")[-1] for page in pdf.pages for char in page.chars
         }
-    assert fonts == {"NewCM10-Regular", "NewCM10-Bold"}
+    assert fonts == {"NotoSans-Regular", "NotoSans-SemiBold", "NotoSans-Bold"}
 
 
 def test_the_gain_to_date_starts_its_own_paragraph(tmp_path: Path) -> None:

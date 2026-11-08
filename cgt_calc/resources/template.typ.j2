@@ -7,14 +7,97 @@
   ends in a tag needs two blank lines. "{%-" and "-%}" join text across lines
   where no space may appear, as before a comma.
 
-  No ligatures: New Computer Modern would join "IJ" in a ticker such as IJH
-  into the Dutch letter Ĳ, and the PDF's text would then read some letters as
-  others. No hyphenation, so words stay whole in the PDF's text.
-#}
-#set page(paper: "a4", margin: 3cm, numbering: "1")
-#set text(font: "New Computer Modern", size: 10pt, lang: "en", hyphenate: false, ligatures: false)
-#align(center, text(size: 14.4pt, weight: "bold")[Capital Gains Tax Calculations for {{ view.title_period }}])
+  The text is set in Noto Sans, the files under fonts/noto-sans. Typst draws a
+  character Noto Sans lacks from the fonts it embeds, New Computer Modern
+  first. No ligatures: New Computer Modern would join "IJ" in a ticker such as
+  IJH into the Dutch letter Ĳ, and the PDF's text would then read some letters
+  as others. No hyphenation, so words stay whole in the PDF's text.
 
+  The summary comes first. Each event's matching lines are a table, with the
+  pool after each line in a row of its own.
+#}
+#let navy = rgb(31, 56, 77)
+#let teal = rgb(0, 116, 122)
+#let muted = rgb(91, 105, 116)
+#let hairline = rgb(197, 208, 214)
+#set page(paper: "a4", margin: (x: 2.3cm, top: 2.6cm, bottom: 2.3cm),
+  header: context if here().page() > 1 {
+    set text(size: 8.5pt, fill: muted)
+    block(width: 100%, stroke: (bottom: 0.4pt + hairline), inset: (bottom: 0.35em))[Capital Gains Tax Calculations for {{ view.title_period }}]
+  },
+  footer: context align(center, text(size: 8.5pt, fill: muted)[Page #counter(page).display() of #counter(page).final().first()]),
+)
+#set text(font: ("Noto Sans", "New Computer Modern"), size: 10.5pt, lang: "en", hyphenate: false, ligatures: false, number-width: "tabular")
+#set par(leading: 0.55em, spacing: 0.85em)
+// Noto Sans draws these letters as a base glyph and a separate mark, and the
+// mark does not read back from the PDF's text. New Computer Modern draws each
+// as one glyph that does.
+#show regex("[\u{01F9}\u{1E3F}\u{1E43}\u{1E45}\u{1E63}\u{1EB9}\u{1ECB}\u{1ECD}\u{1EE5}]"): set text(font: "New Computer Modern")
+#show heading.where(level: 1): it => block(above: 1.6em, below: 0.9em, sticky: true, text(size: 15pt, weight: "bold", fill: navy, it.body))
+#show heading.where(level: 2): it => block(above: 1.5em, below: 0.75em, sticky: true, width: 100%, stroke: (bottom: 0.5pt + hairline), inset: (bottom: 0.3em), text(size: 11.5pt, weight: "semibold", fill: teal, it.body))
+#show heading.where(level: 3): it => block(above: 1.15em, below: 0.6em, sticky: true, text(size: 10.5pt, weight: "semibold", fill: navy, it.body))
+#let summary-table(..rows) = table(
+  columns: (1fr, auto),
+  stroke: (x, y) => (bottom: 0.4pt + hairline),
+  inset: (x: 0pt, y: 0.42em),
+  align: (left, right),
+  ..rows,
+)
+#let total(body) = text(weight: "bold", fill: navy, body)
+#let note(body) = text(size: 9pt, fill: muted, body)
+#let header-cell(body) = text(size: 9pt, weight: "semibold", fill: navy, body)
+
+#block(below: 1.4em, width: 100%, stroke: (bottom: 1.2pt + teal), inset: (bottom: 0.5em), text(size: 20pt, weight: "bold", fill: navy)[Capital Gains Tax Calculations for {{ view.title_period }}])
+
+= Overall - Capital Gains
+#summary-table(
+  [Number of acquisitions], [{{ view.summary.acquisition_count }}],
+  [Number of disposals], [{{ view.summary.disposal_count }}],
+  [Total disposal proceeds], [£{{ view.summary.disposal_proceeds|money }}],
+  [Total allowable costs], [£{{ view.summary.allowable_costs|money }}],
+  [Total capital gain before loss], [£{{ view.summary.total_gain|money }}],
+  [Total capital loss], [£{{ view.summary.total_loss|money }}],
+{% if view.summary.gift_loss > 0 %}
+  [Losses on gifts, kept separate], [£{{ view.summary.gift_loss|money }}],
+{% endif %}
+{% if view.summary.exempt_disposal_count > 0 %}
+  [Number of exempt disposals], [{{ view.summary.exempt_disposal_count }}],
+  [Total exempt disposal proceeds], [£{{ view.summary.exempt_disposal_proceeds|money }}],
+{% endif %}
+  table.hline(stroke: 0.8pt + navy),
+  total[Total capital gain after loss], total[£{{ view.summary.net_gain|money }}],
+)
+#note[Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.]
+
+= Overall - Dividends and Interests
+#summary-table(
+  [Number of dividend distributions], [{{ view.income_summary.dividend_count }}],
+  [Number of interest transactions], [{{ view.income_summary.interest_count }}],
+  [Number of interest tax transactions], [{{ view.income_summary.interest_tax_count }}],
+  [Number of excess reported income distributions], [{{ view.income_summary.eri_count }}],
+  [Total amount of dividends proceeds], [£{{ view.income_summary.total_dividends|money }}],
+{% if view.income_summary.eri_dividends is not none %}
+  table.cell(colspan: 2, inset: (left: 1em))[#note[(including £{{ view.income_summary.eri_dividends|money }} from excess reported income distributions)]],
+{% endif %}
+  [Total amount of dividends tax allowance due to double taxation treaties], [£{{ view.income_summary.treaty_allowance|money }}],
+{% if view.income_summary.dividend_allowance is not none %}
+  [Total amount of dividends tax yearly allowance], [£{{ view.income_summary.dividend_allowance|money }}],
+{% endif %}
+{% if view.income_summary.taxable_dividends is not none %}
+  total[Total amount of taxable dividends proceeds], total[£{{ view.income_summary.taxable_dividends|money }}],
+{% endif %}
+{% if view.income_summary.explains_dividend_tax_credit %}
+  table.cell(colspan: 2)[#note[Most dividends before 6 April 2016 carried a tax credit, so cgt-calc does not work out the taxable amount. Use your dividend vouchers and HMRC's guidance on tax credits.]],
+{% endif %}
+  [Total amount of UK interests proceeds], [£{{ view.income_summary.uk_interest|money }}],
+  [Total amount of foreign interests proceeds], [£{{ view.income_summary.foreign_interest|money }}],
+{% if view.income_summary.eri_interest is not none %}
+  table.cell(colspan: 2, inset: (left: 1em))[#note[(including £{{ view.income_summary.eri_interest|money }} from excess reported income distributions)]],
+{% endif %}
+  [Total amount of interest tax paid], [£{{ view.income_summary.interest_tax|money }}],
+)
+
+#pagebreak()
 = Capital Gains Events
 
 {% for day in view.days %}
@@ -43,18 +126,18 @@ Chargeable *gain* is £{{ event.gain|money }}{% if event.is_gift %}, before any 
 a gift of shares that qualify for Gift Hold-over Relief has the gain deferred by a joint claim on your returns{% endif %}
 
 
-Capital gain to date is £{{ event.gain_to_date|money }}
+#text(fill: muted)[Capital gain to date is £{{ event.gain_to_date|money }}]
     {% elif event.outcome == "nil" %}
 Neither a gain nor a loss.
     {% elif event.outcome == "clogged_loss" %}
 *Clogged loss* of £{{ (-event.gain)|money }} on a gift, kept out of the loss total:
 a loss on a gift to a connected person can only be set against gains on disposals to the same person while still connected (TCGA 1992 s18(3)).
 
-Losses on gifts to date are £{{ event.gift_loss_to_date|money }}
+#text(fill: muted)[Losses on gifts to date are £{{ event.gift_loss_to_date|money }}]
     {% else %}
 Chargeable *loss* is £{{ (-event.gain)|money }}
 
-Capital loss to date is £{{ event.loss_to_date|money }}
+#text(fill: muted)[Capital loss to date is £{{ event.loss_to_date|money }}]
     {% endif %}
 {% elif event.kind == "acquisition" %}
 #heading(level: 3)[
@@ -126,79 +209,88 @@ Loss is £{{ (-event.gain)|money }}; the gain or loss is disregarded (exempt ass
 {% endif %}
 
 {% if event.lines %}
-#enum(
-{% for line in event.lines %}
-[*{{ line.rule }}*. Quantity: {{ strip_zeros(line.quantity) }},
-    {% if event.is_disposal %}
-        {% if line.shows_proceeds %}
-    disposal proceeds: £{{ line.proceeds|money }},
-        {% endif %}
-    allowable
-        {% if line.bnb_date %}
-    cost on #box[{{ line.bnb_date.strftime("%d %b %Y") }}:]
-        {% else %}
-    cost:
-        {% endif %}
-    £{{ line.cost|money }},
-        {% if line.is_gain %}
-    #box[gain: £{{ line.gain|money }}.]
-        {% else %}
-    #box[loss: £{{ (-line.gain)|money }}.]
-        {% endif %}
-    {% elif event.kind == "exempt" %}
-        {% if line.shows_proceeds %}
-    disposal proceeds: £{{ line.proceeds|money }},
-        {% endif %}
-    cost used for this illustrative
-        {% if line.bnb_date %}
-    calculation on #box[{{ line.bnb_date.strftime("%d %b %Y") }}:]
-        {% else %}
-    calculation:
-        {% endif %}
-    £{{ line.cost|money }},
-        {% if line.is_gain %}
-    #box[disregarded gain: £{{ line.gain|money }}.]
-        {% else %}
-    #box[disregarded loss: £{{ (-line.gain)|money }}.]
-        {% endif %}
+    {#
+      One table per event: the rule, its quantity and the event's figures,
+      then a row with the pool after the line. A long header takes more than
+      one line, so the rule's column keeps the width of a name such as BED AND
+      BREAKFAST.
+    #}
+    {% if event.kind == "exempt" %}
+        {% set headers = [["Quantity"], ["Disposal", "proceeds"], ["Cost used for", "this illustrative", "calculation"], ["Disregarded", "gain or loss"]] %}
+    {% elif event.is_disposal %}
+        {% set headers = [["Quantity"], ["Disposal proceeds"], ["Allowable cost"], ["Gain or loss"]] %}
     {% elif event.kind == "spin_off" %}
-    original cost of {{ line.spin_off_source }}: £{{ line.amount|money }}, after spin-off: £{{ line.new_pool_cost|money }}
+        {% set headers = [["Quantity"], ["Original cost"], ["After spin-off"]] %}
     {% elif event.kind == "eri" %}
-    original cost of {{ event.symbol }}: £{{ line.amount|money }}, after income distribution: £{{ line.new_pool_cost|money }}
+        {% set headers = [["Quantity"], ["Original cost"], ["After income", "distribution"]] %}
     {% else %}
-    actual cost: £{{ line.amount|money }}.
+        {% set headers = [["Quantity"], ["Actual cost"]] %}
     {% endif %}
-
-    {% if event.kind == "option_grant" %}
-    The option grant does not change the Section 104 holding of the underlying shares.
-    {% else %}
-        {% if event.pool_units_left %}
-    Number of units left in the pool:
+#block(above: 0.8em, below: 1.1em, table(
+  columns: (1.4em, 1fr{% for _ in headers %}, auto{% endfor %}),
+  stroke: none,
+  inset: (x: 0.45em, y: 0.38em),
+  align: (x, y) => if x < 2 { left } else { right },
+  table.header(
+    table.hline(stroke: 0.6pt + navy),
+    [], header-cell[Rule],
+    {% for header in headers %}
+    header-cell[{% for part in header %}{{ part }}{% if not loop.last %} \ {% endif %}{% endfor %}],
+    {% endfor %}
+    table.hline(stroke: 0.4pt + hairline),
+  ),
+    {% for line in event.lines %}
+  text(fill: muted)[{{ loop.index }}.],
+  [*{{ line.rule }}*{% if line.bnb_date %} \ #text(size: 8.5pt, fill: muted)[{% if event.kind == "exempt" %}calculation{% else %}allowable cost{% endif %} on #box[{{ line.bnb_date.strftime("%d %b %Y") }}]]{% endif %}],
+  [{{ strip_zeros(line.quantity) }}],
+        {% if event.is_disposal or event.kind == "exempt" %}
+  [£{{ line.proceeds|money }}],
+  [£{{ line.cost|money }}],
+            {% if line.is_gain %}
+  [#text(fill: muted)[{% if event.kind == "exempt" %}disregarded {% endif %}gain] £{{ line.gain|money }}],
+            {% else %}
+  [#text(fill: muted)[{% if event.kind == "exempt" %}disregarded {% endif %}loss] £{{ (-line.gain)|money }}],
+            {% endif %}
+        {% elif event.kind == "spin_off" %}
+  [#text(fill: muted)[of {{ line.spin_off_source }}] £{{ line.amount|money }}],
+  [£{{ line.new_pool_cost|money }}],
+        {% elif event.kind == "eri" %}
+  [#text(fill: muted)[of {{ event.symbol }}] £{{ line.amount|money }}],
+  [£{{ line.new_pool_cost|money }}],
         {% else %}
-    Number of units in the pool:
+  [£{{ line.amount|money }}],
         {% endif %}
+  [], table.cell(colspan: {% if headers|length == 4 %}5{% elif headers|length == 3 %}4{% else %}3{% endif %}, inset: (top: 0pt, bottom: 0.5em, x: 0.45em), align: left)[#text(size: 9pt, fill: muted)[
+        {% if event.kind == "option_grant" %}
+    The option grant does not change the Section 104 holding of the underlying shares.
+        {% else %}
+            {% if event.pool_units_left %}
+    Number of units left in the pool:
+            {% else %}
+    Number of units in the pool:
+            {% endif %}
     {{ strip_zeros(line.new_quantity) }}
-        {%- if line.new_quantity > 0 %},
+            {%- if line.new_quantity > 0 %},
     new pool cost: £{{ line.new_pool_cost|money }}
     (£{{ line.pool_per_unit|money }}/unit)
-            {%- if event.is_acquisition and line.spin_off_source %}
-
-
-    Cost basis calculated based on cost of {{ line.spin_off_source }} share pool from which {{ event.symbol }} shares were spun off
-            {%- endif %}
-            {%- if event.is_acquisition %}
-                {%- for eri in line.eris %}
-
-
-    Cost basis increased by £{{ eri.cost|money }}
+                {%- if event.is_acquisition and line.spin_off_source %}
+    \ Cost basis calculated based on cost of {{ line.spin_off_source }} share pool from which {{ event.symbol }} shares were spun off
+                {%- endif %}
+                {%- if event.is_acquisition %}
+                    {%- for eri in line.eris %}
+    \ Cost basis increased by £{{ eri.cost|money }}
     (£{{ eri.unit_price|money }}/unit), due to excess reported income on #box[{{ eri.date.strftime("%d %b %Y") }}]
-                {%- endfor %}
-            {%- endif %}
-        {%- endif %}.
-    {% endif %}
-],
-{% endfor %}
-)
+                    {%- endfor %}
+                {%- endif %}
+            {%- endif %}.
+        {% endif %}
+  ]],
+        {% if not loop.last %}
+  table.hline(stroke: 0.4pt + hairline),
+        {% endif %}
+    {% endfor %}
+  table.hline(stroke: 0.6pt + navy),
+))
 {% endif %}
 
 {% endfor %}
@@ -229,48 +321,3 @@ Loss is £{{ (-event.gain)|money }}; the gain or loss is disregarded (exempt ass
 
 {% endfor %}
 {% endif %}
-
-#pagebreak(weak: true)
-= Overall - Capital Gains
-== Number of acquisitions: {{ view.summary.acquisition_count }}
-== Number of disposals: {{ view.summary.disposal_count }}
-== Total disposal proceeds: £{{ view.summary.disposal_proceeds|money }}
-== Total allowable costs: £{{ view.summary.allowable_costs|money }}
-== Total capital gain before loss: £{{ view.summary.total_gain|money }}
-== Total capital loss: £{{ view.summary.total_loss|money }}
-{% if view.summary.gift_loss > 0 %}
-== Losses on gifts, kept separate: £{{ view.summary.gift_loss|money }}
-{% endif %}
-{% if view.summary.exempt_disposal_count > 0 %}
-== Number of exempt disposals: {{ view.summary.exempt_disposal_count }}
-== Total exempt disposal proceeds: £{{ view.summary.exempt_disposal_proceeds|money }}
-{% endif %}
-== Total capital gain after loss: £{{ view.summary.net_gain|money }}
-#v(1em)
-Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.
-#v(2em)
-= Overall - Dividends and Interests
-== Number of dividend distributions: {{ view.income_summary.dividend_count }}
-== Number of interest transactions: {{ view.income_summary.interest_count }}
-== Number of interest tax transactions: {{ view.income_summary.interest_tax_count }}
-== Number of excess reported income distributions: {{ view.income_summary.eri_count }}
-== Total amount of dividends proceeds: £{{ view.income_summary.total_dividends|money }}
-{% if view.income_summary.eri_dividends is not none %}
-=== (including £{{ view.income_summary.eri_dividends|money }} from excess reported income distributions)
-{% endif %}
-== Total amount of dividends tax allowance due to double taxation treaties: £{{ view.income_summary.treaty_allowance|money }}
-{% if view.income_summary.dividend_allowance is not none %}
-== Total amount of dividends tax yearly allowance: £{{ view.income_summary.dividend_allowance|money }}
-{% endif %}
-{% if view.income_summary.taxable_dividends is not none %}
-== Total amount of taxable dividends proceeds: £{{ view.income_summary.taxable_dividends|money }}
-{% endif %}
-{% if view.income_summary.explains_dividend_tax_credit %}
-Most dividends before 6 April 2016 carried a tax credit, so cgt-calc does not work out the taxable amount. Use your dividend vouchers and HMRC's guidance on tax credits.
-{% endif %}
-== Total amount of UK interests proceeds: £{{ view.income_summary.uk_interest|money }}
-== Total amount of foreign interests proceeds: £{{ view.income_summary.foreign_interest|money }}
-{% if view.income_summary.eri_interest is not none %}
-=== (including £{{ view.income_summary.eri_interest|money }} from excess reported income distributions)
-{% endif %}
-== Total amount of interest tax paid: £{{ view.income_summary.interest_tax|money }}

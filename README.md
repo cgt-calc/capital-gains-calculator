@@ -69,4 +69,5 @@ advisers, the results may contain errors, and tax rules change.
 You are responsible for providing complete data and checking the figures against your records and
 current HMRC guidance before using them in a tax return. For unusual or uncertain circumstances,
 consider consulting a suitably qualified tax adviser. The software is provided "as is", without
-warranty of any kind; see the [MIT License](LICENSE).
+warranty of any kind; see the [MIT License](LICENSE). The PDF report's Noto Sans fonts ship with
+cgt-calc under the [SIL Open Font License](cgt_calc/resources/fonts/noto-sans/OFL.txt).

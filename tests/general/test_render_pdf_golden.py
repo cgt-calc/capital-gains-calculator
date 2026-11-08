@@ -352,15 +352,10 @@ SCENARIOS: dict[str, tuple[Callable[[], CapitalGainsReport], list[str]]] = {
             ),
             "Gain is £1,490.00",
             (
-                "BED AND BREAKFAST. Quantity: 50, disposal proceeds: £6,000.00, cost "
-                "used for this illustrative calculation on 11 Sep 2024: £5,505.00, "
-                "disregarded gain: £495.00."
+                "1. BED AND BREAKFAST 50 £6,000.00 £5,505.00 disregarded gain "
+                "£495.00 calculation on 11 Sep 2024"
             ),
-            (
-                "SECTION 104. Quantity: 50, disposal proceeds: £6,000.00, cost used "
-                "for this illustrative calculation: £5,005.00, disregarded gain: "
-                "£995.00."
-            ),
+            "2. SECTION 104 50 £6,000.00 £5,005.00 disregarded gain £995.00",
         ],
     ),
     "option_grant": (
@@ -389,7 +384,7 @@ SCENARIOS: dict[str, tuple[Callable[[], CapitalGainsReport], list[str]]] = {
             ),
             "cost increased by £50.00",
             (
-                "Total amount of foreign interests proceeds: £100.00 (including "
+                "Total amount of foreign interests proceeds £100.00 (including "
                 "£50.00 from excess reported income distributions)"
             ),
         ],

@@ -1,43 +1,45 @@
 Capital Gains Tax Calculations for 2024-25
+Overall - Capital Gains
+Number of acquisitions 2
+Number of disposals 1
+Total disposal proceeds £800.00
+Total allowable costs £900.00
+Total capital gain before loss £0
+Total capital loss £100.00
+Total capital gain after loss £-100.00
+Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.
+Overall - Dividends and Interests
+Number of dividend distributions 0
+Number of interest transactions 0
+Number of interest tax transactions 0
+Number of excess reported income distributions 0
+Total amount of dividends proceeds £0.00
+Total amount of dividends tax allowance due to double taxation treaties £0.00
+Total amount of dividends tax yearly allowance £500.00
+Total amount of taxable dividends proceeds £0.00
+Total amount of UK interests proceeds £0.00
+Total amount of foreign interests proceeds £0.00
+Total amount of interest tax paid £0.00
+Page 1 of 2
+Capital Gains Tax Calculations for 2024-25
 Capital Gains Events
 01 May 2024
 Acquisition 1: 100 units of OLD for £1,000.00 (£10.00/unit)
-1. SECTION 104. Quantity: 100, actual cost: £1,000.00.
+Rule Quantity Actual cost
+1. SECTION 104 100 £1,000.00
 Number of units in the pool: 100, new pool cost: £1,000.00 (£10.00/unit).
 10 May 2024
 Disposal 1: 100 units of OLD for £800.00 (£8.00/unit)
 Chargeable loss is £100.00
 Capital loss to date is £100.00
-1. BED AND BREAKFAST. Quantity: 100, allowable cost on 20 May 2024: £900.00,
-loss: £100.00.
+Rule Quantity Disposal proceeds Allowable cost Gain or loss
+1. BED AND BREAKFAST 100 £800.00 £900.00 loss £100.00
+allowable cost on 20 May 2024
 Number of units left in the pool: 0.
 OLD was renamed to NEW
 20 May 2024
 Acquisition 2: 100 units of NEW for £900.00 (£9.00/unit)
-1. BED AND BREAKFAST. Quantity: 100, actual cost: £1,000.00.
+Rule Quantity Actual cost
+1. BED AND BREAKFAST 100 £1,000.00
 Number of units in the pool: 100, new pool cost: £1,000.00 (£10.00/unit).
-1
-Overall - Capital Gains
-Number of acquisitions: 2
-Number of disposals: 1
-Total disposal proceeds: £800.00
-Total allowable costs: £900.00
-Total capital gain before loss: £0
-Total capital loss: £100.00
-Total capital gain after loss: £-100.00
-Amounts are rounded to the nearest penny individually, so a line may differ from its
-components by a penny.
-Overall - Dividends and Interests
-Number of dividend distributions: 0
-Number of interest transactions: 0
-Number of interest tax transactions: 0
-Number of excess reported income distributions: 0
-Total amount of dividends proceeds: £0.00
-Total amount of dividends tax allowance due to double taxation
-treaties: £0.00
-Total amount of dividends tax yearly allowance: £500.00
-Total amount of taxable dividends proceeds: £0.00
-Total amount of UK interests proceeds: £0.00
-Total amount of foreign interests proceeds: £0.00
-Total amount of interest tax paid: £0.00
-2
+Page 2 of 2
