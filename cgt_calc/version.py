@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import importlib.metadata
+import json
 from pathlib import Path
 import re
 import subprocess
 
 # Version kept in pyproject.toml for unreleased source trees. Releases and
 # Docker images overwrite it with `uv version <tag>` at build time, so seeing it
-# at run time means the package was installed straight from a checkout.
+# at run time means the package was installed straight from a checkout or a
+# git URL.
 PLACEHOLDER_VERSION = "0.0.0"
 
 GIT_DESCRIBE_TIMEOUT_SECONDS = 5
@@ -29,18 +31,51 @@ COMMIT_ONLY_RE = re.compile(r"^[0-9a-f]{7,40}$")
 # The version a release tag names, with the v stripped off.
 RELEASE_TAG_RE = re.compile(r"^v?(?P<release>\d[^\s]*)$")
 
+# Where installers record the URL a package came from (PEP 610).
+DIRECT_URL_FILE = "direct_url.json"
+# The length git describe gives commits in a fresh clone of this repository,
+# so a GitHub install names its commit the way a checkout or Docker edge does.
+INSTALLED_COMMIT_LENGTH = 7
+
 
 def get_version() -> str:
     """Return the version of the running package.
 
     Released and Docker builds carry a stamped version in their metadata. A
-    source checkout carries the placeholder instead, so describe it with git to
-    report something that pins down the exact commit.
+    source checkout or a GitHub install carries the placeholder instead, so
+    name the commit it came from to pin down the exact code.
     """
     version = importlib.metadata.version(DISTRIBUTION_NAME)
     if version != PLACEHOLDER_VERSION:
         return version
-    return _describe_source_tree() or PLACEHOLDER_VERSION
+    return _describe_source_tree() or _describe_git_install() or PLACEHOLDER_VERSION
+
+
+def _describe_git_install() -> str | None:
+    """Return a PEP 440 version naming the commit of a git URL install, if any.
+
+    pip, pipx and uv record the commit they installed from a git URL in the
+    distribution's `direct_url.json`. Any other install, or a file that does not
+    hold a git commit, leaves the placeholder standing.
+    """
+    distribution = importlib.metadata.distribution(DISTRIBUTION_NAME)
+    try:
+        text = distribution.read_text(DIRECT_URL_FILE)
+        direct_url = None if text is None else json.loads(text)
+    except ValueError:
+        # A damaged file: not UTF-8, or not JSON.
+        return None
+    if not isinstance(direct_url, dict):
+        # No file, or JSON of another shape.
+        return None
+    vcs_info = direct_url.get("vcs_info")
+    # Directory and archive installs record dir_info or archive_info instead.
+    if not isinstance(vcs_info, dict) or vcs_info.get("vcs") != "git":
+        return None
+    commit = vcs_info.get("commit_id")
+    if not isinstance(commit, str) or not COMMIT_ONLY_RE.fullmatch(commit):
+        return None
+    return f"{PLACEHOLDER_VERSION}+g{commit[:INSTALLED_COMMIT_LENGTH]}"
 
 
 def _describe_source_tree() -> str | None:

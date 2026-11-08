@@ -116,8 +116,9 @@ Or run it without installing. `uvx` fetches the latest `main` each time:
 uvx --from git+https://github.com/cgt-calc/capital-gains-calculator cgt-calc
 ```
 
-`cgt-calc --version` prints the placeholder `cgt-calc 0.0.0` for this version, because installs from
-GitHub do not get a release number.
+Installs from GitHub do not get a release number, so `cgt-calc --version` prints the placeholder
+`0.0.0`, then `+g` and the first seven characters of the commit you installed. For example:
+`cgt-calc 0.0.0+g0ed8e39`.
 
 Docker users can use the `edge` tag instead; see [Available tags](docker.md#available-tags). The
 [Nix package](#nix) is built from a release, so it cannot install `main`.
@@ -132,8 +133,12 @@ To get the latest changes on `main`, use the command for the tool you installed 
 | pipx                                     | `pipx reinstall cgt-calc`                                                                          |
 | pip, in the original virtual environment | `python -m pip install --force-reinstall git+https://github.com/cgt-calc/capital-gains-calculator` |
 
+Run `cgt-calc --version` afterwards. The seven characters after `+g` should match the start of the
+latest commit ID in the
+[list of commits on `main`](https://github.com/cgt-calc/capital-gains-calculator/commits/main/).
+
 Do not use `pipx upgrade` or `pip install --upgrade` here. They can leave the old code in place,
-because the version number stays `0.0.0`.
+because the package version stays `0.0.0` from one commit to the next.
 
 ### Go back to the latest release
 
