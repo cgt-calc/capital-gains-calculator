@@ -168,14 +168,36 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      # Passed in the form git describe gives an edge build after a
-      # pre-release tag. The Dockerfile turns it into the normalised version
-      # below, which is read back from the image.
-      IMAGE_DESCRIBE: v0.0.0-rc.1-1-gabcdef0
-      IMAGE_VERSION: 0.0.0rc1.post1+gabcdef0
+      # A VERSION override in the form git describe gives an edge build
+      # after a pre-release tag, and the normalised version the image built
+      # with it must report.
+      OVERRIDE_DESCRIBE: v0.0.0-rc.1-1-gabcdef0
+      OVERRIDE_VERSION: 0.0.0rc1.post1+gabcdef0
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
+        with:
+          # Full history and tags, from which the image's build takes its
+          # version.
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          # One uvx run needs no cache, and saving one would race the
+          # test jobs for the same key.
+          enable-cache: false
+
+      # What any build of this checkout is named, which the image built
+      # below without VERSION must report.
+      - name: Compute the expected version
+        run: |
+          version="$(uvx --from hatchling --with hatch-vcs hatchling version)"
+          # Without the release tags, every build would be 0.0.postN alike.
+          case "$version" in
+            0.0.post*) echo "The checkout has no release tag: $version" >&2; exit 1 ;;
+          esac
+          echo "IMAGE_VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -186,8 +208,6 @@ jobs:
           context: .
           tags: local/cgt-calc:test
           load: true
-          build-args: |
-            VERSION=${{ env.IMAGE_DESCRIBE }}
           cache-from: type=gha
           # Only main writes the layer cache. Every run can read main's
           # entries, but ones written from a pull request or the merge
@@ -215,6 +235,24 @@ jobs:
             -v "${{ github.workspace }}:/data" \
             local/cgt-calc:test \
             -lc "cgt-calc --version | grep -Fx 'cgt-calc $IMAGE_VERSION' && cgt-calc --year 2022 --raw-file tests/raw/data/test_data.csv --no-balance-check --exchange-rates-file tests/exchange_rates_data.csv --output /tmp/report.pdf && test -s /tmp/report.pdf"
+
+      # A build context whose Git history cannot be read, such as a linked
+      # worktree, passes VERSION instead. The dependency stages come from
+      # the build above.
+      - name: Build image with a given VERSION
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: runtime
+          tags: local/cgt-calc:override
+          load: true
+          build-args: |
+            VERSION=${{ env.OVERRIDE_DESCRIBE }}
+
+      - name: Check the given VERSION
+        run: |
+          docker run --rm local/cgt-calc:override -lc "cgt-calc --version" |
+            grep -Fx "cgt-calc $OVERRIDE_VERSION"
 
       # uv run installs the mounted checkout, which Git inside the container
       # cannot read, so give its build the version too.

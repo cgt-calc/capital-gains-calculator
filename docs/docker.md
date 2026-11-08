@@ -73,10 +73,15 @@ To build the image locally instead, run this with the cloned repository as the c
 directory:
 
 ```shell
-docker buildx build --build-arg VERSION="$(git describe --tags --match 'v[0-9]*')" \
-  --tag capital-gains-calculator .
+docker buildx build --tag capital-gains-calculator .
 docker run --rm -it -v "$PWD":/data capital-gains-calculator
 ```
 
-The image is built without the repository's Git history, so `VERSION` tells it which version it is,
-for example `v3.0.0-13-g327ebae` for 13 commits after release 3.0.0. Without it, the build stops.
+The build reads cgt-calc's version from the repository's Git history, which Docker receives with the
+rest of the directory. If you build from a linked Git worktree, whose history is stored outside its
+directory, the build stops and asks for the version. Pass it like this:
+
+```shell
+docker buildx build --build-arg VERSION="$(git describe --tags --match 'v[0-9]*')" \
+  --tag capital-gains-calculator .
+```
