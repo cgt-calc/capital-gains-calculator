@@ -1,6 +1,6 @@
 """Tests for the printable view of a capital gains report.
 
-The golden `.tex` files prove the template and the view agree with what the
+The golden report texts prove the template and the view agree with what the
 report used to say. These prove the numbers the view carries: which log key
 means which event, what is counted, what the running totals come to.
 """

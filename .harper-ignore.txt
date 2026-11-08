@@ -87,8 +87,6 @@
 ^args_validators\.py:.*MissingPreposition
 # "Trading 212's" - Harper splits the possessive after a number.
 ^trading212\.md:.*SpellCheck.*`s`
-# '-.tex' is the LaTeX source file `--output -` would have created.
-^args_validators\.py:.*`tex`
 # "The others are minor currencies" is complete; MissingPreposition misfires.
 ^extra-data-and-options\.md:.*MissingPreposition
 # "the Georgian lari at the rouble's rate" - Harper joins "lari at" into "lariat".
@@ -113,3 +111,9 @@
 # The site names cgt-calc.uk and next.cgt-calc.uk at the end of a sentence;
 # Harper reads the domain's "uk" as a misspelt word.
 ^(contributing|releasing)\.md:.*SpellCheck.*`uk`
+# "Latin Extended-A and -B" names two Unicode blocks; AnA reads the A as an article.
+^render_pdf\.py:.*AnA
+# "a file path" as two words is standard; CompoundNouns wants "filepath".
+^render_pdf\.py:.*CompoundNouns.*filepath
+# "`output_path`'s" - Harper splits the possessive after the backticks.
+^render_pdf\.py:.*SpellCheck.*`s`

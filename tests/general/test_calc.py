@@ -59,7 +59,7 @@ from cgt_calc.stock_splits import (
     QUANTITY_INCREASING_ACTIONS,
 )
 from cgt_calc.util import round_decimal
-from tests.utils import assert_stdout_matches, build_cmd, report_path, run_cli
+from tests.utils import assert_stdout_matches, build_cmd, pdf_text, report_path, run_cli
 
 from .calc_test_data import (
     GBP,
@@ -126,6 +126,7 @@ def create_calculator(
     balance_check: bool = True,
     cgt_exempt_tickers: list[str] | None = None,
     gifts_to_spouse: bool = False,
+    interest_fund_tickers: list[str] | None = None,
 ) -> CapitalGainsCalculator:
     """Create a calculator with standard test configuration.
 
@@ -145,7 +146,7 @@ def create_calculator(
         price_fetcher,
         SpinOffHandler(),
         SharePrices(),
-        interest_fund_tickers=[],
+        interest_fund_tickers=interest_fund_tickers or [],
         cgt_exempt_tickers=cgt_exempt_tickers,
         balance_check=balance_check,
         gifts_to_spouse=gifts_to_spouse,
@@ -164,7 +165,7 @@ def test_main_prints_help_when_no_arguments() -> None:
     assert result.returncode == 0
     assert "usage:" in result.stdout
     assert "Calculate UK capital gains" in result.stdout
-    assert "--no-pdflatex" in result.stdout
+    assert "--no-report" in result.stdout
 
 
 def test_no_report_completion_message() -> None:
@@ -2746,9 +2747,9 @@ def test_run_with_example_files(request: pytest.FixtureRequest) -> None:
     result = run_cli(cmd)
 
     # The progress narrative is a contract: it must reach stderr, in order.
-    # The last two lines depend on whether pdflatex runs, so match by prefix.
+    pdf = Path(report_path(request)).with_suffix(".pdf")
     stderr_lines = [line for line in result.stderr.splitlines() if line.strip()]
-    assert stderr_lines[:-2] == [
+    assert stderr_lines == [
         "Parsing tests/schwab/data/schwab_transactions.csv...",
         "Loaded 13 transactions from Charles Schwab",
         "Parsing tests/morgan_stanley/data/Releases Report.csv...",
@@ -2760,33 +2761,27 @@ def test_run_with_example_files(request: pytest.FixtureRequest) -> None:
         "First pass complete",
         "Bed & breakfast match: VUAG disposed 2020-06-03, re-acquired 2020-07-02",
         "Second pass complete",
+        f"Writing PDF report to {pdf}...",
+        "Done! Report generated successfully.",
     ]
-    assert stderr_lines[-2].startswith("Writing ")
-    assert stderr_lines[-1].startswith("Done!")
     expected_file = (
         Path("tests") / "general" / "data" / "test_run_with_example_files_output.txt"
     )
     assert_stdout_matches(result, cmd, expected_file)
 
-    # The LaTeX source is pinned too. pdflatex leaves no source behind, so
-    # the one CI job that runs it compiles the PDF instead of checking this.
-    if "--no-pdflatex" in cmd:
-        cmd_str = " ".join([param or "''" for param in cmd])
-        output = Path(report_path(request))
-        tex_path = output.parent / f"{output.stem}.tex"
-        expected_tex_file = (
-            Path("tests")
-            / "general"
-            / "data"
-            / "test_run_with_example_files_report.tex"
-        )
-        assert tex_path.read_text(encoding="utf-8") == expected_tex_file.read_text(
-            encoding="utf-8"
-        ), (
-            "Run with example files generated an unexpected LaTeX report, "
-            "if the change is intended update the golden with:\n"
-            f"{cmd_str} && cp {tex_path} {expected_tex_file}"
-        )
+    # The PDF's text is pinned too.
+    expected_report = (
+        Path("tests") / "general" / "data" / "test_run_with_example_files_report.txt"
+    )
+    cmd_str = " ".join([param or "''" for param in cmd])
+    assert pdf_text(pdf) == expected_report.read_text(encoding="utf-8"), (
+        "Run with example files generated an unexpected PDF report, "
+        "if the change is intended update the golden with:\n"
+        f"{cmd_str} && uv run python -c 'from pathlib import Path; "
+        "from tests.utils import pdf_text; "
+        f'Path("{expected_report}").write_text(pdf_text(Path("{pdf}")), '
+        'encoding="utf-8")\''
+    )
 
 
 def test_an_unexpected_error_prints_its_traceback_then_how_to_report_it(

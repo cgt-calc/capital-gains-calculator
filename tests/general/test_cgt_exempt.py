@@ -5,15 +5,19 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 import logging
-import os
 from pathlib import Path
-import re
 from typing import TYPE_CHECKING
 
 from cgt_calc.model import ActionType, RuleType
-from cgt_calc.render_latex import render_pdf
 from cgt_calc.render_text import render_text
-from tests.utils import build_cmd, report_path, run_cli, stderr_alerts
+from tests.utils import (
+    build_cmd,
+    pdf_text,
+    report_path,
+    report_text,
+    run_cli,
+    stderr_alerts,
+)
 
 from .calc_test_data import GBP, transaction
 from .test_calc import create_calculator, get_report
@@ -285,22 +289,20 @@ def test_pdf_report_rendering_exempt_disposal(tmp_path: Path) -> None:
     )
     report = get_report(calc, transactions)
 
-    render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
-    source = (tmp_path / "report.tex").read_text(encoding="utf-8")
-    source_flat = re.sub(r"\s+", " ", source)
+    text = report_text(report, tmp_path)
 
     # Check per-disposal subsection
-    assert "Exempt disposal: 100 units of T26 valued at £12,000" in source_flat
-    assert "the gain or loss is disregarded" in source_flat
+    assert "Exempt disposal: 100 units of T26 valued at £12,000" in text
+    assert "the gain or loss is disregarded" in text
     # The cost label carries its colon like the chargeable branch does: no
     # stray space in front of it.
-    assert "cost used for this illustrative calculation: £10,000" in source_flat
-    assert "not allowable deductions against other gains" in source_flat
+    assert "cost used for this illustrative calculation: £10,000" in text
+    assert "not allowable deductions against other gains" in text
 
     # Check Overall section line
-    assert "Number of exempt disposals: 1" in source_flat
-    assert "Total exempt disposal proceeds: £12,000" in source_flat
-    assert "Number of disposals: 0" in source_flat
+    assert "Number of exempt disposals: 1" in text
+    assert "Total exempt disposal proceeds: £12,000" in text
+    assert "Number of disposals: 0" in text
 
 
 def test_pdf_report_rendering_exempt_bed_and_breakfast(tmp_path: Path) -> None:
@@ -316,15 +318,9 @@ def test_pdf_report_rendering_exempt_bed_and_breakfast(tmp_path: Path) -> None:
     )
     report = get_report(calc, transactions)
 
-    render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
-    source_flat = re.sub(
-        r"\s+", " ", (tmp_path / "report.tex").read_text(encoding="utf-8")
-    )
+    text = report_text(report, tmp_path)
 
-    assert (
-        "cost used for this illustrative calculation on "
-        "\\mbox{11 Sep 2024:} £11,000" in source_flat
-    )
+    assert "cost used for this illustrative calculation on 11 Sep 2024: £11,000" in text
 
 
 def test_pdf_reports_exempt_gift_with_neutral_valuation_wording(
@@ -345,11 +341,8 @@ def test_pdf_reports_exempt_gift_with_neutral_valuation_wording(
 
     assert "exempt$T26" in report.calculation_log[gift_date]
     assert "Gifts at market value" not in render_text(report)
-    render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
-    source_flat = re.sub(
-        r"\s+", " ", (tmp_path / "report.tex").read_text(encoding="utf-8")
-    )
-    assert "Exempt disposal: 100 units of T26 valued at £8,000.00" in source_flat
+    text = report_text(report, tmp_path)
+    assert "Exempt disposal: 100 units of T26 valued at £8,000.00" in text
 
 
 def test_run_with_exempt_tickers(
@@ -378,7 +371,7 @@ def test_run_with_exempt_tickers(
     result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     assert "Exempt disposal proceeds: £12,000.00" in result.stdout
-    if os.getenv("ENABLE_PDFLATEX"):
-        pdf_file = Path(out_dir.rstrip("/")).with_suffix(".pdf")
-        assert pdf_file.exists()
-        assert pdf_file.stat().st_size > 0
+    pdf_file = Path(out_dir.rstrip("/")).with_suffix(".pdf")
+    assert "Exempt disposal: 100 units of T26 valued at £12,000.00" in " ".join(
+        pdf_text(pdf_file).split()
+    )

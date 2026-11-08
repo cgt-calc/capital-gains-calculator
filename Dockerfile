@@ -16,8 +16,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
 WORKDIR /data
 ENTRYPOINT ["/bin/bash"]
 
-# What the build stages below share. None of them needs LaTeX, so
-# they don't invalidate the texlive layer and build in parallel with it.
+# What the build stages below share. They build in parallel with the
+# runtime stage's system packages.
 FROM base AS build
 
 # Copy uv static binary
@@ -78,7 +78,7 @@ RUN --mount=type=cache,target=/root/.cache \
 FROM base AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      bash texlive-latex-base \
+      bash \
     && rm -rf /var/lib/apt/lists/*
 
 # The dependencies and the package are separate layers. The first is

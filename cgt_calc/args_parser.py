@@ -255,12 +255,7 @@ Documentation: https://cgt-calc.uk/
     output_mutex.add_argument(
         "--no-report",
         action="store_true",
-        help="print the summary only, without creating a PDF or LaTeX source",
-    )
-    output_group.add_argument(
-        "--no-pdflatex",
-        action="store_true",
-        help="save the report's LaTeX source instead of creating a PDF",
+        help="print the summary only, without creating a PDF",
     )
     set_completer(
         output_group.add_argument(

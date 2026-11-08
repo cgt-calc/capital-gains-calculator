@@ -22,9 +22,7 @@ from cgt_calc.exceptions import (
     InvalidTransactionError,
     IsinMissingError,
     IsinTranslationError,
-    LatexRenderError,
     MarketDataMissingError,
-    MissingExternalToolError,
     ParsingError,
     PriceMissingError,
     QuantityMissingError,
@@ -142,8 +140,6 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
     ),
     (SharePriceMissingError("FOO", DATE), ["FOO", "2023-01-01"]),
     (BundledPriceCurrencyError("FOO", DATE, "GBP"), ["FOO", "2023-01-01", "GBP"]),
-    (LatexRenderError(Path("render.log")), ["render.log"]),
-    (MissingExternalToolError("pdflatex"), ["pdflatex"]),
     (IsinTranslationError("ISIN XS123 is broken"), ["ISIN XS123 is broken"]),
     (
         TransactionDumpError("parsed.csv already exists"),

@@ -11,7 +11,6 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 from decimal import Decimal
-import re
 from typing import TYPE_CHECKING
 
 import pytest
@@ -25,8 +24,8 @@ from cgt_calc.exceptions import (
 )
 from cgt_calc.model import ActionType, BrokerTransaction, RuleType
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
-from cgt_calc.render_latex import render_pdf
 from cgt_calc.render_text import render_text
+from tests.utils import report_text
 
 from .calc_test_data import (
     GBP,
@@ -547,8 +546,8 @@ def test_a_gift_and_a_transfer_contending_for_a_purchase_are_refused() -> None:
     assert "Both the gift and the transfer" in message
 
 
-def _latex(tmp_path: Path, price: int, action: ActionType = ActionType.GIFT) -> str:
-    """Render one gift to LaTeX source, flattened to one line per block."""
+def _text(tmp_path: Path, price: int, action: ActionType = ActionType.GIFT) -> str:
+    """Render one gift to a PDF and return its text on one line."""
     report = get_report(
         create_calculator(tax_year=2024, balance_check=False),
         [
@@ -556,46 +555,45 @@ def _latex(tmp_path: Path, price: int, action: ActionType = ActionType.GIFT) -> 
             _gift(4, price, action=action),
         ],
     )
-    render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
-    source = (tmp_path / "report.tex").read_text(encoding="utf-8")
-    return re.sub(r"\s+", " ", source)
+    return report_text(report, tmp_path)
 
 
 def test_the_pdf_shows_a_gain_on_a_gift_like_any_other(tmp_path: Path) -> None:
     """Worth £120, costing £40: a chargeable gain of £80, in the total."""
-    source = _latex(tmp_path, 30)
+    text = _text(tmp_path, 30)
 
-    assert "4 units of FOO given away at a market value of £120.00" in source
-    assert "Chargeable \\textbf{gain} is £80.00, before any relief" in source
+    assert "4 units of FOO given away at a market value of £120.00" in text
+    assert "Chargeable gain is £80.00, before any relief" in text
 
 
 def test_the_pdf_keeps_a_loss_on_a_gift_out_of_the_total(tmp_path: Path) -> None:
     """A £20 loss is shown with the s18(3) note and no running loss total."""
-    source = _latex(tmp_path, 5)
+    text = _text(tmp_path, 5)
 
-    assert "\\textbf{Clogged loss} of £20.00 on a gift, kept out of the loss" in source
-    assert "Losses on gifts, kept separate: £20.00" in source
-    assert "Capital loss to date" not in source
+    assert "Clogged loss of £20.00 on a gift, kept out of the loss" in text
+    assert "Losses on gifts, kept separate: £20.00" in text
+    assert "Capital loss to date" not in text
 
 
 def test_the_pdf_shows_an_unconnected_loss_as_an_ordinary_loss(
     tmp_path: Path,
 ) -> None:
     """No clog for an unconnected recipient: the loss runs into the total."""
-    source = _latex(tmp_path, 5, ActionType.GIFT_UNCONNECTED)
+    text = _text(tmp_path, 5, ActionType.GIFT_UNCONNECTED)
 
-    assert "given away at a market value of £20.00" in source
-    assert "Chargeable \\textbf{loss} is £20.00" in source
-    assert "Capital loss to date is £20.00" in source
-    assert "Clogged" not in source
+    assert "given away at a market value of £20.00" in text
+    assert "Chargeable loss is £20.00" in text
+    assert "Capital loss to date is £20.00" in text
+    assert "Clogged" not in text
 
 
 def test_the_pdf_does_not_call_a_gift_at_cost_a_loss(tmp_path: Path) -> None:
     """Given away at exactly its cost, a gift is a nil result, not a loss."""
-    source = _latex(tmp_path, 10)
+    text = _text(tmp_path, 10)
 
-    assert "Neither a gain nor a loss." in source
-    assert "loss} " not in source.lower()
+    assert "Neither a gain nor a loss." in text
+    assert "Chargeable loss" not in text
+    assert "Clogged loss" not in text
 
 
 @pytest.mark.parametrize("action", [ActionType.GIFT, ActionType.GIFT_UNCONNECTED])

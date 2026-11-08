@@ -193,6 +193,15 @@ jobs:
           # repository's 10 GB cache limit.
           cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max' || '' }}
 
+      - name: Check the image has no system fonts
+        # The renderer ignores system fonts; this makes the next step's PDF
+        # a render on a host that has none. It runs Typst's own font search,
+        # which falls back to the standard font folders when fontconfig
+        # names none.
+        run: |
+          docker run --rm local/cgt-calc:test -lc \
+            "/build/.venv/bin/python -c 'import typst; families = typst.Fonts(include_system_fonts=True, include_embedded_fonts=False).families(); assert families == [], families'"
+
       - name: Run the installed cgt-calc
         # The pytest step mounts the workspace over /build, which hides the
         # image's own install, so only this step runs what users get. It
@@ -208,14 +217,12 @@ jobs:
       - name: Run pytest inside container
         run: |
           docker run --rm \
-            -e ENABLE_PDFLATEX=1 \
             -e CGT_TEST_MODE_STRICT=1 \
             -v "${{ github.workspace }}:/build" \
             local/cgt-calc:test \
             -lc "cd /build && uv run pytest -q --cov --cov-report=xml --junitxml=junit.xml -o junit_family=legacy"
 
       - name: Upload coverage to Codecov
-        # The only job running the test suite with pdflatex enabled.
         uses: codecov/codecov-action@v7
         with:
           files: coverage.xml

@@ -115,7 +115,7 @@ The calculation has two passes:
 - `cgt_calc/matching.py` runs the second pass, applying the same-day, bed-and-breakfast and Section
     104 matching rules.
 - `cgt_calc/model.py` defines shared values and the report model. `render_text.py` and
-    `render_latex.py` format that report without calculating it.
+    `render_pdf.py` format that report without calculating it.
 - `cgt_calc/main.py` connects the stages behind `CapitalGainsCalculator`, whose `calculate()` runs
     the two passes in order. `cgt_calc/cli.py` handles command-line input and output.
 
@@ -225,8 +225,9 @@ To regenerate the example PDF report used in the docs, run:
 ```
 
 This writes `docs/assets/example_report.pdf`. Commit the updated file if your changes affect report
-generation. The example source transactions and fixed exchange rates live in
-`scripts/example_data/`, so generation is deterministic and does not call the exchange-rate API.
+generation; a test fails while its text differs from a fresh run. The example source transactions
+and fixed exchange rates live in `scripts/example_data/`, so generation is deterministic and does
+not call the exchange-rate API.
 
 After regenerating the PDF, update the images made from it: the teaser the README shows and the
 full-page images the docs show:
@@ -234,3 +235,6 @@ full-page images the docs show:
 ```shell
 ./scripts/generate_example_preview.sh
 ```
+
+The script writes one image per page. `docs/index.md` lists the page images by hand, so update that
+list if the number of pages changes.

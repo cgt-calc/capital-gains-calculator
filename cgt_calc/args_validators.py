@@ -94,7 +94,7 @@ def output_path_type(value: str) -> Path:
     """Validate non-empty output path and convert to Path.
 
     '-' is rejected: neither the report nor the dump is written to stdout, so
-    it would create a file named '-', '-.pdf' or '-.tex'.
+    it would create a file named '-' or '-.pdf'.
     """
     if not value.strip():
         raise argparse.ArgumentTypeError("path must not be empty")

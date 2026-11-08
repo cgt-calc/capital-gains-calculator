@@ -1,0 +1,276 @@
+{#
+  The calculations report as Typst markup. render_pdf prints every value as a
+  Typst string literal, so nothing from a broker file is read as markup.
+
+  Jinja runs with trim_blocks and lstrip_blocks: a line holding only a block
+  tag disappears with its line break, so a paragraph break after a line that
+  ends in a tag needs two blank lines. "{%-" and "-%}" join text across lines
+  where no space may appear, as before a comma.
+
+  No ligatures: New Computer Modern would join "IJ" in a ticker such as IJH
+  into the Dutch letter Ĳ, and the PDF's text would then read some letters as
+  others. No hyphenation, so words stay whole in the PDF's text.
+#}
+#set page(paper: "a4", margin: 3cm, numbering: "1")
+#set text(font: "New Computer Modern", size: 10pt, lang: "en", hyphenate: false, ligatures: false)
+#align(center, text(size: 14.4pt, weight: "bold")[Capital Gains Tax Calculations for {{ view.title_period }}])
+
+= Capital Gains Events
+
+{% for day in view.days %}
+
+== {{ day.date.strftime("%d %B %Y") }}
+{% for event in day.events %}
+{% if event.is_disposal %}
+    {% if event.kind == "option_grant" %}
+#heading(level: 3)[
+    Disposal {{ event.number }}: grant of {{ strip_zeros(event.quantity) }}
+    contract{% if event.quantity != 1 %}s{% endif %} of the {{ event.symbol }}
+    for £{{ event.proceeds|money }}
+]
+    {% else %}
+#heading(level: 3)[
+    Disposal {{ event.number }}: {{ strip_zeros(event.quantity) }} units of {{ event.symbol }}
+    {% if event.is_gift %}given away at a market value of{% else %}for{% endif %} £{{ event.proceeds|money }}
+    (£{{ event.per_unit|money }}/unit)
+    {%- if event.fees > 0 -%}
+    , £{{ event.fees|money }} fees allowed as cost
+    {%- endif %}
+]
+    {% endif %}
+    {% if event.outcome == "gain" %}
+Chargeable *gain* is £{{ event.gain|money }}{% if event.is_gift %}, before any relief:
+a gift of shares that qualify for Gift Hold-over Relief has the gain deferred by a joint claim on your returns{% endif %}
+
+
+Capital gain to date is £{{ event.gain_to_date|money }}
+    {% elif event.outcome == "nil" %}
+Neither a gain nor a loss.
+    {% elif event.outcome == "clogged_loss" %}
+*Clogged loss* of £{{ (-event.gain)|money }} on a gift, kept out of the loss total:
+a loss on a gift to a connected person can only be set against gains on disposals to the same person while still connected (TCGA 1992 s18(3)).
+
+Losses on gifts to date are £{{ event.gift_loss_to_date|money }}
+    {% else %}
+Chargeable *loss* is £{{ (-event.gain)|money }}
+
+Capital loss to date is £{{ event.loss_to_date|money }}
+    {% endif %}
+{% elif event.kind == "acquisition" %}
+#heading(level: 3)[
+    Acquisition {{ event.number }}: {{ strip_zeros(event.quantity) }} units of {{ event.symbol }} for £{{ event.cost|money }}
+    (£{{ event.per_unit|money }}/unit)
+    {%- if event.fees > 0 -%}
+    , including £{{ event.fees|money }} fees
+    {%- endif %}
+]
+{% elif event.kind == "management_fee" %}
+=== Cost added to {{ event.symbol }} with no new shares: £{{ event.cost|money }}
+{% elif event.kind == "spin_off" %}
+    {% if event.quantity > 0 %}
+=== Spin-off adjustment {{ event.number }}: {{ event.spin_off_source }} cost adjusted because of {{ event.spin_off_dest }} shares spun off
+    {% endif %}
+{% elif event.kind == "eri" %}
+    {% if event.quantity > 0 %}
+=== Excess Reported Income: {{ event.symbol }} cost increased by £{{ event.cost|money }} (£{{ event.eri_unit_price|money }}/unit)
+    {% endif %}
+{% elif event.kind == "rename" %}
+#heading(level: 3)[
+    {{ event.symbol }} was renamed to {{ event.renamed_to }}
+    {%- if event.quantity > 0 -%}
+    : {{ strip_zeros(event.quantity) }} units with pool cost £{{ event.cost|money }} transferred
+    {%- endif %}
+]
+{% elif event.kind == "split" %}
+=== Share reorganisation: {{ strip_zeros(event.split.day_open_quantity) }} units of {{ event.symbol }} restated as {{ strip_zeros(event.split.scaled_day_open_quantity) }} (ratio {{ event.split.ratio_description }})
+Neither a disposal nor an acquisition: the new holding is the same asset, held from the same dates, with the same pooled cost (TCGA 1992 s127).
+
+Stated as {{ strip_zeros(event.split.broker_before_quantity) }} units before the event and {{ strip_zeros(event.split.broker_after_quantity) }} after.
+    {% if event.split.reconciliation_delta != 0 %}
+
+Reconciled to that count by {{ strip_zeros(event.split.reconciliation_delta) }} units, from {{ strip_zeros(event.split.quantity_before_reconciliation) }} to {{ strip_zeros(event.split.quantity_after_reconciliation) }}.
+    {% endif %}
+
+Units in the pool at this point in the day: {{ strip_zeros(event.pool_quantity) }}
+    {%- if event.pool_quantity > 0 %},
+    pool cost: £{{ event.pool_cost|money }}
+    (£{{ event.pool_per_unit|money }}/unit)
+    {%- endif %}.
+{% elif event.kind == "transfer_to_spouse" %}
+=== Transferred to spouse: {{ strip_zeros(event.quantity) }} units of {{ event.symbol }} (no gain/no loss)
+Base cost of £{{ event.base_cost_passed|money }} passes to the recipient.
+
+Number of units left in the pool: {{ strip_zeros(event.pool_quantity) }}
+    {%- if event.pool_quantity > 0 %},
+    new pool cost: £{{ event.pool_cost|money }}
+    (£{{ event.pool_per_unit|money }}/unit)
+    {%- endif %}.
+{% elif event.kind == "exempt" %}
+#heading(level: 3)[
+    Exempt disposal: {{ strip_zeros(event.quantity) }} units of {{ event.symbol }} valued at £{{ event.proceeds|money }}
+    (£{{ event.per_unit|money }}/unit)
+    {%- if event.fees > 0 -%}
+    , £{{ event.fees|money }} disposal expenses included in the illustrative calculation
+    {%- endif %}
+]
+The cost and disposal expenses shown below are used for this illustrative calculation only;
+they are not allowable deductions against other gains.
+
+    {% if event.outcome == "gain" %}
+Gain is £{{ event.gain|money }}; the gain or loss is disregarded (exempt asset).
+    {% elif event.outcome == "nil" %}
+Neither a gain nor a loss; the gain or loss is disregarded (exempt asset).
+    {% else %}
+Loss is £{{ (-event.gain)|money }}; the gain or loss is disregarded (exempt asset).
+    {% endif %}
+{% endif %}
+
+{% if event.lines %}
+#enum(
+{% for line in event.lines %}
+[*{{ line.rule }}*. Quantity: {{ strip_zeros(line.quantity) }},
+    {% if event.is_disposal %}
+        {% if line.shows_proceeds %}
+    disposal proceeds: £{{ line.proceeds|money }},
+        {% endif %}
+    allowable
+        {% if line.bnb_date %}
+    cost on #box[{{ line.bnb_date.strftime("%d %b %Y") }}:]
+        {% else %}
+    cost:
+        {% endif %}
+    £{{ line.cost|money }},
+        {% if line.is_gain %}
+    #box[gain: £{{ line.gain|money }}.]
+        {% else %}
+    #box[loss: £{{ (-line.gain)|money }}.]
+        {% endif %}
+    {% elif event.kind == "exempt" %}
+        {% if line.shows_proceeds %}
+    disposal proceeds: £{{ line.proceeds|money }},
+        {% endif %}
+    cost used for this illustrative
+        {% if line.bnb_date %}
+    calculation on #box[{{ line.bnb_date.strftime("%d %b %Y") }}:]
+        {% else %}
+    calculation:
+        {% endif %}
+    £{{ line.cost|money }},
+        {% if line.is_gain %}
+    #box[disregarded gain: £{{ line.gain|money }}.]
+        {% else %}
+    #box[disregarded loss: £{{ (-line.gain)|money }}.]
+        {% endif %}
+    {% elif event.kind == "spin_off" %}
+    original cost of {{ line.spin_off_source }}: £{{ line.amount|money }}, after spin-off: £{{ line.new_pool_cost|money }}
+    {% elif event.kind == "eri" %}
+    original cost of {{ event.symbol }}: £{{ line.amount|money }}, after income distribution: £{{ line.new_pool_cost|money }}
+    {% else %}
+    actual cost: £{{ line.amount|money }}.
+    {% endif %}
+
+    {% if event.kind == "option_grant" %}
+    The option grant does not change the Section 104 holding of the underlying shares.
+    {% else %}
+        {% if event.pool_units_left %}
+    Number of units left in the pool:
+        {% else %}
+    Number of units in the pool:
+        {% endif %}
+    {{ strip_zeros(line.new_quantity) }}
+        {%- if line.new_quantity > 0 %},
+    new pool cost: £{{ line.new_pool_cost|money }}
+    (£{{ line.pool_per_unit|money }}/unit)
+            {%- if event.is_acquisition and line.spin_off_source %}
+
+
+    Cost basis calculated based on cost of {{ line.spin_off_source }} share pool from which {{ event.symbol }} shares were spun off
+            {%- endif %}
+            {%- if event.is_acquisition %}
+                {%- for eri in line.eris %}
+
+
+    Cost basis increased by £{{ eri.cost|money }}
+    (£{{ eri.unit_price|money }}/unit), due to excess reported income on #box[{{ eri.date.strftime("%d %b %Y") }}]
+                {%- endfor %}
+            {%- endif %}
+        {%- endif %}.
+    {% endif %}
+],
+{% endfor %}
+)
+{% endif %}
+
+{% endfor %}
+
+{% endfor %}
+
+{% if view.income_days %}
+#pagebreak(weak: true)
+= Interest and Dividends Events
+
+{% for day in view.income_days %}
+
+== {{ day.date.strftime("%d %B %Y") }}
+{% for event in day.events %}
+    {% if event.kind == "dividend" %}
+*Dividend {{ event.number }}:* {{ event.symbol }}{% if event.is_interest %} (interest){% endif %} for £{{ event.amount|money }}{% if not event.is_interest %} (tax paid at source: £{{ event.tax_at_source|money }}){% endif %}{% if event.treaty_country is not none %}, tax treaty amount: £{{ event.treaty_amount|money }} (treaty rate for {{ event.treaty_country }}: {{ event.treaty_rate }}%){% endif %}
+
+    {% elif event.kind == "interest" %}
+*Interest {{ event.origin }} {{ event.number }}:* {{ event.symbol }} for £{{ event.amount|money }}
+    {% elif event.kind == "interest_tax" %}
+*Interest tax {{ event.origin }} {{ event.number }}:* {{ event.symbol }} for £{{ event.amount|money }}
+    {% elif event.kind == "eri_distribution" %}
+*Excess Reported Income Distribution {{ event.number }}*: {{ event.symbol }}{% if event.is_interest %} (interest){% else %} (dividend){% endif %} for £{{ event.amount|money }}
+(£{{ event.unit_price|money }}/unit)
+    {% endif %}
+
+{% endfor %}
+
+{% endfor %}
+{% endif %}
+
+#pagebreak(weak: true)
+= Overall - Capital Gains
+== Number of acquisitions: {{ view.summary.acquisition_count }}
+== Number of disposals: {{ view.summary.disposal_count }}
+== Total disposal proceeds: £{{ view.summary.disposal_proceeds|money }}
+== Total allowable costs: £{{ view.summary.allowable_costs|money }}
+== Total capital gain before loss: £{{ view.summary.total_gain|money }}
+== Total capital loss: £{{ view.summary.total_loss|money }}
+{% if view.summary.gift_loss > 0 %}
+== Losses on gifts, kept separate: £{{ view.summary.gift_loss|money }}
+{% endif %}
+{% if view.summary.exempt_disposal_count > 0 %}
+== Number of exempt disposals: {{ view.summary.exempt_disposal_count }}
+== Total exempt disposal proceeds: £{{ view.summary.exempt_disposal_proceeds|money }}
+{% endif %}
+== Total capital gain after loss: £{{ view.summary.net_gain|money }}
+#v(1em)
+Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.
+#v(2em)
+= Overall - Dividends and Interests
+== Number of dividend distributions: {{ view.income_summary.dividend_count }}
+== Number of interest transactions: {{ view.income_summary.interest_count }}
+== Number of interest tax transactions: {{ view.income_summary.interest_tax_count }}
+== Number of excess reported income distributions: {{ view.income_summary.eri_count }}
+== Total amount of dividends proceeds: £{{ view.income_summary.total_dividends|money }}
+{% if view.income_summary.eri_dividends is not none %}
+=== (including £{{ view.income_summary.eri_dividends|money }} from excess reported income distributions)
+{% endif %}
+== Total amount of dividends tax allowance due to double taxation treaties: £{{ view.income_summary.treaty_allowance|money }}
+{% if view.income_summary.dividend_allowance is not none %}
+== Total amount of dividends tax yearly allowance: £{{ view.income_summary.dividend_allowance|money }}
+{% endif %}
+{% if view.income_summary.taxable_dividends is not none %}
+== Total amount of taxable dividends proceeds: £{{ view.income_summary.taxable_dividends|money }}
+{% endif %}
+{% if view.income_summary.explains_dividend_tax_credit %}
+Most dividends before 6 April 2016 carried a tax credit, so cgt-calc does not work out the taxable amount. Use your dividend vouchers and HMRC's guidance on tax credits.
+{% endif %}
+== Total amount of UK interests proceeds: £{{ view.income_summary.uk_interest|money }}
+== Total amount of foreign interests proceeds: £{{ view.income_summary.foreign_interest|money }}
+{% if view.income_summary.eri_interest is not none %}
+=== (including £{{ view.income_summary.eri_interest|money }} from excess reported income distributions)
+{% endif %}
+== Total amount of interest tax paid: £{{ view.income_summary.interest_tax|money }}
