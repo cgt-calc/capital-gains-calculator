@@ -116,8 +116,8 @@ Or run it without installing. `uvx` fetches the latest `main` each time:
 uvx --from git+https://github.com/cgt-calc/capital-gains-calculator cgt-calc
 ```
 
-`cgt-calc --version` prints the placeholder `cgt-calc 0.0.0` for this version, because installs from
-GitHub do not get a release number.
+`cgt-calc --version` shows which code you have. For example, `cgt-calc 3.0.0.post13+g327ebae` is 13
+commits after release 3.0.0, at commit `327ebae`.
 
 Docker users can use the `edge` tag instead; see [Available tags](docker.md#available-tags). The
 [Nix package](#nix) is built from a release, so it cannot install `main`.
@@ -132,19 +132,22 @@ To get the latest changes on `main`, use the command for the tool you installed 
 | pipx                                     | `pipx reinstall cgt-calc`                                                                          |
 | pip, in the original virtual environment | `python -m pip install --force-reinstall git+https://github.com/cgt-calc/capital-gains-calculator` |
 
-Do not use `pipx upgrade` or `pip install --upgrade` here. They can leave the old code in place,
-because the version number stays `0.0.0`.
+Run `cgt-calc --version` afterwards to check that it names the latest commit.
 
 ### Go back to the latest release
 
-| Install method                           | Command                                    |
-| ---------------------------------------- | ------------------------------------------ |
-| uv                                       | `uv tool install cgt-calc@latest`          |
-| pipx                                     | `pipx install --force cgt-calc`            |
-| pip, in the original virtual environment | `python -m pip install --upgrade cgt-calc` |
+| Install method                           | Command                                            |
+| ---------------------------------------- | -------------------------------------------------- |
+| uv                                       | `uv tool install cgt-calc@latest`                  |
+| pipx                                     | `pipx install --force cgt-calc`                    |
+| pip, in the original virtual environment | `python -m pip install --force-reinstall cgt-calc` |
 
 Without `@latest` or `--force`, `uv tool install cgt-calc` and `pipx install cgt-calc` keep the
-unreleased version. If you used `uvx --from`, run `uvx cgt-calc@latest` instead. After that,
+unreleased version. pip needs `--force-reinstall`, which also reinstalls cgt-calc's dependencies:
+the unreleased version counts as newer than the release it follows, so
+`python -m pip install --upgrade cgt-calc` would keep it.
+
+If you used `uvx --from`, run `uvx cgt-calc@latest` instead. After that,
 [upgrade cgt-calc](#upgrade-cgt-calc) as usual.
 
 ## Shell completions (optional)

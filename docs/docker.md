@@ -73,6 +73,10 @@ To build the image locally instead, run this with the cloned repository as the c
 directory:
 
 ```shell
-docker buildx build --tag capital-gains-calculator .
+docker buildx build --build-arg VERSION="$(git describe --tags --match 'v[0-9]*')" \
+  --tag capital-gains-calculator .
 docker run --rm -it -v "$PWD":/data capital-gains-calculator
 ```
+
+The image is built without the repository's Git history, so `VERSION` tells it which version it is,
+for example `v3.0.0-13-g327ebae` for 13 commits after release 3.0.0. Without it, the build stops.

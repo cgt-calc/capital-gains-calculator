@@ -233,6 +233,7 @@ QCOM
 rata
 RawTransaction
 regularMarketPrice
+reinstalls
 reportable
 repr
 RequiredAwardColumn
