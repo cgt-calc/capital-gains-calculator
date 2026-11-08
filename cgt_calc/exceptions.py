@@ -231,6 +231,7 @@ class UnclassifiedGiftError(CgtError):
                 "one, or cgt-calc counts both.\n"
                 "\n"
             )
+        counts = " or ".join(strip_zeros(reading) for reading in readings)
         # The row to correct is named before the lines to add, so the user
         # does not add one beside it first.
         named_row = ""
@@ -251,7 +252,6 @@ class UnclassifiedGiftError(CgtError):
                 else ""
             )
             which = "that row" if len(left_over) == 1 else "one of those rows"
-            counts = " or ".join(strip_zeros(reading) for reading in readings)
             named_row = (
                 f"Your RAW file has {rows_named} for {transaction.symbol} on "
                 f"{transaction.date} that no reported gift accounts for."
@@ -269,13 +269,12 @@ class UnclassifiedGiftError(CgtError):
                 f"accounted for:\n{rows}"
             )
         else:
-            options = " or ".join(strip_zeros(reading) for reading in readings)
             how = (
                 f"{spouse} You record that by {adding_a_line}.\n"
                 "\n"
                 f"{transaction.symbol} split after this date and the export does "
                 "not say whether it restated the count, so the gift was either "
-                f"{options} shares. Check a statement to see which, and add that "
+                f"{counts} shares. Check a statement to see which, and add that "
                 f"line:\n{rows}"
             )
         self.message = (

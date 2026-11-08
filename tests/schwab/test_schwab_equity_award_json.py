@@ -1700,8 +1700,12 @@ def test_a_gift_refusal_names_the_raw_file_and_the_row_left_over(
         f"Add this line to {named}, and the gift is then taken as accounted "
         "for:\n  2023-10-09,TRANSFER_TO_SPOUSE,GOOG,2,0.00,0.00,USD\n"
     ) in refused.stderr
-    # The row is named above, so the general warning is not repeated.
-    assert "If your RAW file already has a row" not in refused.stderr
+    # The row is named above, so the general warning no longer comes before
+    # the link that ends the refusal.
+    assert (
+        "the loss counts like any other.\n\nSee https://cgt-calc.uk/brokers/raw/"
+        "#transfers-to-a-spouse-or-civil-partner"
+    ) in refused.stderr
 
 
 COMPLETE_CSV_HEADER = [
