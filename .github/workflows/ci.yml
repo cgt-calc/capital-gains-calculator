@@ -168,10 +168,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      # Passed in the form git describe gives an edge build. The Dockerfile
-      # turns it into the version below, which is read back from the image.
-      IMAGE_DESCRIBE: v0.0.0-1-gabcdef0
-      IMAGE_VERSION: 0.0.0.post1+gabcdef0
+      # Passed in the form git describe gives an edge build after a
+      # pre-release tag. The Dockerfile turns it into the normalised version
+      # below, which is read back from the image.
+      IMAGE_DESCRIBE: v0.0.0-rc.1-1-gabcdef0
+      IMAGE_VERSION: 0.0.0rc1.post1+gabcdef0
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7

@@ -132,7 +132,9 @@ To get the latest changes on `main`, use the command for the tool you installed 
 | pipx                                     | `pipx reinstall cgt-calc`                                                                          |
 | pip, in the original virtual environment | `python -m pip install --force-reinstall git+https://github.com/cgt-calc/capital-gains-calculator` |
 
-Run `cgt-calc --version` afterwards to check that it names the latest commit.
+Run `cgt-calc --version` afterwards. The characters after `+g` should match the start of the latest
+commit ID in the
+[list of commits on `main`](https://github.com/cgt-calc/capital-gains-calculator/commits/main/).
 
 ### Go back to the latest release
 

@@ -67,20 +67,23 @@ COPY pyproject.toml README.md LICENSE /build/
 COPY cgt_calc /build/cgt_calc
 
 # Package version: a release tag such as "v2.1.0", or git describe's
-# "v2.0.0-127-gabc1234", which becomes 2.0.0.post127+gabc1234 as a
-# build from Git history would name it. The image is built without
-# .git, so the build cannot read the version itself. Declared in this
-# stage only, so a new version invalidates the wheel build below and
-# none of the dependency stages.
+# "v2.0.0-127-gabc1234". The image is built without .git, so the build
+# cannot read the version itself. Declared in this stage only, so a new
+# version invalidates the wheel build below and none of the dependency
+# stages.
 ARG VERSION
 
+# Name the version as a build from Git history would: the commit becomes
+# the local part, and packaging normalises the rest, so v2.0.0-127-gabc1234
+# becomes 2.0.0.post127+gabc1234 and v4.0.0-rc.1 becomes 4.0.0rc1. The
+# build itself records a given version as it is.
 RUN --mount=type=cache,target=/root/.cache \
     if [ -z "$VERSION" ]; then \
       echo "Pass the version: --build-arg VERSION=\"\$(git describe --tags --match 'v[0-9]*')\"" >&2; \
       exit 1; \
     fi \
- && SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CGT_CALC="$(echo "${VERSION#v}" | sed -E 's/-([0-9]+)-g([0-9a-f]+)$/.post\1+g\2/')" \
-    uv build --wheel
+ && version="$(uv run --no-project --with packaging python -c 'import re, sys; from packaging.version import Version; print(Version(re.sub(r"-g([0-9a-f]+)$", r"+g\1", sys.argv[1])))' "$VERSION")" \
+ && SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CGT_CALC="$version" uv build --wheel
 
 FROM base AS runtime
 
