@@ -1,4 +1,4 @@
-"""The report states its total allowable costs to the nearest penny.
+"""The report states its total allowable costs to the penny.
 
 The terminal and the PDF both print this figure: the terminal rounds it to the
 penny again and the PDF prints it as it stands. A change to how the report
@@ -21,7 +21,7 @@ BUY_DAY = dt.date(2024, 5, 1)  # USD 1.2457 per £1
 SELL_DAY = dt.date(2024, 6, 3)  # USD 1.2709 per £1
 
 
-def test_allowable_costs_are_reported_to_the_nearest_penny() -> None:
+def test_allowable_costs_are_reported_to_the_penny() -> None:
     """A sale converted from dollars reports its cost to the penny.
 
     Ten shares are bought for $1,200.00 and sold for $1,304.00:
@@ -36,7 +36,8 @@ def test_allowable_costs_are_reported_to_the_nearest_penny() -> None:
 
     £963.31 is also the cost itself to the penny, and the reported proceeds
     less the reported gain: £1,026.04 - £62.73. The unrounded total, 963.31454,
-    is 0.45p above it, so any rounding to the nearest penny gives £963.31.
+    is 0.45p above it, so it comes to £963.31 whether it is rounded to the
+    nearest penny or down; this sale does not tell the two apart.
 
     Rounded first to three places it would be 963.315, which the terminal shows
     as £963.32; to four places 963.3145, to one 963.3 and to none 963. Left
