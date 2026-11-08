@@ -127,7 +127,7 @@ def _action_from_str(action_type: str, buy_sell: str, file: Path) -> ActionType:
 
         raise ParsingError(file, f"Unknown buy_sell: '{buy_sell}'")
 
-    raise ParsingError(file, f"Unknown type: '{action_type}'")
+    raise ParsingError(file, f"Unknown type: '{action_type}'", needs_update=True)
 
 
 class FreetradeTransaction(BrokerTransaction):
@@ -316,7 +316,12 @@ class FreetradeParser(BaseSingleFileParser[BrokerTransaction]):
         missing = REQUIRED_COLUMNS - provided
         if missing:
             missing_columns = ", ".join(sorted(missing))
-            raise ParsingError(file, f"Missing columns: {missing_columns}", row_index=1)
+            raise ParsingError(
+                file,
+                f"Missing columns: {missing_columns}",
+                row_index=1,
+                needs_update=True,
+            )
 
         unknown = {
             column
@@ -325,4 +330,9 @@ class FreetradeParser(BaseSingleFileParser[BrokerTransaction]):
         }
         if unknown:
             unknown_columns = ", ".join(sorted(unknown))
-            raise ParsingError(file, f"Unknown columns: {unknown_columns}", row_index=1)
+            raise ParsingError(
+                file,
+                f"Unknown columns: {unknown_columns}",
+                row_index=1,
+                needs_update=True,
+            )

@@ -103,6 +103,8 @@ def test_parse_income_report_missing_local_column(tmp_path: Path) -> None:
         list(SharesightParser().load_from_dir(tmp_path))
 
     assert excinfo.value.row_index == 6
+    # Sharesight may have changed the report, so a cgt-calc update may be needed.
+    assert excinfo.value.needs_update
 
 
 def test_parse_income_report_missing_foreign_column(tmp_path: Path) -> None:
@@ -747,6 +749,7 @@ def test_parse_trade_report_unknown_action(tmp_path: Path) -> None:
         SharesightParser().load_from_dir(tmp_path)
 
     assert excinfo.value.row_index == 2
+    assert excinfo.value.needs_update
 
 
 def test_parse_trade_report_refuses_a_line_of_spaces_in_the_trades(

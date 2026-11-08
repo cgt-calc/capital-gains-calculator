@@ -265,6 +265,7 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
             raise ParsingError(
                 file,
                 f"Missing expected columns in {section}: {', '.join(sorted(missing))}",
+                needs_update=True,
             )
 
     @staticmethod
@@ -456,7 +457,9 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
             elif trade_type == "Sell":
                 action = ActionType.SELL
             else:
-                raise ValueError(f"Unknown action: {trade_type}")
+                raise ParsingError(
+                    file, f"Unknown action: {trade_type}", needs_update=True
+                )
 
             market = row_dict[TradeColumn.MARKET]
             symbol = f"{market}:{row_dict[TradeColumn.CODE]}"

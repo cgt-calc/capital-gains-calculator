@@ -134,15 +134,22 @@ def test_read_revolut_transactions_missing_column(tmp_path: Path) -> None:
 def test_read_revolut_transactions_unexpected_column(
     tmp_path: Path, renamed: str, shown: str
 ) -> None:
-    """A renamed column triggers ParsingError naming both spellings."""
+    """A renamed column triggers ParsingError naming both spellings.
+
+    The Revolut guide has the reader check the file and its headings, so,
+    unlike the same error from Interactive Brokers, it is not marked as
+    needing a cgt-calc update.
+    """
     header = [*COLUMNS[:-1], renamed]
     path = _write_csv(tmp_path, header=header)
 
     with pytest.raises(
         ParsingError,
         match=re.escape(f"Missing: 'FX Rate'. Extra: {shown}."),
-    ):
+    ) as excinfo:
         RevolutParser().load_from_file(path)
+
+    assert not excinfo.value.needs_update
 
 
 def test_a_row_with_extra_fields_is_counted_and_printed_as_stated(
@@ -471,12 +478,19 @@ def test_read_revolut_transactions_invalid_timestamp(tmp_path: Path) -> None:
 
 
 def test_read_revolut_transactions_unknown_action(tmp_path: Path) -> None:
-    """An action the parser has never seen is refused with its row."""
+    """An action the parser has never seen is refused with its row.
+
+    It is marked as needing a cgt-calc update, which may support it.
+    """
     overrides = {RevolutColumn.ACTION: "SPIN-OFF"}
     path = _write_csv(tmp_path, [_default_row(overrides)])
 
-    with pytest.raises(ParsingError, match=", row 2: Unknown action: SPIN-OFF"):
+    with pytest.raises(
+        ParsingError, match=", row 2: Unknown action: SPIN-OFF"
+    ) as excinfo:
         RevolutParser().load_from_file(path)
+
+    assert excinfo.value.needs_update
 
 
 def test_read_revolut_transactions_keep_the_exported_instant(tmp_path: Path) -> None:

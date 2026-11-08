@@ -37,10 +37,11 @@ if TYPE_CHECKING:
 
 LOGGER = logging.getLogger(__name__)
 
-# Printed after the traceback of a failure cgt-calc did not expect. Each URL
-# stays whole on a line of its own. The link check reads this file as text, so
-# the documentation URL would stop being checked, without failing, if it were
-# split across two strings.
+# Printed after the traceback of a failure cgt-calc did not expect, and after
+# the message of one marked as needing an update (CgtError.needs_update). Each
+# URL stays whole on a line of its own. The link check reads this file as text,
+# so the documentation URL would stop being checked, without failing, if it
+# were split across two strings.
 REPORTING_FOOTER = """\
 This may need a cgt-calc update. Upgrade and retry; for an import, use a fresh,
 unchanged export. If it still fails, open an issue with cgt-calc {version}, the
@@ -211,6 +212,8 @@ def main() -> int:
         else:
             # Print error without traceback
             LOGGER.error("%s", err)
+        if err.needs_update:
+            LOGGER.info(REPORTING_FOOTER.format(version=get_version()))
         return 1
     except Exception:
         # Last-resort catch for unexpected exceptions

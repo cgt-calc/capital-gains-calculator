@@ -129,7 +129,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
                 "https://cgt-calc.uk/brokers/vanguard/#a-reversed-purchase-or-disposal",
             )
 
-    raise ParsingError(file, f"Unknown action: {label}")
+    raise ParsingError(file, f"Unknown action: {label}", needs_update=True)
 
 
 def _parse_decimal(value: str, context: str) -> Decimal:

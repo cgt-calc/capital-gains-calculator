@@ -393,6 +393,9 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
 
     columns: ClassVar[set[str]]
     optional_columns: ClassVar[set[str]] = set()
+    # Whether an unchanged export with another header means the broker changed
+    # its columns, which takes a cgt-calc update, rather than an edited file.
+    header_mismatch_needs_update: ClassVar[bool] = False
 
     @classmethod
     def _validate_header(cls, header: Sequence[str], file_path: Path) -> None:
@@ -405,6 +408,7 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                 file_path,
                 f"CSV header mismatch. Missing: {_column_names(missing)}. "
                 f"Extra: {_column_names(extra)}.",
+                needs_update=cls.header_mismatch_needs_update,
             )
 
     @classmethod

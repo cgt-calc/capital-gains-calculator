@@ -1919,19 +1919,20 @@ def test_foreign_tax_the_row_cannot_convert_leaves_the_amount_received(
 
 
 @pytest.mark.parametrize(
-    ("action", "message"),
+    ("action", "message", "needs_update"),
     [
         pytest.param(
             "Stock distribution",
             r"Stock distribution rows are not supported\. See "
             r"https://cgt-calc\.uk/brokers/trading212/#known-limitations",
+            False,
             id="listed as unsupported",
         ),
-        pytest.param("ADR Fee", "Unknown action: ADR Fee", id="not known"),
+        pytest.param("ADR Fee", "Unknown action: ADR Fee", True, id="not known"),
     ],
 )
 def test_a_refused_action_says_whether_it_is_unsupported_or_unknown(
-    tmp_path: Path, action: str, message: str
+    tmp_path: Path, action: str, message: str, needs_update: bool
 ) -> None:
     """A row the Trading 212 page lists as unsupported says so, with the link.
 
@@ -1939,6 +1940,7 @@ def test_a_refused_action_says_whether_it_is_unsupported_or_unknown(
     a row that is refused on purpose. It is kept for every other label that
     is not read. `ADR Fee` is one: it is on a single real row, too little to
     decide how to read it, so a report of the row is what the page asks for.
+    Only that one is marked as needing a cgt-calc update.
     """
     rows = [
         HEADER_2024,
@@ -1960,8 +1962,10 @@ def test_a_refused_action_says_whether_it_is_unsupported_or_unknown(
         ),
     ]
 
-    with pytest.raises(ParsingError, match=rf"row 2: {message}$"):
+    with pytest.raises(ParsingError, match=rf"row 2: {message}$") as excinfo:
         Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
+
+    assert excinfo.value.needs_update is needs_update
 
 
 def _make_sell_row(shares: str, price: str, total: str) -> list[str]:

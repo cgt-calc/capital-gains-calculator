@@ -109,7 +109,7 @@ def _action_from_str(action_type: str, file_path: Path) -> ActionType:
     }:
         return ActionType.ADJUSTMENT
 
-    raise ParsingError(file_path, f"Unknown type: '{action_type}'")
+    raise ParsingError(file_path, f"Unknown type: '{action_type}'", needs_update=True)
 
 
 def _parse_str(row: dict[str, str], column: str) -> str | None:
@@ -230,6 +230,7 @@ class InteractiveBrokersParser(StandardCSVParser[InteractiveBrokersTransaction])
     arg_name = "interactive-brokers"
     pretty_name = "Interactive Brokers"
     format_name = "CSV"
+    header_mismatch_needs_update: ClassVar[bool] = True
     optional_columns: ClassVar[set[str]] = _IBKR_OPTIONAL_COLUMNS
     columns: ClassVar[set[str]] = {
         column.value

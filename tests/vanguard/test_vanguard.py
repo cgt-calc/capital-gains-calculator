@@ -324,7 +324,10 @@ def _dual_table_csv(investment_row: str) -> str:
 def test_read_vanguard_investment_row_unknown_action_is_rejected(
     tmp_path: Path,
 ) -> None:
-    """Refuse activity in the investment table that the cash table would refuse."""
+    """Refuse activity in the investment table that the cash table would refuse.
+
+    The refusal is marked as needing a cgt-calc update, which may support it.
+    """
     vanguard_file = tmp_path / "unknown_investment_action.csv"
     vanguard_file.write_text(
         _dual_table_csv("01/02/2022,Foo Fund (FOO),Frobnicated 10 Foo Fund,10,1,10"),
@@ -333,8 +336,10 @@ def test_read_vanguard_investment_row_unknown_action_is_rejected(
 
     with pytest.raises(
         ParsingError, match="row 6: Unknown action: Frobnicated 10 Foo Fund"
-    ):
+    ) as excinfo:
         VanguardParser().load_from_file(vanguard_file)
+
+    assert excinfo.value.needs_update
 
 
 def test_read_vanguard_investment_row_invalid_decimal_is_rejected(

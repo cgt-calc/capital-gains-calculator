@@ -346,10 +346,18 @@ def test_action_from_str(label: str, action: ActionType) -> None:
     assert action_from_str(label, Path("transactions.csv")) == action
 
 
-def test_action_from_str_unknown() -> None:
-    """Raise on unknown action labels."""
-    with pytest.raises(ParsingError, match="Unknown action"):
-        action_from_str("Dance", Path("transactions.csv"))
+def test_an_unknown_action_is_refused_with_its_row() -> None:
+    """An action label cgt-calc does not know is refused, naming its row.
+
+    The error is marked as needing a cgt-calc update, which may read the row.
+    """
+    with pytest.raises(
+        ParsingError,
+        match=r"^While parsing transactions\.csv, row 2: Unknown action: 'Dance'$",
+    ) as excinfo:
+        _read(SCHWAB_HEADER + '01/15/2023,Dance,,x,,,,"$1.00"\n')
+
+    assert excinfo.value.needs_update
 
 
 def test_read_transactions_empty_file() -> None:
