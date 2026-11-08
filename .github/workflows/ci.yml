@@ -236,24 +236,6 @@ jobs:
             local/cgt-calc:test \
             -lc "cgt-calc --version | grep -Fx 'cgt-calc $IMAGE_VERSION' && cgt-calc --year 2022 --raw-file tests/raw/data/test_data.csv --no-balance-check --exchange-rates-file tests/exchange_rates_data.csv --output /tmp/report.pdf && test -s /tmp/report.pdf"
 
-      # A build context whose Git history cannot be read, such as a linked
-      # worktree, passes VERSION instead. The dependency stages come from
-      # the build above.
-      - name: Build image with a given VERSION
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          target: runtime
-          tags: local/cgt-calc:override
-          load: true
-          build-args: |
-            VERSION=${{ env.OVERRIDE_DESCRIBE }}
-
-      - name: Check the given VERSION
-        run: |
-          docker run --rm local/cgt-calc:override -lc "cgt-calc --version" |
-            grep -Fx "cgt-calc $OVERRIDE_VERSION"
-
       # uv run installs the mounted checkout, which Git inside the container
       # cannot read, so give its build the version too.
       - name: Run pytest inside container
@@ -293,6 +275,25 @@ jobs:
           # Long enough to look into a failed run, short of the 90-day default
           # that keeps every push's reports for a quarter.
           retention-days: 14
+
+      # A build context whose Git history cannot be read, such as a linked
+      # worktree, passes VERSION instead. The dependency stages come from
+      # the build above. After the test steps, so a failure here skips none
+      # of them.
+      - name: Build image with a given VERSION
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: runtime
+          tags: local/cgt-calc:override
+          load: true
+          build-args: |
+            VERSION=${{ env.OVERRIDE_DESCRIBE }}
+
+      - name: Check the given VERSION
+        run: |
+          docker run --rm local/cgt-calc:override -lc "cgt-calc --version" |
+            grep -Fx "cgt-calc $OVERRIDE_VERSION"
 
       - name: Check the package is a small layer of its own
         # A source change should rewrite this layer, which is a few MB, and

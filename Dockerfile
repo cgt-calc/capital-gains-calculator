@@ -80,9 +80,11 @@ ARG VERSION
 
 # Without VERSION, hatch-vcs reads the version from the build context's
 # Git history, as for any other build. The context, .git included, is
-# mounted for this step only, never copied into a layer. hatch-vcs reads a
-# clean clone of it: this stage holds only some of the project's files,
-# and Git would count the others as uncommitted deletions.
+# mounted for this step only, never copied into a layer. The mount is of
+# the whole context, as mounting a .git that is missing would stop the
+# build even with VERSION. hatch-vcs reads a clean clone of it: neither
+# this stage nor the context (see .dockerignore) holds every project file,
+# and Git would count the missing ones as uncommitted deletions.
 #
 # A given VERSION is named as a build from Git history would name it: the
 # commit becomes the local part and packaging normalises the rest, so
@@ -92,7 +94,7 @@ RUN --mount=type=cache,target=/root/.cache \
     --mount=type=bind,target=/context \
     if [ -n "$VERSION" ]; then \
       version="$(uv run --no-project --with packaging python -c 'import re, sys; from packaging.version import Version; print(Version(re.sub(r"-g([0-9a-f]+)$", r"+g\1", sys.argv[1])))' "$VERSION")"; \
-    elif git -c safe.directory='*' clone --quiet --shared /context /tmp/history; then \
+    elif git clone --quiet --shared /context /tmp/history; then \
       version="$(cd /tmp/history && uv run --no-project --with hatchling --with hatch-vcs python -m hatchling version)" \
         && rm -rf /tmp/history; \
     else \
