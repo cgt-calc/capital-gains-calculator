@@ -122,9 +122,8 @@ def test_version_names_the_commit_of_a_github_install(
 
     The metadata is what uv, pip and pipx record for an install from
     git+https://github.com/cgt-calc/capital-gains-calculator. Its version is
-    the placeholder, and git describe names the same commit v3.0.0-12-g0ed8e39
-    in this repository, so the version is 0.0.0 with the commit's first seven
-    characters as the local part.
+    the placeholder, so the installation docs promise 0.0.0 with g and the
+    commit's first seven characters, 0ed8e39, as the local part.
     """
     _install_metadata(
         monkeypatch,

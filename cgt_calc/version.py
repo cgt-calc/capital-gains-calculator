@@ -33,8 +33,9 @@ RELEASE_TAG_RE = re.compile(r"^v?(?P<release>\d[^\s]*)$")
 
 # Where installers record the URL a package came from (PEP 610).
 DIRECT_URL_FILE = "direct_url.json"
-# The length git describe gives commits in a fresh clone of this repository,
-# so a GitHub install names its commit the way a checkout or Docker edge does.
+# Installs name the first seven characters of their commit, as the installation
+# docs say. That is git's shortest abbreviation; without the repository there is
+# nothing to lengthen it against, as git describe does in a checkout.
 INSTALLED_COMMIT_LENGTH = 7
 
 
