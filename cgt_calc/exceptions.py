@@ -170,13 +170,19 @@ class UnclassifiedGiftError(CgtError):
         transaction: BrokerTransaction,
         readings: list[Decimal],
         raw_file: Path | None,
+        left_over: Sequence[BrokerTransaction],
+        *,
+        gifts_to_spouse: bool,
     ):
         """Initialise.
 
         `readings` holds every share count the row could be stating. There is
         normally one; a count printed before a stock split can be two, where
         the export does not say whether it was restated. `raw_file` is the
-        RAW file the run reads, if it reads one.
+        RAW file the run reads, if it reads one. `left_over` holds the RAW
+        rows of the gift's day and symbol that no gift took, which are more
+        likely this gift with its count typed wrongly than a second transfer.
+        `gifts_to_spouse` says whether the run passed --gifts-to-spouse.
         """
         self.transaction = transaction
         rows = "\n".join(
@@ -225,6 +231,38 @@ class UnclassifiedGiftError(CgtError):
                 "one, or cgt-calc counts both.\n"
                 "\n"
             )
+        # The row to correct is named before the lines to add, so the user
+        # does not add one beside it first.
+        named_row = ""
+        if left_over:
+            rows_named = " and ".join(
+                f"a {row.action.name} row with "
+                + (
+                    "no quantity"
+                    if row.quantity is None
+                    else f"quantity {strip_zeros(row.quantity)}"
+                )
+                for row in left_over
+            )
+            option_note = (
+                " --gifts-to-spouse says who received the shares, not how many "
+                "left, so it cannot settle which count is right."
+                if gifts_to_spouse
+                else ""
+            )
+            which = "that row" if len(left_over) == 1 else "one of those rows"
+            counts = " or ".join(strip_zeros(reading) for reading in readings)
+            named_row = (
+                f"Your RAW file has {rows_named} for {transaction.symbol} on "
+                f"{transaction.date} that no reported gift accounts for."
+                f"{option_note} If {which} is meant for this gift, correct its "
+                f"quantity to {counts} instead of adding a line, or cgt-calc "
+                "counts both. Add a line below only if this gift is a separate "
+                "transfer.\n"
+                "\n"
+            )
+            # The general warning would only repeat the row named above.
+            mistyped = ""
         if len(readings) == 1:
             how = (
                 f"{spouse} {add_this_line}, and the gift is then taken as "
@@ -245,6 +283,7 @@ class UnclassifiedGiftError(CgtError):
             f"{transaction.date}, but not who received them, and that decides "
             "the tax.\n"
             "\n"
+            f"{named_row}"
             f"{how}\n"
             "\n"
             "If they went to anyone else, it is a disposal at market value. Use "
