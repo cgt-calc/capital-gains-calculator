@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "docs/**"
+      - "overrides/**"
       - "zensical.toml"
       - "uv.lock"
       - ".github/workflows/build-docs.yml"
@@ -32,6 +33,8 @@ jobs:
         uses: ./.github/actions/build-docs
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          # Built like next.cgt-calc.uk, which the preview is compared with.
+          next: "true"
 
       - name: Upload site artifact
         uses: actions/upload-artifact@v7

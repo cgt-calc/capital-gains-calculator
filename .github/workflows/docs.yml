@@ -1,11 +1,14 @@
 name: Docs
 
+# Pushes to main publish the unreleased docs to next.cgt-calc.uk. Releases
+# publish their own docs to cgt-calc.uk through release-docs.yml.
 on:
   push:
     branches:
       - main
     paths:
       - "docs/**"
+      - "overrides/**"
       - "zensical.toml"
       - "uv.lock"
       - ".github/workflows/docs.yml"
@@ -29,6 +32,7 @@ jobs:
         uses: ./.github/actions/build-docs
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          next: "true"
 
       - name: Upload site artifact
         uses: actions/upload-artifact@v7
@@ -49,10 +53,10 @@ jobs:
     if: github.repository_owner == 'cgt-calc'
     needs: build
     runs-on: ubuntu-latest
-    concurrency: docs-deploy
+    concurrency: docs-next-deploy
     environment:
-      name: docs
-      url: https://cgt-calc.uk
+      name: docs-next
+      url: https://next.cgt-calc.uk
     steps:
       - name: Download site artifact
         uses: actions/download-artifact@v8
@@ -65,4 +69,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy site --project-name=cgt-calc --branch=main --commit-dirty=true
+          command: pages deploy site --project-name=cgt-calc --branch=next --commit-dirty=true

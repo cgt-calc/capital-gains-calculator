@@ -57,7 +57,7 @@ acquired at different times, gains and losses, a dividend with overseas tax, and
 
 Contributions are welcome! If you find a bug, have feature ideas, or want to add support for more
 brokers, please open an **issue** or **pull request**. See the
-[development guide](https://cgt-calc.uk/development/contributing/).
+[development guide](https://next.cgt-calc.uk/development/contributing/).
 
 ## ⚠️ Disclaimer
 

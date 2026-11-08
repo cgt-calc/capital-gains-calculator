@@ -1,0 +1,10 @@
+{#- Used only by the next.cgt-calc.uk build: the Build docs action points that
+    build's config here. Release builds never read this directory. -#}
+{% extends "base.html" %}
+{% block extrahead %}
+  <meta name="robots" content="noindex">
+{% endblock %}
+{% block announce %}
+  These docs describe the next, unreleased version of cgt-calc.
+  For the latest release, see <a href="https://cgt-calc.uk/">cgt-calc.uk</a>.
+{% endblock %}
