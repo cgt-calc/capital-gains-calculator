@@ -200,7 +200,8 @@ install it and try again. If the error remains, open a GitHub issue containing:
 - a sanitised copy of the failing row.
 
 Do not upload an unredacted account statement: it contains your holdings and other financial
-information.
+information. For guidance on preparing a redacted example, see
+[Reporting problems](../reporting-problems.md).
 
 ### `CSV header mismatch`
 

@@ -119,7 +119,8 @@ rename columns or convert a PDF or spreadsheet into CSV. If Morgan Stanley has c
 report's header, open a GitHub issue with the header and a sanitised row.
 
 Do not upload an unredacted report: it contains order identifiers, holdings and other sensitive
-financial information.
+financial information. For guidance on preparing a redacted example, see
+[Reporting problems](../reporting-problems.md).
 
 ### `Reached a negative balance` or `Tried to sell`
 

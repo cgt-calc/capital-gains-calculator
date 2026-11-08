@@ -456,7 +456,8 @@ you used to install it and try again. If the error remains, open a
 - a sanitised failing row for an unknown action.
 
 Do not upload an unredacted account export: it can contain transaction IDs and other financial
-information.
+information. For guidance on preparing a redacted example, see
+[Reporting problems](../reporting-problems.md).
 
 ### A transaction is described differently by two exports
 
