@@ -590,9 +590,10 @@ def _split_chronology_message(
     """Explain why a same-day row cannot be placed around a reorganisation.
 
     Times the export does state are not always enough, so the reason has
-    to say which situation this is. Telling someone whose export already
-    states its times to supply times would send them looking for a file
-    that does not exist.
+    to say which situation this is: a row ahead of a single booked instant,
+    a row at or between the two halves of a reorganisation, or two rows
+    that neither times nor one RAW file put in order. The last two are told
+    how to move the day into RAW.
     """
     preamble = (
         f"Cannot apply the reorganisation of {symbol} on {date_index}: "

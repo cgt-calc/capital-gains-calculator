@@ -115,9 +115,11 @@ def test_a_split_day_moved_into_raw_computes_with_the_balance_check_on(
     with a STOCK_SPLIT row for the whole holding and a TRANSFER row depositing
     the purchase's cost, because RAW rows keep a cash balance of their own.
 
-    - 10 bought at $100 on 2 May: $1,000 at 1.2457 USD/GBP is £802.76.
+    - 10 bought at $100 on 2 May: $1,000 at 1.2457 dollars to the pound is
+      £802.76.
     - The split adds 90, so the 10 become 100.
-    - 20 bought after it at $10.50: $210 at 1.2709 USD/GBP is £165.24.
+    - 20 bought after it at $10.50: $210 at 1.2709 dollars to the pound is
+      £165.24.
     - The holding is 120 units at £968.00 (802.7615 + 165.2372 = 967.9987).
     - Schwab's balance is $1,210 deposited less $1,000 spent, $210; RAW's is
       the $210 deposited less the $210 spent, $0.
