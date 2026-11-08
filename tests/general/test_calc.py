@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import datetime as dt
 from decimal import Decimal, localcontext
 from enum import Enum
@@ -15,7 +16,9 @@ import sys
 from typing import TYPE_CHECKING
 
 import pytest
+import typst
 
+from cgt_calc import stock_split_planning
 from cgt_calc.const import (
     BALANCE_CHECK_CONTEXT_ROWS,
     BASIC_RATE_LIMITS,
@@ -57,6 +60,7 @@ from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.stock_splits import (
     QUANTITY_DECREASING_ACTIONS,
     QUANTITY_INCREASING_ACTIONS,
+    SplitTransformation,
 )
 from cgt_calc.util import round_decimal
 from tests.utils import assert_stdout_matches, build_cmd, pdf_text, report_path, run_cli
@@ -2784,28 +2788,54 @@ def test_run_with_example_files(request: pytest.FixtureRequest) -> None:
     )
 
 
+# The advice on reporting a failure, written out as it was agreed, with a
+# made-up version where the running one goes.
+REPORTING_ADVICE = (
+    "This may need a cgt-calc update. Upgrade and retry; for an import, use a fresh,\n"
+    "unchanged export. If it still fails, open an issue with cgt-calc 9.8.7, the\n"
+    "complete error, and the smallest redacted example that still fails:\n"
+    "https://github.com/cgt-calc/capital-gains-calculator/issues/new\n"
+    "Never upload unredacted data. What to send and what to redact:\n"
+    "https://cgt-calc.uk/reporting-problems/\n"
+)
+
+
+def _run_main(monkeypatch: pytest.MonkeyPatch, *args: str) -> int:
+    """Run the CLI in this process as version 9.8.7, reading and saving no cache."""
+    monkeypatch.setattr("cgt_calc.cli.get_version", lambda: "9.8.7")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "cgt-calc",
+            *args,
+            "--exchange-rates-file=",
+            "--isin-translation-file=",
+            "--spin-offs-file=",
+        ],
+    )
+    # main() enables the FloatOperation trap on the active decimal context;
+    # keep that from leaking into other tests in the same worker.
+    with localcontext():
+        return main()
+
+
 def test_an_unexpected_error_prints_its_traceback_then_how_to_report_it(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A failure cgt-calc did not expect ends with the advice on reporting it.
 
-    The advice is written out here as it was agreed, with a made-up version
-    where the running one goes. It follows the last line of the traceback and
-    the blank line that closes every error. The traceback itself still opens
-    the output, after the line saying the error was unexpected.
+    The advice follows the last line of the traceback and the blank line that
+    closes every error. The traceback itself still opens the output, after
+    the line saying the error was unexpected.
     """
 
     def explode(args: argparse.Namespace) -> None:
         raise RuntimeError("boom")
 
     monkeypatch.setattr("cgt_calc.cli.calculate_cgt", explode)
-    monkeypatch.setattr("cgt_calc.cli.get_version", lambda: "9.8.7")
-    monkeypatch.setattr(sys, "argv", ["cgt-calc", "--year", "2021"])
 
-    # main() enables the FloatOperation trap on the active decimal context;
-    # keep that from leaking into other tests in the same worker.
-    with localcontext():
-        assert main() == 1
+    assert _run_main(monkeypatch, "--year", "2021") == 1
 
     err = capsys.readouterr().err
     assert err.startswith(
@@ -2814,15 +2844,157 @@ def test_an_unexpected_error_prints_its_traceback_then_how_to_report_it(
         "ERROR: Details:\n"
         "Traceback (most recent call last):\n"
     )
+    assert err.endswith(f"RuntimeError: boom\n\n{REPORTING_ADVICE}")
+
+
+@pytest.mark.parametrize(
+    ("export", "message"),
+    [
+        pytest.param(
+            "Action,Time\nADR Fee,2024-12-02 12:00:00\n",
+            "row 2: Unknown action: ADR Fee",
+            id="unknown action",
+        ),
+        pytest.param(
+            "Action,Time,Bogus\n", "row 1: Unknown column(s) Bogus", id="header"
+        ),
+    ],
+)
+def test_a_broker_export_cgt_calc_does_not_know_ends_with_how_to_report_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    export: str,
+    message: str,
+) -> None:
+    """A broker may add an action or change its columns after a release.
+
+    The error keeps its file and row, and the advice on reporting it follows
+    once, after the blank line that closes every error. Trading 212 accepts a
+    header with only some of its columns, which keeps the export small.
+    """
+    (tmp_path / "export.csv").write_text(export, encoding="utf-8")
+
+    status = _run_main(
+        monkeypatch, "--year", "2024", "--trading212", str(tmp_path), "--no-report"
+    )
+
+    assert status == 1
+    err = capsys.readouterr().err
     assert err.endswith(
-        "RuntimeError: boom\n"
-        "\n"
-        "This may need a cgt-calc update. Upgrade and retry; for an import, use a fresh,\n"
-        "unchanged export. If it still fails, open an issue with cgt-calc 9.8.7, the\n"
-        "complete error, and the smallest redacted example that still fails:\n"
-        "https://github.com/cgt-calc/capital-gains-calculator/issues/new\n"
-        "Never upload unredacted data. What to send and what to redact:\n"
-        "https://cgt-calc.uk/reporting-problems/\n"
+        f"\nERROR: While parsing {tmp_path / 'export.csv'}, {message}\n"
+        f"\n{REPORTING_ADVICE}"
+    )
+    assert err.count(REPORTING_ADVICE) == 1
+
+
+@pytest.mark.parametrize(
+    ("field", "message"),
+    [
+        pytest.param(
+            "day_open_quantity",
+            "the holding opens at 10 units here and at 11 where the "
+            "reorganisation was worked out.",
+            id="opening",
+        ),
+        pytest.param(
+            "expected_day_close",
+            "the day closes at 20 units where the reorganisation and the day's "
+            "activity come to 21.",
+            id="closing",
+        ),
+    ],
+)
+def test_two_passes_that_disagree_on_a_reorganisation_end_with_how_to_report_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    field: str,
+    message: str,
+) -> None:
+    """The second pass checks each reorganisation against the first pass's plan.
+
+    The history buys 10 FOO, then a STOCK_SPLIT row adds 10, so the split day
+    opens at 10 units and closes at 20. Only a fault in cgt-calc makes the
+    passes disagree, so no input reaches these checks; the plan is given one
+    unit too many here instead, making it 11 or 21.
+    """
+
+    @dataclasses.dataclass(frozen=True)
+    class OneUnitOut(SplitTransformation):
+        """The first pass's plan, with `field` one unit too high."""
+
+        def __post_init__(self) -> None:
+            object.__setattr__(self, field, getattr(self, field) + 1)
+
+    monkeypatch.setattr(stock_split_planning, "SplitTransformation", OneUnitOut)
+    raw_file = tmp_path / "raw.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2023-04-28,TRANSFER,,1,100.00,0.00,GBP\n"
+        "2023-05-01,BUY,FOO,10,10.00,0.00,GBP\n"
+        "2023-06-01,STOCK_SPLIT,FOO,10,0.00,0.00,GBP\n",
+        encoding="utf-8",
+    )
+
+    status = _run_main(
+        monkeypatch, "--year", "2023", "--raw-file", str(raw_file), "--no-report"
+    )
+
+    assert status == 1
+    err = capsys.readouterr().err
+    assert err.endswith(
+        "\nERROR: Cannot apply the reorganisation of FOO on 2023-06-01: "
+        f"{message} The two passes over the history disagree.\n"
+        f"\n{REPORTING_ADVICE}"
+    )
+    assert err.count(REPORTING_ADVICE) == 1
+
+
+def test_a_report_typst_cannot_compile_ends_with_how_to_report_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Typst failing on cgt-calc's own template is a fault in cgt-calc.
+
+    Every value is escaped and checked before the template prints it, so no
+    input is known to make Typst fail; the compiler is replaced by one that
+    does. The failure is not one cgt-calc expects, so its traceback is shown,
+    followed by the advice.
+    """
+
+    class FailingCompiler:
+        def __init__(self, **options: object) -> None:
+            pass
+
+        def compile(self, **options: object) -> bytes:
+            raise typst.TypstError("made-up failure", "made-up diagnostic")
+
+    monkeypatch.setattr(typst, "Compiler", FailingCompiler)
+    raw_file = tmp_path / "raw.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2023-04-28,TRANSFER,,1,100.00,0.00,GBP\n",
+        encoding="utf-8",
+    )
+
+    status = _run_main(
+        monkeypatch,
+        "--year",
+        "2023",
+        "--raw-file",
+        str(raw_file),
+        "--output",
+        str(tmp_path / "report.pdf"),
+    )
+
+    assert status == 1
+    err = capsys.readouterr().err
+    # Python prints an exception made with two arguments as their tuple.
+    assert err.endswith(
+        "typst.TypstError: ('made-up failure', 'made-up diagnostic')\n"
+        f"\n{REPORTING_ADVICE}"
     )
 
 

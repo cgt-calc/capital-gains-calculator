@@ -71,6 +71,7 @@ CNY
 CON3
 CSH2
 cgt
+CgtError
 classmethod
 cli
 cls

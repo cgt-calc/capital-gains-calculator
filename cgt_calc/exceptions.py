@@ -21,19 +21,35 @@ if TYPE_CHECKING:
 class CgtError(Exception):
     """Base class for exceptions."""
 
+    def __init__(self, *args: object, needs_update: bool = False) -> None:
+        """Initialise; `needs_update` marks a failure only a cgt-calc update can fix.
+
+        Such a failure is followed by the advice on upgrading and reporting
+        it: an unchanged broker export cgt-calc does not recognise, or a
+        check of cgt-calc's own workings that failed. Everything else the
+        user can put right from the message alone.
+        """
+        super().__init__(*args)
+        self.needs_update = needs_update
+
 
 class ParsingError(CgtError):
     """Parsing error."""
 
     def __init__(
-        self, file: Path, message: str, *, row_index: int | None = None
+        self,
+        file: Path,
+        message: str,
+        *,
+        row_index: int | None = None,
+        needs_update: bool = False,
     ) -> None:
         """Initialise."""
         self.file = file
         self.detail = message
         self.row_index = row_index
         self._update_message()
-        super().__init__(self.message)
+        super().__init__(self.message, needs_update=needs_update)
 
     def _update_message(self) -> None:
         location = f"While parsing {self.file}"

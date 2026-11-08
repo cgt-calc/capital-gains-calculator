@@ -22,8 +22,8 @@ example when a run ends with **Unexpected error!** and a traceback.
 If the error is still there, open a
 [new issue on GitHub](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with:
 
-- **Your cgt-calc version.** The advice printed after an unexpected error names it. Otherwise, run
-    `cgt-calc --version`.
+- **Your cgt-calc version.** If cgt-calc printed advice on reporting the error, that advice names
+    it. Otherwise, run `cgt-calc --version`.
 - **The complete error.** Copy every line from the one containing `Unexpected error!` or `ERROR:` to
     the end of the output, including the traceback if there is one. Do not shorten or summarise it.
 - **The smallest redacted example that still fails,** and the command you ran it with.

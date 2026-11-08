@@ -584,8 +584,10 @@ def test_schwab_json_unknown_action_fails(tmp_path: Path) -> None:
     }
     json_path.write_text(json.dumps(data), encoding="utf-8")
 
-    with pytest.raises(ParsingError, match=r"Unknown action: UnknownAction"):
+    with pytest.raises(ParsingError, match=r"Unknown action: UnknownAction") as exc:
         schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
+
+    assert exc.value.needs_update
 
 
 def test_schwab_json_deposit_missing_details_fails(tmp_path: Path) -> None:

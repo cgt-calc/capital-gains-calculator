@@ -104,6 +104,7 @@ class MSSBParser(
     format_name = "CSV"
     glob_dir = "*.csv"
     deprecated_flags: ClassVar[list[str]] = ["--mssb"]
+    header_mismatch_needs_update: ClassVar[bool] = True
     # Morgan Stanley loads as it did before the check for a transaction in
     # two files was added: that change covered Hargreaves Lansdown and
     # Sharesight only. The two reports are read by fixed name and never hold
@@ -149,7 +150,9 @@ class MSSBParser(
         plan = row[ReleaseColumn.PLAN]
 
         if row[ReleaseColumn.TYPE] != "Release":
-            raise ParsingError(file, f"Unknown type: {row[ReleaseColumn.TYPE]}")
+            raise ParsingError(
+                file, f"Unknown type: {row[ReleaseColumn.TYPE]}", needs_update=True
+            )
 
         if row[ReleaseColumn.STATUS] not in {"Complete", "Staged"}:
             raise ParsingError(file, f"Unknown status: {row[ReleaseColumn.STATUS]}")
@@ -207,7 +210,9 @@ class MSSBParser(
         plan = row[WithdrawalColumn.PLAN]
 
         if row[WithdrawalColumn.TYPE] != "Sale":
-            raise ParsingError(file, f"Unknown type: {row[WithdrawalColumn.TYPE]}")
+            raise ParsingError(
+                file, f"Unknown type: {row[WithdrawalColumn.TYPE]}", needs_update=True
+            )
 
         if row[WithdrawalColumn.ORDER_STATUS] != "Complete":
             raise ParsingError(

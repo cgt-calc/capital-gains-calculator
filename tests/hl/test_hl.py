@@ -172,6 +172,8 @@ def test_hl_unknown_reference_raises(tmp_path: Path) -> None:
     message = str(exc.value)
     assert "Unknown transaction type" in message
     assert "D302087099" in message
+    # A cgt-calc update may read the row, so it is marked as needing one.
+    assert exc.value.needs_update
 
 
 @pytest.mark.parametrize(

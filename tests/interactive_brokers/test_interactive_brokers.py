@@ -95,15 +95,38 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
     def test_header_with_a_trimmed_column_name_shows_the_missing_space(
         self, tmp_path: Path
     ) -> None:
-        """The export names a column "Gross Amount ", with a space at its end."""
+        """The export names a column "Gross Amount ", with a space at its end.
+
+        IBKR may have renamed a column, so the error is marked as one a
+        cgt-calc update may be needed for.
+        """
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(self.base_header.replace("Gross Amount ,", "Gross Amount,"))
 
         with pytest.raises(
             ParsingError,
             match=re.escape("Missing: 'Gross Amount '. Extra: 'Gross Amount'."),
-        ):
+        ) as excinfo:
             InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert excinfo.value.needs_update
+
+    def test_an_unknown_type_is_marked_as_needing_an_update(
+        self, tmp_path: Path
+    ) -> None:
+        """A type cgt-calc does not know is refused, marked as needing an update."""
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header
+            + "Transaction History,Data,2025-11-03,U***00000,VT Stock Lending,Stock Lending,VT,-,-,1.0,-,1.0\n"
+        )
+
+        with pytest.raises(
+            ParsingError, match=r"Unknown type: 'Stock Lending'$"
+        ) as excinfo:
+            InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert excinfo.value.needs_update
 
     def test_isin_is_read_from_the_description(self, tmp_path: Path) -> None:
         """Dividend rows name the security as TICKER(ISIN); trades do not."""

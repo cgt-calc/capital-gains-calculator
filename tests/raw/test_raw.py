@@ -663,7 +663,8 @@ def test_read_raw_transactions_unknown_action_names_its_row(tmp_path: Path) -> N
     """A row the parser refuses outright is reported at its own line too.
 
     The row above it is a good one, so an error dropped on the way out would
-    leave two transactions and no report at all.
+    leave two transactions and no report at all. The user wrote the row, so
+    it is not marked as needing a cgt-calc update, unlike a broker's.
     """
     raw_file = tmp_path / "raw_unknown_action.csv"
     raw_file.write_text(
@@ -677,6 +678,7 @@ def test_read_raw_transactions_unknown_action_names_its_row(tmp_path: Path) -> N
         RawParser().load_from_file(raw_file)
 
     assert exc.value.row_index == 3
+    assert not exc.value.needs_update
 
 
 @pytest.mark.parametrize(

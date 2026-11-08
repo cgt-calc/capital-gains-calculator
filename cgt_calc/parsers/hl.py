@@ -196,6 +196,7 @@ class HargreavesLansdownParser(
                 file_path,
                 f"Unknown transaction type for reference '{reference}' "
                 f"(description: '{description}')",
+                needs_update=True,
             )
 
         date_str = row.get("Trade date", "")

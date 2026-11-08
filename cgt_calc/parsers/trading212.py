@@ -383,7 +383,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
             "https://cgt-calc.uk/brokers/trading212/#known-limitations",
         )
 
-    raise ParsingError(file, f"Unknown action: {label}")
+    raise ParsingError(file, f"Unknown action: {label}", needs_update=True)
 
 
 class Trading212Transaction(BrokerTransaction):
@@ -1245,7 +1245,10 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
         unknown = set(header) - COLUMN_SET
         if unknown:
             raise ParsingError(
-                file, f"Unknown column(s) {', '.join(sorted(unknown))}", row_index=1
+                file,
+                f"Unknown column(s) {', '.join(sorted(unknown))}",
+                row_index=1,
+                needs_update=True,
             )
 
     @staticmethod

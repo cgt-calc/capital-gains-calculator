@@ -250,7 +250,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label in {"Full Redemption", "Full Redemption Adj"}:
         return ActionType.FULL_REDEMPTION
 
-    raise ParsingError(file, f"Unknown action: '{label}'")
+    raise ParsingError(file, f"Unknown action: '{label}'", needs_update=True)
 
 
 def _parse_decimal(

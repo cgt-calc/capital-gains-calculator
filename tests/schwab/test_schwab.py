@@ -347,9 +347,11 @@ def test_action_from_str(label: str, action: ActionType) -> None:
 
 
 def test_action_from_str_unknown() -> None:
-    """Raise on unknown action labels."""
-    with pytest.raises(ParsingError, match="Unknown action"):
+    """Raise on unknown action labels, marked as needing a cgt-calc update."""
+    with pytest.raises(ParsingError, match="Unknown action") as excinfo:
         action_from_str("Dance", Path("transactions.csv"))
+
+    assert excinfo.value.needs_update
 
 
 def test_read_transactions_empty_file() -> None:

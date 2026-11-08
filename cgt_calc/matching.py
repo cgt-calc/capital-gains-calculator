@@ -902,8 +902,9 @@ class Matcher:
                     f"{date_index}: the holding opens at "
                     f"{strip_zeros(position.quantity)} units here and at "
                     f"{strip_zeros(transformation.day_open_quantity)} where "
-                    "the reorganisation was worked out. Please report this: "
-                    "the two passes over the history disagree."
+                    "the reorganisation was worked out. The two passes over "
+                    "the history disagree.",
+                    needs_update=True,
                 )
             self.run.portfolio[symbol] = Position(
                 transformation.scaled_day_open_quantity, position.amount
@@ -1326,8 +1327,8 @@ class Matcher:
                     f"{date_index}: the day closes at {strip_zeros(closing)} "
                     "units where the reorganisation and the day's activity "
                     f"come to {strip_zeros(transformation.expected_day_close)}."
-                    " Please report this: the two passes over the history "
-                    "disagree."
+                    " The two passes over the history disagree.",
+                    needs_update=True,
                 )
 
     @staticmethod

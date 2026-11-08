@@ -232,21 +232,42 @@ def test_read_freetrade_transactions_refuses_a_row_that_runs_over_several_lines(
 
 
 def test_read_freetrade_transactions_missing_column(tmp_path: Path) -> None:
-    """Missing required columns trigger ParsingError."""
+    """Missing required columns trigger ParsingError.
+
+    Freetrade may have dropped or renamed the column, so the error is marked
+    as one a cgt-calc update may be needed for.
+    """
     header = COLUMNS[:-1]
     path = _write_csv(tmp_path, header)
 
-    with pytest.raises(ParsingError, match="Missing columns"):
+    with pytest.raises(ParsingError, match="Missing columns") as excinfo:
         FreetradeParser().load_from_file(path)
+
+    assert excinfo.value.needs_update
 
 
 def test_read_freetrade_transactions_unknown_column(tmp_path: Path) -> None:
-    """Unknown columns trigger ParsingError."""
+    """Unknown columns trigger ParsingError, marked as needing an update."""
     header = [*COLUMNS, "Unexpected"]
     path = _write_csv(tmp_path, header)
 
-    with pytest.raises(ParsingError, match="Unknown columns: Unexpected"):
+    with pytest.raises(ParsingError, match="Unknown columns: Unexpected") as excinfo:
         FreetradeParser().load_from_file(path)
+
+    assert excinfo.value.needs_update
+
+
+def test_read_freetrade_transactions_unknown_type(tmp_path: Path) -> None:
+    """A type cgt-calc does not know is refused, marked as needing an update."""
+    overrides = {FreetradeColumn.TYPE.value: "STOCK_LENDING"}
+    path = _write_csv(tmp_path, COLUMNS, [_default_row(overrides)])
+
+    with pytest.raises(
+        ParsingError, match=r", row 2: Unknown type: 'STOCK_LENDING'$"
+    ) as excinfo:
+        FreetradeParser().load_from_file(path)
+
+    assert excinfo.value.needs_update
 
 
 def test_read_freetrade_transactions_invalid_decimal(tmp_path: Path) -> None:
