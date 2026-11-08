@@ -572,7 +572,17 @@ def test_a_same_day_row_from_another_input_is_refused() -> None:
         run(
             [
                 trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
-                trade(EVENT_DAY, ActionType.BUY, "FOO", "2", "10", source=elsewhere(0)),
+                trade(
+                    EVENT_DAY,
+                    ActionType.BUY,
+                    "FOO",
+                    "2",
+                    "10",
+                    # Another file of the reorganisation's own account, so the
+                    # holding is in one account and only the row's place is in
+                    # question.
+                    source=elsewhere(0, account="Testing account"),
+                ),
                 legacy_split(EVENT_DAY, "FOO", "10"),
             ]
         )
@@ -620,11 +630,11 @@ def test_a_row_at_or_between_the_two_halves_of_a_reorganisation_is_refused(
         "If you know the real order, move the day's FOO rows out of their exports "
         "into one RAW input in that order, with the reorganisation as one "
         "STOCK_SPLIT row stating the change to the whole holding; otherwise work "
-        "the day out by hand (consider professional advice)."
+        "the day out by hand (consider professional advice). Moving rows also "
+        "moves their cash into the RAW input's own balance: see "
+        "https://cgt-calc.uk/brokers/raw/#cannot-be-placed-either-side-of-it for "
+        "the cash rows that keep each balance right."
     ) in message
-    # Both state their times, so asking for times would send the reader after
-    # a file that does not exist.
-    assert "in one input that states times" not in message
 
 
 # ===== keeping the broker's own count =====
@@ -2447,7 +2457,16 @@ def test_a_row_stamped_before_a_lone_booking_instant_is_refused() -> None:
     with pytest.raises(CalculationError, match="cannot be placed either side") as error:
         run(
             [
-                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                trade(
+                    POOL_DAY,
+                    ActionType.BUY,
+                    "FOO",
+                    "10",
+                    "10",
+                    # The whole holding is in the reorganisation's own input,
+                    # so nothing but the row's place is in question.
+                    source=_stamped(SPLIT_OPENED - dt.timedelta(days=1)),
+                ),
                 trade(
                     EVENT_DAY,
                     ActionType.BUY,
@@ -2459,11 +2478,14 @@ def test_a_row_stamped_before_a_lone_booking_instant_is_refused() -> None:
                 legacy_split(EVENT_DAY, "FOO", "10", source=_stamped(SPLIT_OPENED)),
             ]
         )
-    message = str(error.value)
-    assert "the instant on it is when the broker booked the entry" in message
-    # Both rows state their times, so asking for times would send the reader
-    # after a file that does not exist.
-    assert "in one input that states times" not in message
+    assert (
+        "Both rows state their times, but the reorganisation is a single row, and "
+        "the instant on it is when the broker booked the entry rather than when the "
+        "units changed: a share trades in the new units from the opening of the "
+        "ex-date, which need not be when the broker wrote the row. Anything the "
+        "export booked after that row is in the new units; this row was not. Work "
+        "the day out by hand (consider professional advice)."
+    ) in str(error.value)
 
 
 def test_a_row_stamped_after_a_lone_booking_instant_is_left_alone() -> None:
@@ -2502,13 +2524,16 @@ def test_a_row_stamped_after_a_lone_booking_instant_is_left_alone() -> None:
 @pytest.mark.parametrize(
     ("row_source", "reorganisation"),
     [
+        # In the first two, the row is in another file of the pool's own
+        # account, so the holding is in one account and only the row's place
+        # is in question.
         pytest.param(
-            _stamped(SPLIT_OPENED),
+            replace(_stamped(SPLIT_OPENED), account="Testing account"),
             legacy_split(EVENT_DAY, "FOO", "10"),
             id="only the row",
         ),
         pytest.param(
-            elsewhere(0),
+            elsewhere(0, account="Testing account"),
             # Stamped in the pool's own input, so the row is the only thing
             # from another one.
             legacy_split(
@@ -2543,8 +2568,8 @@ def test_a_time_stated_on_one_side_only_places_nothing(
     """A time needs another to be compared with.
 
     With a time on the row or on the reorganisation but not on both, the
-    refusal says that the two are in different inputs and what to run again
-    with. It does not claim the row is stamped anywhere.
+    refusal says that the two are in different inputs and how to move the day
+    into RAW. It does not claim the row is stamped anywhere.
     """
     with pytest.raises(CalculationError, match="cannot be placed either side") as error:
         run(
@@ -2556,9 +2581,14 @@ def test_a_time_stated_on_one_side_only_places_nothing(
         )
     assert (
         "The two come from different inputs, or from an export that gives neither "
-        "times nor a documented order. Run again with the day's FOO rows in one "
-        "input that states times, or work the day out by hand (consider "
-        "professional advice)."
+        "times nor a documented order. If you know the real order, move the day's "
+        "FOO rows out of their exports into one RAW input in that order, with the "
+        "reorganisation as one STOCK_SPLIT row stating the change to the whole "
+        "holding; otherwise work the day out by hand (consider professional "
+        "advice). Moving rows also moves their cash into the RAW input's own "
+        "balance: see "
+        "https://cgt-calc.uk/brokers/raw/#cannot-be-placed-either-side-of-it"
+        " for the cash rows that keep each balance right."
     ) in str(error.value)
 
 

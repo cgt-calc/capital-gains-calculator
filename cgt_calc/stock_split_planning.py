@@ -613,20 +613,38 @@ def _split_chronology_message(
             "Work the day out by hand (consider professional advice)."
         )
     if len(instants) > 1 and stamp is not None:
-        return preamble + (
+        reason = (
             f"This row is stamped {stamp}, at or between the two halves of "
-            f"the reorganisation at {min(instants)} and {max(instants)}. If "
-            f"you know the real order, move the day's {symbol} rows out of "
-            "their exports into one RAW input in that order, with the "
-            "reorganisation as one STOCK_SPLIT row stating the change to the "
-            "whole holding; otherwise work the day out by hand (consider "
-            "professional advice)."
+            f"the reorganisation at {min(instants)} and {max(instants)}."
         )
-    return preamble + (
-        "The two come from different inputs, or from an export that gives "
-        "neither times nor a documented order. Run again with the day's "
-        f"{symbol} rows in one input that states times, or work the day out "
-        "by hand (consider professional advice)."
+    else:
+        reason = (
+            "The two come from different inputs, or from an export that gives "
+            "neither times nor a documented order."
+        )
+    return f"{preamble}{reason} {_move_the_day_to_raw(symbol)}"
+
+
+# One literal, so that the link check reads the whole address.
+_CHRONOLOGY_DOCS: Final = (
+    "https://cgt-calc.uk/brokers/raw/#cannot-be-placed-either-side-of-it"
+)
+
+
+def _move_the_day_to_raw(symbol: str) -> str:
+    """Say how a day nothing places can be settled, and what that costs.
+
+    Moving a row into the RAW input moves its cash into that input's own
+    balance, which the balance check then holds to account.
+    """
+    return (
+        f"If you know the real order, move the day's {symbol} rows out of "
+        "their exports into one RAW input in that order, with the "
+        "reorganisation as one STOCK_SPLIT row stating the change to the "
+        "whole holding; otherwise work the day out by hand (consider "
+        "professional advice). Moving rows also moves their cash into the "
+        f"RAW input's own balance: see {_CHRONOLOGY_DOCS} for the cash rows "
+        "that keep each balance right."
     )
 
 

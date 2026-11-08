@@ -278,9 +278,16 @@ created 209, and the sale below it is written in post-split shares at the post-s
 !!! warning "Same-day chronology across inputs"
 
     Within one RAW file the row order settles which units a same-day trade is stated in. Between
-    two inputs it does not, and neither does the order cgt-calc merges them in, so a same-day trade
-    from another input is refused unless both sides carry times. Put the day's rows for that symbol
-    in one input, or work that day out by hand.
+    two inputs it does not, and neither does the order cgt-calc merges them in. For a trade from
+    another input, cgt-calc uses the time of day instead, but only when both the trade and the
+    reorganisation have one. Without times, cgt-calc cannot tell the order even of two rows in the
+    same broker export.
+
+    A trade timed after the reorganisation is in the new units. A trade timed before it is in the
+    old units, but only if the reorganisation is exported as two timed rows, such as Trading 212's
+    `Stock split close` and `Stock split open`. Any other same-day trade stops the run with
+    [`cannot be placed either side of it`](#cannot-be-placed-either-side-of-it), which explains how
+    to move that day's rows into this file.
 
 cgt-calc has no way to check the order you wrote. A sale placed on the wrong side of a `STOCK_SPLIT`
 row is refused when its quantity only makes sense on the other side, but a quantity that is
@@ -358,7 +365,11 @@ units from another source, and says so.
 
 A RAW `STOCK_SPLIT` row is the answer to that refusal, and you do not have to edit the broker export
 to use it: where a date has both, the RAW row states the change to the whole holding, so cgt-calc
-uses it and ignores the broker's own row for the same event.
+uses it and ignores the broker's own row for the same event. The exception is a day on which a
+broker export also has a purchase, sale or transfer of that security. The RAW `STOCK_SPLIT` row has
+no time of day, so cgt-calc cannot tell whether the broker's row came before or after it, and stops
+with [`cannot be placed either side of it`](#cannot-be-placed-either-side-of-it) until you move the
+day's rows into this file.
 
 Which accounts a holding is built from is remembered until a day closes with the whole pooled
 holding at zero, and a ticker rename carries the record to the new name along with the holding. So
@@ -552,10 +563,23 @@ used and the broker's own row for the same event is ignored. See
 A same-day row changes the quantity of the security, but cgt-calc cannot establish whether that
 quantity uses the units before or after the reorganisation. This happens across separate inputs,
 within a broker export whose row order is not a record of what happened first, and when a timed row
-falls at or between the two timestamps of a paired reorganisation. If you know the real order, put
-that day's rows for the symbol in one RAW input in [that order](#the-order-of-rows-on-one-date),
-without [importing the same rows twice](#combining-raw-with-a-broker-export). Otherwise, work that
-day out by hand and leave its rows out.
+falls at or between the two timestamps of a paired reorganisation. If you know the real order, move
+that day's rows for the symbol out of working copies of their exports and into your RAW file in
+[that order](#the-order-of-rows-on-one-date), with the reorganisation as one `STOCK_SPLIT` row
+stating the change to the whole holding (see [Share reorganisations](#share-reorganisations)).
+Otherwise, work that day out by hand and leave its rows out.
+
+Moving a row moves its cash too: RAW rows keep a balance of their own, separate from the broker's
+(see [Combining RAW with a broker export](#combining-raw-with-a-broker-export)). So that the balance
+check still passes:
+
+- For each purchase you move, add a `TRANSFER` row on the same date depositing its cost, in the same
+    currency.
+- A sale you move takes its proceeds out of the broker's balance. If they paid for a later purchase
+    there, the run stops with `Reached a negative balance` for that broker. Add them back as a
+    deposit in the working copy of that export, and add a `TRANSFER` row on the same date taking
+    them out of your RAW file. If that export has no row for a deposit, run with
+    `--no-balance-check` instead, once you have checked that the shortfall is only those proceeds.
 
 Do not upload an unredacted RAW file to GitHub: it can contain dates, holdings, income and other
 sensitive financial information.
