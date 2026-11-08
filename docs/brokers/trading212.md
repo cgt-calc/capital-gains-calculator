@@ -416,7 +416,8 @@ cgt-calc does not treat the conversion as a disposal and reports no gain or loss
     pooled cost has to be apportioned between the two resulting holdings by market value rather than
     preserved whole. Once you have established what the distribution was, and if one of the
     [RAW actions](raw.md#actions-to-use) records it, you can remove its row from a working copy of
-    the export and enter the distribution in a separate file passed with `--raw-file`; see
+    the export and enter the distribution in the RAW file you pass with `--raw-file`, or start one
+    if you do not use one yet; see
     [Combining RAW with a broker export](raw.md#combining-raw-with-a-broker-export). No RAW action
     records a takeover paid in shares; see the next item.
 - A takeover paid in shares is not supported. Trading 212 exports the shares you gave up as a

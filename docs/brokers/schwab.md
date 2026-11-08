@@ -465,7 +465,7 @@ and asks you to classify it:
 
 - For a spouse or civil partner, follow
     [Transfers to a spouse or civil partner](raw.md#transfers-to-a-spouse-or-civil-partner) and add
-    the suggested `TRANSFER_TO_SPOUSE` row through a small RAW file.
+    the suggested `TRANSFER_TO_SPOUSE` row.
 - For anyone else, follow [Gifts to anyone else](raw.md#gifts-to-anyone-else) and add the suggested
     `GIFT` or `GIFT_UNCONNECTED` row using a verified market value.
 
