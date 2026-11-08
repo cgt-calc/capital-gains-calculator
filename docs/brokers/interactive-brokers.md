@@ -175,7 +175,8 @@ it. If the error remains, open a
 - the CSV header and a sanitised failing row.
 
 Do not upload an unredacted file: the report contains account identifiers, holdings and other
-sensitive financial information.
+sensitive financial information. For guidance on preparing a redacted example, see
+[Reporting problems](../reporting-problems.md).
 
 ### `Unknown type`
 

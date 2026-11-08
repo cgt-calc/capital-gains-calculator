@@ -609,7 +609,8 @@ represents a trade, transfer or corporate action that must be recorded another w
 First upgrade cgt-calc using the same method you used to install it. If an unchanged export still
 contains an unsupported action, open a
 [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the complete
-error and a sanitised copy of the row.
+error and a sanitised copy of the row. For guidance on preparing a redacted example, see
+[Reporting problems](../reporting-problems.md).
 
 ### An unmatched `Cancel Buy`
 

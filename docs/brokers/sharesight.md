@@ -139,7 +139,8 @@ with:
 - the CSV header and a sanitised failing row.
 
 Do not upload an unredacted report: it can contain holdings and other sensitive financial
-information.
+information. For guidance on preparing a redacted example, see
+[Reporting problems](../reporting-problems.md).
 
 ### `Unknown action`
 

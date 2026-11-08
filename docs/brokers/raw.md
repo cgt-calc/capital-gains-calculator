@@ -505,7 +505,8 @@ source code: some actions exist only for broker imports and a RAW row cannot sup
 data. For a real event that the table does not cover, do not force it into the nearest-looking
 action; verify its UK tax treatment and open a
 [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) if cgt-calc should
-support it.
+support it. For guidance on preparing a redacted example, see
+[Reporting problems](../reporting-problems.md).
 
 ### `Amount missing`
 

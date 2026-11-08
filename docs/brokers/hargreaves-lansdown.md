@@ -160,7 +160,8 @@ If a CSV you have not edited is refused, open a
 [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with your cgt-calc
 version, the complete error and a sanitised copy of the row. The column-count message quotes the
 whole row: remove references, account numbers and anything else you would not publish before sharing
-it.
+it. For guidance on preparing a redacted example, see
+[Reporting problems](../reporting-problems.md).
 
 ### `Two files in the directory hold this transaction`
 

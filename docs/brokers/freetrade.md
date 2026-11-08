@@ -136,7 +136,8 @@ If an unchanged export still fails after upgrading cgt-calc, open a GitHub issue
 - the CSV header and a sanitised failing row.
 
 Do not upload an unredacted file: the export contains order identifiers, holdings and other
-sensitive financial information.
+sensitive financial information. For guidance on preparing a redacted example, see
+[Reporting problems](../reporting-problems.md).
 
 ### `This row has ... columns, not ...`
 

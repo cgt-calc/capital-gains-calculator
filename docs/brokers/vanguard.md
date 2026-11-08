@@ -233,7 +233,8 @@ instead has to be reconciled with the original trade, and the row does not say w
 disposal that is, so the share matching cannot be worked out from it.
 
 Keep the export unchanged, and please report the row with your cgt-calc version and a sanitised copy
-in a [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new). No export
+in a [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new). For guidance
+on preparing a redacted example, see [Reporting problems](../reporting-problems.md). No export
 containing a reversed trade has been examined, so what the row means is not established: it may
 cancel a trade that never stood, or record something that is itself a disposal. A real example is
 what would let cgt-calc handle it for you instead of stopping.
