@@ -475,6 +475,11 @@ gift for a later split, so the quantity may not match the number of shares shown
 Where both readings are possible, the error prints two candidate lines: check a statement and use
 the one with the correct quantity.
 
+If your RAW file already has a row for the gift's date and ticker that no `Gift` row accounts for,
+the error names it. If that row was meant for the gift, correct its quantity: adding the printed
+line as well would take both quantities out of your holding. Add the printed line only if the two
+are separate transfers.
+
 #### Gifts that all went to your spouse or civil partner
 
 If every `Gift` row in the export is a gift to your spouse or civil partner, add `--gifts-to-spouse`
