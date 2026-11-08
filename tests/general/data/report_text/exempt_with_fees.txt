@@ -9,7 +9,8 @@ Total capital loss £0
 Number of exempt disposals 1
 Total exempt disposal proceeds £12,000.00
 Total capital gain after loss £0
-Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.
+Amounts are rounded to the nearest penny individually, so a line may differ from its
+components by a penny.
 Overall - Dividends and Interests
 Number of dividend distributions 0
 Number of interest transactions 0
@@ -26,15 +27,17 @@ Page 1 of 2
 Capital Gains Tax Calculations for 2024-25
 Capital Gains Events
 01 May 2024
-Acquisition 1: 100 units of T26 for £10,000.00 (£100.00/unit)
+Acquisition 1: 100 units of T26
+for £10,000.00 (£100.00/unit)
 Rule Quantity Actual cost
 1. SECTION 104 100 £10,000.00
 Number of units in the pool: 100, new pool cost: £10,000.00 (£100.00/unit).
 01 September 2024
-Exempt disposal: 100 units of T26 valued at £12,000.00 (£120.00/unit), £10.00 disposal
-expenses included in the illustrative calculation
-The cost and disposal expenses shown below are used for this illustrative calculation only;
-they are not allowable deductions against other gains.
+Exempt disposal: 100 units of T26
+valued at £12,000.00 (£120.00/unit), £10.00 disposal expenses included in the
+illustrative calculation
+The cost and disposal expenses shown below are used for this illustrative
+calculation only; they are not allowable deductions against other gains.
 Gain is £1,490.00; the gain or loss is disregarded (exempt asset).
 Rule Quantity Disposal Cost used for Disregarded
 proceeds this illustrative gain or loss
@@ -45,7 +48,8 @@ Number of units left in the pool: 50, new pool cost: £5,000.00 (£100.00/unit).
 2. SECTION 104 50 £6,000.00 £5,005.00 disregarded gain £995.00
 Number of units left in the pool: 0.
 11 September 2024
-Acquisition 2: 50 units of T26 for £5,500.00 (£110.00/unit)
+Acquisition 2: 50 units of T26
+for £5,500.00 (£110.00/unit)
 Rule Quantity Actual cost
 1. BED AND BREAKFAST 50 £5,000.00
 Number of units in the pool: 50, new pool cost: £5,000.00 (£100.00/unit).

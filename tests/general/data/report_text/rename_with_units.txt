@@ -7,7 +7,8 @@ Total allowable costs £0.00
 Total capital gain before loss £0
 Total capital loss £0
 Total capital gain after loss £0
-Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.
+Amounts are rounded to the nearest penny individually, so a line may differ from its
+components by a penny.
 Overall - Dividends and Interests
 Number of dividend distributions 0
 Number of interest transactions 0
@@ -24,10 +25,12 @@ Page 1 of 2
 Capital Gains Tax Calculations for 2024-25
 Capital Gains Events
 01 June 2024
-Acquisition 1: 100 units of OLD for £1,000.00 (£10.00/unit)
+Acquisition 1: 100 units of OLD
+for £1,000.00 (£10.00/unit)
 Rule Quantity Actual cost
 1. SECTION 104 100 £1,000.00
 Number of units in the pool: 100, new pool cost: £1,000.00 (£10.00/unit).
 10 June 2024
-OLD was renamed to NEW: 100 units with pool cost £1,000.00 transferred
+OLD was renamed to NEW: 100 units with pool cost £1,000.00
+transferred
 Page 2 of 2

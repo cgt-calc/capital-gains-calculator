@@ -9,7 +9,8 @@ Total capital loss £0
 Number of exempt disposals 3
 Total exempt disposal proceeds £10,500.00
 Total capital gain after loss £0
-Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.
+Amounts are rounded to the nearest penny individually, so a line may differ from its
+components by a penny.
 Overall - Dividends and Interests
 Number of dividend distributions 0
 Number of interest transactions 0
@@ -22,18 +23,20 @@ Total amount of taxable dividends proceeds £0.00
 Total amount of UK interests proceeds £0.00
 Total amount of foreign interests proceeds £0.00
 Total amount of interest tax paid £0.00
-Page 1 of 2
+Page 1 of 3
 Capital Gains Tax Calculations for 2024-25
 Capital Gains Events
 01 May 2024
-Acquisition 1: 100 units of T26 for £10,000.00 (£100.00/unit)
+Acquisition 1: 100 units of T26
+for £10,000.00 (£100.00/unit)
 Rule Quantity Actual cost
 1. SECTION 104 100 £10,000.00
 Number of units in the pool: 100, new pool cost: £10,000.00 (£100.00/unit).
 01 September 2024
-Exempt disposal: 50 units of T26 valued at £6,000.00 (£120.00/unit)
-The cost and disposal expenses shown below are used for this illustrative calculation only;
-they are not allowable deductions against other gains.
+Exempt disposal: 50 units of T26
+valued at £6,000.00 (£120.00/unit)
+The cost and disposal expenses shown below are used for this illustrative
+calculation only; they are not allowable deductions against other gains.
 Gain is £1,000.00; the gain or loss is disregarded (exempt asset).
 Rule Quantity Disposal Cost used for Disregarded
 proceeds this illustrative gain or loss
@@ -41,23 +44,27 @@ calculation
 1. SECTION 104 50 £6,000.00 £5,000.00 disregarded gain £1,000.00
 Number of units left in the pool: 50, new pool cost: £5,000.00 (£100.00/unit).
 02 September 2024
-Exempt disposal: 25 units of T26 valued at £2,500.00 (£100.00/unit)
-The cost and disposal expenses shown below are used for this illustrative calculation only;
-they are not allowable deductions against other gains.
+Exempt disposal: 25 units of T26
+valued at £2,500.00 (£100.00/unit)
+The cost and disposal expenses shown below are used for this illustrative
+calculation only; they are not allowable deductions against other gains.
 Neither a gain nor a loss; the gain or loss is disregarded (exempt asset).
 Rule Quantity Disposal Cost used for Disregarded
 proceeds this illustrative gain or loss
 calculation
 1. SECTION 104 25 £2,500.00 £2,500.00 disregarded loss £0.00
 Number of units left in the pool: 25, new pool cost: £2,500.00 (£100.00/unit).
+Page 2 of 3
+Capital Gains Tax Calculations for 2024-25
 03 September 2024
-Exempt disposal: 25 units of T26 valued at £2,000.00 (£80.00/unit)
-The cost and disposal expenses shown below are used for this illustrative calculation only;
-they are not allowable deductions against other gains.
+Exempt disposal: 25 units of T26
+valued at £2,000.00 (£80.00/unit)
+The cost and disposal expenses shown below are used for this illustrative
+calculation only; they are not allowable deductions against other gains.
 Loss is £500.00; the gain or loss is disregarded (exempt asset).
 Rule Quantity Disposal Cost used for Disregarded
 proceeds this illustrative gain or loss
 calculation
 1. SECTION 104 25 £2,000.00 £2,500.00 disregarded loss £500.00
 Number of units left in the pool: 0.
-Page 2 of 2
+Page 3 of 3

@@ -7,7 +7,8 @@ Total allowable costs £0.00
 Total capital gain before loss £0
 Total capital loss £0
 Total capital gain after loss £0
-Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.
+Amounts are rounded to the nearest penny individually, so a line may differ from its
+components by a penny.
 Overall - Dividends and Interests
 Number of dividend distributions 0
 Number of interest transactions 0
@@ -24,17 +25,21 @@ Page 1 of 2
 Capital Gains Tax Calculations for 2024-25
 Capital Gains Events
 01 June 2024
-Acquisition 1: 10 units of FOO for £100.00 (£10.00/unit)
+Acquisition 1: 10 units of FOO
+for £100.00 (£10.00/unit)
 Rule Quantity Actual cost
 1. SECTION 104 10 £100.00
 Number of units in the pool: 10, new pool cost: £100.00 (£10.00/unit).
 05 July 2024
-Acquisition 2: 10 units of BAR for £10.00 (£1.00/unit)
+Acquisition 2: 10 units of BAR
+for £10.00 (£1.00/unit)
 Rule Quantity Actual cost
 1. SECTION 104 10 £10.00
 Number of units in the pool: 10, new pool cost: £10.00 (£1.00/unit)
-Cost basis calculated based on cost of FOO share pool from which BAR shares were spun off.
-Spin-off adjustment 3: FOO cost adjusted because of BAR shares spun off
+Cost basis calculated based on cost of FOO share pool from which BAR shares
+were spun off.
+Spin-off adjustment 3: FOO cost adjusted because of BAR shares
+spun off
 Rule Quantity Original cost After spin-off
 1. SPIN OFF 10 of FOO £100.00 £90.00
 Number of units in the pool: 10, new pool cost: £90.00 (£9.00/unit).

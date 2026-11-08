@@ -21,7 +21,7 @@ DPI=300
 # Width is taken as full page width automatically. Page 1 is the summary;
 # this keeps all of it and stops above the footer, and the trim then drops
 # the blank space below the last row.
-CROP_HEIGHT=2400
+CROP_HEIGHT=2800
 
 # Margin (in pixels) to add after trimming.
 BORDER=20

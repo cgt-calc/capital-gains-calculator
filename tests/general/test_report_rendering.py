@@ -333,14 +333,14 @@ def test_the_report_is_set_in_the_bundled_noto_sans(tmp_path: Path) -> None:
     assert fonts == {"NotoSans-Regular", "NotoSans-SemiBold", "NotoSans-Bold"}
 
 
-def test_the_gain_to_date_starts_its_own_paragraph(tmp_path: Path) -> None:
-    """After a gain, "Capital gain to date" begins a paragraph of its own.
+def test_the_gain_to_date_is_a_line_of_its_own(tmp_path: Path) -> None:
+    """After a gain, "Capital gain to date" is a line of its own.
 
-    #947 once joined it to the gain sentence. A paragraph break shows as a
-    larger gap above the line than the gap between the lines of one wrapped
-    paragraph, here the gift's two-line gain sentence (about 9 points against
-    3 when this was written). Gift: 2 of 10 shares bought at £10, given at £30,
-    a £40 gain; sale: 2 more sold at £30, another £40.
+    #947 once joined it to the gain sentence. The report spaces paragraphs as
+    it spaces the lines of one paragraph, so a joined total shows only as text
+    sharing its line: the sale's short gain sentence would put both on one
+    line. Gift: 2 of 10 shares bought at £10, given at £30, a £40 gain; sale:
+    2 more sold at £30, another £40, so £80 to date.
     """
     report = get_report(
         create_calculator(tax_year=2024, balance_check=False),
@@ -352,32 +352,14 @@ def test_the_gain_to_date_starts_its_own_paragraph(tmp_path: Path) -> None:
     )
     render_pdf(report, tmp_path / "report.pdf")
 
-    lines: list[tuple[str, float | None]] = []
     with pdfplumber.open(tmp_path / "report.pdf") as pdf:
-        for page in pdf.pages:
-            previous = None
-            for line in page.extract_text_lines():
-                gap: float | None = (
-                    None if previous is None else line["top"] - previous["bottom"]
-                )
-                lines.append((line["text"], gap))
-                previous = line
-    texts = [text for text, _ in lines]
-    gift = texts.index(
-        next(
-            t
-            for t in texts
-            if t.startswith("Chargeable gain is £40.00, before any relief")
-        )
-    )
-    continuation_text, wrapped_gap = lines[gift + 1]
-    assert not continuation_text.startswith("Capital gain to date")
-    assert wrapped_gap is not None
-    to_date = [
-        gap for text, gap in lines if text.startswith("Capital gain to date is £")
+        texts = [
+            line["text"] for page in pdf.pages for line in page.extract_text_lines()
+        ]
+    assert [text for text in texts if "Capital gain to date" in text] == [
+        "Capital gain to date is £40.00",
+        "Capital gain to date is £80.00",
     ]
-    assert len(to_date) == 2
-    assert all(gap is not None and gap > wrapped_gap for gap in to_date)
 
 
 @pytest.mark.parametrize(

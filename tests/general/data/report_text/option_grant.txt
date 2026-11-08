@@ -7,7 +7,8 @@ Total allowable costs £1.30
 Total capital gain before loss £198.70
 Total capital loss £0
 Total capital gain after loss £198.70
-Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.
+Amounts are rounded to the nearest penny individually, so a line may differ from its
+components by a penny.
 Overall - Dividends and Interests
 Number of dividend distributions 0
 Number of interest transactions 0
@@ -24,11 +25,14 @@ Page 1 of 2
 Capital Gains Tax Calculations for 2024-25
 Capital Gains Events
 01 May 2024
-Disposal 1: grant of 2 contracts of the META call option expiring 2024-05-17 at a strike of
-500 for £200.00
+Disposal 1: grant of 2 contracts of the META call option expiring
+2024-05-17 at a strike of 500
+for £200.00
 Chargeable gain is £198.70
 Capital gain to date is £198.70
-Rule Quantity Disposal proceeds Allowable cost Gain or loss
+Rule Quantity Disposal Allowable Gain or loss
+proceeds cost
 1. OPTION 2 £200.00 £1.30 gain £198.70
-The option grant does not change the Section 104 holding of the underlying shares.
+The option grant does not change the Section 104 holding of the underlying
+shares.
 Page 2 of 2
