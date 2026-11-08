@@ -157,7 +157,7 @@ def test_a_source_archive_builds_as_its_commit(tmp_path: Path) -> None:
 
 
 def test_a_build_with_no_version_source_fails(tmp_path: Path) -> None:
-    """Test that a build that cannot find its version stops, naming the fix.
+    """Test that a build that cannot find its version stops.
 
     A copy of the files without Git history or a filled-in archive file has
     nothing to read the version from. It must not build as 0.0.0.
@@ -168,7 +168,7 @@ def test_a_build_with_no_version_source_fails(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert result.stdout == ""
-    assert "SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CGT_CALC" in result.stderr
+    assert "unable to detect version" in result.stderr
 
 
 def test_a_build_without_git_uses_the_version_it_is_given(tmp_path: Path) -> None:
