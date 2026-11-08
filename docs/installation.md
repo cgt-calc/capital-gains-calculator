@@ -135,8 +135,8 @@ Or run it without installing. `uvx` fetches the latest `main` each time:
 uvx --from git+https://github.com/cgt-calc/capital-gains-calculator cgt-calc
 ```
 
-`cgt-calc --version` prints `cgt-calc 0.0.0` for this version, because installs from GitHub do not
-get a version number.
+`cgt-calc --version` prints the placeholder `cgt-calc 0.0.0` for this version, because installs from
+GitHub do not get a release number.
 
 Docker users can use the `edge` tag instead; see [Available tags](docker.md#available-tags). The
 [Nix package](#nix) is built from a release, so it cannot install `main`.
