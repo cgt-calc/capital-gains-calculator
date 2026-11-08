@@ -40,10 +40,9 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "release" ]; then
             version="${{ github.event.release.tag_name }}"
           else
-            # Edge builds are stamped relative to the latest release tag,
-            # e.g. v2.0.0-107-gabc1234 -> 2.0.0.post107+gabc1234
-            describe="$(git describe --tags --match 'v[0-9]*')"
-            version="$(echo "${describe#v}" | sed -E 's/-([0-9]+)-g([0-9a-f]+)$/.post\1+g\2/')"
+            # Edge builds are versioned from the latest release tag. The
+            # Dockerfile turns v2.0.0-107-gabc1234 into 2.0.0.post107+gabc1234.
+            version="$(git describe --tags --match 'v[0-9]*')"
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
@@ -102,10 +101,9 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "release" ]; then
             version="${{ github.event.release.tag_name }}"
           else
-            # Edge builds are stamped relative to the latest release tag,
-            # e.g. v2.0.0-107-gabc1234 -> 2.0.0.post107+gabc1234
-            describe="$(git describe --tags --match 'v[0-9]*')"
-            version="$(echo "${describe#v}" | sed -E 's/-([0-9]+)-g([0-9a-f]+)$/.post\1+g\2/')"
+            # Edge builds are versioned from the latest release tag. The
+            # Dockerfile turns v2.0.0-107-gabc1234 into 2.0.0.post107+gabc1234.
+            version="$(git describe --tags --match 'v[0-9]*')"
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 

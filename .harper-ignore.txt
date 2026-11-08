@@ -15,10 +15,6 @@
 # "without giving you new shares" is correct; the PronounKnew rule reads
 # "you new" as a slip for "you knew".
 ^raw\.md:.*PronounKnew
-# An example commit hash in a comment about `git describe` output.
-^version\.py:.*`g3473d67`
-# "a backup tag" is a compound noun; Harper reads it as the verb "back up".
-^version\.py:.*PhrasalVerbAsCompoundNoun
 # "A fee on the row is real money" is complete; MissingPreposition misfires.
 ^ingestion\.py:.*MissingPreposition
 # "CR CR LF" spells out the doubled carriage return; the repeat is the point.

@@ -39,8 +39,10 @@ COPY pyproject.toml uv.lock /build/
 
 # The deps stage installs from the list alone, so it would silently
 # ignore a [tool.uv] setting. Stop the build if one is added, until
-# this file either passes the setting on or allows it here.
-RUN python3 -c 'import sys, tomllib; extra = sorted(tomllib.load(open("pyproject.toml", "rb")).get("tool", {}).get("uv", {})); sys.exit(f"pyproject.toml has [tool.uv] settings the dependency stage would ignore: {extra}" if extra else 0)'
+# this file either passes the setting on or allows it here. cache-keys
+# only decides when uv rebuilds a checkout's editable install, and the
+# image has none.
+RUN python3 -c 'import sys, tomllib; extra = sorted(set(tomllib.load(open("pyproject.toml", "rb")).get("tool", {}).get("uv", {})) - {"cache-keys"}); sys.exit(f"pyproject.toml has [tool.uv] settings the dependency stage would ignore: {extra}" if extra else 0)'
 
 RUN uv export --frozen --no-dev --no-emit-project --quiet -o requirements.txt
 
@@ -64,16 +66,21 @@ FROM build AS wheel
 COPY pyproject.toml README.md LICENSE /build/
 COPY cgt_calc /build/cgt_calc
 
-# Package version to stamp, e.g. "v2.1.0" or "2.0.0.post127+gabc1234".
-# Declared in this stage only, so a new version invalidates the wheel
-# build below and none of the dependency stages.
+# Package version: a release tag such as "v2.1.0", or git describe's
+# "v2.0.0-127-gabc1234", which becomes 2.0.0.post127+gabc1234 as a
+# build from Git history would name it. The image is built without
+# .git, so the build cannot read the version itself. Declared in this
+# stage only, so a new version invalidates the wheel build below and
+# none of the dependency stages.
 ARG VERSION
 
-# Without --frozen, `uv version` would first install the dev
-# dependencies too.
 RUN --mount=type=cache,target=/root/.cache \
-    if [ -n "$VERSION" ]; then uv version --frozen "$VERSION"; fi \
- && uv build --wheel
+    if [ -z "$VERSION" ]; then \
+      echo "Pass the version: --build-arg VERSION=\"\$(git describe --tags --match 'v[0-9]*')\"" >&2; \
+      exit 1; \
+    fi \
+ && SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CGT_CALC="$(echo "${VERSION#v}" | sed -E 's/-([0-9]+)-g([0-9a-f]+)$/.post\1+g\2/')" \
+    uv build --wheel
 
 FROM base AS runtime
 
@@ -108,3 +115,9 @@ FROM runtime AS test
 # reused when they change. It cannot follow the /bin symlink, hence
 # /usr/local/bin, which is on the PATH.
 COPY --link --from=uv /uv /uvx /usr/local/bin/
+
+# The tests of the version a build gets make Git repositories of their
+# own.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git \
+    && rm -rf /var/lib/apt/lists/*

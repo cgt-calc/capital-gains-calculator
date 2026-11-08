@@ -20,20 +20,31 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
+        with:
+          # The build takes its version from the release tag, so fetch the
+          # tags along with the history.
+          fetch-depth: 0
 
       - name: Prepare and install deps
         uses: ./.github/actions/install-deps
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Set version from tag
-        run: uv version "${{ github.event.release.tag_name }}" --frozen
-
       - name: Run tests
         run: uv run pytest -q
 
       - name: Build package
         run: uv build
+
+      # A build that missed the tag, for example because the tag is not on
+      # the checked-out commit, would be named after the previous release.
+      - name: Check the build has the release's version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          ls dist
+          test -f "dist/cgt_calc-${TAG#v}-py3-none-any.whl"
+          test -f "dist/cgt_calc-${TAG#v}.tar.gz"
 
       - name: Publish to PyPI
         run: uv publish
