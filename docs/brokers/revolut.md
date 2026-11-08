@@ -126,11 +126,13 @@ To put the tax into the report:
     **Dividend**. Revolut shows the withholding tax in the transaction details
     ([Revolut dividend guide](https://help.revolut.com/help/wealth/stocks/corporate-events/receiving-dividends/)).
 
-2. Write a [RAW file](raw.md) with two rows for each dividend that had tax withheld. If cgt-calc
-    warned about a dividend tax correction for the ticker, read [Tax corrections](#tax-corrections)
-    first. Give both rows the ticker, the currency and the [UK date](#dates-and-time-zones) of the
-    `DIVIDEND` row. Enter the tax as a positive `DIVIDEND` and as a negative `DIVIDEND_TAX`. For USD
-    6.67 withheld from a QCOM dividend on 18 December 2025:
+2. For each dividend that had tax withheld, add two rows to the [RAW file](raw.md) you already pass
+    with `--raw-file`, or start one if you do not use one yet. cgt-calc reads only one RAW file, so
+    do not write a separate one for these rows. If cgt-calc warned about a dividend tax correction
+    for the ticker, read [Tax corrections](#tax-corrections) first. Give both rows the ticker, the
+    currency and the [UK date](#dates-and-time-zones) of the `DIVIDEND` row. Enter the tax as a
+    positive `DIVIDEND` and as a negative `DIVIDEND_TAX`. For USD 6.67 withheld from a QCOM dividend
+    on 18 December 2025:
 
     ```csv
     date,action,symbol,quantity,price,fees,currency
@@ -141,16 +143,16 @@ To put the tax into the report:
     Both rows are needed, because cgt-calc matches a RAW `DIVIDEND_TAX` only to a RAW `DIVIDEND`,
     not to the dividend in the Revolut CSV.
 
-3. Pass both files:
+3. Pass the export and your RAW file:
 
     ```shell
-    cgt-calc --year 2025 --revolut-file revolut.csv --raw-file revolut-dividend-tax.csv
+    cgt-calc --year 2025 --revolut-file revolut.csv --raw-file raw_data.csv
     ```
 
 cgt-calc adds the RAW `DIVIDEND` to the dividend in the export, which makes it the dividend before
-tax, and reports the `DIVIDEND_TAX` as its tax at source. The two rows cancel, so the `Unknown`
-balance that the RAW file adds to the terminal's **Final balance** list is zero. The warning is
-still printed, because cgt-calc cannot tell that you have added the tax.
+tax, and reports the `DIVIDEND_TAX` as its tax at source. The two rows cancel, so they add nothing
+to the `Unknown` balance in the terminal's **Final balance** list. The warning is still printed,
+because cgt-calc cannot tell that you have added the tax.
 
 Check the terminal's **Dividends** list printed after **Final balance**. For each ticker, the value
 after `excluding ... taxed at source` should be the total of the tax you noted in step 1, and the
