@@ -1,12 +1,13 @@
 [build-system]
-# 1.27 is the first release to write license and license-files below
-# as PEP 639 metadata by default.
-requires = ["hatchling>=1.27.0"]
+# hatchling 1.27 is the first release to write license and license-files
+# below as PEP 639 metadata by default. setuptools-scm 9 is the first to
+# accept the scm table in [tool.hatch.version.raw-options].
+requires = ["hatchling>=1.27.0", "hatch-vcs>=0.5.0", "setuptools-scm>=9.0.0"]
 build-backend = "hatchling.build"
 
 [project]
 name = "cgt-calc"
-version = "0.0.0"
+dynamic = ["version"]
 description = "Calculate UK capital gains tax from broker exports for your HMRC Self Assessment"
 authors = [{ name = "Ruslan Sayfutdinov", email = "ruslan@sayfutdinov.com" }]
 readme = "README.md"
@@ -70,6 +71,9 @@ dev = [
   "codespell>=2.4.1",
   "dprint-py>=0.64.3.0",
   "harper-cli>=2.13.0",
+  # The build backend, for the tests of the version it gives a build.
+  "hatch-vcs>=0.5.0",
+  "hatchling>=1.27.0",
   "mypy>=2.4.0",
   "packaging>=26.3",
   "pandas-stubs>=3.1.0.261029",
@@ -80,6 +84,7 @@ dev = [
   "pytest-xdist>=3.8.0",
   "reportlab>=5.1.0",
   "ruff>=0.17.3",
+  "setuptools-scm>=9.0.0",
   "ty>=0.0.95,<0.1.0",
   "types-colorama>=0.4.15.20260508",
   "types-defusedxml>=0.7.0.20260504",
@@ -96,6 +101,24 @@ links = [
   "lychee-bin>=0.24.2",
 ]
 
+[tool.hatch.version]
+# The version comes from the latest release tag: v3.0.0 itself builds as
+# 3.0.0, and 13 commits later as 3.0.0.post13+g<commit>. A clone without
+# the release tags, such as a shallow one, builds as 0.0.postN+g<commit>.
+# Builds without Git history read .git_archival.txt (source archives),
+# PKG-INFO (sdists) or SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CGT_CALC, and
+# fail without one.
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+# Without it, the per-package SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CGT_CALC
+# is ignored.
+dist_name = "cgt-calc"
+version_scheme = "post-release"
+# Count only release tags, as a backup tag left behind by a rebase would
+# otherwise name a version that does not exist.
+scm.git.describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "v[0-9]*"]
+
 [tool.hatch.build]
 # Choose the package's files by path, not by .gitignore, so a resource
 # whose name .gitignore matches still ships, and the Docker image,
@@ -107,6 +130,12 @@ ignore-vcs = true
 # licence and .gitignore, which hatchling always adds. Without this
 # it would take the whole project tree.
 only-include = ["cgt_calc"]
+
+[tool.uv]
+# A checkout's editable install takes its version when it is built. Rebuild
+# it on the first uv run after a commit or tag, so --version names the
+# current commit. Uncommitted changes do not trigger a rebuild.
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
 
 [tool.ruff]
 required-version = ">=0.13.0"
