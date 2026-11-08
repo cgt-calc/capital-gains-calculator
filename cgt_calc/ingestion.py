@@ -1238,22 +1238,24 @@ class TransactionIngester:
             for transaction in transactions
         ):
             return transactions
-        # Counted, not a set: two gifts of the same shares on the same day need
-        # two classifications, or one row would silently account for both.
-        classified = Counter(
-            (transaction.date, transaction.symbol, transaction.quantity)
-            for transaction in transactions
-            if transaction.action
-            in {
+        # Every classifying row of a day and symbol, whatever count it states.
+        rows_on_day: defaultdict[
+            tuple[dt.date, str | None], list[BrokerTransaction]
+        ] = defaultdict(list)
+        for transaction in transactions:
+            if transaction.action in {
                 ActionType.TRANSFER_TO_SPOUSE,
                 ActionType.GIFT,
                 ActionType.GIFT_UNCONNECTED,
-            }
+            }:
+                rows_on_day[transaction.date, transaction.symbol].append(transaction)
+        # Counted, not a set: two gifts of the same shares on the same day need
+        # two classifications, or one row would silently account for both.
+        classified = Counter(
+            (day, symbol, row.quantity)
+            for (day, symbol), rows in rows_on_day.items()
+            for row in rows
         )
-        # Every classifying row of a day and symbol, whatever count it states.
-        rows_on_day: Counter[tuple[dt.date, str | None]] = Counter()
-        for (day, symbol, _), count in classified.items():
-            rows_on_day[day, symbol] += count
         # Gifts of one symbol on one day all draw on the same rows, and a gift
         # printed before a split can state either of two counts, so which row
         # each takes has to be settled for the day as a whole.
@@ -1299,30 +1301,41 @@ class TransactionIngester:
             # Walk the same order first come, first served to name the gift
             # that is left without a row. With --gifts-to-spouse a gift of one
             # possible count is not refused for that: it waits to be promoted.
-            unused_rows = rows_on_day[day, symbol]
+            # The walk takes every row it can before refusing, so the rows the
+            # refusal names as left over are none that a later gift takes.
+            left_over = list(rows_on_day[day, symbol])
             without_row: list[tuple[int, list[Decimal]]] = []
+            refused: tuple[int, list[Decimal]] | None = None
             for index, readings in gifts:
                 taken = next((r for r in readings if available[r] > 0), None)
                 if taken is not None:
                     available[taken] -= 1
-                    unused_rows -= 1
+                    left_over.remove(
+                        next(row for row in left_over if row.quantity == taken)
+                    )
                     settled.add(index)
                 elif self.gifts_to_spouse and len(readings) == 1:
                     without_row.append((index, readings))
-                else:
-                    raise UnclassifiedGiftError(
-                        transactions[index], readings, self.raw_file
-                    )
-            if not without_row:
-                # That order is one the search already rejected, so it cannot
-                # have placed every gift.
-                raise AssertionError("every gift found a row after all")
-            if unused_rows:
-                # A row for this day and symbol is left without a gift while a
-                # gift has no row, so they disagree about how many shares left.
-                index, readings = without_row[0]
+                elif refused is None:
+                    refused = (index, readings)
+            if refused is None:
+                if not without_row:
+                    # That order is one the search already rejected, so it
+                    # cannot have placed every gift.
+                    raise AssertionError("every gift found a row after all")
+                if left_over:
+                    # A row for this day and symbol is left without a gift
+                    # while a gift has no row, so they disagree about how
+                    # many shares left.
+                    refused = without_row[0]
+            if refused is not None:
+                index, readings = refused
                 raise UnclassifiedGiftError(
-                    transactions[index], readings, self.raw_file
+                    transactions[index],
+                    readings,
+                    self.raw_file,
+                    left_over,
+                    gifts_to_spouse=self.gifts_to_spouse,
                 )
             for index, _ in without_row:
                 auto_classified.add(index)

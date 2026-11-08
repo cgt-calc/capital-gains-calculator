@@ -1634,19 +1634,21 @@ def test_gifts_to_spouse_option_reports_each_gift_row_as_a_spouse_transfer(
         pytest.param(False, True, id="RAW file on standard input"),
     ],
 )
-def test_a_gift_refusal_names_the_raw_file_and_warns_of_a_mistyped_row(
+def test_a_gift_refusal_names_the_raw_file_and_the_row_left_over(
     request: pytest.FixtureRequest,
     tmp_path: Path,
     gifts_to_spouse: bool,
     from_stdin: bool,
 ) -> None:
-    """The line for the gift goes in the one RAW file the run reads.
+    """The refusal names the RAW row left over before the line to add.
 
     The RAW file was meant to classify the gift of 2 GOOG but says 1. Adding
     the printed line beside that row would take 1 + 2 = 3 shares out, so the
-    refusal says to correct the row instead. Without the option the gift has
-    no row to match; with it, the row of 1 is left without a gift. Standard
-    input has no file name to give.
+    refusal names the row and says to correct it first, and to add the line
+    only for a separate transfer. Without the option the gift has no row to
+    match; with it, the row of 1 is left without a gift, and the option
+    cannot say which count is right. The line goes in the one RAW file the
+    run reads, and standard input has no file name to give.
     """
     award_file = tmp_path / "awards.json"
     award_file.write_text(
@@ -1681,14 +1683,27 @@ def test_a_gift_refusal_names_the_raw_file_and_warns_of_a_mistyped_row(
 
     assert refused.returncode != 0
     named = "your RAW file" if from_stdin else f"your RAW file ({raw_file})"
+    option_note = (
+        " --gifts-to-spouse says who received the shares, not how many left, so "
+        "it cannot settle which count is right."
+        if gifts_to_spouse
+        else ""
+    )
+    assert (
+        "that decides the tax.\n\nYour RAW file has a TRANSFER_TO_SPOUSE row "
+        "with quantity 1 for GOOG on 2023-10-09 that no reported gift accounts "
+        f"for.{option_note} If that row is meant for this gift, correct its "
+        "quantity to 2 instead of adding a line, or cgt-calc counts both. Add a "
+        "line below only if this gift is a separate transfer.\n\nIf you gave them"
+    ) in refused.stderr
     assert (
         f"Add this line to {named}, and the gift is then taken as accounted "
         "for:\n  2023-10-09,TRANSFER_TO_SPOUSE,GOOG,2,0.00,0.00,USD\n"
     ) in refused.stderr
+    # The row is named above, so the general warning no longer comes before
+    # the link that ends the refusal.
     assert (
-        "\nIf your RAW file already has a row meant for this gift with another "
-        "date or quantity, correct that row instead of adding one, or cgt-calc "
-        "counts both.\n\nSee https://cgt-calc.uk/brokers/raw/"
+        "the loss counts like any other.\n\nSee https://cgt-calc.uk/brokers/raw/"
         "#transfers-to-a-spouse-or-civil-partner"
     ) in refused.stderr
 
