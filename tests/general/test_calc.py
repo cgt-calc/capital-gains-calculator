@@ -2876,7 +2876,7 @@ def test_a_broker_export_cgt_calc_does_not_know_ends_with_how_to_report_it(
     (tmp_path / "export.csv").write_text(export, encoding="utf-8")
 
     status = _run_main(
-        monkeypatch, "--year", "2024", "--trading212", str(tmp_path), "--no-report"
+        monkeypatch, "--year", "2024", "--trading212-dir", str(tmp_path), "--no-report"
     )
 
     assert status == 1
@@ -3011,10 +3011,8 @@ def test_a_known_error_prints_its_message_and_no_reporting_advice(
         raise CalculationError("made-up refusal")
 
     monkeypatch.setattr("cgt_calc.cli.calculate_cgt", refuse)
-    monkeypatch.setattr(sys, "argv", ["cgt-calc", "--year", "2021"])
 
-    with localcontext():
-        assert main() == 1
+    assert _run_main(monkeypatch, "--year", "2021") == 1
 
     assert capsys.readouterr().err == "\nERROR: made-up refusal\n\n"
 

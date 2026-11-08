@@ -22,12 +22,11 @@ class CgtError(Exception):
     """Base class for exceptions."""
 
     def __init__(self, *args: object, needs_update: bool = False) -> None:
-        """Initialise; `needs_update` marks a failure only a cgt-calc update can fix.
+        """Initialise; `needs_update` marks a failure that may need a cgt-calc update.
 
-        Such a failure is followed by the advice on upgrading and reporting
-        it: an unchanged broker export cgt-calc does not recognise, or a
-        check of cgt-calc's own workings that failed. Everything else the
-        user can put right from the message alone.
+        The CLI follows such a failure with the advice on upgrading and
+        reporting it. It suits an unchanged broker export cgt-calc does not
+        recognise, or a failed check of cgt-calc's own workings.
         """
         super().__init__(*args)
         self.needs_update = needs_update
