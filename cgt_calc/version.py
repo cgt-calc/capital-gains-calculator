@@ -33,9 +33,10 @@ RELEASE_TAG_RE = re.compile(r"^v?(?P<release>\d[^\s]*)$")
 
 # Where installers record the URL a package came from (PEP 610).
 DIRECT_URL_FILE = "direct_url.json"
-# Installs name the first seven characters of their commit, as the installation
-# docs say. That is git's shortest abbreviation; without the repository there is
-# nothing to lengthen it against, as git describe does in a checkout.
+# Installs always name the first seven characters of their commit, as the
+# installation docs say. In a checkout, git describe can lengthen a prefix to
+# keep it unique; an install has no repository to check that against, so the
+# length is fixed.
 INSTALLED_COMMIT_LENGTH = 7
 
 

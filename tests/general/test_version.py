@@ -151,7 +151,8 @@ def test_version_names_the_commit_of_a_github_install(
             id="cut-off",
         ),
         pytest.param(bytes([0xFF]), id="not-utf-8"),
-        pytest.param(b"[]", id="not-an-object"),
+        # Not empty, so only the type check refuses it, not a check for emptiness.
+        pytest.param(b'["git"]', id="not-an-object"),
         pytest.param(_vcs_direct_url("git"), id="vcs-info-not-an-object"),
         pytest.param(
             _vcs_direct_url({"commit_id": GITHUB_COMMIT, "vcs": "hg"}), id="not-git"
@@ -160,8 +161,9 @@ def test_version_names_the_commit_of_a_github_install(
             _vcs_direct_url({"commit_id": 395, "vcs": "git"}),
             id="commit-not-a-string",
         ),
+        # Long enough for a commit ID, so only the hex check refuses it.
         pytest.param(
-            _vcs_direct_url({"commit_id": "main", "vcs": "git"}),
+            _vcs_direct_url({"commit_id": "mainline", "vcs": "git"}),
             id="commit-not-a-hash",
         ),
     ],
