@@ -575,6 +575,55 @@ def test_a_gift_refusal_names_a_row_with_no_quantity(tmp_path: Path) -> None:
     ) in str(err.value)
 
 
+def test_a_gift_refusal_names_the_first_gift_and_every_row_left_over(
+    tmp_path: Path,
+) -> None:
+    """With two gifts and two rows unmatched, the first gift and both rows are named.
+
+    The broker reports gifts of 4 and then 6 FOO and the RAW file has rows of
+    3 and 5. Neither row matches either gift, so the refusal names the first
+    gift, as it did before it named rows, and both rows, since either could be
+    the one mistyped for the gift of 4.
+    """
+    gift_day = dt.date(2024, 6, 10)
+    raw_file = tmp_path / "transfers.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2024-06-10,TRANSFER_TO_SPOUSE,FOO,3,0.00,0.00,GBP\n"
+        "2024-06-10,TRANSFER_TO_SPOUSE,FOO,5,0.00,0.00,GBP\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(UnclassifiedGiftError) as err:
+        get_report(
+            create_calculator(tax_year=2024, balance_check=False),
+            [
+                transaction(
+                    dt.date(2024, 6, 1),
+                    ActionType.BUY,
+                    "FOO",
+                    20,
+                    10,
+                    0,
+                    -200,
+                    CurrencyCode(GBP),
+                ),
+                _gift(gift_day, 4),
+                _gift(gift_day, 6),
+                *RawParser().load_from_file(raw_file),
+            ],
+        )
+
+    message = str(err.value)
+    assert "a gift of 4 units of FOO on 2024-06-10" in message
+    assert (
+        "Your RAW file has a TRANSFER_TO_SPOUSE row with quantity 3 and a "
+        "TRANSFER_TO_SPOUSE row with quantity 5 for FOO on 2024-06-10 that no "
+        "reported gift accounts for. If one of those rows is meant for this gift, "
+        "correct its quantity to 4 instead of adding a line, or cgt-calc counts "
+        "both."
+    ) in message
+
+
 @pytest.mark.parametrize("gifts_to_spouse", [False, True])
 def test_a_separate_transfer_beside_a_classified_gift_is_kept(
     gifts_to_spouse: bool,
