@@ -11,8 +11,9 @@
 # Shared settings live in lychee.toml. The remaps resolve cgt-calc.uk and
 # next.cgt-calc.uk URLs against the local docs sources, and this repository's
 # own file URLs against the checkout, so a link to a page or file added in the
-# same change is checked before it reaches main. lychee requires an absolute file:// target for a
-# remap, hence the interpolation of the repository root below.
+# same change is checked before it reaches main. lychee requires an absolute
+# file:// target for a remap, hence the interpolation of the repository root
+# below.
 #
 # The offline pass also reads the package sources, where the error messages
 # print documentation URLs. lychee treats any file it does not recognise as

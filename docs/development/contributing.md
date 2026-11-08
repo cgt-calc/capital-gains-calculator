@@ -94,8 +94,8 @@ narrow and a wide screen.
 - A pull request that changes the rendered docs gets a preview, built like next.cgt-calc.uk. A
     comment on the pull request links to it.
 
-A docs change you merge therefore reaches cgt-calc.uk with the next release. Maintainers can publish
-a fix to the released docs sooner, as described in
+A docs change merged to `main` therefore reaches cgt-calc.uk with the next release. Maintainers can
+publish a fix to the released docs sooner, as described in
 [Fix the released docs without a release](releasing.md#fix-the-released-docs-without-a-release).
 
 ## Code layout
