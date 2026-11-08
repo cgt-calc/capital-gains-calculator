@@ -2103,20 +2103,26 @@ def _carried(symbol: str, date: str, held: str) -> str:
     )
 
 
-def _add_split(symbol: str, date: str) -> str:
+def _add_split(symbol: str, date: str, raw_file: Path | None = None) -> str:
+    """Return the remedy, naming the RAW file when the run reads one."""
+    where = (
+        "a file passed with --raw-file"
+        if raw_file is None
+        else f"your RAW file ({raw_file})"
+    )
     return (
-        f"as one STOCK_SPLIT row dated {date} in a file passed with --raw-file, "
-        "stating how many shares it added to the whole holding, or, if you "
-        f"also traded {symbol} that day, as a Stock Split row in a working copy "
-        "of the export."
+        f"as one STOCK_SPLIT row dated {date} in {where}, stating how many "
+        "shares it added to the whole holding, or, if you also traded "
+        f"{symbol} that day, as a Stock Split row in a working copy of the "
+        "export."
     )
 
 
-def _missing(symbol: str, date: str, held: str) -> str:
+def _missing(symbol: str, date: str, held: str, raw_file: Path | None = None) -> str:
     """Return the refusal for a split with no row on any date."""
     return (
         _carried(symbol, date, held)
-        + f"Add the split {_add_split(symbol, date)} See {NO_ROWS_DOCS}"
+        + f"Add the split {_add_split(symbol, date, raw_file)} See {NO_ROWS_DOCS}"
     )
 
 
@@ -2168,7 +2174,9 @@ ON_ANOTHER_DATE = (
 WRONG_RATIO = (RAW_WRONG_RATIO, TRADING212_WRONG_RATIO, OTHER_BROKER_WRONG_RATIO)
 
 
-def _assert_listed_elsewhere(stderr: str, held: str, dated: str, advice: str) -> None:
+def _assert_listed_elsewhere(
+    stderr: str, held: str, dated: str, advice: str, raw_file: Path | None = None
+) -> None:
     """Check the refusal names the row on another date and only its advice."""
     assert (
         "ERROR: "
@@ -2184,7 +2192,7 @@ def _assert_listed_elsewhere(stderr: str, held: str, dated: str, advice: str) ->
         "record this split: two rows would apply it twice. "
         + advice
         + " If none of them records this split, add it "
-        + _add_split("NVDA", "2024-06-10")
+        + _add_split("NVDA", "2024-06-10", raw_file)
         + f" See {OTHER_ROW_DOCS}"
     ) in stderr
     for other in ON_ANOTHER_DATE:
@@ -2221,6 +2229,24 @@ def test_a_holding_carried_across_a_known_split_without_a_row_is_refused(
     stderr = _refusal(_known_split_cmd(tmp_path, _bought_then_sold()))
 
     assert "ERROR: " + _missing("NVDA", "2024-06-10", "2") + "\n" in stderr
+
+
+def test_a_missing_split_goes_in_the_raw_file_the_run_reads(tmp_path: Path) -> None:
+    """cgt-calc reads one RAW file, so the split row goes in the one passed.
+
+    The RAW file here records a transfer from a spouse, nothing to do with
+    NVDA, so the 2 NVDA carried into 10 June are as before.
+    """
+    cmd = _known_split_cmd(
+        tmp_path,
+        _bought_then_sold(),
+        raw_rows=("2024-06-03,TRANSFER_FROM_SPOUSE,AAPL,1,100.00,0.00,USD",),
+    )
+
+    stderr = _refusal(cmd)
+
+    expected = _missing("NVDA", "2024-06-10", "2", tmp_path / "splits.csv")
+    assert "ERROR: " + expected + "\n" in stderr
 
 
 @pytest.mark.parametrize(
@@ -2388,12 +2414,18 @@ def test_another_broker_s_row_giving_another_ratio_is_refused(tmp_path: Path) ->
 def test_a_raw_row_on_another_date_is_named_to_move(
     tmp_path: Path, raw_row: str, held: str
 ) -> None:
-    """A RAW row has no time, so the refusal says to change its date."""
+    """A RAW row has no time, so the refusal says to change its date.
+
+    cgt-calc reads one RAW file, so a split to add instead goes in the one
+    the run reads, named as it was passed.
+    """
     cmd = _known_split_cmd(tmp_path, _bought_then_sold(), raw_rows=(raw_row,))
 
     stderr = _refusal(cmd)
 
-    _assert_listed_elsewhere(stderr, held, raw_row[:10], RAW_ON_ANOTHER_DATE)
+    _assert_listed_elsewhere(
+        stderr, held, raw_row[:10], RAW_ON_ANOTHER_DATE, tmp_path / "splits.csv"
+    )
 
 
 def test_an_export_pair_on_another_date_is_not_to_be_moved(tmp_path: Path) -> None:

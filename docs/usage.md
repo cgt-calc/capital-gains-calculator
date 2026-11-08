@@ -32,6 +32,9 @@ Depending on your investments, you may also need:
     [`TRANSFER_TO_SPOUSE` or `TRANSFER_FROM_SPOUSE`](brokers/raw.md#transfers-to-a-spouse-or-civil-partner)
     action and pass it alongside your export.
 
+Put every row you record by hand in one RAW file: cgt-calc reads only one, and a second `--raw-file`
+stops the run.
+
 Do not include the same transaction in more than one export. cgt-calc can validate the transactions
 it receives, but it cannot detect every missing or duplicated export.
 

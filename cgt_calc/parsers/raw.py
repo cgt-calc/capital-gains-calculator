@@ -20,6 +20,7 @@ from cgt_calc.util import is_blank_row, parse_decimal
 from .base_parsers import BaseSingleFileParser, read_csv_rows
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
 
 
@@ -166,6 +167,21 @@ class RawTransaction(BrokerTransaction):
             currency,
             broker,
         )
+
+
+def raw_file_of(rows: Iterable[BrokerTransaction]) -> Path | None:
+    """Return the RAW file the run reads, if any of `rows` came from one.
+
+    A RAW file with no rows leaves nothing to find, so it reads as none.
+    """
+    return next(
+        (
+            row.source.file
+            for row in rows
+            if isinstance(row, RawTransaction) and row.source
+        ),
+        None,
+    )
 
 
 class RawParser(BaseSingleFileParser[RawTransaction]):

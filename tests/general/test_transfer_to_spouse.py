@@ -422,8 +422,15 @@ def test_unclassified_gift_is_rejected_with_instructions() -> None:
         )
 
     message = str(err.value)
-    # The exact RAW line to paste, so the fix is mechanical.
-    assert "2024-06-10,TRANSFER_TO_SPOUSE,FOO,4,0.00,0.00,GBP" in message
+    # The exact RAW line to paste, so the fix is mechanical. The run reads
+    # no RAW file, so the line goes in a new one, and no row in a RAW file
+    # can have been meant for this gift.
+    assert (
+        "Put this line in a CSV and pass it with --raw-file alongside the file "
+        "you already use, and the gift is then taken as accounted for:\n"
+        "  2024-06-10,TRANSFER_TO_SPOUSE,FOO,4,0.00,0.00,GBP\n"
+    ) in message
+    assert "If your RAW file already has" not in message
     # Both outcomes are named, so a non-spouse gift is not quietly treated as one.
     assert "spouse or civil partner" in message
     assert "disposal at market value" in message
@@ -752,12 +759,23 @@ def test_either_reading_of_an_ambiguous_gift_settles_it(confirmed: Decimal) -> N
     assert calculator.portfolio["FOO"].quantity == Decimal(100) - confirmed
 
 
-@pytest.mark.parametrize("gifts_to_spouse", [False, True])
-def test_ambiguous_gift_error_offers_both_readings(gifts_to_spouse: bool) -> None:
+@pytest.mark.parametrize(
+    ("gifts_to_spouse", "with_raw_file"),
+    [
+        pytest.param(False, False, id="no RAW file"),
+        pytest.param(True, False, id="no RAW file, --gifts-to-spouse"),
+        pytest.param(False, True, id="RAW file"),
+    ],
+)
+def test_ambiguous_gift_error_offers_both_readings(
+    tmp_path: Path, gifts_to_spouse: bool, with_raw_file: bool
+) -> None:
     """Unresolved, the error shows both rows rather than guessing one.
 
     `--gifts-to-spouse` says who received the shares, not how many left, so
-    it leaves this refusal in place.
+    it leaves this refusal in place. cgt-calc reads one RAW file, so a run
+    that reads one, here for an unrelated purchase, is told to add the line
+    there.
     """
     gift_day = dt.date(2024, 6, 10)
     gift = BrokerTransaction(
@@ -773,13 +791,36 @@ def test_ambiguous_gift_error_offers_both_readings(gifts_to_spouse: bool) -> Non
         broker="Testing",
         ambiguous_quantity=Decimal(40),
     )
+    history: list[BrokerTransaction] = [gift]
+    raw_file = tmp_path / "purchases.csv"
+    if with_raw_file:
+        raw_file.write_text(
+            "date,action,symbol,quantity,price,fees,currency\n"
+            "2024-06-01,BUY,BAR,1,1.00,0.00,GBP\n",
+            encoding="utf-8",
+        )
+        history += RawParser().load_from_file(raw_file)
     calculator = create_calculator(
         tax_year=2024, balance_check=False, gifts_to_spouse=gifts_to_spouse
     )
     with pytest.raises(UnclassifiedGiftError) as err:
-        get_report(calculator, [gift])
+        get_report(calculator, history)
 
     message = str(err.value)
+    if with_raw_file:
+        assert (
+            f"You record that by adding a line to your RAW file ({raw_file}).\n"
+            in message
+        )
+    else:
+        assert (
+            "You record that by putting a line in a CSV and passing it with "
+            "--raw-file alongside the file you already use.\n"
+        ) in message
+    # Only a RAW file can hold a row mistyped for either count.
+    assert (
+        "If your RAW file already has a row meant for this gift" in message
+    ) == with_raw_file
     assert "2024-06-10,TRANSFER_TO_SPOUSE,FOO,2,0.00,0.00,GBP" in message
     assert "2024-06-10,TRANSFER_TO_SPOUSE,FOO,40,0.00,0.00,GBP" in message
 

@@ -127,6 +127,21 @@ class InvalidTransactionError(CgtError):
         super().__init__(self.message)
 
 
+def raw_file_to_add_to(raw_file: Path | None) -> str:
+    """Say which file a RAW row goes in: the run's RAW file, or a new one.
+
+    cgt-calc reads one --raw-file, so a run that already reads one has the
+    row added to it, named as it was passed. Standard input has no name to
+    give. The stdin marker is args_validators.STDIN_PATH, which cannot be
+    imported here without a cycle.
+    """
+    if raw_file is None:
+        return "a file passed with --raw-file"
+    if str(raw_file) == "-":
+        return "your RAW file"
+    return f"your RAW file ({raw_file})"
+
+
 class UnclassifiedGiftError(CgtError):
     """Raised when a broker reports a gift of shares without saying who got them.
 
@@ -135,12 +150,18 @@ class UnclassifiedGiftError(CgtError):
     buries the instructions.
     """
 
-    def __init__(self, transaction: BrokerTransaction, readings: list[Decimal]):
+    def __init__(
+        self,
+        transaction: BrokerTransaction,
+        readings: list[Decimal],
+        raw_file: Path | None,
+    ):
         """Initialise.
 
         `readings` holds every share count the row could be stating. There is
         normally one; a count printed before a stock split can be two, where
-        the export does not say whether it was restated.
+        the export does not say whether it was restated. `raw_file` is the
+        RAW file the run reads, if it reads one.
         """
         self.transaction = transaction
         rows = "\n".join(
@@ -165,18 +186,39 @@ class UnclassifiedGiftError(CgtError):
             "tax year, or within the window after separating), it is a no "
             "gain/no loss transfer."
         )
+        if raw_file is None:
+            add_this_line = (
+                "Put this line in a CSV and pass it with --raw-file alongside "
+                "the file you already use"
+            )
+            adding_a_line = (
+                "putting a line in a CSV and passing it with --raw-file "
+                "alongside the file you already use"
+            )
+            # Nothing was read from a RAW file, so no row there can be meant
+            # for this gift.
+            mistyped = ""
+        else:
+            add_this_line = f"Add this line to {raw_file_to_add_to(raw_file)}"
+            adding_a_line = f"adding a line to {raw_file_to_add_to(raw_file)}"
+            # A row typed with the wrong date or count leaves the gift
+            # unclassified, and adding the printed line beside it would take
+            # the shares out twice.
+            mistyped = (
+                "If your RAW file already has a row meant for this gift with "
+                "another date or quantity, correct that row instead of adding "
+                "one, or cgt-calc counts both.\n"
+                "\n"
+            )
         if len(readings) == 1:
             how = (
-                f"{spouse} Put this line in a CSV and pass it with --raw-file "
-                "alongside the file you already use, and the gift is then taken "
-                f"as accounted for:\n{rows}"
+                f"{spouse} {add_this_line}, and the gift is then taken as "
+                f"accounted for:\n{rows}"
             )
         else:
             options = " or ".join(strip_zeros(reading) for reading in readings)
             how = (
-                f"{spouse} You record that by putting a line in a CSV and "
-                "passing it with --raw-file alongside the file you already "
-                "use.\n"
+                f"{spouse} You record that by {adding_a_line}.\n"
                 "\n"
                 f"{transaction.symbol} split after this date and the export does "
                 "not say whether it restated the count, so the gift was either "
@@ -190,9 +232,9 @@ class UnclassifiedGiftError(CgtError):
             "\n"
             f"{how}\n"
             "\n"
-            "If they went to anyone else, it is a disposal at market value. Put "
-            "this line in the CSV instead, with the market value of the gift "
-            f"divided by its units as the price:\n{gift_rows}\n"
+            "If they went to anyone else, it is a disposal at market value. Use "
+            "this line instead, with the market value of the gift divided by "
+            f"its units as the price:\n{gift_rows}\n"
             "Market value has its own rules (TCGA 1992 s272): for quoted "
             "shares it follows the day's quoted prices, and unquoted shares "
             "need an open-market valuation of the holding given away. If the "
@@ -204,6 +246,7 @@ class UnclassifiedGiftError(CgtError):
             "is not a connected person, write GIFT_UNCONNECTED instead and the "
             "loss counts like any other.\n"
             "\n"
+            f"{mistyped}"
             "See https://cgt-calc.uk/brokers/raw/#transfers-to-a-spouse-or-civil-partner"
         )
         super().__init__(self.message)

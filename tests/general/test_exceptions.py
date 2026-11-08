@@ -158,7 +158,7 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
         ["FOO", "2023-01-01", "--prices-file (header 'date,symbol,price')"],
     ),
     (
-        UnclassifiedGiftError(TRANSACTION, [Decimal(1)]),
+        UnclassifiedGiftError(TRANSACTION, [Decimal(1)], None),
         # The row to paste, the shares it covers, and the other outcome.
         [
             "2023-01-01,TRANSFER_TO_SPOUSE,FOO,1,0.00,0.00,USD",
@@ -170,7 +170,7 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
     ),
     (
         # Both readings of a count printed before a split, and why.
-        UnclassifiedGiftError(TRANSACTION, [Decimal(1), Decimal(20)]),
+        UnclassifiedGiftError(TRANSACTION, [Decimal(1), Decimal(20)], None),
         [
             "2023-01-01,TRANSFER_TO_SPOUSE,FOO,1,0.00,0.00,USD",
             "2023-01-01,TRANSFER_TO_SPOUSE,FOO,20,0.00,0.00,USD",
