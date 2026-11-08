@@ -1303,24 +1303,21 @@ class TransactionIngester:
             # possible count is not refused for that: it waits to be promoted.
             # The walk takes every row it can before refusing, so the rows the
             # refusal names as left over are none that a later gift takes.
-            unused = Counter(row.quantity for row in rows_on_day[day, symbol])
+            left_over = list(rows_on_day[day, symbol])
             without_row: list[tuple[int, list[Decimal]]] = []
             refused: tuple[int, list[Decimal]] | None = None
             for index, readings in gifts:
                 taken = next((r for r in readings if available[r] > 0), None)
                 if taken is not None:
                     available[taken] -= 1
-                    unused[taken] -= 1
+                    left_over.remove(
+                        next(row for row in left_over if row.quantity == taken)
+                    )
                     settled.add(index)
                 elif self.gifts_to_spouse and len(readings) == 1:
                     without_row.append((index, readings))
                 elif refused is None:
                     refused = (index, readings)
-            left_over = []
-            for row in rows_on_day[day, symbol]:
-                if unused[row.quantity] > 0:
-                    unused[row.quantity] -= 1
-                    left_over.append(row)
             if refused is None:
                 if not without_row:
                     # That order is one the search already rejected, so it
