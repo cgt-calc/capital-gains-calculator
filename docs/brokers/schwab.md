@@ -469,10 +469,11 @@ and asks you to classify it:
 - For anyone else, follow [Gifts to anyone else](raw.md#gifts-to-anyone-else) and add the suggested
     `GIFT` or `GIFT_UNCONNECTED` row using a verified market value.
 
-The error prints the complete RAW line to copy into a small CSV. The complete importer can restate
-an old gift for a later split, so the quantity may not match the number of shares shown on the gift
-date. Where both readings are possible, the error prints two candidate lines: check a statement and
-use the one with the correct quantity.
+The error prints the complete RAW line to copy into your RAW file. If you do not use one yet, put
+the line in a small new CSV and pass it with `--raw-file`. The complete importer can restate an old
+gift for a later split, so the quantity may not match the number of shares shown on the gift date.
+Where both readings are possible, the error prints two candidate lines: check a statement and use
+the one with the correct quantity.
 
 #### Gifts that all went to your spouse or civil partner
 
@@ -499,8 +500,8 @@ cgt-calc then treats each `Gift` row as a `TRANSFER_TO_SPOUSE` row for the same 
 The option says who received the shares, not how many left your account, so the run can still stop:
 
 - A gift made before a share split can have two possible quantities. cgt-calc stops and prints both
-    candidate lines. Check a statement, add the correct line to a small RAW file and pass it with
-    `--raw-file` alongside `--gifts-to-spouse`.
+    candidate lines. Check a statement and add the correct line to your RAW file, starting a small
+    one if you do not use one yet. Keep `--gifts-to-spouse` for the other gifts.
 - If a RAW `TRANSFER_TO_SPOUSE`, `GIFT` or `GIFT_UNCONNECTED` row is left without a `Gift` row of
     the same date, ticker and quantity, while a `Gift` row of that date and ticker has no RAW row of
     its own, cgt-calc stops instead of counting both. Correct the quantity in your RAW row, or add

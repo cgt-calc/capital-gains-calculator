@@ -382,7 +382,7 @@ Leave `price` at `0`, since a gift has no sale price. Put any fee you paid to ma
 
 No broker export marks these, so you add the row yourself. You do not have to convert your whole
 history to the RAW format to do it: pass a small RAW file of just the transfers alongside your
-broker export.
+broker export. If you already use a RAW file, add the rows to it instead: cgt-calc reads only one.
 
 ```shell
 cgt-calc --year 2024 --schwab-file transactions.csv --raw-file transfers.csv

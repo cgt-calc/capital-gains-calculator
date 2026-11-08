@@ -1540,6 +1540,42 @@ def test_run_with_schwab_equity_award_json(
     assert_stdout_matches(result, cmd, expected_file)
 
 
+def _goog_gift(date: str, quantity: str) -> dict[str, object]:
+    """Return a `Gift` row, which does not say who received the shares."""
+    return {
+        "Date": date,
+        "Action": "Gift",
+        "Symbol": "GOOG",
+        "Quantity": quantity,
+        "Description": "Share Transfer",
+        "FeesAndCommissions": None,
+        "Amount": None,
+        "TransactionDetails": [],
+    }
+
+
+# 13.6 GOOG vested on 25 September 2023 at $131.25.
+GOOG_VEST = {
+    "Date": "09/27/2023",
+    "Action": "Deposit",
+    "Symbol": "GOOG",
+    "Quantity": "13.6",
+    "Description": "RS",
+    "FeesAndCommissions": None,
+    "Amount": None,
+    "TransactionDetails": [
+        {
+            "Details": {
+                "AwardDate": "01/01/2019",
+                "AwardId": "C987654",
+                "VestDate": "09/25/2023",
+                "VestFairMarketValue": "$131.25",
+            }
+        }
+    ],
+}
+
+
 def test_gifts_to_spouse_option_reports_each_gift_row_as_a_spouse_transfer(
     request: pytest.FixtureRequest, tmp_path: Path
 ) -> None:
@@ -1552,42 +1588,16 @@ def test_gifts_to_spouse_option_reports_each_gift_row_as_a_spouse_transfer(
     £103.9110. Gifts of 2 and 3 pass on 2 x 103.9110 = £207.82 and
     3 x 103.9110 = £311.73 of that cost, and 13.6 - 2 - 3 = 8.6 shares stay.
     """
-
-    def gift(date: str, quantity: str) -> dict[str, object]:
-        return {
-            "Date": date,
-            "Action": "Gift",
-            "Symbol": "GOOG",
-            "Quantity": quantity,
-            "Description": "Share Transfer",
-            "FeesAndCommissions": None,
-            "Amount": None,
-            "TransactionDetails": [],
-        }
-
-    vest = {
-        "Date": "09/27/2023",
-        "Action": "Deposit",
-        "Symbol": "GOOG",
-        "Quantity": "13.6",
-        "Description": "RS",
-        "FeesAndCommissions": None,
-        "Amount": None,
-        "TransactionDetails": [
-            {
-                "Details": {
-                    "AwardDate": "01/01/2019",
-                    "AwardId": "C987654",
-                    "VestDate": "09/25/2023",
-                    "VestFairMarketValue": "$131.25",
-                }
-            }
-        ],
-    }
     award_file = tmp_path / "awards.json"
     award_file.write_text(
         json.dumps(
-            {"Transactions": [gift("10/24/2023", "3"), gift("10/09/2023", "2"), vest]}
+            {
+                "Transactions": [
+                    _goog_gift("10/24/2023", "3"),
+                    _goog_gift("10/09/2023", "2"),
+                    GOOG_VEST,
+                ]
+            }
         ),
         encoding="utf-8",
     )
@@ -1612,6 +1622,73 @@ def test_gifts_to_spouse_option_reports_each_gift_row_as_a_spouse_transfer(
     assert "Final portfolio\n  GOOG: 8.60\n" in result.stdout
     assert "  2023-10-09: GOOG 2 units, base cost £207.82\n" in result.stdout
     assert "  2023-10-24: GOOG 3 units, base cost £311.73\n" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("gifts_to_spouse", "from_stdin"),
+    [
+        pytest.param(False, False, id="without --gifts-to-spouse"),
+        pytest.param(True, False, id="with --gifts-to-spouse"),
+        pytest.param(False, True, id="RAW file on standard input"),
+    ],
+)
+def test_a_gift_refusal_names_the_raw_file_and_warns_of_a_mistyped_row(
+    request: pytest.FixtureRequest,
+    tmp_path: Path,
+    gifts_to_spouse: bool,
+    from_stdin: bool,
+) -> None:
+    """The line for the gift goes in the one RAW file the run reads.
+
+    The RAW file was meant to classify the gift of 2 GOOG but says 1. Adding
+    the printed line beside that row would take 1 + 2 = 3 shares out, so the
+    refusal says to correct the row instead. Without the option the gift has
+    no row to match; with it, the row of 1 is left without a gift. Standard
+    input has no file name to give.
+    """
+    award_file = tmp_path / "awards.json"
+    award_file.write_text(
+        json.dumps({"Transactions": [_goog_gift("10/09/2023", "2"), GOOG_VEST]}),
+        encoding="utf-8",
+    )
+    raw = (
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2023-10-09,TRANSFER_TO_SPOUSE,GOOG,1,0.00,0.00,USD\n"
+    )
+    raw_file = tmp_path / "transfers.csv"
+    raw_file.write_text(raw, encoding="utf-8")
+    cmd = build_cmd(
+        "--year",
+        "2023",
+        "--schwab-award-file",
+        str(award_file),
+        "--raw-file",
+        "-" if from_stdin else str(raw_file),
+        *(["--gifts-to-spouse"] if gifts_to_spouse else []),
+        "--output",
+        report_path(request),
+    )
+
+    refused = subprocess.run(
+        cmd,
+        input=raw if from_stdin else None,
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    assert refused.returncode != 0
+    named = "your RAW file" if from_stdin else f"your RAW file ({raw_file})"
+    assert (
+        f"Add this line to {named}, and the gift is then taken as accounted "
+        "for:\n  2023-10-09,TRANSFER_TO_SPOUSE,GOOG,2,0.00,0.00,USD\n"
+    ) in refused.stderr
+    assert (
+        "\nIf your RAW file already has a row meant for this gift with another "
+        "date or quantity, correct that row instead of adding one, or cgt-calc "
+        "counts both.\n\nSee https://cgt-calc.uk/brokers/raw/"
+        "#transfers-to-a-spouse-or-civil-partner"
+    ) in refused.stderr
 
 
 COMPLETE_CSV_HEADER = [

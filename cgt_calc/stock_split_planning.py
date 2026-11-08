@@ -10,9 +10,14 @@ from fractions import Fraction
 import logging
 from typing import TYPE_CHECKING, Final, Literal
 
-from .exceptions import CalculationError, InvalidTransactionError, SymbolMissingError
+from .exceptions import (
+    CalculationError,
+    InvalidTransactionError,
+    SymbolMissingError,
+    raw_file_to_add_to,
+)
 from .model import ActionType, Isin, Position
-from .parsers.raw import RawTransaction
+from .parsers.raw import RawTransaction, raw_file_of
 from .parsers.schwab_equity_award_json import (
     SPLITS as SCHWAB_AWARD_SPLITS,
     SchwabAwardTransaction,
@@ -35,6 +40,7 @@ from .util import indent_entry, strip_zeros
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
+    from pathlib import Path
 
     from .calculator_state import CalculatorState
     from .model import BrokerTransaction, TransactionSource
@@ -830,13 +836,13 @@ def _split_rows(
     ]
 
 
-def _add_known_split(split: KnownSplit) -> str:
+def _add_known_split(split: KnownSplit, raw_file: Path | None) -> str:
     """Say how to supply the split, as the documented remedy does."""
     return (
-        f"as one STOCK_SPLIT row dated {split.date} in a file passed with "
-        "--raw-file, stating how many shares it added to the whole holding, "
-        f"or, if you also traded {split.symbol} that day, as a Stock Split "
-        "row in a working copy of the export."
+        f"as one STOCK_SPLIT row dated {split.date} in "
+        f"{raw_file_to_add_to(raw_file)}, stating how many shares it added to "
+        f"the whole holding, or, if you also traded {split.symbol} that day, "
+        "as a Stock Split row in a working copy of the export."
     )
 
 
@@ -847,6 +853,7 @@ def _missing_known_split_message(
 ) -> str:
     """Explain a known split the history needs and has no row for."""
     symbol, date = split.symbol, split.date
+    raw_file = raw_file_of(row for rows in days.values() for row in rows)
     message = (
         f"{symbol} traded at a new count from {date} after a "
         f"{split.ratio}-for-1 split, but no input has a split row for "
@@ -859,7 +866,8 @@ def _missing_known_split_message(
     others = [row for row in _split_rows(days, symbol) if row.date != date]
     if not others:
         return message + (
-            f"Add the split {_add_known_split(split)} See {_NO_SPLIT_ROW_DOCS}"
+            f"Add the split {_add_known_split(split, raw_file)} "
+            f"See {_NO_SPLIT_ROW_DOCS}"
         )
     sources = {_split_row_source(row) for row in others}
     advice = [
@@ -899,7 +907,7 @@ def _missing_known_split_message(
         )
     advice.append(
         "If none of them records this split, add it "
-        f"{_add_known_split(split)} See {_OTHER_SPLIT_ROW_DOCS}"
+        f"{_add_known_split(split, raw_file)} See {_OTHER_SPLIT_ROW_DOCS}"
     )
     listed = "\n".join(indent_entry(row) for row in others)
     return (

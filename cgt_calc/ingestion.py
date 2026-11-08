@@ -30,6 +30,7 @@ from .exceptions import (
     QuantityNotPositiveError,
     SymbolMissingError,
     UnclassifiedGiftError,
+    raw_file_to_add_to,
 )
 from .logging import bullet, style_text
 from .model import (
@@ -44,6 +45,7 @@ from .model import (
     Position,
     SpinOff,
 )
+from .parsers.raw import raw_file_of
 from .rename_planning import (
     connected_names,
     end_name,
@@ -72,6 +74,7 @@ from .util import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
     import datetime as dt
+    from pathlib import Path
 
     from .calculator_state import CalculatorState
     from .currency_converter import CurrencyConverter
@@ -86,47 +89,23 @@ if TYPE_CHECKING:
 LOGGER = logging.getLogger(__name__)
 
 
-# Where a history that fails a share-count check usually goes wrong, as the
-# troubleshooting sections of the broker guides already say. A missing
-# acquisition is the commonest, not the only one: a duplicated disposal or a
-# missing split or rename fails the same way, and adding a purchase would hide
-# it. Only what a RAW row can state is offered as something to add. A rename
-# has no RAW action, so it is reported instead, for the built-in rename table.
-_SHORTFALL_CAUSE = (
-    "Check that the history includes the purchase, vest or transfer that "
-    "acquired the shares and any split or rename since, and that no disposal "
-    "appears twice. A purchase, vest or split the exports cannot supply can go "
-    "in a file passed with --raw-file, using an action listed at "
-    "https://cgt-calc.uk/brokers/raw/#actions-to-use; a rename cannot: report "
-    "the old and new tickers so the pair can be added."
-)
+def _shortfall_cause(raw_file: Path | None) -> str:
+    """Say where a history that fails a share-count check usually goes wrong.
 
-
-def _nothing_held(action: str, symbol: str, transaction: BrokerTransaction) -> str:
-    """Say that a disposal found no holding, and the usual cause.
-
-    ``action`` places the shares in its verb phrase, as in
-    ``"transfer {} to a spouse"``. No count is stated: the check runs before
-    the quantity is validated.
+    The troubleshooting sections of the broker guides already say so. A
+    missing acquisition is the commonest, not the only one: a duplicated
+    disposal or a missing split or rename fails the same way, and adding a
+    purchase would hide it. Only what a RAW row can state is offered as
+    something to add, in the run's RAW file if it reads one. A rename has no
+    RAW action, so it is reported instead, for the built-in rename table.
     """
     return (
-        f"Tried to {action.format(symbol)} on {transaction.date}, but no "
-        f"{symbol} is held. {_SHORTFALL_CAUSE}"
-    )
-
-
-def _shortfall(
-    action: str,
-    symbol: str,
-    transaction: BrokerTransaction,
-    wanted: Decimal,
-    held: Decimal,
-) -> str:
-    """Say what a disposal asked for, what was held, and the usual cause."""
-    shares = f"{display_str(wanted)} {symbol}"
-    return (
-        f"Tried to {action.format(shares)} on {transaction.date}, but the "
-        f"holding is {display_str(held)}. {_SHORTFALL_CAUSE}"
+        "Check that the history includes the purchase, vest or transfer that "
+        "acquired the shares and any split or rename since, and that no "
+        "disposal appears twice. A purchase, vest or split the exports cannot "
+        f"supply can go in {raw_file_to_add_to(raw_file)}, using an action "
+        "listed at https://cgt-calc.uk/brokers/raw/#actions-to-use; a rename "
+        "cannot: report the old and new tickers so the pair can be added."
     )
 
 
@@ -327,6 +306,38 @@ class TransactionIngester:
         self.gifts_to_spouse = gifts_to_spouse
         self.non_uk_resident_periods = non_uk_resident_periods or []
         self.date_in_tax_year = date_in_tax_year
+        # The RAW file the run reads, which advice to add a row names. Set
+        # from the history by prepare_history().
+        self.raw_file: Path | None = None
+
+    def _nothing_held(
+        self, action: str, symbol: str, transaction: BrokerTransaction
+    ) -> str:
+        """Say that a disposal found no holding, and the usual cause.
+
+        ``action`` places the shares in its verb phrase, as in
+        ``"transfer {} to a spouse"``. No count is stated: the check runs
+        before the quantity is validated.
+        """
+        return (
+            f"Tried to {action.format(symbol)} on {transaction.date}, but no "
+            f"{symbol} is held. {_shortfall_cause(self.raw_file)}"
+        )
+
+    def _shortfall(
+        self,
+        action: str,
+        symbol: str,
+        transaction: BrokerTransaction,
+        wanted: Decimal,
+        held: Decimal,
+    ) -> str:
+        """Say what a disposal asked for, what was held, and the usual cause."""
+        shares = f"{display_str(wanted)} {symbol}"
+        return (
+            f"Tried to {action.format(shares)} on {transaction.date}, but the "
+            f"holding is {display_str(held)}. {_shortfall_cause(self.raw_file)}"
+        )
 
     def add_acquisition(
         self,
@@ -869,7 +880,7 @@ class TransactionIngester:
         available = self._available_units(symbol, transaction.date)
         if available is None:
             raise InvalidTransactionError(
-                transaction, _nothing_held("sell {}", symbol, transaction)
+                transaction, self._nothing_held("sell {}", symbol, transaction)
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
@@ -878,7 +889,9 @@ class TransactionIngester:
         if available < pooled_quantity:
             raise InvalidTransactionError(
                 transaction,
-                _shortfall("sell {}", symbol, transaction, pooled_quantity, available),
+                self._shortfall(
+                    "sell {}", symbol, transaction, pooled_quantity, available
+                ),
             )
 
         amount = get_amount_or_fail(transaction)
@@ -1033,7 +1046,7 @@ class TransactionIngester:
         if available is None:
             raise InvalidTransactionError(
                 transaction,
-                _nothing_held("transfer {} to a spouse", symbol, transaction),
+                self._nothing_held("transfer {} to a spouse", symbol, transaction),
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
@@ -1041,7 +1054,7 @@ class TransactionIngester:
         if available < quantity:
             raise InvalidTransactionError(
                 transaction,
-                _shortfall(
+                self._shortfall(
                     "transfer {} to a spouse", symbol, transaction, quantity, available
                 ),
             )
@@ -1094,7 +1107,7 @@ class TransactionIngester:
         available = self._available_units(symbol, transaction.date)
         if available is None:
             raise InvalidTransactionError(
-                transaction, _nothing_held("give away {}", symbol, transaction)
+                transaction, self._nothing_held("give away {}", symbol, transaction)
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
@@ -1114,7 +1127,9 @@ class TransactionIngester:
         if available < quantity:
             raise InvalidTransactionError(
                 transaction,
-                _shortfall("give away {}", symbol, transaction, quantity, available),
+                self._shortfall(
+                    "give away {}", symbol, transaction, quantity, available
+                ),
             )
         connected = transaction.action is ActionType.GIFT
         key = (transaction.date, symbol)
@@ -1295,7 +1310,9 @@ class TransactionIngester:
                 elif self.gifts_to_spouse and len(readings) == 1:
                     without_row.append((index, readings))
                 else:
-                    raise UnclassifiedGiftError(transactions[index], readings)
+                    raise UnclassifiedGiftError(
+                        transactions[index], readings, self.raw_file
+                    )
             if not without_row:
                 # That order is one the search already rejected, so it cannot
                 # have placed every gift.
@@ -1304,7 +1321,9 @@ class TransactionIngester:
                 # A row for this day and symbol is left without a gift while a
                 # gift has no row, so they disagree about how many shares left.
                 index, readings = without_row[0]
-                raise UnclassifiedGiftError(transactions[index], readings)
+                raise UnclassifiedGiftError(
+                    transactions[index], readings, self.raw_file
+                )
             for index, _ in without_row:
                 auto_classified.add(index)
                 LOGGER.debug(
@@ -1629,6 +1648,7 @@ class TransactionIngester:
         transactions: list[BrokerTransaction],
     ) -> None:
         """Run the first pass over the broker transactions."""
+        self.raw_file = raw_file_of(transactions)
         self.history.first_date = _first_history_date(transactions)
         # We keep a balance per broker,currency pair
         balance: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(
