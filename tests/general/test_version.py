@@ -19,6 +19,20 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 VERSION_SETTINGS = ("pyproject.toml", ".gitattributes", ".git_archival.txt")
 
 
+def _clean_env() -> dict[str, str]:
+    """Return the environment without what would point git or the build elsewhere.
+
+    A Git hook, such as the pytest one on commit, exports GIT_DIR and
+    GIT_INDEX_FILE, which would aim git at the real repository instead of
+    a test one. A version override would replace the version under test.
+    """
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith(("GIT_", "SETUPTOOLS_SCM_", "VCS_VERSIONING_"))
+    }
+
+
 def _git(repo: Path, *args: str) -> str:
     """Run git in repo as a fixed author, without signing, and return its output."""
     result = subprocess.run(
@@ -35,6 +49,7 @@ def _git(repo: Path, *args: str) -> str:
             *args,
         ],
         cwd=repo,
+        env=_clean_env(),
         capture_output=True,
         text=True,
         check=True,
@@ -55,14 +70,16 @@ def _released_repo(tmp_path: Path) -> Path:
     repo = _project_copy(tmp_path / "repo")
     _git(repo, "init", "--quiet")
     _git(repo, "add", "--all")
-    _git(repo, "commit", "--quiet", "--message", "Release")
+    _git(repo, "commit", "--quiet", "--no-verify", "--message", "Release")
     _git(repo, "tag", "v3.0.0")
     return repo
 
 
 def _commit(repo: Path, message: str) -> str:
     """Add an empty commit and return its abbreviated hash, as git describe names it."""
-    _git(repo, "commit", "--quiet", "--allow-empty", "--message", message)
+    _git(
+        repo, "commit", "--quiet", "--no-verify", "--allow-empty", "--message", message
+    )
     return _git(repo, "rev-parse", "--short", "HEAD")
 
 
@@ -71,14 +88,9 @@ def _build_version(
 ) -> subprocess.CompletedProcess[str]:
     """Ask the build backend for the version a build of project gets.
 
-    Any version override in the environment is dropped, so the result does
-    not depend on how the tests are run; given sets the one Docker uses.
+    given sets the version override Docker uses.
     """
-    env = {
-        name: value
-        for name, value in os.environ.items()
-        if not name.startswith(("SETUPTOOLS_SCM_", "VCS_VERSIONING_"))
-    }
+    env = _clean_env()
     if given is not None:
         env["SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CGT_CALC"] = given
     return subprocess.run(
@@ -146,6 +158,7 @@ def test_a_source_archive_builds_as_its_commit(tmp_path: Path) -> None:
     archive = subprocess.run(
         ["git", "archive", "--format=tar", "HEAD"],
         cwd=repo,
+        env=_clean_env(),
         capture_output=True,
         check=True,
     ).stdout

@@ -103,9 +103,11 @@ links = [
 
 [tool.hatch.version]
 # The version comes from the latest release tag: v3.0.0 itself builds as
-# 3.0.0, and 13 commits later as 3.0.0.post13+g<commit>. Builds without
-# Git history read .git_archival.txt (source archives), PKG-INFO (sdists)
-# or SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CGT_CALC, and fail without one.
+# 3.0.0, and 13 commits later as 3.0.0.post13+g<commit>. A clone without
+# the release tags, such as a shallow one, builds as 0.0.postN+g<commit>.
+# Builds without Git history read .git_archival.txt (source archives),
+# PKG-INFO (sdists) or SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CGT_CALC, and
+# fail without one.
 source = "vcs"
 
 [tool.hatch.version.raw-options]
@@ -116,12 +118,6 @@ version_scheme = "post-release"
 # Count only release tags, as a backup tag left behind by a rebase would
 # otherwise name a version that does not exist.
 scm.git.describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "v[0-9]*"]
-
-[tool.uv]
-# A checkout's editable install takes its version when it is built. Rebuild
-# it on the first uv run after a commit or tag, so --version names the
-# current commit. Uncommitted changes do not trigger a rebuild.
-cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
 
 [tool.hatch.build]
 # Choose the package's files by path, not by .gitignore, so a resource
@@ -134,6 +130,12 @@ ignore-vcs = true
 # licence and .gitignore, which hatchling always adds. Without this
 # it would take the whole project tree.
 only-include = ["cgt_calc"]
+
+[tool.uv]
+# A checkout's editable install takes its version when it is built. Rebuild
+# it on the first uv run after a commit or tag, so --version names the
+# current commit. Uncommitted changes do not trigger a rebuild.
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
 
 [tool.ruff]
 required-version = ">=0.13.0"

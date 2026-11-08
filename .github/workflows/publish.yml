@@ -42,9 +42,11 @@ jobs:
         env:
           TAG: ${{ github.event.release.tag_name }}
         run: |
+          # File names use the normalised version: v4.0.0-rc.1 builds as 4.0.0rc1.
+          version="$(uv run python -c 'import os; from packaging.version import Version; print(Version(os.environ["TAG"]))')"
           ls dist
-          test -f "dist/cgt_calc-${TAG#v}-py3-none-any.whl"
-          test -f "dist/cgt_calc-${TAG#v}.tar.gz"
+          test -f "dist/cgt_calc-${version}-py3-none-any.whl"
+          test -f "dist/cgt_calc-${version}.tar.gz"
 
       - name: Publish to PyPI
         run: uv publish

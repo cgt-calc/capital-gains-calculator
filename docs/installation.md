@@ -143,9 +143,9 @@ Run `cgt-calc --version` afterwards to check that it names the latest commit.
 | pip, in the original virtual environment | `python -m pip install --force-reinstall cgt-calc` |
 
 Without `@latest` or `--force`, `uv tool install cgt-calc` and `pipx install cgt-calc` keep the
-unreleased version. pip needs `--force-reinstall`, which also reinstalls cgt-calc's dependencies:
-the unreleased version counts as newer than the release it follows, so
-`python -m pip install --upgrade cgt-calc` would keep it.
+unreleased version. pip needs `--force-reinstall`: the unreleased version counts as newer than the
+release it follows, so `python -m pip install --upgrade cgt-calc` would keep it. `--force-reinstall`
+also reinstalls cgt-calc's dependencies.
 
 If you used `uvx --from`, run `uvx cgt-calc@latest` instead. After that,
 [upgrade cgt-calc](#upgrade-cgt-calc) as usual.
