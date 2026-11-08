@@ -306,8 +306,8 @@ class TransactionIngester:
         self.gifts_to_spouse = gifts_to_spouse
         self.non_uk_resident_periods = non_uk_resident_periods or []
         self.date_in_tax_year = date_in_tax_year
-        # The RAW file the run reads, which advice to add a row names. Set
-        # from the history by prepare_history().
+        # The RAW file the run reads, named by errors that say where to add a
+        # row. Set from the history by prepare_history().
         self.raw_file: Path | None = None
 
     def _nothing_held(
