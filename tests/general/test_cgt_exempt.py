@@ -310,6 +310,9 @@ def test_pdf_report_rendering_exempt_bed_and_breakfast(tmp_path: Path) -> None:
 
     The 100 units sold for £12,000 match the repurchase ten days later at
     £11,000, so the illustrative gain is £1,000; the date follows the row.
+    These figures leave the Rule column too narrow for the date note, which
+    wraps there, so the note must stay one line in the row that spans the
+    table.
     """
     repurchase_date = SELL_DATE + dt.timedelta(days=10)
     transactions = [
@@ -328,6 +331,8 @@ def test_pdf_report_rendering_exempt_bed_and_breakfast(tmp_path: Path) -> None:
         "1. BED AND BREAKFAST 100 £12,000.00 £11,000.00 disregarded gain £1,000.00 "
         "calculation on 11 Sep 2024"
     ) in text
+    lines = pdf_text(tmp_path / "report.pdf").splitlines()
+    assert "calculation on 11 Sep 2024" in lines
 
 
 def test_pdf_reports_exempt_gift_with_neutral_valuation_wording(
