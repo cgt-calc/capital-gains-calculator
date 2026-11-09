@@ -368,7 +368,7 @@ SCENARIOS: dict[str, tuple[Callable[[], CapitalGainsReport], list[str]]] = {
     ),
     "rename": (
         _rename,
-        ["was renamed to", "BED AND BREAKFAST"],
+        ["was renamed to", "BED AND BREAKFAST", "allowable cost on 20 May 2024"],
     ),
     "rename_with_units": (
         _rename_with_units,

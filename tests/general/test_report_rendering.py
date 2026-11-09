@@ -282,9 +282,9 @@ def test_every_verified_character_prints_as_itself(tmp_path: Path) -> None:
     The name holds every one, forty to a word so the heading can wrap, and the
     check reads pdfplumber's text for each glyph: its line extraction expands
     the ligature characters and puts spaces after some narrow accents. NFC
-    turns three Greek marks into the Latin characters they equal. With the
-    font's ligatures on, the letters "IJ" earlier in the name took the glyph of
-    Ĳ, and Ĳ then read back as "IJ".
+    turns three Greek marks into the Latin characters they equal. With
+    ligatures on, the "ff" of "differ" in the summary shared its glyph with ﬀ,
+    and the Regular copy of ﬀ then read back as "ff".
 
     The name prints three times, in the purchase and sale headings (SemiBold)
     and in the dividend line (Regular), and each must read back: a character
@@ -317,8 +317,8 @@ def test_every_verified_character_prints_as_itself(tmp_path: Path) -> None:
 def test_the_report_is_set_in_the_bundled_noto_sans(tmp_path: Path) -> None:
     """Typst found the Noto Sans files the package ships, in all three weights.
 
-    Plain ASCII, so nothing should fall back: a misnamed family or a missing
-    font path shows up here as New Computer Modern.
+    Every character it prints is in Noto Sans, so nothing should fall back: a
+    misnamed family or a missing font path shows up here as New Computer Modern.
     """
     report = get_report(
         create_calculator(tax_year=2024, balance_check=False), TRANSACTIONS
