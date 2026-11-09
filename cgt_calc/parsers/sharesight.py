@@ -581,3 +581,15 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
                     "that row, or remove the blank row.",
                     row_index=rows_iter.line,
                 )
+        # list_end is set once a header row is recognised, even with no trade
+        # below it. A file without one, such as another worksheet or edited
+        # headings, would give no trades without a word.
+        if list_end is None:
+            raise ParsingError(
+                file_path,
+                "No row has the headings that start the All Trades table (Code, "
+                "Type, and Market or Market Code), so no trade can be read from "
+                "this file. If the portfolio has no trades at all, take the file "
+                "out of the directory.",
+                needs_update=True,
+            )
