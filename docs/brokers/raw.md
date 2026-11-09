@@ -366,10 +366,11 @@ units from another source, and says so.
 A RAW `STOCK_SPLIT` row is the answer to that refusal, and you do not have to edit the broker export
 to use it: where a date has both, the RAW row states the change to the whole holding, so cgt-calc
 uses it and ignores the broker's own row for the same event. The exception is a day on which a
-broker export also has a purchase, sale or transfer of that security. The RAW `STOCK_SPLIT` row has
-no time of day, so cgt-calc cannot tell whether the broker's row came before or after it, and stops
-with [`cannot be placed either side of it`](#cannot-be-placed-either-side-of-it) until you move the
-day's rows into this file.
+broker export also has another row that changes how much of that security you hold, such as a
+purchase, sale, vest, reinvested dividend or transfer. The RAW `STOCK_SPLIT` row has no time of day,
+so cgt-calc cannot tell whether the broker's row came before or after it, and stops with
+[`cannot be placed either side of it`](#cannot-be-placed-either-side-of-it) until you move the day's
+rows into this file.
 
 Which accounts a holding is built from is remembered until a day closes with the whole pooled
 holding at zero, and a ticker rename carries the record to the new name along with the holding. So
