@@ -189,7 +189,8 @@ See https://cgt-calc.uk/extra-data-and-options/#tickers-that-are-also-us-symbols
 Check what you hold, then add the matching row to your ISIN translation file and run cgt-calc again.
 Either row stops the warning. Each keeps any other tickers the bundled list gives the fund, so copy
 it as printed. The fund's income is then added to the holding only if you confirmed the fund. The
-warning appears once for each holding, and only if a report changed that holding's cost.
+warning appears only if a report changed a holding's cost, once for each ticker the holding took a
+report under, so a holding renamed between two reports can show it twice.
 
 The tickers that warn are the ones that were also US exchange symbols in November 2026, and `SPLG`,
 a US symbol until October 2025. A US listing that takes one of the bundled tickers later, or a US
@@ -211,12 +212,12 @@ one, or give it a row that leaves the ticker out.
 
 #### `is already used for ISIN`
 
-A transaction carries an ISIN, and its ticker already stands for a different ISIN in this run: a row
-in your ISIN translation file, a lookup cgt-calc saved there, or another transaction gives it to
-that ISIN. cgt-calc would pool the two securities as one holding. If the row in your file is wrong,
-correct it, or give that ISIN a row that leaves the ticker out, as described under
-[`already linked to ISIN`](#already-linked-to-isin). If two of your exports really use one ticker
-for two securities, calculate them in separate runs.
+A transaction carries an ISIN, or takes one from another row under its ticker, and the ticker
+already stands for a different ISIN in this run: a row in your ISIN translation file, a lookup
+cgt-calc saved there, or another transaction gives it to that ISIN. cgt-calc would pool the two
+securities as one holding. If the row in your file is wrong, correct it, or give that ISIN a row
+that leaves the ticker out, as described under [`already linked to ISIN`](#already-linked-to-isin).
+If two of your exports really use one ticker for two securities, calculate them in separate runs.
 
 #### `is a US symbol on another row`
 

@@ -1536,8 +1536,7 @@ class TransactionIngester:
                     f"If your {ticker} is not that fund, add this row to your ISIN "
                     f"translation file:\n    {remove}\n"
                     f"If it is that fund, add this row instead:\n    {confirm}\n"
-                    "See https://cgt-calc.uk/extra-data-and-options/"
-                    "#tickers-that-are-also-us-symbols",
+                    "See https://cgt-calc.uk/extra-data-and-options/#tickers-that-are-also-us-symbols",
                 )
 
     def add_rename(self, transaction: BrokerTransaction) -> None:

@@ -975,22 +975,6 @@ def _gbp_trade(
     )
 
 
-def _gbp_dividend(date: dt.date, symbol: str, amount: int) -> BrokerTransaction:
-    """Build a GBP dividend, with no ISIN unless a test sets one."""
-    return BrokerTransaction(
-        date=date,
-        action=ActionType.DIVIDEND,
-        symbol=symbol,
-        description=f"dividend {symbol}",
-        quantity=None,
-        price=None,
-        fees=Decimal(0),
-        amount=Decimal(amount),
-        currency=CurrencyCode("GBP"),
-        broker="Test",
-    )
-
-
 def _gbp_fee(date: dt.date, symbol: str, amount: int) -> BrokerTransaction:
     """Build a management fee: pooled cost with no shares."""
     return BrokerTransaction(
@@ -2420,24 +2404,29 @@ def test_a_report_matched_by_a_us_symbol_alone_warns_once(
     ]
     transactions.sort(key=_transaction_sort_key)
 
+    warning = (
+        "Excess reported income of fund IE00B66F4759 was added to SHYG because "
+        "cgt-calc's bundled ISIN list gives that fund the ticker SHYG, which is "
+        "also a US symbol, and no row in your files says which security SHYG "
+        "is.\n"
+        "If your SHYG is not that fund, add this row to your ISIN translation "
+        "file:\n"
+        "    IE00B66F4759,IHYG\n"
+        "If it is that fund, add this row instead:\n"
+        "    IE00B66F4759,IHYG,SHYG\n"
+        "See https://cgt-calc.uk/extra-data-and-options/"
+        "#tickers-that-are-also-us-symbols"
+    )
+
     report = get_report(calculator, transactions)
 
     assert report.total_gain() == Decimal(770)
-    assert _ticker_only_warnings(caplog) == [
-        (
-            "Excess reported income of fund IE00B66F4759 was added to SHYG "
-            "because cgt-calc's bundled ISIN list gives that fund the ticker "
-            "SHYG, which is also a US symbol, and no row in your files says "
-            "which security SHYG is.\n"
-            "If your SHYG is not that fund, add this row to your ISIN "
-            "translation file:\n"
-            "    IE00B66F4759,IHYG\n"
-            "If it is that fund, add this row instead:\n"
-            "    IE00B66F4759,IHYG,SHYG\n"
-            "See https://cgt-calc.uk/extra-data-and-options/"
-            "#tickers-that-are-also-us-symbols"
-        )
-    ]
+    assert _ticker_only_warnings(caplog) == [warning]
+
+    # A calculation run again over the same history warns again.
+    calculator.calculate_capital_gain()
+
+    assert _ticker_only_warnings(caplog) == [warning, warning]
 
 
 def test_a_report_carried_by_bed_and_breakfast_warns_too(
@@ -2546,7 +2535,15 @@ def test_a_vanguard_holding_warns_only_with_another_broker_s_row(
         ),
     ]
     if other_broker_row:
-        transactions.append(_gbp_dividend(dt.date(2024, 7, 15), "VERX", 5))
+        transactions.append(
+            transaction(
+                dt.date(2024, 7, 15),
+                ActionType.DIVIDEND,
+                "VERX",
+                amount=5,
+                currency=GBP,
+            )
+        )
 
     report = get_report(calculator, transactions)
 
@@ -2566,12 +2563,17 @@ def test_a_fund_named_by_its_own_isin_keeps_its_report_without_a_warning(
     1500, a gain of 400.
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
-    dividend = _gbp_dividend(dt.date(2024, 7, 15), "IGCB", 5)
-    dividend.isin = IGCB_FUND
     transactions: list[BrokerTransaction] = [
         _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "IGCB", 100, 1000),
         _eri(dt.date(2024, 6, 30), IGCB_FUND, 1),
-        dividend,
+        transaction(
+            dt.date(2024, 7, 15),
+            ActionType.DIVIDEND,
+            "IGCB",
+            amount=5,
+            currency=GBP,
+            isin=IGCB_FUND,
+        ),
         _gbp_trade(dt.date(2025, 2, 3), ActionType.SELL, "IGCB", 100, 1500),
     ]
 
@@ -2581,22 +2583,38 @@ def test_a_fund_named_by_its_own_isin_keeps_its_report_without_a_warning(
     assert _ticker_only_warnings(caplog) == []
 
 
+@pytest.mark.parametrize(
+    ("report_day", "buy_day", "sale_day"),
+    [
+        (dt.date(2024, 6, 30), dt.date(2024, 7, 1), dt.date(2024, 9, 2)),
+        (dt.date(2024, 12, 31), dt.date(2024, 5, 1), dt.date(2024, 12, 20)),
+        (dt.date(2024, 12, 31), dt.date(2024, 5, 1), dt.date(2024, 12, 31)),
+    ],
+    ids=["bought after it", "sold before it", "sold on its day"],
+)
 def test_a_report_dated_while_nothing_is_held_does_not_warn(
+    report_day: dt.date,
+    buy_day: dt.date,
+    sale_day: dt.date,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A report read but applied to no holding gives no warning.
 
-    The shares are bought after the report's date and sold before the next.
-    Nothing was added to their cost, so there is nothing to warn about.
+    Nothing is held at the end of the report's day. A sale in the 30 days
+    before it, or on the day itself, is looked at for a repurchase that would
+    carry the report, and there is none. Nothing was added to the cost, so
+    there is nothing to warn about.
 
     100 shares cost 1000 and sell for 1500: a gain of 500.
     """
     calculator = create_calculator(tax_year=2024, balance_check=False)
     transactions: list[BrokerTransaction] = [
-        _eri(dt.date(2024, 6, 30), IGCB_FUND, 1),
-        _gbp_trade(dt.date(2024, 7, 1), ActionType.BUY, "IGCB", 100, 1000),
-        _gbp_trade(dt.date(2024, 9, 2), ActionType.SELL, "IGCB", 100, 1500),
+        _eri(report_day, IGCB_FUND, 1),
+        _gbp_trade(buy_day, ActionType.BUY, "IGCB", 100, 1000),
+        _gbp_trade(sale_day, ActionType.SELL, "IGCB", 100, 1500),
     ]
+    # Where the command line puts a report: after its day's other rows.
+    transactions.sort(key=_transaction_sort_key)
 
     report = get_report(calculator, transactions)
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 from importlib import resources
-import io
 import logging
 from pathlib import Path
 import re
@@ -37,7 +36,7 @@ from .exceptions import (
 )
 from .model import Isin
 from .resources import RESOURCES_PACKAGE
-from .util import is_blank_row, save_csv
+from .util import csv_fields, is_blank_row, save_csv
 
 if TYPE_CHECKING:
     from importlib.resources.abc import Traversable
@@ -49,13 +48,6 @@ ISIN_TRANSLATION_COLUMNS_NUM: Final = len(ISIN_TRANSLATION_HEADER)
 # The symbol US over-the-counter markets give a security from outside the US.
 _US_OVER_THE_COUNTER_SYMBOL: Final = re.compile(r"[A-Z]{4}F")
 LOGGER = logging.getLogger(__name__)
-
-
-def _csv_line(fields: list[str]) -> str:
-    """Write one row of the translation file as a user would type it."""
-    buffer = io.StringIO()
-    csv.writer(buffer).writerow(fields)
-    return buffer.getvalue().rstrip("\r\n")
 
 
 @dataclass
@@ -244,28 +236,27 @@ class IsinConverter:
             self.data[isin] -= {
                 ticker
                 for ticker in self.data[isin]
-                if exported.get(ticker, {isin}) - {isin}
+                if exported.get(ticker, set()) - {isin}
             }
 
     def ticker_only_rows(self, isin: Isin, symbol: str) -> tuple[str, str] | None:
         """Return the mapping rows that settle a fund matched by a US symbol.
 
-        None unless the bundled list alone links the symbol to the ISIN, the
-        symbol is also a US one, and no row of the run exported it with an
-        ISIN: a holding of either security would match. The rows are the one
-        that takes the symbol away from the fund, keeping its other tickers,
-        and the one that confirms it.
+        ``symbol`` is one of the tickers the ISIN is known by. None unless the
+        link is the bundled list's, the symbol is also a US one, and no row of
+        the run exported it with an ISIN: a holding of either security would
+        match. The rows are the one that takes the symbol away from the fund,
+        keeping its other tickers, and the one that confirms it.
         """
-        tickers = self.data.get(isin, set())
         if (
             isin not in self.bundled_isins
-            or symbol not in tickers
             or symbol not in US_SYMBOLS_OF_BUNDLED_TICKERS
             or symbol in self.exported_isins
         ):
             return None
-        others = sorted(tickers - {symbol}) or [""]
-        return _csv_line([isin, *others]), _csv_line([isin, *sorted(tickers)])
+        tickers = sorted(self.data[isin])
+        others = [ticker for ticker in tickers if ticker != symbol] or [""]
+        return csv_fields([isin, *others]), csv_fields([isin, *tickers])
 
     def add_from_transaction(self, transaction: BrokerTransaction) -> None:
         """Normalise the transaction's ticker and record what it links to.
