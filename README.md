@@ -49,8 +49,8 @@ relying on the result.
 This compact 2025/26 example shows foreign-currency transactions, how sales are matched with shares
 acquired at different times, gains and losses, a dividend with overseas tax, and cash interest.
 
-<a href="https://cgt-calc.uk/assets/example_report.pdf">
-  <img src="https://cgt-calc.uk/assets/example_report_preview.webp" alt="Preview of the 2025/26 example report" width="600">
+<a href="https://next.cgt-calc.uk/assets/example_report.pdf">
+  <img src="https://next.cgt-calc.uk/assets/example_report_preview.webp" alt="Pages 1 and 2 of the 2025/26 example report, overlapping: the capital gains summary and the first capital gains events" width="600">
 </a>
 
 ## 🤝 Contributing
