@@ -32,6 +32,7 @@ from .const import (
 )
 from .dates import get_tax_year_end, get_tax_year_for_date, get_tax_year_start
 from .parsers.broker_registry import BrokerRegistry
+from .parsers.eri.raw import ERIRawParser
 
 
 def get_last_elapsed_tax_year() -> int:
@@ -107,6 +108,7 @@ Documentation: https://cgt-calc.uk/
 
     # Additional Data Files
     data_group = parser.add_argument_group("Additional data files")
+    ERIRawParser.register_arguments(data_group)
     set_completer(
         data_group.add_argument(
             "--prices-file",

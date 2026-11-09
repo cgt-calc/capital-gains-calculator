@@ -162,9 +162,6 @@ class BrokerRegistry:
         for broker_class in BrokerRegistry._BROKERS:
             broker_class.register_arguments(broker_group)
 
-        # ERI Raw is not a broker but is close enough to one to be here
-        ERIRawParser.register_arguments(broker_group)
-
     @staticmethod
     def load_all_transactions(
         args: argparse.Namespace, isin_converter: IsinConverter

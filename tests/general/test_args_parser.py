@@ -110,11 +110,17 @@ def test_version_is_resolved_lazily(monkeypatch: pytest.MonkeyPatch) -> None:
     assert not hasattr(args, "version")
 
 
-def test_eri_raw_help_describes_data_not_transactions() -> None:
-    """Describe the ERI input as data rather than transaction history."""
+def test_eri_raw_file_is_listed_under_additional_data_files() -> None:
+    """List the ERI input as data with the other data files, not as a broker."""
     help_text = " ".join(create_parser().format_help().split())
+    data_files = help_text.partition("Additional data files:")[2].partition(
+        "Calculation options:"
+    )[0]
 
-    assert "custom Excess Reported Income (ERI) data in CSV format" in help_text
+    assert (
+        "--eri-raw-file PATH custom Excess Reported Income (ERI) data in CSV format"
+        in data_files
+    )
 
 
 def test_unrealized_gains_help_identifies_report_end_portfolio() -> None:
@@ -667,21 +673,27 @@ def test_existing_file_or_stdin_type_accepts_stdin() -> None:
     assert existing_file_or_stdin_type("-") == STDIN_PATH
 
 
-def test_every_broker_path_option_accepts_stdin() -> None:
-    """The help says any broker PATH can be '-', so each one has to accept it."""
-    parser = create_parser()
-    group = next(
-        group
-        for group in parser._action_groups  # noqa: SLF001
-        if group.title == "Broker inputs"
-    )
+def test_help_says_which_options_read_stdin() -> None:
+    """Help says '-' reads stdin for exactly the options that accept it.
 
-    refusing = [
+    The Broker inputs heading says it for each PATH in that group; an option
+    elsewhere has to say it in its own help line.
+    """
+    note = "PATH can be '-' to read the file from standard input (only one '-' per run)"
+    parser = create_parser()
+
+    mismatched = [
         action.option_strings[0]
+        for group in parser._action_groups  # noqa: SLF001
         for action in group._group_actions  # noqa: SLF001
-        if action.metavar == "PATH" and action.type is not existing_file_or_stdin_type
+        if action.help is not argparse.SUPPRESS
+        and (action.type is existing_file_or_stdin_type)
+        != (
+            note in (action.help or "")
+            or (action.metavar == "PATH" and note in (group.description or ""))
+        )
     ]
-    assert not refusing
+    assert not mismatched
 
 
 @pytest.mark.parametrize(
