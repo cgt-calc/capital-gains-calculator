@@ -3130,6 +3130,10 @@ def test_a_custom_period_reaches_the_report_through_the_command_line(
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX pseudo-terminal")
+@pytest.mark.skipif(
+    signal.getsignal(signal.SIGINT) == signal.SIG_IGN,
+    reason="SIGINT is ignored here, as in a background job, so the run would be too",
+)
 @pytest.mark.parametrize("verbose", [False, True], ids=["plain", "verbose"])
 def test_ctrl_c_at_the_spin_off_prompt_stops_the_run_with_one_line(
     tmp_path: Path, verbose: bool
@@ -3196,6 +3200,7 @@ def test_ctrl_c_at_the_spin_off_prompt_stops_the_run_with_one_line(
 
     assert shown + out == prompt, err
     assert run.returncode == -signal.SIGINT, err
+    assert err.count(b"Stopped by Ctrl-C") == 1, err
     # An error stands apart, with a blank line before and after it.
     line = b"\nERROR: Stopped by Ctrl-C before the run finished.\n"
     if verbose:
