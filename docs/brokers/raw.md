@@ -175,8 +175,7 @@ and the cash balance is £20 short, which can stop the run with `Reached a negat
 To check the result, run cgt-calc for the tax year that date falls in. The summary lists the income
 under Dividends or Interest, and the PDF report has an entry on that date headed “Cost added to FUND
 with no new shares: £20.00”. Under that heading, “Number of units in the pool” should be the units
-you hold and “new pool cost” £20 more than the cost before. If you bought more of the fund the same
-day, the PDF shows the £20 as part of that purchase's fees instead.
+you hold and “new pool cost” £20 more than the cost before.
 
 If cgt-calc stops with
 `Cannot add the cost of the FEE row for FUND on 2024-06-28: no units of FUND are held that day`, you

@@ -308,6 +308,13 @@ class Matcher:
 
         bnb_acquisition = HmrcTransactionData()
         bed_and_breakfast_fees = Decimal(0)
+        # Cost with no shares behind it on a day that also brought shares is
+        # logged as an entry of its own, so the report does not state it as
+        # the fees of those shares. On a day of cost alone it is the day.
+        cost_only = (
+            record.cost_only if acquisition.quantity > 0 else HmrcTransactionData()
+        )
+        shares_cost = acquisition_amount - cost_only.amount
 
         # What an earlier disposal took under the 30-day rule has to leave the
         # pool at the price it was given, and it was identified against the
@@ -340,7 +347,7 @@ class Matcher:
                     new_quantity=position.quantity + bnb_acquisition.quantity,
                     new_pool_cost=position.amount + bnb_acquisition.amount,
                     fees=bed_and_breakfast_fees,
-                    allowable_cost=acquisition_amount,
+                    allowable_cost=shares_cost,
                     eris=bnb_acquisition.eris,
                 )
             )
@@ -348,23 +355,36 @@ class Matcher:
             acquisition.quantity,
             modified_amount,
         )
-        # A fee's cost goes into the pool whatever became of the day's shares,
-        # so it is stated even when a 30-day claim has taken every one of them.
         if (
             acquisition.quantity - bnb_acquisition.quantity > 0
             or bnb_acquisition.quantity == 0
-            or record.cost_only.amount != 0
         ):
             calculation_entries.append(
                 CalculationEntry(
                     rule_type=RuleType.SECTION_104,
                     quantity=acquisition.quantity - bnb_acquisition.quantity,
-                    amount=-(modified_amount - bnb_acquisition.amount),
+                    amount=-(
+                        modified_amount - bnb_acquisition.amount - cost_only.amount
+                    ),
+                    new_quantity=position.quantity + acquisition.quantity,
+                    new_pool_cost=position.amount + modified_amount - cost_only.amount,
+                    fees=acquisition.fees - bed_and_breakfast_fees - cost_only.fees,
+                    allowable_cost=shares_cost,
+                    spin_off=spin_off,
+                )
+            )
+        # A fee's cost goes into the pool whatever became of the day's shares,
+        # so it is stated even when a 30-day claim has taken every one of them.
+        if cost_only.amount != 0:
+            calculation_entries.append(
+                CalculationEntry(
+                    rule_type=RuleType.SECTION_104,
+                    quantity=Decimal(0),
+                    amount=-cost_only.amount,
                     new_quantity=position.quantity + acquisition.quantity,
                     new_pool_cost=position.amount + modified_amount,
-                    fees=acquisition.fees - bed_and_breakfast_fees,
-                    allowable_cost=acquisition_amount,
-                    spin_off=spin_off,
+                    fees=cost_only.fees,
+                    allowable_cost=cost_only.amount,
                 )
             )
         return calculation_entries

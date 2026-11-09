@@ -362,6 +362,94 @@ def test_the_gain_to_date_is_a_line_of_its_own(tmp_path: Path) -> None:
     ]
 
 
+# The pool is bought the tax year before, so the report's events fit one page.
+PREVIOUS_YEAR_DAY = dt.date(2024, 3, 1)
+DISTRIBUTION_DAY = dt.date(2024, 6, 28)
+EARLIER_SALE_DAY = dt.date(2024, 6, 20)
+
+
+@pytest.mark.parametrize(
+    ("sold_before", "purchase_lines", "pool_after_cost"),
+    [
+        pytest.param(
+            0,
+            "1. SECTION 104 50 £750.00 Number of units in the pool: 150, "
+            "new pool cost: £1,750.00 (£11.67/unit).",
+            "150, new pool cost: £1,770.00 (£11.80/unit)",
+            id="purchase",
+        ),
+        pytest.param(
+            20,
+            "1. BED AND BREAKFAST 20 £200.00 Number of units in the pool: 100, "
+            "new pool cost: £1,000.00 (£10.00/unit). 2. SECTION 104 30 £450.00 "
+            "Number of units in the pool: 130, new pool cost: £1,450.00 "
+            "(£11.15/unit).",
+            "130, new pool cost: £1,470.00 (£11.31/unit)",
+            id="part-repurchase",
+        ),
+        pytest.param(
+            50,
+            "1. BED AND BREAKFAST 50 £500.00 Number of units in the pool: 100, "
+            "new pool cost: £1,000.00 (£10.00/unit).",
+            "100, new pool cost: £1,020.00 (£10.20/unit)",
+            id="whole-repurchase",
+        ),
+    ],
+)
+def test_a_cost_added_on_a_purchase_day_is_an_entry_of_its_own(
+    tmp_path: Path, sold_before: int, purchase_lines: str, pool_after_cost: str
+) -> None:
+    """Cost with no new shares stays apart from a purchase on the same day.
+
+    This is the RAW guide's accumulation income: a £20 FEE on the day 50 FUND
+    are bought for £750. The purchase reads £750.00 (£15.00/unit) with no fees,
+    and "Cost added to FUND with no new shares: £20.00" follows it directly, as
+    it reads on a day with no purchase. The report used to show the purchase as
+    £770.00, "including £20.00 fees", with no cost-added entry.
+
+    100 FUND bought at £10 the year before are held. Pool figures, before the
+    £20 then after:
+    - purchase: 100 + 50 = 150 units, £1,000 + £750 = £1,750 (£11.67), then
+      £1,770 (£11.80).
+    - part-repurchase: 20 sold on 20 June leave 80 at £800. The 30-day rule
+      matches them to 20 of the purchase, which bring their pool cost of
+      20 x £10 = £200 back: 100 at £1,000. The other 30 cost 30 x £15 = £450:
+      130 at £1,450 (£11.15), then £1,470 (£11.31).
+    - whole-repurchase: 50 sold leave 50 at £500, and the purchase brings back
+      £500 with no Section 104 line left: 100 at £1,000, then £1,020 (£10.20).
+    """
+    rows = [
+        transaction(PREVIOUS_YEAR_DAY, ActionType.BUY, "FUND", 100, 10, 0, -1000, GBP),
+        transaction(DISTRIBUTION_DAY, ActionType.BUY, "FUND", 50, 15, 0, -750, GBP),
+        transaction(DISTRIBUTION_DAY, ActionType.FEE, "FUND", None, None, 0, -20, GBP),
+    ]
+    if sold_before:
+        rows.insert(
+            1,
+            transaction(
+                EARLIER_SALE_DAY,
+                ActionType.SELL,
+                "FUND",
+                sold_before,
+                16,
+                0,
+                16 * sold_before,
+                GBP,
+            ),
+        )
+    text = report_text(
+        get_report(create_calculator(tax_year=2024, balance_check=False), rows),
+        tmp_path,
+    )
+
+    assert (
+        "Acquisition 1: 50 units of FUND for £750.00 (£15.00/unit) "
+        f"Rule Quantity Actual cost {purchase_lines} "
+        "Cost added to FUND with no new shares: £20.00 Rule Quantity Actual cost "
+        f"1. SECTION 104 0 £20.00 Number of units in the pool: {pool_after_cost}."
+    ) in text
+
+
 def test_a_page_break_keeps_each_rule_with_the_row_under_it(tmp_path: Path) -> None:
     """A table that runs over a page breaks between rules, never inside one.
 
