@@ -634,8 +634,10 @@ def test_a_us_symbol_beside_a_vanguard_fund_under_its_ticker_is_refused() -> Non
             "Ticker VERX is a Vanguard fund's on this row, which the bundled list "
             "gives ISIN IE00BKX55S42, and a US symbol on another row of this run."
         ),
-    ):
+    ) as excinfo:
         converter.set_aside_london_tickers([_us("VERX"), vanguard])
+    # The row printed beneath the message, which it calls the Vanguard fund's.
+    assert excinfo.value.transaction is vanguard
 
 
 def test_an_exported_isin_leaves_the_users_own_row_to_refuse_it(
