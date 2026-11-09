@@ -663,8 +663,9 @@ def test_run_with_a_trade_before_a_same_day_split_is_refused(
     assert result.returncode != 0
     assert "cannot be placed either side" in result.stderr
     assert "the instant on it is when the broker booked the entry" in result.stderr
-    # The export does state its times, so it must not be told to supply them.
-    assert "in one input that states times" not in result.stderr
+    # The export does state its times, so it must not get the explanation for
+    # rows that lack them.
+    assert "The two come from different inputs" not in result.stderr
 
 
 def test_run_with_the_tax_withheld_from_a_dividend_added_in_a_raw_file(

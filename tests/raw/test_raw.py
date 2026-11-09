@@ -103,6 +103,97 @@ def test_bond_fund_typed_in_lower_case_is_reported_as_interest(tmp_path: Path) -
     assert re.search(r"\n  Proceeds: +£0\.00\n", result.stdout)
 
 
+def test_a_split_day_moved_into_raw_computes_with_the_balance_check_on(
+    tmp_path: Path,
+) -> None:
+    """The route the `cannot be placed either side of it` refusal gives works.
+
+    Left in the Schwab export, the purchase of 20 on the day of the split is
+    refused: the export has no times, so nothing says whether the 20 are
+    before or after it. Following the advice, the purchase moves out of a
+    working copy of the export into RAW, in its real order after the split,
+    with a STOCK_SPLIT row for the whole holding and a TRANSFER row depositing
+    the purchase's cost, because RAW rows keep a cash balance of their own.
+
+    - 10 bought at $100 on 2 May: $1,000 at 1.2457 dollars to the pound is
+      £802.76.
+    - The split adds 90, so the 10 become 100.
+    - 20 bought after it at $10.50: $210 at 1.2709 dollars to the pound is
+      £165.24.
+    - The holding is 120 units at £968.00 (802.7615 + 165.2372 = 967.9987).
+    - Schwab's balance is $1,210 deposited less $1,000 spent, $210; RAW's is
+      the $210 deposited less the $210 spent, $0.
+    """
+    schwab_file = tmp_path / "schwab.csv"
+    _write_csv(
+        schwab_file,
+        [
+            [
+                "Date",
+                "Action",
+                "Symbol",
+                "Description",
+                "Quantity",
+                "Price",
+                "Fees & Comm",
+                "Amount",
+            ],
+            ["06/10/2024", "Stock Split", "FOO", "FOO CORP", "90", "", "", ""],
+            [
+                "05/02/2024",
+                "Buy",
+                "FOO",
+                "FOO CORP",
+                "10",
+                "$100.00",
+                "$0.00",
+                "-$1000.00",
+            ],
+            [
+                "05/01/2024",
+                "MoneyLink Transfer",
+                "",
+                "Tfr BANK",
+                "",
+                "",
+                "",
+                "$1210.00",
+            ],
+        ],
+    )
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(
+        raw_file,
+        [
+            COLUMNS,
+            ["2024-06-10", "TRANSFER", "", "1", "210", "0", "USD"],
+            ["2024-06-10", "STOCK_SPLIT", "FOO", "90", "0", "0", "USD"],
+            ["2024-06-10", "BUY", "FOO", "20", "10.50", "0", "USD"],
+        ],
+    )
+
+    cmd = build_cmd(
+        "--year",
+        "2024",
+        "--schwab-file",
+        str(schwab_file),
+        "--raw-file",
+        str(raw_file),
+        "--no-report",
+    )
+    result = run_cli(cmd)
+
+    assert stderr_alerts(result.stderr) == []
+    assert (
+        "Final balance\n  Charles Schwab: 210.00 (USD)\n  Unknown: 0.00 (USD)\n"
+        in result.stdout
+    )
+    assert (
+        "Portfolio at the end of 2024/2025 tax year\n  FOO: 120.00, £968.00\n"
+        in result.stdout
+    )
+
+
 def test_run_with_raw_files_stdin(request: pytest.FixtureRequest) -> None:
     """Runs the script with stdin and verifies it works identically."""
     csv_file = Path("tests") / "raw" / "data" / "test_data.csv"
