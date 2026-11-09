@@ -165,7 +165,9 @@ Interactive Brokers dividend rows do, is not matched to a bundled ticker that be
 ISIN either. The ISIN says which security it is, so cgt-calc uses it, and treats the run's other
 transactions under the same ticker that carry no ISIN as the same security. If one of them is in
 fact the bundled fund, held at a broker whose export gives no ISIN, the two would be pooled as one
-holding: calculate them in separate runs.
+holding: calculate them in separate runs. A Vanguard transaction under the ticker is always
+Vanguard's own fund, so cgt-calc stops instead; see
+[`is a Vanguard fund's on this row`](#is-a-vanguard-funds-on-this-row).
 
 #### Tickers that are also US symbols
 
@@ -187,10 +189,14 @@ See https://cgt-calc.uk/extra-data-and-options/#tickers-that-are-also-us-symbols
 ```
 
 Check what you hold, then add the matching row to your ISIN translation file and run cgt-calc again.
-Either row stops the warning. Each keeps any other tickers the bundled list gives the fund, so copy
-it as printed. The fund's income is then added to the holding only if you confirmed the fund. The
-warning appears only if a report changed a holding's cost, once for each ticker the holding took a
-report under, so a holding renamed between two reports can show it twice.
+The fund's income is then added to the holding only if you confirmed the fund. Either row replaces
+the fund's entry in the bundled list and keeps its other tickers, so cgt-calc stops warning about
+all of them, not only the one in the warning. Two funds have a second ticker that is also a US
+symbol: `RISE` and `WING`, and `WLDS` and `WSML`. The warning then names the other ticker too;
+decide for both before adding the row, and leave out a ticker that is not the fund.
+
+The warning appears only if a report changed a holding's cost, once for each ticker the holding took
+a report under, so a holding renamed between two reports can show it twice.
 
 The tickers that warn are the ones that were also US exchange symbols in November 2026, and `SPLG`,
 a US symbol until October 2025. A US listing that takes one of the bundled tickers later, or a US
@@ -224,6 +230,13 @@ If two of your exports really use one ticker for two securities, calculate them 
 One transaction, such as a Charles Schwab one, uses the ticker as a US symbol. Another uses the same
 ticker and carries the ISIN of the London fund that the bundled list gives the ticker to. They are
 two securities, and cgt-calc would pool them as one holding. Calculate them in separate runs.
+
+#### `is a Vanguard fund's on this row`
+
+A Vanguard transaction uses a ticker that the bundled list gives a Vanguard fund, such as `VERX`.
+Another transaction exports the same ticker with a different ISIN, such as Vertex's. Vanguard sells
+only its own funds, so they are two securities, and cgt-calc would pool them as one holding.
+Calculate them in separate runs.
 
 ### Temporary cache files
 

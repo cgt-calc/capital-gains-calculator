@@ -2361,6 +2361,9 @@ IGCB_FUND = Isin("IE00BKW9SW28")
 # Bundled under IHYG and SHYG. SHYG is also the symbol of a US iShares fund on
 # NYSE Arca; IHYG is no US symbol.
 SHYG_FUND = Isin("IE00B66F4759")
+# Bundled under WLDS and WSML, both of them US symbols: Wearable Devices on
+# Nasdaq, and a US iShares fund.
+WLDS_FUND = Isin("IE00BF4RFH31")
 # Bundled under VUSA and VUSD, neither of them a US symbol.
 VUSA_FUND = Isin("IE00B3XXRP09")
 # A Vanguard fund bundled under VERX, also Vertex's Nasdaq symbol.
@@ -2427,6 +2430,47 @@ def test_a_report_matched_by_a_us_symbol_alone_warns_once(
     calculator.calculate_capital_gain()
 
     assert _ticker_only_warnings(caplog) == [warning, warning]
+
+
+def test_a_warning_names_the_fund_s_other_us_symbol_its_rows_keep(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Both rows a WLDS warning offers keep WSML, also a US symbol, for the fund.
+
+    Either row replaces the fund's bundled entry, and cgt-calc warns about no
+    ticker on it again. So the warning names WSML too: a user settling WLDS
+    alone would otherwise silence a later US WSML holding without knowing.
+
+    100 shares cost 1000, and a report of 1 a share adds 100: 1100. Sold for
+    1500, a gain of 400.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions: list[BrokerTransaction] = [
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "WLDS", 100, 1000),
+        _eri(dt.date(2024, 6, 30), WLDS_FUND, 1),
+        _gbp_trade(dt.date(2025, 2, 3), ActionType.SELL, "WLDS", 100, 1500),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(400)
+    assert _ticker_only_warnings(caplog) == [
+        (
+            "Excess reported income of fund IE00BF4RFH31 was added to WLDS because "
+            "cgt-calc's bundled ISIN list gives that fund the ticker WLDS, which "
+            "is also a US symbol, and no row in your files says which security "
+            "WLDS is.\n"
+            "If your WLDS is not that fund, add this row to your ISIN translation "
+            "file:\n"
+            "    IE00BF4RFH31,WSML\n"
+            "If it is that fund, add this row instead:\n"
+            "    IE00BF4RFH31,WLDS,WSML\n"
+            "Either row also gives that fund WSML, which is a US symbol too: leave "
+            "WSML out if your WSML is not that fund.\n"
+            "See https://cgt-calc.uk/extra-data-and-options/"
+            "#tickers-that-are-also-us-symbols"
+        )
+    ]
 
 
 def test_a_report_carried_by_bed_and_breakfast_warns_too(

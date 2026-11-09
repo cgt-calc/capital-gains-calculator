@@ -30,6 +30,7 @@ from cgt_calc.exceptions import (
 import cgt_calc.isin_converter
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
+from cgt_calc.parsers.vanguard import VanguardTransaction
 
 # Well-formed but unassigned, so it cannot be in the bundled translation data.
 UNKNOWN_ISIN = Isin("ZZ0000000008")
@@ -575,6 +576,36 @@ def test_an_exported_isin_takes_a_ticker_even_from_a_bundled_us_fund() -> None:
     converter.add_from_transactions(rows)
 
     assert converter.get_symbol_to_isin_map()["CHIQ"] == ISIN_A
+
+
+def test_an_exported_isin_beside_a_vanguard_fund_under_its_ticker_is_refused() -> None:
+    """A Vanguard VERX row and a row exporting VERX with another ISIN are two securities.
+
+    Vanguard sells only its own funds, so its VERX is the fund the bundled
+    list gives VERX. The other row's ISIN, Vertex's here, says it is not, so
+    the two cannot be pooled as the security that ISIN names.
+    """
+    converter = IsinConverter()
+    vanguard = VanguardTransaction.from_fields(
+        dt.date(2023, 1, 1),
+        ActionType.BUY,
+        "VERX",
+        Decimal(1),
+        Decimal(1),
+        Decimal(-1),
+        CurrencyCode("GBP"),
+        is_reversal=False,
+    )
+
+    with pytest.raises(
+        InvalidTransactionError,
+        match=re.escape(
+            "Ticker VERX is a Vanguard fund's on this row, which the bundled list "
+            f"gives ISIN IE00BKX55S42, and another row of this run exports it with "
+            f"ISIN {ISIN_A}."
+        ),
+    ):
+        converter.set_aside_london_tickers([vanguard, _transaction(ISIN_A, "VERX")])
 
 
 def test_an_exported_isin_leaves_the_users_own_row_to_refuse_it(

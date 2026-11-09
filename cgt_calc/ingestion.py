@@ -1524,7 +1524,13 @@ class TransactionIngester:
             holding = connected_names(renames, ticker)
             if rows is None or not holding & self.non_vanguard_symbols:
                 continue
-            remove, confirm = rows
+            remove, confirm, kept_us_symbols = rows
+            # Either row stops cgt-calc warning about every ticker it keeps.
+            kept = "".join(
+                f"Either row also gives that fund {other}, which is a US symbol "
+                f"too: leave {other} out if your {other} is not that fund.\n"
+                for other in kept_us_symbols
+            )
             for name in sorted(holding & ({ticker} | renamed)):
                 via = "" if name == ticker else f" (renamed to or from {ticker})"
                 self.history.ticker_only_eri_warnings.setdefault(
@@ -1536,6 +1542,7 @@ class TransactionIngester:
                     f"If your {ticker} is not that fund, add this row to your ISIN "
                     f"translation file:\n    {remove}\n"
                     f"If it is that fund, add this row instead:\n    {confirm}\n"
+                    f"{kept}"
                     "See https://cgt-calc.uk/extra-data-and-options/#tickers-that-are-also-us-symbols",
                 )
 
