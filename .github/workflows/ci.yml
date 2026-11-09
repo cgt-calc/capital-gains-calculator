@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Prepare and install deps
         uses: ./.github/actions/install-deps
@@ -63,7 +63,7 @@ jobs:
       UV_PYTHON: ${{ matrix.python-version }}
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Prepare and install deps
         uses: ./.github/actions/install-deps
@@ -83,7 +83,7 @@ jobs:
         # from this repository authenticate with the token. Pull requests
         # from forks can't read secrets and fall back to tokenless
         # uploads, supported for public repositories.
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: coverage.xml
           flags: python-${{ matrix.python-version }}-${{ matrix.os }}
@@ -96,7 +96,7 @@ jobs:
       - name: Upload test results to Codecov
         # Upload also when tests fail: failed tests are the point.
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           report_type: test_results
           files: junit.xml
@@ -110,7 +110,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Prepare and install deps
         uses: ./.github/actions/install-deps
@@ -134,12 +134,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Only the links dependency group is needed, so the full dev toolchain
       # is not installed here.
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
           python-version: ${{ env.PYTHON_VERSION }}
@@ -150,7 +150,7 @@ jobs:
       # overwrites an existing key, so the key is unique per run and the most
       # recent cache is restored by prefix.
       - name: Restore lychee cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .lycheecache
           key: lychee-${{ github.run_id }}
@@ -175,14 +175,14 @@ jobs:
       OVERRIDE_VERSION: 0.0.0rc1.post1+gabcdef0
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Full history and tags, from which the image's build takes its
           # version.
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           # One uvx run needs no cache, and saving one would race the
           # test jobs for the same key.
@@ -200,10 +200,10 @@ jobs:
           echo "IMAGE_VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Build image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           tags: local/cgt-calc:test
@@ -248,7 +248,7 @@ jobs:
             -lc "cd /build && uv run pytest -q --cov --cov-report=xml --junitxml=junit.xml -o junit_family=legacy"
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: coverage.xml
           flags: docker
@@ -258,7 +258,7 @@ jobs:
       - name: Upload test results to Codecov
         # Upload also when tests fail: failed tests are the point.
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           report_type: test_results
           files: junit.xml
@@ -268,7 +268,7 @@ jobs:
 
       - name: Upload e2e tests outputs
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-outputs
           path: out/test-*
@@ -281,7 +281,7 @@ jobs:
       # the build above. After the test steps, so a failure here skips none
       # of them.
       - name: Build image with a given VERSION
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           target: runtime
