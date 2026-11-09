@@ -303,9 +303,9 @@ def test_an_unreadable_trade_date_is_quoted_with_the_format_hl_writes(
     """Quote the trade date that cannot be read and name the format HL writes.
 
     The interest row of 9 March 2026 with its trade date written year first.
-    Its settle date is left day first, so the row fails only on the column the
-    parser reads, and the message names that column. The heading line is
-    line 6, so the row is line 7.
+    Its settle date stays day first, so the two date cells differ: a parser
+    reading the settle date would not refuse the row, and a message quoting
+    it would not match. The heading line is line 6, so the row is line 7.
     """
     csv_file = tmp_path / "hl-transaction-summary.csv"
     csv_file.write_text(
