@@ -105,6 +105,9 @@ transaction stamped at or after 23:00 UTC on 5 April belongs to the following ta
     split, and a RAW `STOCK_SPLIT` row cannot resolve this. Work out the day's transactions and
     split outside cgt-calc.
 - A custody fee reduces the broker balance but is not treated as an allowable cost against a gain.
+- The CSV gives no ISIN or market, so a ticker that is both a London fund's and a US security's,
+    such as `OPEN`, is matched to the fund, with a warning. See
+    [Tickers that are also US symbols](../extra-data-and-options.md#tickers-that-are-also-us-symbols).
 - The statement covers the investment account only. Commodities and interest on savings products are
     not part of this export.
 

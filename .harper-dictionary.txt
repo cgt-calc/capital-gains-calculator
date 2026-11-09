@@ -190,6 +190,7 @@ MXN
 MXV
 mypy
 NameChange
+Nasdaq
 nav
 navPrice
 nixpkgs
@@ -301,9 +302,12 @@ SLF001
 SMH
 SOLV
 SortValue
+SPDR
 SpinOff
 SpinOffs
+SPLG
 SplitHistory
+SPYM
 sqrt
 ss126
 StandardCSVParser

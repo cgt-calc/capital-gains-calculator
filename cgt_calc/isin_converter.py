@@ -20,6 +20,7 @@ from .const import (
     INITIAL_ISIN_TRANSLATION_RESOURCE,
     ISIN_TICKER_ALIASES,
     US_MARKET,
+    US_SYMBOLS_OF_BUNDLED_TICKERS,
     RuntimeMode,
 )
 from .exceptions import (
@@ -34,8 +35,9 @@ from .exceptions import (
     without_file,
 )
 from .model import Isin
+from .parsers.vanguard import VanguardTransaction
 from .resources import RESOURCES_PACKAGE
-from .util import is_blank_row, save_csv
+from .util import csv_fields, is_blank_row, save_csv
 
 if TYPE_CHECKING:
     from importlib.resources.abc import Traversable
@@ -192,6 +194,16 @@ class IsinConverter:
         A row carrying that ISIN under the same ticker is the London fund
         itself. The run then has two securities under one ticker, which
         would pool as one holding, so it is refused.
+
+        A ticker a row exports with an ISIN of its own is set aside from
+        every bundled fund with another ISIN, with no exception: that ISIN
+        names the row's security, whatever market the bundled entry is from.
+        The rows of the run without an ISIN under that ticker then take the
+        exported one. One of them could be the bundled fund's, held at a
+        broker that names no ISIN; that is two securities in one run, and is
+        not looked for. Except at Vanguard, which sells only its own funds:
+        a Vanguard row under the ticker is the fund, and the run is refused
+        as two securities under one ticker.
         """
         us_symbols = {
             transaction.symbol
@@ -219,6 +231,64 @@ class IsinConverter:
                     "on this one. Two securities under one ticker would be pooled "
                     "and matched as one holding. Calculate them in separate runs.",
                 )
+        exported: dict[str, set[Isin]] = {}
+        for transaction in transactions:
+            if transaction.symbol and transaction.isin:
+                exported.setdefault(transaction.symbol, set()).add(transaction.isin)
+        taken: dict[str, Isin] = {}
+        for isin in self.bundled_isins:
+            mismatched = {
+                ticker
+                for ticker in self.data[isin]
+                if exported.get(ticker, set()) - {isin}
+            }
+            self.data[isin] -= mismatched
+            taken.update(dict.fromkeys(mismatched, isin))
+        for transaction in transactions:
+            symbol = transaction.symbol
+            if (
+                symbol is not None
+                and symbol in taken
+                and isinstance(transaction, VanguardTransaction)
+            ):
+                other = min(exported[symbol] - {taken[symbol]})
+                raise InvalidTransactionError(
+                    transaction,
+                    f"Ticker {symbol} is a Vanguard fund's on this row, which the "
+                    f"bundled list gives ISIN {taken[symbol]}, and another row of "
+                    f"this run exports it with ISIN {other}. Two securities under "
+                    "one ticker would be pooled and matched as one holding. "
+                    "Calculate them in separate runs.",
+                )
+
+    def ticker_only_rows(
+        self, isin: Isin, symbol: str
+    ) -> tuple[str, str, list[str]] | None:
+        """Return the mapping rows that settle a fund matched by a US symbol.
+
+        ``symbol`` is one of the tickers the ISIN is known by. None unless the
+        link is the bundled list's, the symbol is also a US one, and no row of
+        the run exported it with an ISIN: a holding of either security would
+        match. The rows are the one that takes the symbol away from the fund,
+        keeping its other tickers, and the one that confirms it.
+
+        Either row replaces the fund's bundled entry, so none of the tickers
+        it keeps is warned about again. The fund's other tickers that are US
+        symbols too are returned last, for the warning to name them.
+        """
+        if (
+            isin not in self.bundled_isins
+            or symbol not in US_SYMBOLS_OF_BUNDLED_TICKERS
+            or symbol in self.exported_isins
+        ):
+            return None
+        tickers = sorted(self.data[isin])
+        others = [ticker for ticker in tickers if ticker != symbol]
+        return (
+            csv_fields([isin, *(others or [""])]),
+            csv_fields([isin, *tickers]),
+            [ticker for ticker in others if ticker in US_SYMBOLS_OF_BUNDLED_TICKERS],
+        )
 
     def add_from_transaction(self, transaction: BrokerTransaction) -> None:
         """Normalise the transaction's ticker and record what it links to.
@@ -248,7 +318,10 @@ class IsinConverter:
         even against reference data: validate_data() already guarantees one
         ISIN per ticker there, so a transaction reusing a ticker reference
         already gave to a different security is exactly the case this check
-        exists for, not a stale row to look past.
+        exists for, not a stale row to look past. The bundled list is the
+        exception, and never reaches this check: ``set_aside_london_tickers()``
+        has already taken the ticker from its fund. What is left to refuse is
+        the user's own file and the lookups it caches.
         """
         if not transaction.symbol:
             return

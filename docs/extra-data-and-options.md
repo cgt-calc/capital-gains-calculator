@@ -160,6 +160,49 @@ still matched, because they are the fund's own US symbol: the ticker of a fund w
 US over-the-counter symbol of five letters ending in `F`. A row in your own file is matched
 whichever broker the transaction came from.
 
+A transaction that carries its own ISIN, as Trading 212, Freetrade and Hargreaves Lansdown rows and
+Interactive Brokers dividend rows do, is not matched to a bundled ticker that belongs to a different
+ISIN either. The ISIN says which security it is, so cgt-calc uses it, and treats the run's other
+transactions under the same ticker that carry no ISIN as the same security. If one of them is in
+fact the bundled fund, held at a broker whose export gives no ISIN, the two would be pooled as one
+holding: calculate them in separate runs. A Vanguard transaction under the ticker is always
+Vanguard's own fund, so cgt-calc stops instead; see
+[`is a Vanguard fund's on this row`](#is-a-vanguard-funds-on-this-row).
+
+#### Tickers that are also US symbols
+
+Some London tickers in the bundled list are also the symbols of other securities in the US. `OPEN`,
+for example, is an iShares fund in London and Opendoor in the US. A holding under one of these
+tickers may be either. When nothing in your files says which, because no transaction under the
+ticker carries an ISIN or comes from a US market, cgt-calc applies the bundled fund's excess
+reported income and warns. This happens with Interactive Brokers trades in a security that paid no
+dividend in your export, with Revolut, and with RAW files. It does not happen with a holding that
+appears only in Vanguard exports, because Vanguard sells only its own funds.
+
+```text
+WARNING: Excess reported income of fund IE00BD0B9B76 was added to OPEN because cgt-calc's bundled ISIN list gives that fund the ticker OPEN, which is also a US symbol, and no row in your files says which security OPEN is.
+If your OPEN is not that fund, add this row to your ISIN translation file:
+    IE00BD0B9B76,
+If it is that fund, add this row instead:
+    IE00BD0B9B76,OPEN
+See https://cgt-calc.uk/extra-data-and-options/#tickers-that-are-also-us-symbols
+```
+
+Check what you hold, then add the matching row to your ISIN translation file and run cgt-calc again.
+The fund's income is then added to the holding only if you confirmed the fund. Either row replaces
+the fund's entry in the bundled list and keeps its other tickers, so cgt-calc stops warning about
+all of them, not only the one in the warning. Two funds have a second ticker that is also a US
+symbol: `RISE` and `WING`, and `WLDS` and `WSML`. The warning then names the other ticker too;
+decide for both before adding the row, and leave out a ticker that is not the fund.
+
+The warning appears only if a report changed a holding's cost, once for each ticker the holding took
+a report under, so a holding renamed between two reports can show it twice.
+
+The tickers that warn are the ones that were also US exchange symbols in November 2026, and `SPLG`,
+a US symbol until October 2025. A US listing that takes one of the bundled tickers later, or a US
+over-the-counter symbol, does not warn. If the report shows fund income for a holding that is not a
+fund, take the ticker off that fund with a row as above.
+
 #### `already linked to ISIN`
 
 Two rows, or a row and the bundled list, give the same ticker to different ISINs. The error names
@@ -173,11 +216,27 @@ ISIN that was looked up, which is the second one in the error, with its correct 
 ticker is the one in the error, also take it off the first ISIN: change its row if your file has
 one, or give it a row that leaves the ticker out.
 
+#### `is already used for ISIN`
+
+A transaction carries an ISIN, or takes one from another row under its ticker, and the ticker
+already stands for a different ISIN in this run: a row in your ISIN translation file, a lookup
+cgt-calc saved there, or another transaction gives it to that ISIN. cgt-calc would pool the two
+securities as one holding. If the row in your file is wrong, correct it, or give that ISIN a row
+that leaves the ticker out, as described under [`already linked to ISIN`](#already-linked-to-isin).
+If two of your exports really use one ticker for two securities, calculate them in separate runs.
+
 #### `is a US symbol on another row`
 
 One transaction, such as a Charles Schwab one, uses the ticker as a US symbol. Another uses the same
 ticker and carries the ISIN of the London fund that the bundled list gives the ticker to. They are
 two securities, and cgt-calc would pool them as one holding. Calculate them in separate runs.
+
+#### `is a Vanguard fund's on this row`
+
+A Vanguard transaction uses a ticker that the bundled list gives a Vanguard fund, such as `VERX`.
+Another transaction exports the same ticker with a different ISIN, such as Vertex's. Vanguard sells
+only its own funds, so they are two securities, and cgt-calc would pool them as one holding.
+Calculate them in separate runs.
 
 ### Temporary cache files
 

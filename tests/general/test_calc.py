@@ -57,6 +57,7 @@ from cgt_calc.model import (
 )
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.parsers.eri.model import ERITransaction
+from cgt_calc.parsers.vanguard import VanguardTransaction
 from cgt_calc.rename_planning import RENAME_DAY_UNSUPPORTED_ACTIONS
 from cgt_calc.render_text import render_text
 from cgt_calc.share_prices import SharePrices
@@ -2352,6 +2353,317 @@ def test_excess_reported_income_stays_off_a_name_another_isin_owns() -> None:
 
     assert report.total_gain() == Decimal(1700)
     assert report.total_eri_amount(is_interest=False) == Decimal(300)
+
+
+# Bundled under IGCB, a London ticker that is also the NYSE symbol of a US bond
+# fund.
+IGCB_FUND = Isin("IE00BKW9SW28")
+# Bundled under IHYG and SHYG. SHYG is also the symbol of a US iShares fund on
+# NYSE Arca; IHYG is no US symbol.
+SHYG_FUND = Isin("IE00B66F4759")
+# Bundled under WLDS and WSML, both of them US symbols: Wearable Devices on
+# Nasdaq, and a US iShares fund.
+WLDS_FUND = Isin("IE00BF4RFH31")
+# Bundled under VUSA and VUSD, neither of them a US symbol.
+VUSA_FUND = Isin("IE00B3XXRP09")
+# A Vanguard fund bundled under VERX, also Vertex's Nasdaq symbol.
+VERX_FUND = Isin("IE00BKX55S42")
+
+
+def _ticker_only_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """Return the warnings about a report matched by a US symbol alone."""
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("Excess reported income of fund")
+    ]
+
+
+def test_a_report_matched_by_a_us_symbol_alone_warns_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A report reaching a holding by a ticker that is also a US symbol warns.
+
+    No row says whether the SHYG holding is the bundled fund or the US one.
+    VUSA's fund is bundled too, but VUSA is no US symbol, so its report is
+    applied without a word. The figures are as they were: both reports raise
+    the costs, and SHYG's two reports give one warning between them. The
+    rows it offers keep the fund's other ticker, IHYG, either way.
+
+    SHYG: 100 shares cost 1000, and reports of 1 and 2 a share add 100 and
+    200: 1300. Sold for 2000, a gain of 700. VUSA: 10 shares cost 500, and a
+    report of 3 a share adds 30: 530. Sold for 600, a gain of 70. Together
+    770.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions: list[BrokerTransaction] = [
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "SHYG", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "VUSA", 10, 500),
+        _eri(dt.date(2024, 6, 30), SHYG_FUND, 1),
+        _eri(dt.date(2024, 6, 30), VUSA_FUND, 3),
+        _eri(dt.date(2024, 12, 31), SHYG_FUND, 2),
+        _gbp_trade(dt.date(2025, 2, 3), ActionType.SELL, "SHYG", 100, 2000),
+        _gbp_trade(dt.date(2025, 2, 3), ActionType.SELL, "VUSA", 10, 600),
+    ]
+    transactions.sort(key=_transaction_sort_key)
+
+    warning = (
+        "Excess reported income of fund IE00B66F4759 was added to SHYG because "
+        "cgt-calc's bundled ISIN list gives that fund the ticker SHYG, which is "
+        "also a US symbol, and no row in your files says which security SHYG "
+        "is.\n"
+        "If your SHYG is not that fund, add this row to your ISIN translation "
+        "file:\n"
+        "    IE00B66F4759,IHYG\n"
+        "If it is that fund, add this row instead:\n"
+        "    IE00B66F4759,IHYG,SHYG\n"
+        "See https://cgt-calc.uk/extra-data-and-options/"
+        "#tickers-that-are-also-us-symbols"
+    )
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(770)
+    assert _ticker_only_warnings(caplog) == [warning]
+
+    # A calculation run again over the same history warns again.
+    calculator.calculate_capital_gain()
+
+    assert _ticker_only_warnings(caplog) == [warning, warning]
+
+
+def test_a_warning_names_the_fund_s_other_us_symbol_its_rows_keep(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Both rows a WLDS warning offers keep WSML, also a US symbol, for the fund.
+
+    Either row replaces the fund's bundled entry, and cgt-calc warns about no
+    ticker on it again. So the warning names WSML too: a user settling WLDS
+    alone would otherwise silence a later US WSML holding without knowing.
+
+    100 shares cost 1000, and a report of 1 a share adds 100: 1100. Sold for
+    1500, a gain of 400.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions: list[BrokerTransaction] = [
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "WLDS", 100, 1000),
+        _eri(dt.date(2024, 6, 30), WLDS_FUND, 1),
+        _gbp_trade(dt.date(2025, 2, 3), ActionType.SELL, "WLDS", 100, 1500),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(400)
+    assert _ticker_only_warnings(caplog) == [
+        (
+            "Excess reported income of fund IE00BF4RFH31 was added to WLDS because "
+            "cgt-calc's bundled ISIN list gives that fund the ticker WLDS, which "
+            "is also a US symbol, and no row in your files says which security "
+            "WLDS is.\n"
+            "If your WLDS is not that fund, add this row to your ISIN translation "
+            "file:\n"
+            "    IE00BF4RFH31,WSML\n"
+            "If it is that fund, add this row instead:\n"
+            "    IE00BF4RFH31,WLDS,WSML\n"
+            "Either row also gives that fund WSML, which is a US symbol too: leave "
+            "WSML out if your WSML is not that fund.\n"
+            "See https://cgt-calc.uk/extra-data-and-options/"
+            "#tickers-that-are-also-us-symbols"
+        )
+    ]
+
+
+def test_a_report_carried_by_bed_and_breakfast_warns_too(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A report reaching the holding through a repurchase warns as well.
+
+    All 100 IGCB are sold on 20 December, before the fund's report of 31
+    December, and bought back on 10 January. The sale is matched with the
+    repurchase, and the report, of 2 a share, goes with the shares as if they
+    had been held on its date. Nothing is held on the date itself.
+
+    The sale, for 1500, is matched with the repurchase at 1200: a gain of
+    300. The repurchased shares take the pool's cost of 1000 and the report's
+    200: 1200. Sold on 3 February for 1500, a gain of 300. Together 600.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions: list[BrokerTransaction] = [
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "IGCB", 100, 1000),
+        _gbp_trade(dt.date(2024, 12, 20), ActionType.SELL, "IGCB", 100, 1500),
+        _eri(dt.date(2024, 12, 31), IGCB_FUND, 2),
+        _gbp_trade(dt.date(2025, 1, 10), ActionType.BUY, "IGCB", 100, 1200),
+        _gbp_trade(dt.date(2025, 2, 3), ActionType.SELL, "IGCB", 100, 1500),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(600)
+    assert len(_ticker_only_warnings(caplog)) == 1
+
+
+def test_a_report_on_a_holding_renamed_to_a_us_symbol_names_both(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A report reaching a holding before its rename to IGCB names both tickers.
+
+    The shares are OLD when the fund reports and IGCB from the rename day.
+    The report is applied to OLD, which no bundled row names: it reaches OLD
+    only because IGCB is the fund's ticker, and the rows that settle it are
+    IGCB's.
+
+    100 shares cost 1000, and income of 2 a share adds 200: 1200. Sold for
+    3000, a gain of 1800.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions: list[BrokerTransaction] = [
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _eri(dt.date(2024, 5, 8), IGCB_FUND, 2),
+        _rename_transaction(RENAME_DAY, "OLD", "IGCB"),
+        _gbp_trade(dt.date(2024, 5, 20), ActionType.SELL, "IGCB", 100, 3000),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(1800)
+    [warning] = _ticker_only_warnings(caplog)
+    assert warning.startswith(
+        "Excess reported income of fund IE00BKW9SW28 was added to OLD (renamed "
+        "to or from IGCB) because cgt-calc's bundled ISIN list gives that fund "
+        "the ticker IGCB,"
+    )
+    assert "    IE00BKW9SW28,\n" in warning
+    assert "    IE00BKW9SW28,IGCB\n" in warning
+
+
+@pytest.mark.parametrize(
+    ("other_broker_row", "warnings"),
+    [(False, 0), (True, 1)],
+    ids=["Vanguard only", "and another broker"],
+)
+def test_a_vanguard_holding_warns_only_with_another_broker_s_row(
+    other_broker_row: bool, warnings: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A holding seen only in Vanguard exports is Vanguard's own fund.
+
+    VERX is a Vanguard fund's London ticker and Vertex's US symbol. Vanguard
+    sells only its own funds, so its report is applied without a warning. A
+    row under VERX from another broker, here a dividend, could be Vertex, and
+    the warning is back.
+
+    100 shares cost 1000, and a report of 1 a share adds 100: 1100. Sold for
+    1500, a gain of 400, whichever rows name the holding.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions: list[BrokerTransaction] = [
+        VanguardTransaction.from_fields(
+            dt.date(2024, 5, 1),
+            ActionType.BUY,
+            "VERX",
+            Decimal(100),
+            Decimal(10),
+            Decimal(-1000),
+            CurrencyCode("GBP"),
+            is_reversal=False,
+        ),
+        _eri(dt.date(2024, 6, 30), VERX_FUND, 1),
+        VanguardTransaction.from_fields(
+            dt.date(2025, 2, 3),
+            ActionType.SELL,
+            "VERX",
+            Decimal(100),
+            Decimal(15),
+            Decimal(1500),
+            CurrencyCode("GBP"),
+            is_reversal=False,
+        ),
+    ]
+    if other_broker_row:
+        transactions.append(
+            transaction(
+                dt.date(2024, 7, 15),
+                ActionType.DIVIDEND,
+                "VERX",
+                amount=5,
+                currency=GBP,
+            )
+        )
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(400)
+    assert len(_ticker_only_warnings(caplog)) == warnings
+
+
+def test_a_fund_named_by_its_own_isin_keeps_its_report_without_a_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A row exporting IGCB with the fund's ISIN says which security it is.
+
+    An Interactive Brokers dividend names its security that way. The report
+    is the holding's own, and nothing is left to warn about.
+
+    100 shares cost 1000, and a report of 1 a share adds 100: 1100. Sold for
+    1500, a gain of 400.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions: list[BrokerTransaction] = [
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "IGCB", 100, 1000),
+        _eri(dt.date(2024, 6, 30), IGCB_FUND, 1),
+        transaction(
+            dt.date(2024, 7, 15),
+            ActionType.DIVIDEND,
+            "IGCB",
+            amount=5,
+            currency=GBP,
+            isin=IGCB_FUND,
+        ),
+        _gbp_trade(dt.date(2025, 2, 3), ActionType.SELL, "IGCB", 100, 1500),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(400)
+    assert _ticker_only_warnings(caplog) == []
+
+
+@pytest.mark.parametrize(
+    ("report_day", "buy_day", "sale_day"),
+    [
+        (dt.date(2024, 6, 30), dt.date(2024, 7, 1), dt.date(2024, 9, 2)),
+        (dt.date(2024, 12, 31), dt.date(2024, 5, 1), dt.date(2024, 12, 20)),
+        (dt.date(2024, 12, 31), dt.date(2024, 5, 1), dt.date(2024, 12, 31)),
+    ],
+    ids=["bought after it", "sold before it", "sold on its day"],
+)
+def test_a_report_dated_while_nothing_is_held_does_not_warn(
+    report_day: dt.date,
+    buy_day: dt.date,
+    sale_day: dt.date,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A report read but applied to no holding gives no warning.
+
+    Nothing is held at the end of the report's day. A sale in the 30 days
+    before it, or on the day itself, is looked at for a repurchase that would
+    carry the report, and there is none. Nothing was added to the cost, so
+    there is nothing to warn about.
+
+    100 shares cost 1000 and sell for 1500: a gain of 500.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions: list[BrokerTransaction] = [
+        _eri(report_day, IGCB_FUND, 1),
+        _gbp_trade(buy_day, ActionType.BUY, "IGCB", 100, 1000),
+        _gbp_trade(sale_day, ActionType.SELL, "IGCB", 100, 1500),
+    ]
+    # Where the command line puts a report: after its day's other rows.
+    transactions.sort(key=_transaction_sort_key)
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(500)
+    assert _ticker_only_warnings(caplog) == []
 
 
 def test_the_first_pass_leaves_a_rename_day_under_the_closing_ticker() -> None:

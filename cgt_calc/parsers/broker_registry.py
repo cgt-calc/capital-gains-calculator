@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import csv
-import io
 import logging
 import sys
 from typing import TYPE_CHECKING, ClassVar
@@ -25,6 +23,7 @@ from cgt_calc.parsers.sharesight import SharesightParser
 from cgt_calc.parsers.trading212 import Trading212Parser
 from cgt_calc.parsers.vanguard import VanguardParser, VanguardTransaction
 from cgt_calc.rename_planning import connected_names
+from cgt_calc.util import csv_fields
 
 if TYPE_CHECKING:
     import argparse
@@ -124,20 +123,6 @@ def _transaction_sort_key(
     return (transaction.date, order)
 
 
-def _as_csv_fields(symbols: list[str]) -> str:
-    """Render symbols the way the cache file has to spell them.
-
-    A Vanguard symbol falls back to the fund name, which can contain a comma
-    or a quote. The listed text is meant to be copied into the translation
-    CSV, so write it with the same module that reads the cache: each field
-    then survives the round trip verbatim, and a comma inside a name is
-    quoted rather than read as a separator.
-    """
-    buffer = io.StringIO()
-    csv.writer(buffer).writerow(symbols)
-    return buffer.getvalue().rstrip("\r\n")
-
-
 class BrokerRegistry:
     """Registry for all broker parsers."""
 
@@ -209,7 +194,7 @@ class BrokerRegistry:
                 "row listing every symbol it is known by: a row that leaves one "
                 "out replaces the existing mapping and can stop a later run. "
                 "See https://cgt-calc.uk/extra-data-and-options/#isin-to-ticker-translation",
-                _as_csv_fields(unmapped_vanguard_symbols),
+                csv_fields(unmapped_vanguard_symbols),
                 location,
             )
         all_transactions += [

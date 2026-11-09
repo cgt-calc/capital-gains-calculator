@@ -131,6 +131,11 @@ class PreparedHistory:
     # itself once it is in.
     fee_days: set[tuple[dt.date, str]] = field(default_factory=set)
     eris: ExcessReportedIncomeLog = field(default_factory=lambda: defaultdict(dict))
+    # The warning for each holding whose reports reach it only because the
+    # bundled list gives a fund a ticker that is also a US symbol. Written when
+    # the report is read, where the mapping is known, and printed by the walk
+    # only if a report changes the holding's cost.
+    ticker_only_eri_warnings: dict[str, str] = field(default_factory=dict)
     # The date of the earliest transaction, where the walk starts.
     first_date: dt.date | None = None
 
@@ -181,6 +186,8 @@ class RunState:
     spin_off_corrected_amounts: dict[tuple[dt.date, str], Decimal] = field(
         default_factory=dict
     )
+    # Holdings whose ticker-only warning this calculation has printed.
+    ticker_only_eri_warned: set[str] = field(default_factory=set)
 
     def reset(self) -> None:
         """Forget what the last calculation built, keeping how far ingestion got.

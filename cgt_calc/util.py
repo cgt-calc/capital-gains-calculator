@@ -5,6 +5,7 @@ from contextlib import contextmanager, suppress
 import csv
 import decimal
 from decimal import Decimal, InvalidOperation
+import io
 from pathlib import Path
 import secrets
 import shutil
@@ -202,6 +203,19 @@ def open_with_parents(path: Path, *, clear_content: bool = True) -> TextIO:
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     return path.open("w" if clear_content else "r+", encoding="utf8", newline="")
+
+
+def csv_fields(fields: list[str]) -> str:
+    """Write fields as one CSV row, the way the ISIN translation file spells it.
+
+    The row is meant to be copied into that file, so it is written with the
+    module that reads the file: each field survives the round trip verbatim,
+    and a comma inside a name, such as a Vanguard fund's, is quoted rather
+    than read as a separator.
+    """
+    buffer = io.StringIO()
+    csv.writer(buffer).writerow(fields)
+    return buffer.getvalue().rstrip("\r\n")
 
 
 def save_csv(file: Path, rows: Iterable[Iterable[object]]) -> None:
