@@ -161,6 +161,17 @@ class Matcher:
         """Return Excess Reported Income at specific date for the input symbol."""
         return self.history.eris.get(date, {}).get(symbol)
 
+    def _warn_ticker_only_eri(self, eri: ExcessReportedIncome) -> None:
+        """Warn, once, that a report just added to a holding's cost may not be its.
+
+        Called where a report is applied, not where it is found: a report
+        dated while nothing was held changes nothing, and needs no warning.
+        """
+        warning = self.history.ticker_only_eri_warnings.get(eri.symbol)
+        if warning is not None and eri.symbol not in self.run.ticker_only_eri_warned:
+            self.run.ticker_only_eri_warned.add(eri.symbol)
+            LOGGER.warning("%s", warning)
+
     def _disposal_log_prefix(self, date_index: dt.date, symbol: str) -> str:
         """Name the kind of disposal recorded for a symbol on a day.
 
@@ -746,6 +757,7 @@ class Matcher:
                             amount=available_quantity * eri.price,
                             quantity=available_quantity,
                         )
+                        self._warn_ticker_only_eri(eri)
                         total_dist_amount += eri_distribution.amount
                         if self.date_in_tax_year(eri.distribution_date):
                             self.run.eris_distribution[eri.distribution_date][
@@ -1926,6 +1938,7 @@ class Matcher:
 
         if allowable_cost == 0:
             return None
+        self._warn_ticker_only_eri(eri)
 
         new_amount = amount + allowable_cost
         LOGGER.debug(

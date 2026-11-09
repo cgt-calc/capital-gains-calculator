@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 from importlib import resources
+import io
 import logging
 from pathlib import Path
 import re
@@ -20,6 +21,7 @@ from .const import (
     INITIAL_ISIN_TRANSLATION_RESOURCE,
     ISIN_TICKER_ALIASES,
     US_MARKET,
+    US_SYMBOLS_OF_BUNDLED_TICKERS,
     RuntimeMode,
 )
 from .exceptions import (
@@ -47,6 +49,13 @@ ISIN_TRANSLATION_COLUMNS_NUM: Final = len(ISIN_TRANSLATION_HEADER)
 # The symbol US over-the-counter markets give a security from outside the US.
 _US_OVER_THE_COUNTER_SYMBOL: Final = re.compile(r"[A-Z]{4}F")
 LOGGER = logging.getLogger(__name__)
+
+
+def _csv_line(fields: list[str]) -> str:
+    """Write one row of the translation file as a user would type it."""
+    buffer = io.StringIO()
+    csv.writer(buffer).writerow(fields)
+    return buffer.getvalue().rstrip("\r\n")
 
 
 @dataclass
@@ -192,6 +201,14 @@ class IsinConverter:
         A row carrying that ISIN under the same ticker is the London fund
         itself. The run then has two securities under one ticker, which
         would pool as one holding, so it is refused.
+
+        A ticker a row exports with an ISIN of its own is set aside from
+        every bundled fund with another ISIN, with no exception: that ISIN
+        names the row's security, whatever market the bundled entry is from.
+        The rows of the run without an ISIN under that ticker then take the
+        exported one. One of them could be the bundled fund's, held at a
+        broker that names no ISIN; that is two securities in one run, and is
+        not looked for.
         """
         us_symbols = {
             transaction.symbol
@@ -219,6 +236,36 @@ class IsinConverter:
                     "on this one. Two securities under one ticker would be pooled "
                     "and matched as one holding. Calculate them in separate runs.",
                 )
+        exported: dict[str, set[Isin]] = {}
+        for transaction in transactions:
+            if transaction.symbol and transaction.isin:
+                exported.setdefault(transaction.symbol, set()).add(transaction.isin)
+        for isin in self.bundled_isins:
+            self.data[isin] -= {
+                ticker
+                for ticker in self.data[isin]
+                if exported.get(ticker, {isin}) - {isin}
+            }
+
+    def ticker_only_rows(self, isin: Isin, symbol: str) -> tuple[str, str] | None:
+        """Return the mapping rows that settle a fund matched by a US symbol.
+
+        None unless the bundled list alone links the symbol to the ISIN, the
+        symbol is also a US one, and no row of the run exported it with an
+        ISIN: a holding of either security would match. The rows are the one
+        that takes the symbol away from the fund, keeping its other tickers,
+        and the one that confirms it.
+        """
+        tickers = self.data.get(isin, set())
+        if (
+            isin not in self.bundled_isins
+            or symbol not in tickers
+            or symbol not in US_SYMBOLS_OF_BUNDLED_TICKERS
+            or symbol in self.exported_isins
+        ):
+            return None
+        others = sorted(tickers - {symbol}) or [""]
+        return _csv_line([isin, *others]), _csv_line([isin, *sorted(tickers)])
 
     def add_from_transaction(self, transaction: BrokerTransaction) -> None:
         """Normalise the transaction's ticker and record what it links to.
@@ -248,7 +295,10 @@ class IsinConverter:
         even against reference data: validate_data() already guarantees one
         ISIN per ticker there, so a transaction reusing a ticker reference
         already gave to a different security is exactly the case this check
-        exists for, not a stale row to look past.
+        exists for, not a stale row to look past. The bundled list is the
+        exception, and never reaches this check: ``set_aside_london_tickers()``
+        has already taken the ticker from its fund. What is left to refuse is
+        the user's own file and the lookups it caches.
         """
         if not transaction.symbol:
             return

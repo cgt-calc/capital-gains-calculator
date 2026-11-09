@@ -89,6 +89,10 @@
 ^extra-data-and-options\.md:.*MergeWords
 # The ticker SAEM, in the comment that stops codespell rewriting it as "SAME".
 ^const\.py:.*SpellCheck.*`saem`
+# The ticker ESGE, in the comment that stops codespell rewriting it as "EDGE".
+^const\.py:.*SpellCheck.*`esge`
+# set_aside_london_tickers(), a method named in a docstring.
+^isin_converter\.py:.*SpellCheck.*`london`
 # "a trade earlier that day" is a time, not a comparison with "than".
 ^trading212\.md:.*ThatThan
 # "file system" as two words is standard; CompoundNouns wants "filesystem".

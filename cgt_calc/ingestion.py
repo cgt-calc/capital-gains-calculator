@@ -46,6 +46,7 @@ from .model import (
     SpinOff,
 )
 from .parsers.raw import raw_file_of
+from .parsers.vanguard import VanguardTransaction
 from .rename_planning import (
     connected_names,
     end_name,
@@ -81,7 +82,7 @@ if TYPE_CHECKING:
     from .current_price_fetcher import CurrentPriceFetcher
     from .income import IncomeProcessor
     from .isin_converter import IsinConverter
-    from .model import DatePeriod
+    from .model import DatePeriod, Isin
     from .share_prices import SharePrices
     from .spin_off_handler import SpinOffHandler
     from .stock_split_planning import KnownSplit
@@ -309,6 +310,9 @@ class TransactionIngester:
         # The RAW file the run reads, named by errors that say where to add a
         # row. Set from the history by prepare_history().
         self.raw_file: Path | None = None
+        # The tickers of rows from any input but Vanguard. Set by
+        # prepare_history().
+        self.non_vanguard_symbols: set[str] = set()
 
     def _nothing_held(
         self, action: str, symbol: str, transaction: BrokerTransaction
@@ -1494,6 +1498,47 @@ class TransactionIngester:
                 distribution_date=distribution_date,
                 is_interest=symbol.upper() in self.interest_fund_tickers,
             )
+        self._note_ticker_only_reports(transaction.isin, known, renamed, renames)
+
+    def _note_ticker_only_reports(
+        self,
+        isin: Isin,
+        known: set[str],
+        renamed: set[str],
+        renames: Mapping[str, str],
+    ) -> None:
+        """Prepare a warning for each holding a report reaches by a US symbol.
+
+        The bundled list gives a fund a ticker that is also a US symbol, and
+        nothing in the run says which of the two securities a holding under
+        it is. The report then reaches the holding by its ticker alone, and
+        reaches the names a rename joins to it too: the warning names both,
+        and the mapping row that settles it. A renamed name with an ISIN of its
+        own is not in ``renamed``, so the report never reaches it.
+
+        Vanguard sells only its own funds, so a holding seen in nothing but
+        Vanguard exports is the fund.
+        """
+        for ticker in sorted(known):
+            rows = self.isin_converter.ticker_only_rows(isin, ticker)
+            holding = connected_names(renames, ticker)
+            if rows is None or not holding & self.non_vanguard_symbols:
+                continue
+            remove, confirm = rows
+            for name in sorted(holding & ({ticker} | renamed)):
+                via = "" if name == ticker else f" (renamed to or from {ticker})"
+                self.history.ticker_only_eri_warnings.setdefault(
+                    name,
+                    f"Excess reported income of fund {isin} was added to {name}"
+                    f"{via} because cgt-calc's bundled ISIN list gives that fund "
+                    f"the ticker {ticker}, which is also a US symbol, and no row "
+                    f"in your files says which security {ticker} is.\n"
+                    f"If your {ticker} is not that fund, add this row to your ISIN "
+                    f"translation file:\n    {remove}\n"
+                    f"If it is that fund, add this row instead:\n    {confirm}\n"
+                    "See https://cgt-calc.uk/extra-data-and-options/"
+                    "#tickers-that-are-also-us-symbols",
+                )
 
     def add_rename(self, transaction: BrokerTransaction) -> None:
         """Apply a ticker rename during the first calculation pass.
@@ -1674,6 +1719,13 @@ class TransactionIngester:
         balance_history: list[Decimal] = []
 
         self.isin_converter.add_from_transactions(transactions)
+        # After add_from_transactions, which rewrites an alias to the ticker
+        # the holding and its reports go under.
+        self.non_vanguard_symbols = {
+            transaction.symbol
+            for transaction in transactions
+            if transaction.symbol and not isinstance(transaction, VanguardTransaction)
+        }
 
         transactions = self._resolve_gifts(transactions)
         # After add_from_transactions, so that a row exported under an alias

@@ -211,6 +211,9 @@ Irish one, see [Offshore Funds (ERI)](../offshore-funds.md).
     that warning is issued only when withholding tax was deducted and cgt-calc cannot infer a
     country from the currency. Verify foreign dividend income and tax against the broker statement
     rather than assuming that treaty limits were applied.
+- For the same reason, a ticker that is both a London fund's and a US security's, such as `OPEN`, is
+    matched to the fund, with a warning. See
+    [Tickers that are also US symbols](../extra-data-and-options.md#tickers-that-are-also-us-symbols).
 - The format does not identify the instrument type. It is intended for ordinary shares and funds; do
     not rely on it for options, futures, bonds, contracts for difference, crypto assets or another
     instrument whose UK tax treatment differs.
