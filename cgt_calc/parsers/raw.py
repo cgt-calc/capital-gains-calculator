@@ -113,7 +113,14 @@ class RawTransaction(BrokerTransaction):
         }
 
         date_str = row_values[RawColumn.DATE]
-        date = dt.datetime.strptime(date_str, "%Y-%m-%d").date()
+        try:
+            date = dt.datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError as err:
+            # "date", not "date format": a typed 2023-06-31 has the right form.
+            raise ParsingError(
+                file,
+                f"Invalid date: {date_str!r}, expected YYYY-MM-DD, e.g. '2023-08-15'",
+            ) from err
 
         action = _action_from_str(row_values[RawColumn.ACTION], file)
         symbol = row_values[RawColumn.SYMBOL] or None

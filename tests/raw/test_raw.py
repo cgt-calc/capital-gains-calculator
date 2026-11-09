@@ -773,6 +773,40 @@ def test_read_raw_transactions_unknown_action_names_its_row(tmp_path: Path) -> N
 
 
 @pytest.mark.parametrize(
+    "date",
+    [
+        pytest.param("15/08/2023", id="day first"),
+        # Written the right way round, but June has 30 days.
+        pytest.param("2023-06-31", id="no such day"),
+    ],
+)
+def test_read_raw_transactions_quotes_an_unreadable_date_with_the_form_it_takes(
+    tmp_path: Path, date: str
+) -> None:
+    """A date that cannot be read is quoted at its own row, with the form RAW takes.
+
+    The header is row 1 and a good row is row 2, so the date is on row 3.
+    The user wrote the file, so it is not marked as needing a cgt-calc update.
+    """
+    raw_file = tmp_path / "raw_bad_date.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2023-08-14,BUY,XYZ,10,2.50,0,USD\n"
+        f"{date},BUY,XYZ,10,2.50,0,USD\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ParsingError) as exc:
+        RawParser().load_from_file(raw_file)
+
+    assert str(exc.value) == (
+        f"While parsing {raw_file}, row 3: Invalid date: '{date}', "
+        "expected YYYY-MM-DD, e.g. '2023-08-15'"
+    )
+    assert not exc.value.needs_update
+
+
+@pytest.mark.parametrize(
     "content", ["", "\n   \n,,,,,,\n"], ids=["no bytes", "only blank rows"]
 )
 def test_read_raw_transactions_empty_file(tmp_path: Path, content: str) -> None:
