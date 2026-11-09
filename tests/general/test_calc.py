@@ -16,6 +16,7 @@ import select
 import signal
 import subprocess
 import sys
+import time
 from typing import TYPE_CHECKING
 
 import pytest
@@ -3182,10 +3183,11 @@ def test_ctrl_c_at_the_spin_off_prompt_stops_the_run_with_one_line(
                     if not (chunk := os.read(run.stdout.fileno(), len(prompt))):
                         break
                     shown += chunk
-                # Python acts on a signal between its own steps, and cuts short
-                # a read that is waiting. One that lands after the prompt is
-                # written but before the read begins is only noted, and the
-                # read then waits; a second one ends it. No one types that fast.
+                # Wait as a person would, so the signal finds the read waiting.
+                # One that lands after the prompt is written but before the
+                # read begins is only noted, and the read then waits; on a busy
+                # machine that can still happen, and a second one ends it.
+                time.sleep(0.2)
                 run.send_signal(signal.SIGINT)
                 try:
                     out, err = run.communicate(timeout=5)
