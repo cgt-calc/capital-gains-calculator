@@ -203,7 +203,11 @@ class HargreavesLansdownParser(
         try:
             trade_date = datetime.strptime(date_str, "%d/%m/%Y").date()
         except ValueError as err:
-            raise ParsingError(file_path, f"Invalid date format: {date_str}") from err
+            raise ParsingError(
+                file_path,
+                f"Invalid date in column 'Trade date': {date_str!r}, "
+                "expected DD/MM/YYYY, e.g. '25/02/2026'",
+            ) from err
 
         quantity = None
         price = None
