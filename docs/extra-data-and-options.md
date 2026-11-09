@@ -165,9 +165,10 @@ Interactive Brokers dividend rows do, is not matched to a bundled ticker that be
 ISIN either. The ISIN says which security it is, so cgt-calc uses it, and treats the run's other
 transactions under the same ticker that carry no ISIN as the same security. If one of them is in
 fact the bundled fund, held at a broker whose export gives no ISIN, the two would be pooled as one
-holding: calculate them in separate runs. A Vanguard transaction under the ticker is always
-Vanguard's own fund, so cgt-calc stops instead; see
-[`is a Vanguard fund's on this row`](#is-a-vanguard-funds-on-this-row).
+holding: calculate them in separate runs.
+
+In both cases, a Vanguard transaction under the ticker is always Vanguard's own fund, so cgt-calc
+stops instead; see [`is a Vanguard fund's on this row`](#is-a-vanguard-funds-on-this-row).
 
 #### Tickers that are also US symbols
 
@@ -234,9 +235,9 @@ two securities, and cgt-calc would pool them as one holding. Calculate them in s
 #### `is a Vanguard fund's on this row`
 
 A Vanguard transaction uses a ticker that the bundled list gives a Vanguard fund, such as `VERX`.
-Another transaction exports the same ticker with a different ISIN, such as Vertex's. Vanguard sells
-only its own funds, so they are two securities, and cgt-calc would pool them as one holding.
-Calculate them in separate runs.
+Another transaction exports the same ticker with a different ISIN, such as Vertex's, or uses it as a
+US symbol, as a Charles Schwab one does. Vanguard sells only its own funds, so they are two
+securities, and cgt-calc would pool them as one holding. Calculate them in separate runs.
 
 ### Temporary cache files
 

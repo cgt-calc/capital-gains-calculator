@@ -192,8 +192,9 @@ class IsinConverter:
         one ticker is one holding. The fund keeps its other tickers.
 
         A row carrying that ISIN under the same ticker is the London fund
-        itself. The run then has two securities under one ticker, which
-        would pool as one holding, so it is refused.
+        itself, and so is a Vanguard row under that ticker, as Vanguard sells
+        only its own funds. The run then has two securities under one ticker,
+        which would pool as one holding, so it is refused.
 
         A ticker a row exports with an ISIN of its own is set aside from
         every bundled fund with another ISIN, with no exception: that ISIN
@@ -223,6 +224,16 @@ class IsinConverter:
                 set_aside[ticker] = isin
             self.data[isin] -= london
         for transaction in transactions:
+            symbol = transaction.symbol
+            if symbol in set_aside and isinstance(transaction, VanguardTransaction):
+                raise InvalidTransactionError(
+                    transaction,
+                    f"Ticker {symbol} is a Vanguard fund's on this row, which the "
+                    f"bundled list gives ISIN {set_aside[symbol]}, and a US symbol "
+                    "on another row of this run. Two securities under one ticker "
+                    "would be pooled and matched as one holding. Calculate them in "
+                    "separate runs.",
+                )
             if (transaction.symbol, transaction.isin) in set_aside.items():
                 raise InvalidTransactionError(
                     transaction,

@@ -608,6 +608,36 @@ def test_an_exported_isin_beside_a_vanguard_fund_under_its_ticker_is_refused() -
         converter.set_aside_london_tickers([vanguard, _transaction(ISIN_A, "VERX")])
 
 
+def test_a_us_symbol_beside_a_vanguard_fund_under_its_ticker_is_refused() -> None:
+    """A Vanguard VERX row and a US VERX row without an ISIN are two securities.
+
+    The US row's VERX is Vertex, Inc. Vanguard sells only its own funds, so
+    its VERX is the fund the bundled list gives VERX: Vanguard FTSE Developed
+    Europe ex UK, IE00BKX55S42. Setting VERX aside for the US row alone would
+    pool the fund with Vertex under no ISIN.
+    """
+    converter = IsinConverter()
+    vanguard = VanguardTransaction.from_fields(
+        dt.date(2023, 1, 1),
+        ActionType.BUY,
+        "VERX",
+        Decimal(1),
+        Decimal(1),
+        Decimal(-1),
+        CurrencyCode("GBP"),
+        is_reversal=False,
+    )
+
+    with pytest.raises(
+        InvalidTransactionError,
+        match=re.escape(
+            "Ticker VERX is a Vanguard fund's on this row, which the bundled list "
+            "gives ISIN IE00BKX55S42, and a US symbol on another row of this run."
+        ),
+    ):
+        converter.set_aside_london_tickers([_us("VERX"), vanguard])
+
+
 def test_an_exported_isin_leaves_the_users_own_row_to_refuse_it(
     tmp_path: Path,
 ) -> None:
