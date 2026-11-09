@@ -272,8 +272,8 @@ class IsinConverter:
         match. The rows are the one that takes the symbol away from the fund,
         keeping its other tickers, and the one that confirms it.
 
-        Either row replaces the fund's bundled entry, so neither ticker it
-        keeps is warned about again. The fund's other tickers that are US
+        Either row replaces the fund's bundled entry, so none of the tickers
+        it keeps is warned about again. The fund's other tickers that are US
         symbols too are returned last, for the warning to name them.
         """
         if (
