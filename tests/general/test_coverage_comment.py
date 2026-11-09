@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from decimal import Decimal
 from email.message import Message
+import io
 import json
 import subprocess
-from typing import TYPE_CHECKING
+import time
+from typing import TYPE_CHECKING, NamedTuple
 import urllib.error
+import urllib.request
 
 import pytest
 
@@ -960,6 +963,65 @@ def codecov_holding(reports: Reports) -> Callable[[str, str], str]:
     return read
 
 
+# Where the script reads Codecov's API for this repository.
+API = "https://api.codecov.io/api/v2/github/cgt-calc/repos/capital-gains-calculator/"
+# One of the reads Codecov was seen to refuse, and what it is said to have
+# answered.
+REFUSED = f"compare/?{AGAINST_BASE}"
+RATE_LIMITED = '{"detail":"Github API rate limit error: Forbidden"}'
+REFUSED_AS_RATE_LIMITED = (
+    f"Codecov refused {API}{REFUSED} with 403, saying '{RATE_LIMITED}'."
+)
+
+
+class Refusal(NamedTuple):
+    """A 403 from Codecov: the headers it came with, then what it said."""
+
+    headers: dict[str, str]
+    said: str
+
+
+class FakeCodecov:
+    """Stand in for Codecov's API where the script reaches it, at `urlopen`.
+
+    It holds the comparisons given, as `codecov_holding` does, but first
+    answers an address with 403 once for each refusal queued for it. It
+    keeps every address asked for and every wait the script sleeps for, so
+    that no test waits for real.
+    """
+
+    def __init__(
+        self,
+        reports: Reports,
+        refusals: dict[str, list[Refusal]] | None = None,
+    ) -> None:
+        """Hold the comparisons, and the refusals to give before each one."""
+        self.holding = codecov_holding(reports)
+        self.refusals = refusals or {}
+        self.asked: list[str] = []
+        self.waits: list[float] = []
+
+    def stand_in(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Answer the script's reads of Codecov here, and keep its waits."""
+        monkeypatch.setattr(urllib.request, "urlopen", self.urlopen)
+        monkeypatch.setattr(time, "sleep", self.waits.append)
+
+    def urlopen(self, url: str, timeout: float) -> io.BytesIO:
+        """Answer one read, or refuse it if a refusal is still queued for it."""
+        assert url.startswith(API), url
+        assert timeout == 60
+        address = url.removeprefix(API)
+        self.asked.append(address)
+        if self.refusals.get(address):
+            refusal = self.refusals[address].pop(0)
+            headers = Message()
+            for name, value in refusal.headers.items():
+                headers[name] = value
+            said = io.BytesIO(refusal.said.encode())
+            raise urllib.error.HTTPError(url, 403, "Forbidden", headers, said)
+        return io.BytesIO(self.holding(REPO, address).encode())
+
+
 def against_base(compare: Compare) -> Reports:
     """Hold one comparison with the commit CI merged into, with no breakdowns."""
     return {AGAINST_BASE: (compare, [], [])}
@@ -1360,6 +1422,68 @@ def test_figures_from_before_are_those_of_the_commit_ci_merged_into(
     assert capsys.readouterr().err == log
 
 
+def test_read_that_codecov_refuses_for_a_while_is_asked_again(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A read refused with 403 is asked again after 15, 30 and 60 seconds.
+
+    Codecov refuses the comparison with the commit CI merged into three
+    times and answers the fourth read. It refuses the components of that
+    comparison once, and they get waits of their own, starting again at 15
+    seconds. The comment is the one it would have been had Codecov answered
+    at once, and the flags are read only once. The log gives each refusal's
+    address and status, the two headers that say when to ask again when it
+    sent them, and the first 200 characters of what it said: for the second,
+    the 199 x's and the y, but not the z. The third is quoted, so its line
+    breaks stay on the one line.
+    """
+    components = f"compare/components?{AGAINST_BASE}"
+    codecov = FakeCodecov(
+        BEHIND_MAIN,
+        {
+            REFUSED: [
+                Refusal(
+                    {"Retry-After": "60", "X-RateLimit-Reset": "1794226800"},
+                    RATE_LIMITED,
+                ),
+                Refusal({}, "x" * 199 + "yz"),
+                Refusal({"X-RateLimit-Reset": "1794226800"}, "<p>\n::Forbidden\n"),
+            ],
+            components: [Refusal({}, RATE_LIMITED)],
+        },
+    )
+    codecov.stand_in(monkeypatch)
+    github = FakeGitHub([(7, HEAD)], [OWN], [PASSED])
+    github.stand_in(monkeypatch)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["coverage_comment.py", "--repo", REPO, "--sha", HEAD],
+    )
+
+    coverage_comment.main()
+
+    assert github.writes == [("PATCH", EDIT, COMPARED_WITH_BASE)]
+    assert codecov.asked == [
+        *[REFUSED] * 4,
+        components,
+        components,
+        f"compare/flags?{AGAINST_BASE}",
+    ]
+    assert codecov.waits == [15, 30, 60, 15]
+    assert capsys.readouterr().err == (
+        f"Codecov refused {API}{REFUSED} with 403, Retry-After: 60,"
+        f" X-RateLimit-Reset: 1794226800, saying '{RATE_LIMITED}'."
+        " Asking again in 15s.\n"
+        f"Codecov refused {API}{REFUSED} with 403, saying '{'x' * 199}y'."
+        " Asking again in 30s.\n"
+        f"Codecov refused {API}{REFUSED} with 403, X-RateLimit-Reset: 1794226800,"
+        " saying '<p>\\n::Forbidden\\n'. Asking again in 60s.\n"
+        f"Codecov refused {API}{components} with 403, saying '{RATE_LIMITED}'."
+        " Asking again in 15s.\n"
+    )
+
+
 def test_change_is_still_judged_when_the_figures_from_before_are_left_out(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1369,6 +1493,8 @@ def test_change_is_still_judged_when_the_figures_from_before_are_left_out(
     pull request changes is missed, which is 0 of 1, and Codecov failed it.
     The comment is still posted, with the verdict, the missed line and, for
     the flag, how many lines changed. The anchor is the SHA-256 of the path.
+    Codecov's 404 is an answer, not a refusal to ask again: it is read once,
+    with no wait, before the pull request's own comparison is.
     """
     reports: Reports = {
         AGAINST_BASE: 404,
@@ -1387,7 +1513,8 @@ def test_change_is_still_judged_when_the_figures_from_before_are_left_out(
     }
     github = FakeGitHub([(7, HEAD)], OTHERS, [JOB_PASSED, FAILED])
     github.stand_in(monkeypatch)
-    monkeypatch.setattr(coverage_comment, "codecov", codecov_holding(reports))
+    codecov = FakeCodecov(reports)
+    codecov.stand_in(monkeypatch)
     monkeypatch.setattr(
         "sys.argv",
         ["coverage_comment.py", "--repo", REPO, "--sha", HEAD],
@@ -1395,6 +1522,13 @@ def test_change_is_still_judged_when_the_figures_from_before_are_left_out(
 
     coverage_comment.main()
 
+    assert codecov.asked == [
+        f"compare/?{AGAINST_BASE}",
+        f"compare/?{FOR_PULL}",
+        f"compare/components?{FOR_PULL}",
+        f"compare/flags?{FOR_PULL}",
+    ]
+    assert codecov.waits == []
     posted = (
         "<!-- cgt-calc-coverage -->\n"
         "### :x: 0.00% of changed lines covered\n"
@@ -1426,31 +1560,72 @@ def test_change_is_still_judged_when_the_figures_from_before_are_left_out(
     assert github.writes == [("POST", NEW, posted)]
 
 
+@pytest.mark.parametrize(
+    ("reports", "refusals", "error", "reads", "waits", "log"),
+    [
+        pytest.param(
+            {**BEHIND_MAIN, AGAINST_BASE: 500},
+            0,
+            "HTTP Error 500: Refused",
+            1,
+            [],
+            "",
+            id="a server error is not asked again",
+        ),
+        pytest.param(
+            BEHIND_MAIN,
+            4,
+            "HTTP Error 403: Forbidden",
+            4,
+            [15, 30, 60],
+            (
+                f"{REFUSED_AS_RATE_LIMITED} Asking again in 15s.\n"
+                f"{REFUSED_AS_RATE_LIMITED} Asking again in 30s.\n"
+                f"{REFUSED_AS_RATE_LIMITED} Asking again in 60s.\n"
+                f"{REFUSED_AS_RATE_LIMITED} Not asking again.\n"
+            ),
+            id="a 403 still there after the last wait is raised",
+        ),
+    ],
+)
 def test_fault_at_codecov_stops_the_run_and_drops_no_figures(
+    reports: Reports,
+    refusals: int,
+    error: str,
+    reads: int,
+    waits: list[float],
+    log: str,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Only a missing report is a reason to leave the figures from before out.
 
     A server error says nothing about the report for the commit CI merged
-    into. The run fails, where it is seen and can be run again, and the
-    comment already on the pull request is not rewritten without its figures.
+    into, and nor does a 403 that Codecov gives to all four reads. The run
+    fails, where it is seen and can be run again, and the comment already on
+    the pull request is not rewritten without its figures. A server error is
+    raised at once and not logged. The last 403 is raised after the waits of
+    15, 30 and 60 seconds, though Codecov would have answered a fifth read.
     """
+    codecov = FakeCodecov(
+        reports,
+        {REFUSED: [Refusal({}, RATE_LIMITED)] * refusals},
+    )
+    codecov.stand_in(monkeypatch)
     github = FakeGitHub([(7, HEAD)], [OWN], [PASSED])
     github.stand_in(monkeypatch)
-    monkeypatch.setattr(
-        coverage_comment,
-        "codecov",
-        codecov_holding({**BEHIND_MAIN, AGAINST_BASE: 500}),
-    )
     monkeypatch.setattr(
         "sys.argv",
         ["coverage_comment.py", "--repo", REPO, "--sha", HEAD],
     )
 
-    with pytest.raises(urllib.error.HTTPError, match="HTTP Error 500"):
+    with pytest.raises(urllib.error.HTTPError, match=f"^{error}$"):
         coverage_comment.main()
 
+    assert codecov.asked == [REFUSED] * reads
+    assert codecov.waits == waits
     assert github.writes == []
+    assert capsys.readouterr().err == log
 
 
 # Pull request 7 when it changes three measured files and adds one line to
