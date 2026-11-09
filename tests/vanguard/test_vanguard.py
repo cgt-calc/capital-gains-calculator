@@ -118,6 +118,36 @@ def test_bond_fund_named_in_mixed_case_is_reported_as_interest(tmp_path: Path) -
     assert re.search(r"\n  Proceeds: +£0\.00\n", result.stdout)
 
 
+def test_dividend_declared_in_dollars_is_reported_as_its_sterling_cash_credit(
+    tmp_path: Path,
+) -> None:
+    """A dividend's Amount is the sterling credit, whatever currency its rate is in.
+
+    `@ USD 0.5000` is the rate declared per unit, in dollars, while the cash
+    table's Amount is what reached the sterling cash account. The invented row
+    stands for 100 units at USD 0.50 = USD 50.00, credited as
+    50.00 / 1.3048 = GBP 38.32, so the report shows £38.32. Reading the Amount
+    as dollars would instead report 38.32 / 1.3048 = £29.37 at the cached May
+    2022 rate.
+    """
+    vanguard_file = tmp_path / "usd_dividend.csv"
+    _write_csv(
+        vanguard_file,
+        [COLUMNS, ["09/05/2022", "DIV: WLD.XLON.GB @ USD 0.5000", "38.32", "38.32"]],
+    )
+
+    cmd = build_cmd(
+        "--year",
+        "2022",
+        "--vanguard-file",
+        str(vanguard_file),
+        "--no-report",
+    )
+    result = run_cli(cmd)
+    assert "\n  WLD: 38.32 (GBP)\n" in result.stdout
+    assert re.search(r"\n  Proceeds: +£38\.32\n", result.stdout)
+
+
 def test_a_row_that_runs_over_several_lines_is_refused(tmp_path: Path) -> None:
     """A double quote left open takes in the rows below it; they are not dropped.
 
@@ -470,6 +500,9 @@ def test_dual_table_preserves_non_investment_transactions() -> None:
 
     dividends = [t for t in transactions if t.action == ActionType.DIVIDEND]
     assert len(dividends) == 4
+    # A dividend row states no unit count, and its rate is a distribution per
+    # unit, not a price, so neither is read from it (#1040).
+    assert [(d.quantity, d.price) for d in dividends] == [(None, None)] * 4
 
 
 def test_dual_table_reversal_handling() -> None:
