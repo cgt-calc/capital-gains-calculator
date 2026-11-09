@@ -36,6 +36,7 @@ jobs:
 
       - name: Enable auto-merge
         if: >-
+          steps.metadata.outputs.package-ecosystem == 'github-actions' ||
           steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
           steps.metadata.outputs.update-type == 'version-update:semver-patch'
         env:
