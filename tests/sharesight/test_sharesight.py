@@ -689,6 +689,7 @@ def test_parse_trade_report_with_newer_aliases(tmp_path: Path) -> None:
             False,
             id="no trades table",
         ),
+        pytest.param([], False, id="empty file"),
     ],
 )
 def test_load_from_dir_refuses_a_trades_report_without_a_recognised_header(
