@@ -891,7 +891,16 @@ def _award_prices_from_lines(
         try:
             date = dt.datetime.strptime(date_str, "%Y/%m/%d").date()
         except ValueError:
-            date = dt.datetime.strptime(date_str, "%m/%d/%Y").date()
+            try:
+                date = dt.datetime.strptime(date_str, "%m/%d/%Y").date()
+            except ValueError as err:
+                # The upper half of the split award row states the date.
+                raise ParsingError(
+                    schwab_award_transactions_file,
+                    f"Invalid date format: {date_str!r}, expected MM/DD/YYYY "
+                    "or YYYY/MM/DD, e.g. '01/15/2023'",
+                    row_index=row_index,
+                ) from err
         symbol_header = RequiredAwardColumn.SYMBOL.value
         symbol = row_dict[symbol_header] if row_dict[symbol_header] != "" else None
         fair_market_value_price_header = (
