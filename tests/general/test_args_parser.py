@@ -730,17 +730,25 @@ def test_existing_file_type_rejects_stdin() -> None:
 
 
 @pytest.mark.parametrize(
-    "argv",
+    ("argv", "named"),
     [
-        ["--raw-file", "-", "--schwab-file", "-"],
-        ["--raw-file", "-", "--eri-raw-file", "-"],
-        ["--vanguard-file", "-", "--freetrade-file", "-", "--raw-file", "-"],
+        (["--raw-file", "-", "--schwab-file", "-"], "--raw-file, --schwab-file"),
+        (["--raw-file", "-", "--eri-raw-file", "-"], "--eri-raw-file, --raw-file"),
+        (
+            ["--vanguard-file", "-", "--freetrade-file", "-", "--raw-file", "-"],
+            "--freetrade-file, --raw-file, --vanguard-file",
+        ),
     ],
 )
 def test_reject_duplicate_stdin_rejects_several_options(
-    argv: list[str], capsys: pytest.CaptureFixture[str]
+    argv: list[str], named: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Ensure '-' given to more than one option fails with a helpful error."""
+    """'-' given to more than one option is refused, naming each of them.
+
+    argparse prints its usage block first, and that lists every option, so only
+    the final error line shows which options the refusal named. They are listed
+    alphabetically, whatever order they were given in.
+    """
     parser = create_parser()
     args = parser.parse_args(argv)
 
@@ -748,10 +756,10 @@ def test_reject_duplicate_stdin_rejects_several_options(
         reject_duplicate_stdin(parser, args)
 
     assert exc_info.value.code == 2
-    message = capsys.readouterr().err
-    assert "can only be given to one option" in message
-    for option in argv[::2]:
-        assert option in message
+    assert capsys.readouterr().err.splitlines()[-1] == (
+        f"{parser.prog}: error: '-' reads from stdin and can only be given to "
+        f"one option, but was given to {named}"
+    )
 
 
 def test_reject_duplicate_stdin_allows_a_single_option() -> None:
