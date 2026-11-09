@@ -50,7 +50,7 @@ BAR_SALE_DAY = dt.date(2024, 8, 1)
 # FOO: a pool of 100, then on one day a purchase of 20 and a sale of 120, so the
 # sale is matched same day for 20 and against the pool for 100 and the sale fee
 # is apportioned between the two lines. BAR: one purchase sold at a loss, one
-# matching line, so only the heading carries its proceeds. A fee on every leg.
+# matching line, whose row repeats the heading's proceeds. A fee on every leg.
 TRANSACTIONS = [
     transaction(POOL_DAY, ActionType.BUY, "FOO", 100, 10, 1, -1001, GBP),
     transaction(SPLIT_DAY, ActionType.BUY, "FOO", 20, 12, 1, -241, GBP),
@@ -60,12 +60,12 @@ TRANSACTIONS = [
 ]
 
 HEADING = re.compile(r"^Disposal \d+: \S+ units of (\w+) for £([\d,.]+)")
+# A row of a disposal's table: number, rule, quantity, then proceeds, allowable
+# cost and the gain or loss.
 ENTRY = re.compile(
-    r"\d+\. [A-Z0-9 ]+\. Quantity: [\d.]+, "
-    r"(?:disposal proceeds: £([\d,.]+), )?"
-    r"allowable cost(?: on [^:]+)?: £([\d,.]+), (gain|loss): £([\d,.]+)\."
+    r"\d+\. [A-Z0-9 ]+? [\d.]+ £([\d,.]+) £([\d,.]+) (gain|loss) £([\d,.]+)"
 )
-TOTAL = re.compile(r"Total disposal proceeds: £([\d,.]+)")
+TOTAL = re.compile(r"Total disposal proceeds £([\d,.]+)")
 
 # The verified character set, written out here apart from cgt_calc.render_pdf.
 VERIFIED_RANGES = [
@@ -102,7 +102,7 @@ def render(tmp_path: Path) -> str:
 
 def disposals(
     text: str,
-) -> list[tuple[str, Decimal, list[tuple[Decimal | None, Decimal, Decimal]]]]:
+) -> list[tuple[str, Decimal, list[tuple[Decimal, Decimal, Decimal]]]]:
     """Each disposal's symbol and proceeds with its (proceeds, cost, gain) lines."""
     found = []
     for block in re.split(r"(?=Disposal \d+: )", text)[1:]:
@@ -110,7 +110,7 @@ def disposals(
         assert heading is not None, block
         lines = [
             (
-                money(proceeds) if proceeds else None,
+                money(proceeds),
                 money(cost),
                 money(gain) if sign == "gain" else -money(gain),
             )
@@ -148,10 +148,9 @@ def test_each_line_reconciles_to_the_penny(tmp_path: Path) -> None:
     """Proceeds less allowable cost is the gain on every line, give or take a penny."""
     found = disposals(render(tmp_path))
     assert [len(lines) for _, _, lines in found] == [2, 1]
-    for _, heading_proceeds, lines in found:
+    for _, _, lines in found:
         for proceeds, cost, gain in lines:
-            shown = heading_proceeds if proceeds is None else proceeds
-            assert abs(shown - cost - gain) <= PENNY, (shown, cost, gain)
+            assert abs(proceeds - cost - gain) <= PENNY, (proceeds, cost, gain)
 
 
 def test_lines_add_up_to_their_heading_and_the_total(tmp_path: Path) -> None:
@@ -159,10 +158,8 @@ def test_lines_add_up_to_their_heading_and_the_total(tmp_path: Path) -> None:
     text = render(tmp_path)
     found = disposals(text)
     for _, heading_proceeds, lines in found:
-        if len(lines) > 1:
-            parts = [proceeds for proceeds, _, _ in lines if proceeds is not None]
-            assert len(parts) == len(lines)
-            assert abs(sum(parts) - heading_proceeds) <= PENNY * len(parts)
+        parts = [proceeds for proceeds, _, _ in lines]
+        assert abs(sum(parts) - heading_proceeds) <= PENNY * len(parts)
     total = TOTAL.search(text)
     assert total is not None
     headings = [proceeds for _, proceeds, _ in found]
@@ -285,9 +282,13 @@ def test_every_verified_character_prints_as_itself(tmp_path: Path) -> None:
     The name holds every one, forty to a word so the heading can wrap, and the
     check reads pdfplumber's text for each glyph: its line extraction expands
     the ligature characters and puts spaces after some narrow accents. NFC
-    turns three Greek marks into the Latin characters they equal. With the
-    font's ligatures on, the letters "IJ" earlier in the name took the glyph of
-    Ĳ, and Ĳ then read back as "IJ".
+    turns three Greek marks into the Latin characters they equal. With
+    ligatures on, the "ff" of "differ" in the summary shared its glyph with ﬀ,
+    and the Regular copy of ﬀ then read back as "ff".
+
+    The name prints three times, in the purchase and sale headings (SemiBold)
+    and in the dividend line (Regular), and each must read back: a character
+    that one weight draws wrongly would still leave the other copies intact.
     """
     characters = [
         char
@@ -310,11 +311,15 @@ def test_every_verified_character_prints_as_itself(tmp_path: Path) -> None:
         glyphs = "".join(char["text"] for page in pdf.pages for char in page.chars)
     assert "(cid:" not in glyphs
     expected = unicodedata.normalize("NFC", name).replace(" ", "")
-    assert expected in glyphs.replace(" ", "")
+    assert glyphs.replace(" ", "").count(expected) == 3
 
 
-def test_the_report_is_set_in_new_computer_modern(tmp_path: Path) -> None:
-    """Typst found the font the template names; it did not fall back to another."""
+def test_the_report_is_set_in_the_bundled_noto_sans(tmp_path: Path) -> None:
+    """Typst found the Noto Sans files the package ships, in all three weights.
+
+    Every character it prints is in Noto Sans, so nothing should fall back: a
+    misnamed family or a missing font path shows up here as New Computer Modern.
+    """
     report = get_report(
         create_calculator(tax_year=2024, balance_check=False), TRANSACTIONS
     )
@@ -325,17 +330,17 @@ def test_the_report_is_set_in_new_computer_modern(tmp_path: Path) -> None:
         fonts = {
             char["fontname"].split("+")[-1] for page in pdf.pages for char in page.chars
         }
-    assert fonts == {"NewCM10-Regular", "NewCM10-Bold"}
+    assert fonts == {"NotoSans-Regular", "NotoSans-SemiBold", "NotoSans-Bold"}
 
 
-def test_the_gain_to_date_starts_its_own_paragraph(tmp_path: Path) -> None:
-    """After a gain, "Capital gain to date" begins a paragraph of its own.
+def test_the_gain_to_date_is_a_line_of_its_own(tmp_path: Path) -> None:
+    """After a gain, "Capital gain to date" is a line of its own.
 
-    #947 once joined it to the gain sentence. A paragraph break shows as a
-    larger gap above the line than the gap between the lines of one wrapped
-    paragraph, here the gift's two-line gain sentence (about 9 points against
-    3 when this was written). Gift: 2 of 10 shares bought at £10, given at £30,
-    a £40 gain; sale: 2 more sold at £30, another £40.
+    #947 once joined it to the gain sentence. The report spaces paragraphs as
+    it spaces the lines of one paragraph, so a joined total shows only as text
+    sharing its line: the sale's short gain sentence would put both on one
+    line. Gift: 2 of 10 shares bought at £10, given at £30, a £40 gain; sale:
+    2 more sold at £30, another £40, so £80 to date.
     """
     report = get_report(
         create_calculator(tax_year=2024, balance_check=False),
@@ -347,32 +352,64 @@ def test_the_gain_to_date_starts_its_own_paragraph(tmp_path: Path) -> None:
     )
     render_pdf(report, tmp_path / "report.pdf")
 
-    lines: list[tuple[str, float | None]] = []
     with pdfplumber.open(tmp_path / "report.pdf") as pdf:
-        for page in pdf.pages:
-            previous = None
-            for line in page.extract_text_lines():
-                gap: float | None = (
-                    None if previous is None else line["top"] - previous["bottom"]
-                )
-                lines.append((line["text"], gap))
-                previous = line
-    texts = [text for text, _ in lines]
-    gift = texts.index(
-        next(
-            t
-            for t in texts
-            if t.startswith("Chargeable gain is £40.00, before any relief")
-        )
-    )
-    continuation_text, wrapped_gap = lines[gift + 1]
-    assert not continuation_text.startswith("Capital gain to date")
-    assert wrapped_gap is not None
-    to_date = [
-        gap for text, gap in lines if text.startswith("Capital gain to date is £")
+        texts = [
+            line["text"] for page in pdf.pages for line in page.extract_text_lines()
+        ]
+    assert [text for text in texts if "Capital gain to date" in text] == [
+        "Capital gain to date is £40.00",
+        "Capital gain to date is £80.00",
     ]
-    assert len(to_date) == 2
-    assert all(gap is not None and gap > wrapped_gap for gap in to_date)
+
+
+def test_a_page_break_keeps_each_rule_with_the_row_under_it(tmp_path: Path) -> None:
+    """A table that runs over a page breaks between rules, never inside one.
+
+    A rule's figures and the full-width row under them, with a
+    bed-and-breakfast date and the pool left, belong together. 300 FOO bought
+    on 20 May 2024, 210 sold on 3 June, then 10 bought on each of the 20 days
+    from 4 June: the sale matches 200 against those purchases as 20
+    bed-and-breakfast rules and the last 10 against the pool, one table long
+    enough to run over pages. Each page repeats the table's header, and the
+    line under it must open a numbered rule.
+    """
+    sale_day = dt.date(2024, 6, 3)
+    rows = [
+        transaction(
+            dt.date(2024, 5, 20), ActionType.BUY, "FOO", 300, 10, 0, -3000, GBP
+        ),
+        transaction(sale_day, ActionType.SELL, "FOO", 210, 12, 0, 2520, GBP),
+        *(
+            transaction(
+                sale_day + dt.timedelta(days=day),
+                ActionType.BUY,
+                "FOO",
+                10,
+                11,
+                0,
+                -110,
+                GBP,
+            )
+            for day in range(1, 21)
+        ),
+    ]
+    report = get_report(create_calculator(tax_year=2024, balance_check=False), rows)
+    render_pdf(report, tmp_path / "report.pdf")
+
+    with pdfplumber.open(tmp_path / "report.pdf") as pdf:
+        pages = [
+            [line["text"] for line in page.extract_text_lines()] for page in pdf.pages
+        ]
+    after_header = [
+        lines[index + 1]
+        for lines in pages
+        for index, text in enumerate(lines)
+        if text == "proceeds cost"
+    ]
+    assert len(after_header) > 1, "the table should run over a page"
+    # The line's number, then its rule: "6. BED AND ...", or "17.BED AND ..."
+    # where the text extraction drops the space after two digits.
+    assert all(re.match(r"\d+\.", text) for text in after_header), after_header
 
 
 @pytest.mark.parametrize(

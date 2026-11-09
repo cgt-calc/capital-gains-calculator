@@ -11,8 +11,10 @@ dynamic = ["version"]
 description = "Calculate UK capital gains tax from broker exports for your HMRC Self Assessment"
 authors = [{ name = "Ruslan Sayfutdinov", email = "ruslan@sayfutdinov.com" }]
 readme = "README.md"
-license = "MIT"
-license-files = ["LICENSE"]
+# The code is MIT; the bundled Noto Sans fonts are under the SIL Open Font
+# License, which travels with them.
+license = "MIT AND OFL-1.1"
+license-files = ["LICENSE", "cgt_calc/resources/fonts/noto-sans/OFL.txt"]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Environment :: Console",
@@ -290,7 +292,7 @@ blanket-ignore-comment = "error"
 
 [tool.codespell]
 quiet-level = 2
-skip = "uv.lock,./.git/*,./.mypy_cache/*,./.pytest_cache/*,./.ruff_cache/*,./.venv/*,./dist/*,*.csv,*.pdf,./env/*,./out/*,./site/*,./.wrangler/*"
+skip = "uv.lock,./.git/*,./.mypy_cache/*,./.pytest_cache/*,./.ruff_cache/*,./.venv/*,./dist/*,*.csv,*.pdf,./env/*,./out/*,./site/*,./.wrangler/*,./cgt_calc/resources/fonts/*"
 
 [tool.pytest.ini_options]
 addopts = "-vv -n auto"

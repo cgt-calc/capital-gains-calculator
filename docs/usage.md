@@ -84,9 +84,10 @@ source. If your broker is not listed, you can convert its transactions to the ge
 cgt-calc prints a summary to the terminal and, by default, writes the detailed PDF report to
 `out/calculations.pdf`.
 
-The PDF has a **Capital Gains Events** section, an **Interest and Dividends Events** section when
-there is income to show, and **Overall** summaries at the end. Interest is grouped monthly per
-broker, even if your broker pays it daily.
+The PDF opens with the **Overall** summaries, then has a **Capital Gains Events** section and an
+**Interest and Dividends Events** section when there is income to show. In the events, a table under
+each acquisition or disposal shows how it was matched: one row per rule, with the pool left after
+it. Interest is grouped monthly per broker, even if your broker pays it daily.
 
 Use `--output` to choose a different PDF location:
 

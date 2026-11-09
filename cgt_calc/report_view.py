@@ -82,7 +82,6 @@ class LineView:
     rule: str
     quantity: Decimal
     new_quantity: Decimal
-    shows_proceeds: bool
     is_gain: bool
     proceeds: Decimal | None = None
     cost: Decimal | None = None
@@ -283,9 +282,7 @@ def _per_unit(amount: Decimal, quantity: Decimal) -> Decimal | None:
     return round_decimal(amount / quantity, 2)
 
 
-def _build_line(
-    entry: CalculationEntry, kind: EventKind, overall_quantity: Decimal
-) -> LineView:
+def _build_line(entry: CalculationEntry, kind: EventKind) -> LineView:
     """Build the view of one matching rule within an event."""
     is_acquisition = kind in _ACQUISITION_KINDS
     spin_off = entry.spin_off
@@ -296,7 +293,6 @@ def _build_line(
         rule=entry.rule_type.name.replace("_", " "),
         quantity=entry.quantity,
         new_quantity=entry.new_quantity,
-        shows_proceeds=entry.quantity < overall_quantity,
         is_gain=entry.gain > 0,
         proceeds=round_decimal(entry.amount + entry.fees, 2),
         cost=round_decimal(entry.allowable_cost, 2),
@@ -465,7 +461,7 @@ def _build_event(
         fees=round_decimal(_total(entries, "fees"), 2),
         lines=()
         if kind in _WITHOUT_LINES
-        else tuple(_build_line(entry, kind, quantity) for entry in entries),
+        else tuple(_build_line(entry, kind) for entry in entries),
     )
     return _with_kind_fields(event, entries, totals)
 

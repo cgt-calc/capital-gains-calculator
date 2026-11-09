@@ -599,7 +599,7 @@ def test_the_pdf_keeps_a_loss_on_a_gift_out_of_the_total(tmp_path: Path) -> None
     text = _text(tmp_path, 5)
 
     assert "Clogged loss of £20.00 on a gift, kept out of the loss" in text
-    assert "Losses on gifts, kept separate: £20.00" in text
+    assert "Losses on gifts, kept separate £20.00" in text
     assert "Capital loss to date" not in text
 
 

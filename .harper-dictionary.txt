@@ -362,3 +362,5 @@ yfinance
 YYYY
 LifeStrategy
 Opendoor
+Noto
+SIL

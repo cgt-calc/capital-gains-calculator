@@ -9,9 +9,9 @@ grant, which `tests/schwab/test_schwab_options.py` asserts. They are the
 standard for template changes: one that is not a deliberate wording change
 must leave every golden untouched.
 
-The goldens pin words, line breaks and each page's text, not vertical space,
-so a lost paragraph break that leaves the line breaks alone needs its own
-test (`test_report_rendering.py`).
+The goldens pin words, line breaks and each page's text, not vertical space.
+The running-total regression in `test_report_rendering.py` separately
+requires each "Capital gain to date" total to occupy its own line.
 
 Regenerate the goldens on purpose, after checking the diff is the one
 intended:
@@ -352,15 +352,10 @@ SCENARIOS: dict[str, tuple[Callable[[], CapitalGainsReport], list[str]]] = {
             ),
             "Gain is £1,490.00",
             (
-                "BED AND BREAKFAST. Quantity: 50, disposal proceeds: £6,000.00, cost "
-                "used for this illustrative calculation on 11 Sep 2024: £5,505.00, "
-                "disregarded gain: £495.00."
+                "1. BED AND BREAKFAST 50 £6,000.00 £5,505.00 disregarded gain "
+                "£495.00 calculation on 11 Sep 2024"
             ),
-            (
-                "SECTION 104. Quantity: 50, disposal proceeds: £6,000.00, cost used "
-                "for this illustrative calculation: £5,005.00, disregarded gain: "
-                "£995.00."
-            ),
+            "2. SECTION 104 50 £6,000.00 £5,005.00 disregarded gain £995.00",
         ],
     ),
     "option_grant": (
@@ -373,7 +368,7 @@ SCENARIOS: dict[str, tuple[Callable[[], CapitalGainsReport], list[str]]] = {
     ),
     "rename": (
         _rename,
-        ["was renamed to", "BED AND BREAKFAST"],
+        ["was renamed to", "BED AND BREAKFAST", "allowable cost on 20 May 2024"],
     ),
     "rename_with_units": (
         _rename_with_units,
@@ -389,7 +384,7 @@ SCENARIOS: dict[str, tuple[Callable[[], CapitalGainsReport], list[str]]] = {
             ),
             "cost increased by £50.00",
             (
-                "Total amount of foreign interests proceeds: £100.00 (including "
+                "Total amount of foreign interests proceeds £100.00 (including "
                 "£50.00 from excess reported income distributions)"
             ),
         ],

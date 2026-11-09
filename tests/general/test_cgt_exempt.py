@@ -294,19 +294,26 @@ def test_pdf_report_rendering_exempt_disposal(tmp_path: Path) -> None:
     # Check per-disposal subsection
     assert "Exempt disposal: 100 units of T26 valued at £12,000" in text
     assert "the gain or loss is disregarded" in text
-    # The cost label carries its colon like the chargeable branch does: no
-    # stray space in front of it.
-    assert "cost used for this illustrative calculation: £10,000" in text
+    # The table's row: 100 units, £12,000 proceeds, the pool's £10,000 as the
+    # illustrative cost, and the £2,000 difference marked disregarded.
+    assert "1. SECTION 104 100 £12,000.00 £10,000.00 disregarded gain £2,000.00" in text
     assert "not allowable deductions against other gains" in text
 
     # Check Overall section line
-    assert "Number of exempt disposals: 1" in text
-    assert "Total exempt disposal proceeds: £12,000" in text
-    assert "Number of disposals: 0" in text
+    assert "Number of exempt disposals 1" in text
+    assert "Total exempt disposal proceeds £12,000" in text
+    assert "Number of disposals 0" in text
 
 
 def test_pdf_report_rendering_exempt_bed_and_breakfast(tmp_path: Path) -> None:
-    """A bed-and-breakfast exempt line keeps its match date and colon together."""
+    """A bed-and-breakfast exempt line names the date its cost was matched on.
+
+    The 100 units sold for £12,000 match the repurchase ten days later at
+    £11,000, so the illustrative gain is £1,000; the date follows the row.
+    These figures leave the Rule column too narrow for the date note, which
+    wraps there, so the note must stay one line in the row that spans the
+    table.
+    """
     repurchase_date = SELL_DATE + dt.timedelta(days=10)
     transactions = [
         transaction(BUY_DATE, ActionType.BUY, "T26", 100, 100, 0, -10000, GBP),
@@ -320,7 +327,12 @@ def test_pdf_report_rendering_exempt_bed_and_breakfast(tmp_path: Path) -> None:
 
     text = report_text(report, tmp_path)
 
-    assert "cost used for this illustrative calculation on 11 Sep 2024: £11,000" in text
+    assert (
+        "1. BED AND BREAKFAST 100 £12,000.00 £11,000.00 disregarded gain £1,000.00 "
+        "calculation on 11 Sep 2024"
+    ) in text
+    lines = pdf_text(tmp_path / "report.pdf").splitlines()
+    assert "calculation on 11 Sep 2024" in lines
 
 
 def test_pdf_reports_exempt_gift_with_neutral_valuation_wording(

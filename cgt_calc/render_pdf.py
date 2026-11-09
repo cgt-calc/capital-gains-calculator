@@ -27,9 +27,10 @@ if TYPE_CHECKING:
 LOGGER = logging.getLogger(__name__)
 
 # The characters the report prints, each checked to render and extract as
-# itself with the fonts Typst embeds (tests/general/test_report_rendering.py
-# renders them all). The binding gives no sign of a glyph a font lacks, so
-# anything else is refused, even where a font might draw it.
+# itself with the bundled Noto Sans and the fonts Typst embeds for what it
+# lacks (tests/general/test_report_rendering.py renders them all). The binding
+# gives no sign of a glyph a font lacks, so anything else is refused, even
+# where a font might draw it.
 _VERIFIED_RANGES: Final = (
     (0x0020, 0x007E),  # Basic Latin
     (0x00A0, 0x02FF),  # Latin-1, Latin Extended-A and -B, IPA, modifier letters
@@ -140,12 +141,14 @@ def render_pdf(report: CapitalGainsReport, output_path: Path) -> None:
         strip_zeros=strip_zeros,
     )
     # A str input would be read as a file path. Fonts come only from the
-    # binding, so the PDF is the same whatever the machine has installed, and
-    # the root is fixed so the working directory plays no part.
+    # package and the binding, so the PDF is the same whatever the machine has
+    # installed, and the root is fixed so the working directory plays no part.
     with resources.as_file(resources.files(RESOURCES_PACKAGE)) as root:
-        pdf = typst.Compiler(root=root, ignore_system_fonts=True).compile(
-            input=markup.encode("utf-8"), format="pdf"
-        )
+        pdf = typst.Compiler(
+            root=root,
+            font_paths=[root / "fonts"],
+            ignore_system_fonts=True,
+        ).compile(input=markup.encode("utf-8"), format="pdf")
     assert isinstance(pdf, bytes)
 
     with saving("the report", pdf_path, "To save it somewhere else, pass --output."):

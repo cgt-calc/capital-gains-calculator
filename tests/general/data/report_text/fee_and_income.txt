@@ -1,43 +1,45 @@
 Capital Gains Tax Calculations for 2024-25
-Capital Gains Events
-01 June 2024
-Acquisition 1: 10 units of FOO for £100.00 (£10.00/unit)
-1. SECTION 104. Quantity: 10, actual cost: £100.00.
-Number of units in the pool: 10, new pool cost: £100.00 (£10.00/unit).
-03 June 2024
-Cost added to FOO with no new shares: £5.00
-1. SECTION 104. Quantity: 0, actual cost: £5.00.
-Number of units in the pool: 10, new pool cost: £105.00 (£10.50/unit).
-1
-Interest and Dividends Events
-03 June 2024
-Dividend 1: BAR for £100.00 (tax paid at source: £15.00), tax treaty amount: £15.00 (treaty
-rate for USA: 15.00%)
-Interest UK 1: Testing for £3.00
-03 July 2024
-Interest tax UK 1: GBP for £2.00
-2
 Overall - Capital Gains
-Number of acquisitions: 1
-Number of disposals: 0
-Total disposal proceeds: £0.00
-Total allowable costs: £0.00
-Total capital gain before loss: £0
-Total capital loss: £0
-Total capital gain after loss: £0
+Number of acquisitions 1
+Number of disposals 0
+Total disposal proceeds £0.00
+Total allowable costs £0.00
+Total capital gain before loss £0
+Total capital loss £0
+Total capital gain after loss £0
 Amounts are rounded to the nearest penny individually, so a line may differ from its
 components by a penny.
 Overall - Dividends and Interests
-Number of dividend distributions: 1
-Number of interest transactions: 1
-Number of interest tax transactions: 1
-Number of excess reported income distributions: 0
-Total amount of dividends proceeds: £100.00
-Total amount of dividends tax allowance due to double taxation
-treaties: £15.00
-Total amount of dividends tax yearly allowance: £500.00
-Total amount of taxable dividends proceeds: £0.00
-Total amount of UK interests proceeds: £3.00
-Total amount of foreign interests proceeds: £0.00
-Total amount of interest tax paid: £2.00
-3
+Number of dividend distributions 1
+Number of interest transactions 1
+Number of interest tax transactions 1
+Number of excess reported income distributions 0
+Total amount of dividends proceeds £100.00
+Total amount of dividends tax allowance due to double taxation treaties £15.00
+Total amount of dividends tax yearly allowance £500.00
+Total amount of taxable dividends proceeds £0.00
+Total amount of UK interests proceeds £3.00
+Total amount of foreign interests proceeds £0.00
+Total amount of interest tax paid £2.00
+Page 1 of 2
+Capital Gains Tax Calculations for 2024-25
+Capital Gains Events
+01 June 2024
+Acquisition 1: 10 units of FOO
+for £100.00 (£10.00/unit)
+Rule Quantity Actual cost
+1. SECTION 104 10 £100.00
+Number of units in the pool: 10, new pool cost: £100.00 (£10.00/unit).
+03 June 2024
+Cost added to FOO with no new shares: £5.00
+Rule Quantity Actual cost
+1. SECTION 104 0 £5.00
+Number of units in the pool: 10, new pool cost: £105.00 (£10.50/unit).
+Interest and Dividends Events
+03 June 2024
+Dividend 1: BAR for £100.00 (tax paid at source: £15.00), tax treaty amount: £15.00
+(treaty rate for USA: 15.00%)
+Interest UK 1: Testing for £3.00
+03 July 2024
+Interest tax UK 1: GBP for £2.00
+Page 2 of 2

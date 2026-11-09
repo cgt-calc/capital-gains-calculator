@@ -69,11 +69,10 @@ def _entry(
     )
 
 
-def _disposal(gain: str, *, quantity: str = "1") -> CalculationEntry:
+def _disposal(gain: str) -> CalculationEntry:
     """Build a disposal whose proceeds are its cost plus the gain asked for."""
     cost = Decimal(100)
     return _entry(
-        quantity=quantity,
         amount=str(cost + Decimal(gain)),
         allowable_cost=str(cost),
         gain=gain,
@@ -282,16 +281,6 @@ def test_an_exempt_disposal_stays_out_of_every_total() -> None:
     assert event.pool_units_left
     assert view.summary.total_gain == Decimal(0)
     assert view.summary.disposal_count == 0
-
-
-def test_a_line_shows_its_own_proceeds_only_beside_others() -> None:
-    """One rule matching the whole disposal has nothing to break down."""
-    (whole,) = _events({"sell$FOO": [_disposal("10", quantity="4")]})
-    assert [line.shows_proceeds for line in whole.lines] == [False]
-    (split,) = _events(
-        {"sell$FOO": [_disposal("10", quantity="3"), _disposal("6", quantity="1")]}
-    )
-    assert [line.shows_proceeds for line in split.lines] == [True, True]
 
 
 def test_the_events_stated_in_prose_carry_no_lines() -> None:
