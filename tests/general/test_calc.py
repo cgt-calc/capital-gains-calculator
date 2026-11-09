@@ -9,10 +9,14 @@ from decimal import Decimal, localcontext
 from enum import Enum
 import itertools
 import logging
+import os
 from pathlib import Path
 import re
+import select
+import signal
 import subprocess
 import sys
+import time
 from typing import TYPE_CHECKING
 
 import pytest
@@ -3124,6 +3128,93 @@ def test_a_custom_period_reaches_the_report_through_the_command_line(
     assert "Disposals: 1" in lines
     assert "Disposal proceeds: £120.00" in lines
     assert "Allowable costs: £100.00" in lines
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX pseudo-terminal")
+@pytest.mark.skipif(
+    signal.getsignal(signal.SIGINT) == signal.SIG_IGN,
+    reason="SIGINT is ignored here, as in a background job, so the run would be too",
+)
+@pytest.mark.parametrize("verbose", [False, True], ids=["plain", "verbose"])
+def test_ctrl_c_at_the_spin_off_prompt_stops_the_run_with_one_line(
+    tmp_path: Path, verbose: bool
+) -> None:
+    """Ctrl-C ends the run with one line instead of a traceback.
+
+    The spin-off source prompt is where a run waits for the user, and with
+    nothing held no answer is accepted, so Ctrl-C is a likely way out. stdin
+    is a pseudo-terminal, so the run asks, and SIGINT is sent once the prompt
+    is on stdout, as a terminal sends it on Ctrl-C. The process must still die
+    by SIGINT, which a shell shows as 130 and which stops a calling script.
+    --verbose keeps the traceback, once, after the same line.
+    """
+    history = tmp_path / "history.csv"
+    history.write_text(
+        RAW_HEADER + "2020-11-16,SPIN_OFF,NEW,10,0,0,GBP\n", encoding="utf-8"
+    )
+    cmd = build_cmd(
+        "--raw-file",
+        str(history),
+        "--year",
+        "2020",
+        "--no-report",
+        "--spin-offs-file=",
+        *(["--verbose"] if verbose else []),
+    )
+    prompt = (
+        b"For a spin-off, please enter the original ticker from which the new "
+        b"stock (symbol: NEW) was spun off on 2020-11-16: "
+    )
+
+    primary, secondary = os.openpty()
+    try:
+        with subprocess.Popen(
+            cmd, stdin=secondary, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        ) as run:
+            assert run.stdout is not None
+            try:
+                # Nothing else goes to stdout first. A run that never asks is
+                # waited for a minute, then fails the checks below.
+                shown = b""
+                while (
+                    len(shown) < len(prompt)
+                    and select.select([run.stdout], [], [], 60)[0]
+                ):
+                    if not (chunk := os.read(run.stdout.fileno(), len(prompt))):
+                        break
+                    shown += chunk
+                # Wait as a person would, so the signal finds the read waiting.
+                # One that lands after the prompt is written but before the
+                # read begins is only noted, and the read then waits; on a busy
+                # machine that can still happen, and a second one ends it.
+                time.sleep(0.2)
+                run.send_signal(signal.SIGINT)
+                try:
+                    out, err = run.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    run.send_signal(signal.SIGINT)
+                    out, err = run.communicate(timeout=60)
+            finally:
+                run.kill()  # Does nothing once the run has ended.
+    finally:
+        os.close(primary)
+        os.close(secondary)
+
+    assert shown + out == prompt, err
+    assert run.returncode == -signal.SIGINT, err
+    assert err.count(b"Stopped by Ctrl-C") == 1, err
+    # An error stands apart, with a blank line before and after it.
+    line = b"\nERROR: Stopped by Ctrl-C before the run finished.\n"
+    if verbose:
+        # Logged with the line; Python does not print it a second time. The
+        # rate limiters for exchange rate and ISIN lookups run threads that
+        # log a debug line now and then, so what follows is not checked.
+        assert line + b"Traceback (most recent call last):\n" in err
+        assert b"\nKeyboardInterrupt\n\n" in err
+        assert err.count(b"Traceback") == 1
+    else:
+        assert err.endswith(line + b"\n")
+        assert b"Traceback" not in err
 
 
 def test_negative_balance_error_shows_only_relevant_transactions() -> None:

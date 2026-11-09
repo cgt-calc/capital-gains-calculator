@@ -221,6 +221,18 @@ def main() -> int:
         LOGGER.exception("Details:")
         LOGGER.info(REPORTING_FOOTER.format(version=get_version()))
         return 1
+    except KeyboardInterrupt:
+        # Not an Exception, so neither branch above sees it.
+        message = "Stopped by Ctrl-C before the run finished."
+        if args.verbose:
+            LOGGER.exception(message)
+        else:
+            LOGGER.error(message)
+        # Re-raised so that Python still ends the process as killed by
+        # SIGINT, which tells a calling shell or script to stop too. The hook
+        # only keeps Python from printing a traceback after the line above.
+        sys.excepthook = lambda *_: None
+        raise
 
     return 0
 
