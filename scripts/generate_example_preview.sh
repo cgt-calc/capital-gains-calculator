@@ -26,7 +26,7 @@ EDGE_COLOR="#d0d7de"   # GitHub's border grey
 EDGE_WIDTH=2
 SHADOW="28x14+0+8" # opacity (%) x blur + x offset + y offset
 OFFSET_X=64        # page 2's shift right; only page 1's blank margin shows
-OFFSET_Y=656       # page 2's shift down; its top edge is below page 1's summary
+OFFSET_Y=656       # page 2's shift down, to just below page 1's capital gains summary
 HEIGHT=1560        # the picture ends just below page 2's first disposal
 FADE=45            # its last rows fade to transparent
 QUALITY=82
@@ -68,6 +68,7 @@ magick -density "$DPI" \
     -strip "$OUTPUT_PATH"
 
 echo "✅ Preview generated: $OUTPUT_PATH"
+echo "👀 Check the teaser; if the report layout moved, adjust OFFSET_X, OFFSET_Y or HEIGHT in the script."
 
 echo
 echo "Generating full-page images from '$PDF_PATH' → '${PAGE_PREFIX}N.webp'"
