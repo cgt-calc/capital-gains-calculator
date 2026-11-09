@@ -1,88 +1,76 @@
-# Labels names are important as they are used by Release Drafter to decide
-# regarding where to record them in changelog or if to skip them.
+# Repository labels, synced to GitHub by .github/workflows/manage-labels.yml on
+# every push to main. The sync creates and updates the labels below and DELETES
+# any repository label missing from this file, which also removes that label
+# from every issue and pull request. Renaming an entry deletes the old label too,
+# unless the entry names it in `from_name`.
 #
-# The repository labels will be automatically configured using this file and
-# the GitHub Action https://github.com/marketplace/actions/github-labeler.
+# Release Drafter (.github/release-drafter.yml) and Dependabot
+# (.github/dependabot.yml) use these labels by name. Check both before renaming
+# or removing a label.
 - name: breaking
-  description: Breaking change. Used for major release bump
+  description: PR that breaks existing use of the CLI, input files or output; bumps the major version
   color: b60205
 
 - name: bug
-  description: Something isn't working
+  description: Issue or PR about a wrong result or message, a crash, or a refusal of input that should work
   color: d73a4a
 
 - name: code quality
-  description: Code quality Improvements
+  description: PR that improves code, messages or packaging without changing any calculated figure
   color: ef67c4
 
 - name: dependencies
-  description: Pull requests that update a dependency file
+  description: PR that updates a dependency or the lock file; Dependabot adds it to its own PRs
   color: 0366d6
 
 - name: documentation
-  description: Improvements or additions to documentation
+  description: PR that changes only the docs site, the README or other documentation
   color: 0075ca
 
-- name: duplicate
-  description: This issue or pull request already exists
-  color: cfd3d7
-
 - name: feature
-  description: New feature or request
+  description: Issue or PR for a new capability; a merged feature PR bumps the minor version
   color: a2eeef
 
 - name: github structure
-  description: Pull requests that update Github actions/workflow code
+  description: PR that changes CI, GitHub workflows or actions, or the scripts and config they use
   color: "000000"
 
-- name: good first issue
-  description: Good for newcomers
-  color: 7057ff
-
 - name: help wanted
-  description: Extra attention is needed
+  description: Issue that needs outside help, such as a broker export sample or a contributor
   color: 008672
 
-- name: invalid
-  description: This doesn't seem right
-  color: e4e669
-
 # major/minor/patch describe the dependency's version jump on Dependabot PRs.
-# They do not affect this project's version: release bumps are driven by the
-# "breaking" and "feature" labels, see release-drafter.yml.
+# Dependabot adds them itself: nothing in this repository applies them. They do
+# not affect this project's version: release bumps are driven by the "breaking"
+# and "feature" labels, see release-drafter.yml.
 - name: major
-  description: Semver-major dependency update
+  description: Added by Dependabot to a semver-major dependency update; does not set the release version
   color: 16970B
 
 - name: minor
-  description: Semver-minor dependency update
+  description: Added by Dependabot to a semver-minor dependency update; does not set the release version
   color: 16970B
 
 - name: patch
-  description: Semver-patch dependency update
+  description: Added by Dependabot to a semver-patch dependency update; does not set the release version
   color: 16970B
 
 - name: performance
-  description: Performance
+  description: PR that makes a run, install or Docker image faster or smaller, with results unchanged
   color: "016175"
 
-# Prevent Dependabot from adding version labels
 - name: skip-release
-  description: Skip release
+  description: PR to leave out of the release notes entirely
   color: "000000"
 
 - name: question
-  description: Further information is requested
+  description: Issue asking how to use cgt-calc or read its output, rather than reporting a fault
   color: d876e3
 
 - name: removal
-  description: Removals and Deprecations
+  description: PR that removes or deprecates a feature, option or supported input
   color: 9ae7ea
 
 - name: testing
-  description: Testing
+  description: PR that only adds or changes tests, fixtures or the coverage check
   color: b1fc6f
-
-- name: wontfix
-  description: This will not be worked on
-  color: ffffff
