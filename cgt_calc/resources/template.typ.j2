@@ -202,7 +202,9 @@ Loss is £{{ (-event.gain)|money }}; the gain or loss is disregarded (exempt ass
 {% if event.lines %}
     {#
       One table per event: the rule, its quantity and the event's figures,
-      then a row with the pool after the line. A long header takes more than
+      then a row with the pool after the line. The line's number spans both
+      rows and cannot break, so a page break never parts a rule's figures from
+      the row under them. A long header takes more than
       one line, and the rule's column gets the width the figures leave, so a
       name such as BED AND BREAKFAST can wrap when the figures are large. A
       bed-and-breakfast line's date note therefore opens the pool row, which
@@ -239,7 +241,7 @@ Loss is £{{ (-event.gain)|money }}; the gain or loss is disregarded (exempt ass
     table.hline(stroke: 0.6pt + hairline),
   ),
     {% for line in event.lines %}
-  text(fill: muted)[{{ loop.index }}.],
+  table.cell(rowspan: 2, breakable: false, text(fill: muted)[{{ loop.index }}.]),
   [#text(weight: "bold", tracking: 0.05em)[{{ line.rule }}]],
   [{{ strip_zeros(line.quantity) }}],
         {% if split %}
@@ -259,7 +261,7 @@ Loss is £{{ (-event.gain)|money }}; the gain or loss is disregarded (exempt ass
         {% else %}
   [£{{ line.amount|money }}],
         {% endif %}
-  [], table.cell(colspan: {% if split %}6{% elif headers|length == 3 %}4{% else %}3{% endif %}, inset: (x: 0.3em, top: 0.35em, bottom: {% if not loop.last %}0.65em{% else %}0.35em{% endif %}), align: left)[#text(fill: muted)[
+  table.cell(colspan: {% if split %}6{% elif headers|length == 3 %}4{% else %}3{% endif %}, inset: (x: 0.3em, top: 0.35em, bottom: {% if not loop.last %}0.65em{% else %}0.35em{% endif %}), align: left)[#text(fill: muted)[
         {% if line.bnb_date %}
     #box[{% if event.kind == "exempt" %}calculation{% else %}allowable cost{% endif %} on {{ line.bnb_date.strftime("%d %b %Y") }}] \
         {% endif %}

@@ -362,6 +362,56 @@ def test_the_gain_to_date_is_a_line_of_its_own(tmp_path: Path) -> None:
     ]
 
 
+def test_a_page_break_keeps_each_rule_with_the_row_under_it(tmp_path: Path) -> None:
+    """A table that runs over a page breaks between rules, never inside one.
+
+    A rule's figures and the full-width row under them, with a
+    bed-and-breakfast date and the pool left, belong together. 300 FOO bought
+    on 20 May 2024, 210 sold on 3 June, then 10 bought on each of the 20 days
+    from 4 June: the sale matches 200 against those purchases as 20
+    bed-and-breakfast rules and the last 10 against the pool, one table long
+    enough to run over pages. Each page repeats the table's header, and the
+    line under it must open a numbered rule.
+    """
+    sale_day = dt.date(2024, 6, 3)
+    rows = [
+        transaction(
+            dt.date(2024, 5, 20), ActionType.BUY, "FOO", 300, 10, 0, -3000, GBP
+        ),
+        transaction(sale_day, ActionType.SELL, "FOO", 210, 12, 0, 2520, GBP),
+        *(
+            transaction(
+                sale_day + dt.timedelta(days=day),
+                ActionType.BUY,
+                "FOO",
+                10,
+                11,
+                0,
+                -110,
+                GBP,
+            )
+            for day in range(1, 21)
+        ),
+    ]
+    report = get_report(create_calculator(tax_year=2024, balance_check=False), rows)
+    render_pdf(report, tmp_path / "report.pdf")
+
+    with pdfplumber.open(tmp_path / "report.pdf") as pdf:
+        pages = [
+            [line["text"] for line in page.extract_text_lines()] for page in pdf.pages
+        ]
+    after_header = [
+        lines[index + 1]
+        for lines in pages
+        for index, text in enumerate(lines)
+        if text == "proceeds cost"
+    ]
+    assert len(after_header) > 1, "the table should run over a page"
+    # The line's number, then its rule: "6. BED AND ...", or "17.BED AND ..."
+    # where the text extraction drops the space after two digits.
+    assert all(re.match(r"\d+\.", text) for text in after_header), after_header
+
+
 @pytest.mark.parametrize(
     ("locked", "output", "named"),
     [

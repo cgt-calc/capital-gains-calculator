@@ -9,9 +9,9 @@ grant, which `tests/schwab/test_schwab_options.py` asserts. They are the
 standard for template changes: one that is not a deliberate wording change
 must leave every golden untouched.
 
-The goldens pin words, line breaks and each page's text, not vertical space,
-so a lost paragraph break that leaves the line breaks alone needs its own
-test (`test_report_rendering.py`).
+The goldens pin words, line breaks and each page's text, not vertical space.
+The running-total regression in `test_report_rendering.py` separately
+requires each "Capital gain to date" total to occupy its own line.
 
 Regenerate the goldens on purpose, after checking the diff is the one
 intended:
