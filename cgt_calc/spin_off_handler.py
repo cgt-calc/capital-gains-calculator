@@ -124,7 +124,7 @@ class SpinOffHandler:
                 )
             except EOFError as err:
                 raise InteractiveInputRequiredError(
-                    symbol, date, self.spin_offs_file
+                    symbol, date, self.spin_offs_file, input_ended=True
                 ) from err
             if ticker in portfolio:
                 break

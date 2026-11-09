@@ -150,34 +150,56 @@ def test_spin_offs_file_ignores_spaces_around_a_ticker(tmp_path: Path) -> None:
 def test_non_interactive_run_raises_clear_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Without a terminal the prompt is replaced by an actionable error."""
+    """Without a terminal the prompt is replaced by an actionable error.
+
+    Nothing is read: piped input may be the transactions themselves.
+    """
+
+    def no_prompt(prompt: str) -> str:
+        raise AssertionError("prompted without a terminal")
+
     spin_offs_file = tmp_path / "spin_offs.csv"
     handler = SpinOffHandler(spin_offs_file)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+    monkeypatch.setattr("builtins.input", no_prompt)
 
     with pytest.raises(InteractiveInputRequiredError) as excinfo:
-        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
+        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {"OLD": Position()})
 
-    message = str(excinfo.value)
-    assert "NEW" in message
-    assert str(spin_offs_file) in message
-    assert "dst,src" in message
+    assert str(excinfo.value) == (
+        "Cannot ask which stock NEW was spun off from on 2021-05-10: standard "
+        "input is not a terminal (this also applies when piping transactions "
+        f"via '-'). Add a 'NEW,<source>' row to {spin_offs_file} (header "
+        "'dst,src') and rerun."
+    )
 
 
-def test_eof_during_prompt_raises_clear_error(
+def test_input_ending_at_the_prompt_says_so(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """EOF while reading the answer is reported like a missing terminal."""
+    """Ending input at the prompt on a terminal is not called a missing terminal.
+
+    `input` raises EOFError when Ctrl-D (Ctrl-Z then Enter on Windows) is
+    pressed instead of an answer. OLD is held, so a ticker could have been
+    entered.
+    """
 
     def read_eof(prompt: str) -> str:
         raise EOFError
 
-    handler = SpinOffHandler(tmp_path / "spin_offs.csv")
+    spin_offs_file = tmp_path / "spin_offs.csv"
+    handler = SpinOffHandler(spin_offs_file)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr("builtins.input", read_eof)
 
-    with pytest.raises(InteractiveInputRequiredError):
-        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
+    with pytest.raises(InteractiveInputRequiredError) as excinfo:
+        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {"OLD": Position()})
+
+    assert str(excinfo.value) == (
+        "Input ended while asking which stock NEW was spun off from on "
+        f"2021-05-10. Add a 'NEW,<source>' row to {spin_offs_file} "
+        "(header 'dst,src') and rerun."
+    )
 
 
 def test_interactive_prompt_uses_clear_spin_off_wording(
@@ -269,7 +291,7 @@ def test_with_no_holdings_the_choices_read_none(
     """With nothing held, the choices line says none rather than ending blank.
 
     No answer can name a holding, so the prompt repeats until input ends,
-    which stops the run as when there is no terminal.
+    which stops the run.
     """
     answers = iter(["ACME"])
 

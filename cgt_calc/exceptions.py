@@ -526,10 +526,20 @@ class ExternalApiError(CgtError):
 
 
 class InteractiveInputRequiredError(CgtError):
-    """Raised when a prompt is needed but stdin is not a terminal."""
+    """Raised when a prompt is needed but cannot be answered.
 
-    def __init__(self, symbol: str, date: dt.date, spin_offs_file: Path | None):
-        """Initialise."""
+    Either stdin is not a terminal, or input ended at the prompt.
+    """
+
+    def __init__(
+        self,
+        symbol: str,
+        date: dt.date,
+        spin_offs_file: Path | None,
+        *,
+        input_ended: bool = False,
+    ):
+        """Initialise; `input_ended` means the prompt was shown and read EOF."""
         if spin_offs_file is None:
             # An empty --spin-offs-file disables the cache, so there is no file
             # to add the row to: naming one would send the user in a circle.
@@ -542,11 +552,18 @@ class InteractiveInputRequiredError(CgtError):
                 f"Add a '{symbol},<source>' row to {spin_offs_file} "
                 "(header 'dst,src') and rerun."
             )
-        super().__init__(
-            f"Cannot ask which stock {symbol} was spun off from on {date}: "
-            "standard input is not a terminal (this also applies when piping "
-            f"transactions via '-'). {hint}"
-        )
+        if input_ended:
+            problem = (
+                f"Input ended while asking which stock {symbol} was spun off "
+                f"from on {date}."
+            )
+        else:
+            problem = (
+                f"Cannot ask which stock {symbol} was spun off from on {date}: "
+                "standard input is not a terminal (this also applies when "
+                "piping transactions via '-')."
+            )
+        super().__init__(f"{problem} {hint}")
 
 
 class MarketDataMissingError(CgtError):
