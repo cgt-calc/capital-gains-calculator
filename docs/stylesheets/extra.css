@@ -60,7 +60,6 @@
   padding: 0.8rem;
   border: 1px solid var(--md-default-fg-color--lightest);
   border-radius: 0.2rem;
-  background-color: var(--md-default-fg-color--lightest);
 }
 
 /* Each page is a sheet of paper: a thin edge and the theme's soft shadow. */
