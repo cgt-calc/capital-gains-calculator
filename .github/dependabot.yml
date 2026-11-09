@@ -1,9 +1,14 @@
 version: 2
+# The cooldown in each entry makes Dependabot wait at least 7 days after a
+# release before opening a version update for it, so a compromised release
+# has time to be found and pulled first. Security updates are not delayed.
 updates:
   - package-ecosystem: uv
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     labels:
       - "dependencies"
     ignore:
@@ -19,6 +24,8 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     labels:
       - "dependencies"
   - package-ecosystem: github-actions
@@ -29,12 +36,16 @@ updates:
       - "/.github/actions/*"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     labels:
       - "dependencies"
   - package-ecosystem: docker
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     labels:
       - "dependencies"
     ignore:
