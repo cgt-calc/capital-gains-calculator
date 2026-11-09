@@ -59,6 +59,9 @@ Contributions are welcome! If you find a bug, have feature ideas, or want to add
 brokers, please open an **issue** or **pull request**. See the
 [development guide](https://next.cgt-calc.uk/development/contributing/).
 
+Found cgt-calc useful? A star on [GitHub](https://github.com/cgt-calc/capital-gains-calculator) is a
+quick way to say thank you, and it also helps other people find it.
+
 ## ⚠️ Disclaimer
 
 This tool is a calculation aid, **not tax advice**. It calculates capital gains figures from the

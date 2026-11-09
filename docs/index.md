@@ -41,3 +41,8 @@ acquired at different times, gains and losses, a dividend with overseas tax, and
 </div>
 
 [View full example report (PDF)](assets/example_report.pdf)
+
+## Saying thanks
+
+If cgt-calc saved you time, please give it a star on
+[GitHub](https://github.com/cgt-calc/capital-gains-calculator).
