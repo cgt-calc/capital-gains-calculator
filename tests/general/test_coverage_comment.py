@@ -965,7 +965,8 @@ def codecov_holding(reports: Reports) -> Callable[[str, str], str]:
 
 # Where the script reads Codecov's API for this repository.
 API = "https://api.codecov.io/api/v2/github/cgt-calc/repos/capital-gains-calculator/"
-# The read Codecov was seen to refuse, and what it is said to have answered.
+# One of the reads Codecov was seen to refuse, and what it is said to have
+# answered.
 REFUSED = f"compare/?{AGAINST_BASE}"
 RATE_LIMITED = '{"detail":"Github API rate limit error: Forbidden"}'
 REFUSED_AS_RATE_LIMITED = (
@@ -1425,16 +1426,19 @@ def test_read_that_codecov_refuses_for_a_while_is_asked_again(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A 403 is asked again after 15, 30 and 60 seconds: four reads in all.
+    """A read refused with 403 is asked again after 15, 30 and 60 seconds.
 
     Codecov refuses the comparison with the commit CI merged into three
-    times and answers the fourth read. The comment is the one it would have
-    been had Codecov answered at once, and no other address is read twice.
-    The log gives each refusal's address and status, the two headers that
-    say when to ask again when it sent them, and the first 200 characters of
-    what it said: for the second, the 199 x's and the y, but not the z. The
-    third is quoted, so its line breaks stay on the one line.
+    times and answers the fourth read. It refuses the components of that
+    comparison once, and they get waits of their own, starting again at 15
+    seconds. The comment is the one it would have been had Codecov answered
+    at once, and the flags are read only once. The log gives each refusal's
+    address and status, the two headers that say when to ask again when it
+    sent them, and the first 200 characters of what it said: for the second,
+    the 199 x's and the y, but not the z. The third is quoted, so its line
+    breaks stay on the one line.
     """
+    components = f"compare/components?{AGAINST_BASE}"
     codecov = FakeCodecov(
         BEHIND_MAIN,
         {
@@ -1446,6 +1450,7 @@ def test_read_that_codecov_refuses_for_a_while_is_asked_again(
                 Refusal({}, "x" * 199 + "yz"),
                 Refusal({"X-RateLimit-Reset": "1794226800"}, "<p>\n::Forbidden\n"),
             ],
+            components: [Refusal({}, RATE_LIMITED)],
         },
     )
     codecov.stand_in(monkeypatch)
@@ -1461,10 +1466,11 @@ def test_read_that_codecov_refuses_for_a_while_is_asked_again(
     assert github.writes == [("PATCH", EDIT, COMPARED_WITH_BASE)]
     assert codecov.asked == [
         *[REFUSED] * 4,
-        f"compare/components?{AGAINST_BASE}",
+        components,
+        components,
         f"compare/flags?{AGAINST_BASE}",
     ]
-    assert codecov.waits == [15, 30, 60]
+    assert codecov.waits == [15, 30, 60, 15]
     assert capsys.readouterr().err == (
         f"Codecov refused {API}{REFUSED} with 403, Retry-After: 60,"
         f" X-RateLimit-Reset: 1794226800, saying '{RATE_LIMITED}'."
@@ -1473,6 +1479,8 @@ def test_read_that_codecov_refuses_for_a_while_is_asked_again(
         " Asking again in 30s.\n"
         f"Codecov refused {API}{REFUSED} with 403, X-RateLimit-Reset: 1794226800,"
         " saying '<p>\\n::Forbidden\\n'. Asking again in 60s.\n"
+        f"Codecov refused {API}{components} with 403, saying '{RATE_LIMITED}'."
+        " Asking again in 15s.\n"
     )
 
 

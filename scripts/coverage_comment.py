@@ -392,8 +392,8 @@ def gh(*args: str) -> str:
 def codecov(repo: str, path: str) -> str:
     """Read one endpoint of Codecov's public API for the repository.
 
-    A 403 is asked again after each of the waits in `RETRY_WAITS`, and the
-    last refusal is raised. Each 403 goes in the log with the headers that say
+    A read refused with 403 is asked again after each of the waits in
+    `RETRY_WAITS`, and the last refusal is raised. Each 403 goes in the log with the headers that say
     when to ask again, if Codecov sent them, and the start of its answer, so
     a run shows why it was refused. Any other refusal is raised at once.
     """
