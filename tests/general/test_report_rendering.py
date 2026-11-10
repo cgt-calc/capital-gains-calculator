@@ -202,8 +202,9 @@ def test_a_name_prints_as_written(tmp_path: Path, name: str) -> None:
     would open or close a block, the quotes would curl, `//` would start a
     comment that drops the rest of the line, cost included, `/*` an unclosed
     comment, `--` and `...` a dash and an ellipsis, and `~` a no-break space.
-    `\` and `"` are the two the string literal escapes: unescaped, `\n` would
-    become a line break and a final `\` would swallow the closing quote.
+    `\` and `"` are the two characters here that JSON must escape: unescaped,
+    `\n` would read back as a line break, a final `\` would swallow the closing
+    quote and a `"` would end the string early.
     """
     text = report_text(name_report(name), tmp_path)
 

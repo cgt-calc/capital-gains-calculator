@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 from importlib import resources
+import json
 import logging
 import sys
 from typing import TYPE_CHECKING, Final
 import unicodedata
 
 from colorama import Fore
-import jinja2
 import typst
 
-from .const import PACKAGE_NAME, TYPST_TEMPLATE_RESOURCE
+from .const import TYPST_TEMPLATE_RESOURCE
 from .exceptions import CgtError, saving
 from .logging import style_text
 from .report_view import build_report_view
@@ -20,9 +20,19 @@ from .resources import RESOURCES_PACKAGE
 from .util import strip_zeros
 
 if TYPE_CHECKING:
+    import datetime as dt
+    from decimal import Decimal
     from pathlib import Path
 
     from .model import CapitalGainsReport
+    from .report_view import (
+        EventView,
+        IncomeEventView,
+        IncomeSummaryView,
+        LineView,
+        ReportView,
+        SummaryView,
+    )
 
 LOGGER = logging.getLogger(__name__)
 
@@ -84,18 +94,13 @@ def _is_verified(char: str) -> bool:
     )
 
 
-def _typst_text(value: object) -> str:
-    """Print a value the template prints, whatever its type, as Typst text.
+def _shown(text: str) -> str:
+    """Return a string the template prints, as the report shows it.
 
-    The value is composed (NFC) and put on one line, each run of whitespace
+    The string is composed (NFC) and put on one line, each run of whitespace
     becoming one space, so a tab or line break in a name reads as the space
-    LaTeX printed. It is written as a Typst string literal, whose content is
-    never read as markup: "*", "#", "$", "@", "//" or "--" in a broker name
-    prints as itself. The closing semicolon ends the expression, so what the
-    template puts after the value is text: without it Typst would swallow a
-    following ";" and read "." with a letter, "(" or "[" as code.
+    LaTeX printed.
     """
-    text = str(value)
     shown = " ".join(unicodedata.normalize("NFC", text).split())
     rejected = dict.fromkeys(char for char in shown if not _is_verified(char))
     if rejected:
@@ -109,7 +114,212 @@ def _typst_text(value: object) -> str:
             "using Latin, Greek or Cyrillic letters, digits and common punctuation "
             "in your input file, or pass --no-report to skip the PDF."
         )
-    return '#"' + shown.replace("\\", "\\\\").replace('"', '\\"') + '";'
+    return shown
+
+
+def _all_shown(data: object) -> object:
+    """Apply `_shown` to every string in the report's data, however deep.
+
+    Applied to the whole tree, so a value added to the data later is covered
+    too.
+    """
+    if isinstance(data, str):
+        return _shown(data)
+    if isinstance(data, dict):
+        return {key: _all_shown(value) for key, value in data.items()}
+    if isinstance(data, list | tuple):
+        return [_all_shown(item) for item in data]
+    return data
+
+
+def _money(value: Decimal | None) -> str | None:
+    """Print pounds as the view rounded them, with thousands separators."""
+    return None if value is None else f"{value:,}"
+
+
+def _loss(gain: Decimal | None) -> str | None:
+    """Print a loss, given as a negative gain, as the pounds lost."""
+    return None if gain is None else _money(-gain)
+
+
+def _short_date(value: dt.date | None) -> str | None:
+    """Print a date within a line, such as "03 Jun 2024"."""
+    return None if value is None else value.strftime("%d %b %Y")
+
+
+def _line_data(line: LineView) -> dict[str, object]:
+    """Give the figures of one matching rule, as the template prints them."""
+    return {
+        "rule": line.rule,
+        "quantity": strip_zeros(line.quantity),
+        "new_quantity": strip_zeros(line.new_quantity),
+        "has_pool_units": line.new_quantity > 0,
+        "is_gain": line.is_gain,
+        "proceeds": _money(line.proceeds),
+        "cost": _money(line.cost),
+        "gain": _money(line.gain),
+        "loss": _loss(line.gain),
+        "bnb_date": _short_date(line.bnb_date),
+        "amount": _money(line.amount),
+        "new_pool_cost": _money(line.new_pool_cost),
+        "pool_per_unit": _money(line.pool_per_unit),
+        "spin_off_source": line.spin_off_source,
+        "eris": [
+            {
+                "cost": _money(eri.cost),
+                "unit_price": _money(eri.unit_price),
+                "date": _short_date(eri.date),
+            }
+            for eri in line.eris
+        ],
+    }
+
+
+def _event_data(event: EventView) -> dict[str, object]:
+    """Give one capital gains event, as the template prints it.
+
+    The template's tests of a figure (`has_fees`, `has_units` and the like)
+    are answered here, from the exact Decimal rather than the printed text.
+    """
+    split = event.split
+    pool_quantity = event.pool_quantity
+    return {
+        "kind": event.kind,
+        "symbol": event.symbol,
+        "renamed_to": event.renamed_to,
+        "spin_off_source": event.spin_off_source,
+        "spin_off_dest": event.spin_off_dest,
+        "number": event.number,
+        "is_disposal": event.is_disposal,
+        "is_acquisition": event.is_acquisition,
+        "is_gift": event.is_gift,
+        "pool_units_left": event.pool_units_left,
+        "quantity": strip_zeros(event.quantity),
+        "has_units": event.quantity > 0,
+        "is_one_unit": event.quantity == 1,
+        "fees": _money(event.fees),
+        "has_fees": event.fees > 0,
+        "proceeds": _money(event.proceeds),
+        "per_unit": _money(event.per_unit),
+        "cost": _money(event.cost),
+        "outcome": event.outcome,
+        "gain": _money(event.gain),
+        "loss": _loss(event.gain),
+        "gain_to_date": _money(event.gain_to_date),
+        "loss_to_date": _money(event.loss_to_date),
+        "gift_loss_to_date": _money(event.gift_loss_to_date),
+        "base_cost_passed": _money(event.base_cost_passed),
+        "eri_unit_price": _money(event.eri_unit_price),
+        "split": None
+        if split is None
+        else {
+            "ratio_description": split.ratio_description,
+            "day_open_quantity": strip_zeros(split.day_open_quantity),
+            "scaled_day_open_quantity": strip_zeros(split.scaled_day_open_quantity),
+            "broker_before_quantity": strip_zeros(split.broker_before_quantity),
+            "broker_after_quantity": strip_zeros(split.broker_after_quantity),
+            "reconciliation_delta": strip_zeros(split.reconciliation_delta),
+            "is_reconciled": split.reconciliation_delta != 0,
+            "quantity_before_reconciliation": strip_zeros(
+                split.quantity_before_reconciliation
+            ),
+            "quantity_after_reconciliation": strip_zeros(
+                split.quantity_after_reconciliation
+            ),
+        },
+        "pool_quantity": None if pool_quantity is None else strip_zeros(pool_quantity),
+        "pool_has_units": pool_quantity is not None and pool_quantity > 0,
+        "pool_cost": _money(event.pool_cost),
+        "pool_per_unit": _money(event.pool_per_unit),
+        "lines": [_line_data(line) for line in event.lines],
+    }
+
+
+def _income_event_data(event: IncomeEventView) -> dict[str, object]:
+    """Give one dividend, interest or distribution, as the template prints it."""
+    return {
+        "kind": event.kind,
+        "number": event.number,
+        "origin": event.origin,
+        "symbol": event.symbol,
+        "is_interest": event.is_interest,
+        "amount": _money(event.amount),
+        "tax_at_source": _money(event.tax_at_source),
+        "treaty_country": event.treaty_country,
+        "treaty_amount": _money(event.treaty_amount),
+        "treaty_rate": None if event.treaty_rate is None else str(event.treaty_rate),
+        "unit_price": _money(event.unit_price),
+    }
+
+
+def _summary_data(summary: SummaryView) -> dict[str, object]:
+    """Give the capital gains totals, as the template prints them."""
+    return {
+        "acquisition_count": summary.acquisition_count,
+        "disposal_count": summary.disposal_count,
+        "disposal_proceeds": _money(summary.disposal_proceeds),
+        "allowable_costs": _money(summary.allowable_costs),
+        "total_gain": _money(summary.total_gain),
+        "total_loss": _money(summary.total_loss),
+        "gift_loss": _money(summary.gift_loss),
+        "has_gift_loss": summary.gift_loss > 0,
+        "exempt_disposal_count": summary.exempt_disposal_count,
+        "exempt_disposal_proceeds": _money(summary.exempt_disposal_proceeds),
+        "net_gain": _money(summary.net_gain),
+    }
+
+
+def _income_summary_data(summary: IncomeSummaryView) -> dict[str, object]:
+    """Give the dividend and interest totals, as the template prints them."""
+    return {
+        "dividend_count": summary.dividend_count,
+        "interest_count": summary.interest_count,
+        "interest_tax_count": summary.interest_tax_count,
+        "eri_count": summary.eri_count,
+        "total_dividends": _money(summary.total_dividends),
+        "eri_dividends": _money(summary.eri_dividends),
+        "treaty_allowance": _money(summary.treaty_allowance),
+        "dividend_allowance": _money(summary.dividend_allowance),
+        "taxable_dividends": _money(summary.taxable_dividends),
+        "explains_dividend_tax_credit": summary.explains_dividend_tax_credit,
+        "uk_interest": _money(summary.uk_interest),
+        "foreign_interest": _money(summary.foreign_interest),
+        "eri_interest": _money(summary.eri_interest),
+        "interest_tax": _money(summary.interest_tax),
+    }
+
+
+def _report_data(view: ReportView) -> str:
+    """Write the report as JSON for the template, each value as it prints.
+
+    Counts and event numbers stay integers, which Typst prints as Python
+    does. Every string is then checked by `_shown`. The template inserts each
+    value as text, never as markup: "*", "#", "$", "@", "//" or "--" in a
+    broker name prints as itself.
+    """
+    return json.dumps(
+        _all_shown(
+            {
+                "title_period": view.title_period,
+                "summary": _summary_data(view.summary),
+                "income_summary": _income_summary_data(view.income_summary),
+                "days": [
+                    {
+                        "date": day.date.strftime("%d %B %Y"),
+                        "events": [_event_data(event) for event in day.events],
+                    }
+                    for day in view.days
+                ],
+                "income_days": [
+                    {
+                        "date": day.date.strftime("%d %B %Y"),
+                        "events": [_income_event_data(event) for event in day.events],
+                    }
+                    for day in view.income_days
+                ],
+            }
+        )
+    )
 
 
 def render_pdf(report: CapitalGainsReport, output_path: Path) -> None:
@@ -126,29 +336,17 @@ def render_pdf(report: CapitalGainsReport, output_path: Path) -> None:
             stream=sys.stderr,
         ),
     )
-    environment = jinja2.Environment(
-        trim_blocks=True,
-        lstrip_blocks=True,
-        autoescape=False,
-        # Applied to every value the template prints, so a line added to it
-        # later is covered too.
-        finalize=_typst_text,
-        loader=jinja2.PackageLoader(PACKAGE_NAME, "resources"),
-    )
-    environment.filters["money"] = "{:,}".format
-    markup = environment.get_template(TYPST_TEMPLATE_RESOURCE).render(
-        view=build_report_view(report),
-        strip_zeros=strip_zeros,
-    )
-    # A str input would be read as a file path. Fonts come only from the
-    # package and the binding, so the PDF is the same whatever the machine has
-    # installed, and the root is fixed so the working directory plays no part.
+    data = _report_data(build_report_view(report))
+    # Fonts come only from the package and the binding, so the PDF is the
+    # same whatever the machine has installed, and the root is fixed so the
+    # working directory plays no part.
     with resources.as_file(resources.files(RESOURCES_PACKAGE)) as root:
         pdf = typst.Compiler(
             root=root,
             font_paths=[root / "fonts"],
             ignore_system_fonts=True,
-        ).compile(input=markup.encode("utf-8"), format="pdf")
+            sys_inputs={"view": data},
+        ).compile(input=root / TYPST_TEMPLATE_RESOURCE, format="pdf")
     assert isinstance(pdf, bytes)
 
     with saving("the report", pdf_path, "To save it somewhere else, pass --output."):

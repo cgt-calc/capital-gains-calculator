@@ -294,11 +294,8 @@ RENAME_DESCRIPTION_PREFIX: Final = "renamed from "
 # Resource files
 # =============================================================================
 
-assert __package__ is not None
-PACKAGE_NAME: Final = __package__
-
 # Typst template for calculations report
-TYPST_TEMPLATE_RESOURCE: Final = "template.typ.j2"
+TYPST_TEMPLATE_RESOURCE: Final = "template.typ"
 
 # Bundled USD share prices for a few vests, used when no prices file is passed
 SHARE_PRICES_RESOURCE: Final = "share_prices.csv"

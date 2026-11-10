@@ -1,7 +1,7 @@
 """The text of the PDF report is pinned exactly.
 
 `test_run_with_example_files` pins the text of the example run's PDF. The
-small scenarios here render the rest of `template.typ.j2`, and the PDF's text,
+small scenarios here render the rest of `template.typ`, and the PDF's text,
 as pdfplumber extracts it, is compared with a golden file under
 `data/report_text/`. Between them they print every branch of the template
 that prints text, except the singular "contract" of a one-contract option
@@ -166,6 +166,22 @@ def _split() -> CapitalGainsReport:
     )
 
 
+def _split_without_reconciliation() -> CapitalGainsReport:
+    """Restate a holding through a 2-for-1 split whose count needs no reconciling.
+
+    10 units bought at £100 cost £1,000.00. The split makes them 20, exactly
+    the broker's count, so no reconciliation line prints, and the pool keeps
+    its cost: £1,000.00 / 20 = £50.00 a unit.
+    """
+    return get_report(
+        create_calculator(tax_year=2023, balance_check=False),
+        [
+            trade(POOL_DAY, ActionType.BUY, "FOO", "10", "100"),
+            paired_split(EVENT_DAY, "FOO", "10", "20", Fraction(2, 1)),
+        ],
+    )
+
+
 def _rename() -> CapitalGainsReport:
     """Rename a holding on the day it is sold, matched to a purchase under the new name."""
     return get_report(
@@ -264,7 +280,7 @@ def _fee_and_income() -> CapitalGainsReport:
 
     The interest is paid on the dividend's day, so the golden shows that two
     income events on one day stay separate paragraphs: the dividend's line ends
-    in a template tag, whose line break trim_blocks removes.
+    in a conditional clause, and only the blank line after it parts the two.
     """
     return get_report(
         create_calculator(tax_year=2024, balance_check=False),
@@ -371,6 +387,16 @@ SCENARIOS: dict[str, tuple[Callable[[], CapitalGainsReport], list[str]]] = {
     "split": (
         _split,
         ["Share reorganisation", "Reconciled to that count"],
+    ),
+    "split_without_reconciliation": (
+        _split_without_reconciliation,
+        [
+            "Stated as 10 units before the event and 20 after.",
+            (
+                "Units in the pool at this point in the day: 20, pool cost: "
+                "£1,000.00 (£50.00/unit)."
+            ),
+        ],
     ),
     "rename": (
         _rename,

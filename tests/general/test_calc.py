@@ -3274,8 +3274,8 @@ def test_a_report_typst_cannot_compile_ends_with_how_to_report_it(
 ) -> None:
     """Typst failing on cgt-calc's own template is a fault in cgt-calc.
 
-    Every value is escaped and checked before the template prints it, so no
-    input is known to make Typst fail; the compiler is replaced by one that
+    Every value reaches the template as checked JSON data, never as markup, so
+    no input is known to make Typst fail; the compiler is replaced by one that
     does. The failure is not one cgt-calc expects, so its traceback is shown,
     followed by the advice.
     """
