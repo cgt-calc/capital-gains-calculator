@@ -174,7 +174,6 @@ KeyError
 jsonable
 Lansdown
 lari
-latex
 len
 leu
 LF
@@ -228,7 +227,6 @@ P60
 Palo
 ParsingError
 pdf
-pdflatex
 pdfplumber
 PermissionError
 pipx
@@ -381,6 +379,7 @@ uv
 uv's
 v1
 v2
+v3
 ValueError
 VanguardTransaction
 VTI
@@ -393,7 +392,6 @@ XPF
 xtrackers
 yfinance
 YYYY
-LifeStrategy
 Opendoor
 Noto
 SIL

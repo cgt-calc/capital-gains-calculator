@@ -51,7 +51,8 @@ _VERIFIED_RANGES: Final = (
     (0x2030, 0x203A),  # per mille, primes, single guillemets
     (0x20A0, 0x20C0),  # currency signs
 )
-# Symbols outside those ranges that the LaTeX report printed.
+# Symbols outside those ranges that v3.0.0 printed, kept so names using them
+# still print.
 _VERIFIED_SYMBOLS: Final = frozenset(
     (
         0x0E3F,  # baht sign
@@ -99,7 +100,7 @@ def _shown(text: str) -> str:
 
     The string is composed (NFC) and put on one line, each run of whitespace
     becoming one space, so a tab or line break in a name reads as the space
-    LaTeX printed.
+    v3.0.0 printed.
     """
     shown = " ".join(unicodedata.normalize("NFC", text).split())
     rejected = dict.fromkeys(char for char in shown if not _is_verified(char))
@@ -324,8 +325,8 @@ def _report_data(view: ReportView) -> str:
 
 def render_pdf(report: CapitalGainsReport, output_path: Path) -> None:
     """Render the report as a PDF named after `output_path`'s stem."""
-    # The PDF takes the output's stem whatever its suffix, as it did when
-    # pdflatex named it.
+    # The PDF takes the output's stem whatever its suffix, as it has since
+    # v2.0.0.
     pdf_path = output_path.parent / f"{output_path.stem}.pdf"
     LOGGER.info(
         "\n%s\n",

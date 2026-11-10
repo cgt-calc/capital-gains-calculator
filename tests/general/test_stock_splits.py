@@ -1116,7 +1116,6 @@ def test_a_substituted_holding_says_so_in_the_report(tmp_path: Path) -> None:
         "unresolved — broker 0.0001 -> 0.00000667 used directly"
     )
     text = report_text(report, tmp_path)
-    # LaTeX needed the arrow spelt out; the PDF prints it as typed.
     assert "unresolved — broker 0.0001 -> 0.00000667 used directly" in text
 
 
