@@ -419,7 +419,7 @@ def test_the_pdf_names_the_rule_behind_each_part_of_a_transfer(
     - QUX: 30 passed on 2 September with a £3 fee, the day 10 are bought at
       £9; 5 more are bought at £11 on 16 September. The fee is part of the
       base cost (TCGA 1992 s38(2)) and is shared between the parts by units,
-      as a sale's fees are; it never leaves the pool. 10 match the day's
+      as a sale's fees are; it does not come out of the pool. 10 match the day's
       purchase: £90 + 10/30 * £3 = £91, leaving the 100 units at £8, £800.
       5 match the later purchase: £55 + 5/30 * £3 = £55.50, and take 5 * £8
       out of the pool, leaving 95 units, £760. The last 15 come from the
