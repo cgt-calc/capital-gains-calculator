@@ -725,8 +725,8 @@ class KnownSplit:
 
 # In date order, so that a history crossing two splits of one share with rows
 # for neither is told about the earlier one first. Dates, ratios and CUSIPs
-# are from the OCC's option adjustment memos, cited for each entry; an ISIN
-# changes only where its CUSIP did.
+# are from the source cited for each entry, an OCC option adjustment memo
+# where no other is given; an ISIN changes only where its CUSIP did.
 KNOWN_TRADING212_SPLITS: Final = (
     # Apple four-for-one and Tesla five-for-one from 31 August 2020. Trading 212
     # paid out fractions of a share in cash at these two.
@@ -892,7 +892,8 @@ _CASHED_OUT_DOCS: Final = (
 _NEW_ISSUE: Final = "https://github.com/cgt-calc/capital-gains-calculator/issues/new"
 # Schwab dates a split by the first day its export states the new count, the
 # day after a split effective at the close: Alphabet's on Saturday 16 July
-# 2022, two days before the first day of split-adjusted trading.
+# 2022, two days before the first day of split-adjusted trading. A third day
+# allows for a Monday market holiday.
 _SCHWAB_SPLIT_DATE_LEAD: Final = dt.timedelta(days=3)
 
 
@@ -936,7 +937,11 @@ def check_known_split(
     """
     if held <= 0 or _restated_by_schwab_awards(state, split, days):
         return
-    if split.fractions_cashed_out:
+    # The fractions paid out were Trading 212's; a holding from other brokers
+    # alone is checked like any other split.
+    if split.fractions_cashed_out and _carried_from(
+        state, split.symbol, days, Trading212Transaction
+    ):
         raise CalculationError(_cashed_out_message(split))
     transformation = state.history.splits.get(split.date, {}).get(split.symbol)
     if transformation is None:
@@ -957,11 +962,6 @@ def _restated_by_schwab_awards(
     positive with no row and needs none for those shares. A split applies to
     the whole pool, so a pool that also holds old-count shares cannot be put
     right by any row and is left unchecked.
-
-    ``holding_sources`` is source history, not what each account still
-    holds: an account stays in it until the whole pool ends a day empty. Read
-    here, after the day's cleanup and before the current row's own source is
-    added, it is the set the pool carried into this day.
     """
     history = SCHWAB_AWARD_SPLITS.get(split.symbol)
     if history is None or not any(
@@ -970,13 +970,29 @@ def _restated_by_schwab_awards(
         for date, ratio in history.splits
     ):
         return False
-    award_accounts = {
+    return _carried_from(state, split.symbol, days, SchwabAwardTransaction)
+
+
+def _carried_from(
+    state: CalculatorState,
+    symbol: str,
+    days: Mapping[dt.date, list[BrokerTransaction]],
+    kind: type[BrokerTransaction],
+) -> bool:
+    """Say whether an account exporting ``kind`` rows added to the pool.
+
+    ``holding_sources`` is source history, not what each account still
+    holds: an account stays in it until the whole pool ends a day empty. Read
+    here, after the day's cleanup and before the current row's own source is
+    added, it is the set the pool carried into this day.
+    """
+    accounts = {
         source_account(row)
         for rows in days.values()
         for row in rows
-        if isinstance(row, SchwabAwardTransaction) and row.symbol == split.symbol
+        if isinstance(row, kind) and row.symbol == symbol
     }
-    return bool(state.history.holding_sources.get(split.symbol, set()) & award_accounts)
+    return bool(state.history.holding_sources.get(symbol, set()) & accounts)
 
 
 def _split_row_source(
@@ -1091,7 +1107,7 @@ def _missing_known_split_message(
 
 
 def _cashed_out_message(split: KnownSplit) -> str:
-    """Explain why a split Trading 212 paid fractions out at stops the run.
+    """Explain why a split at which Trading 212 paid fractions out stops the run.
 
     The holding is not printed: the message asks for an issue to be opened
     without amounts or quantities, and an error is often pasted whole.
@@ -1099,9 +1115,9 @@ def _cashed_out_message(split: KnownSplit) -> str:
     symbol, date = split.symbol, split.date
     return (
         f"{symbol} traded at a new count from {date} after a "
-        f"{split.ratio}-for-1 split, the history holds {symbol} going into "
-        f"that day, and Trading 212 rows change the {symbol} holding on or "
-        "after it. At this split Trading 212 closed any fraction of a share "
+        f"{split.ratio}-for-1 split, the {symbol} holding going into that day "
+        "includes shares bought at Trading 212, and Trading 212 rows change "
+        "it on or after that day. At this split Trading 212 closed any fraction of a share "
         "for cash instead of splitting it, and cgt-calc does not know how its "
         "exports show that, so it cannot calculate this holding, with or "
         "without a split row. Work the holding out by hand (consider "

@@ -110,6 +110,8 @@
 ^stock_split_planning\.py:.*`U(104|302)`
 # "Super Micro Computer" is the company's name, three words.
 ^stock_split_planning\.py:.*MicroComputer
+# "Trading 212's" - Harper splits the possessive after the number.
+^stock_split_planning\.py:.*SpellCheck.*`s`
 # The site names cgt-calc.uk and next.cgt-calc.uk at the end of a sentence;
 # Harper reads the domain's "uk" as a misspelt word.
 ^(contributing|releasing)\.md:.*SpellCheck.*`uk`

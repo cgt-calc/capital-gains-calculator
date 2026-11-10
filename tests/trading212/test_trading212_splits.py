@@ -2988,8 +2988,9 @@ def test_a_row_for_the_other_known_split_is_not_offered_as_this_one(
 # ===== Apple and Tesla in August 2020 =====
 #
 # Apple split 4-for-1 and Tesla 5-for-1 from 31 August 2020. Trading 212 paid
-# fractions of a share out in cash at these two, so a history carried across
-# either stops whatever split rows it has.
+# fractions of a share out in cash at these two, so a holding with Trading 212
+# shares carried across either stops whatever split rows it has. Another
+# broker's holding is checked like any other split.
 
 AUGUST_2020 = [
     pytest.param("AAPL", 4, "US0378331005", id="AAPL"),
@@ -3001,9 +3002,9 @@ def _cashed_out(symbol: str, ratio: int) -> str:
     """Return the refusal for a history carried across one of the two."""
     return (
         f"{symbol} traded at a new count from 2020-08-31 after a {ratio}-for-1 "
-        f"split, the history holds {symbol} going into that day, and Trading "
-        f"212 rows change the {symbol} holding on or after it. At this split "
-        "Trading 212 closed any fraction of a share for cash instead of "
+        f"split, the {symbol} holding going into that day includes shares bought "
+        "at Trading 212, and Trading 212 rows change it on or after that day. "
+        "At this split Trading 212 closed any fraction of a share for cash instead of "
         "splitting it, and cgt-calc does not know how its exports show that, so "
         "it cannot calculate this holding, with or without a split row. Work "
         "the holding out by hand (consider professional advice). To help "
@@ -3034,10 +3035,10 @@ def _across_august_2020(symbol: str, isin: str) -> list[list[str]]:
 def test_a_holding_carried_across_august_2020_is_refused(
     tmp_path: Path, symbol: str, ratio: int, isin: str, with_split_row: bool
 ) -> None:
-    """A split row giving the right ratio, 2 more times ratio - 1, is no remedy."""
+    """A row adding 2 x (ratio - 1) shares, the right ratio, is no remedy."""
     added = 2 * (ratio - 1)
     raw_rows = (
-        (f"2020-08-31,STOCK_SPLIT,{symbol},{added},0.00,0.00,USD",)
+        (f"2020-08-31,STOCK_SPLIT,{symbol},{added},0.00,0.00,GBP",)
         if with_split_row
         else ()
     )
@@ -3098,6 +3099,41 @@ def test_a_history_not_carried_across_august_2020_runs(
     result = run_cli(_known_split_cmd(tmp_path, rows))
 
     assert "closed any fraction" not in result.stderr
+
+
+@pytest.mark.parametrize(("symbol", "ratio", "isin"), AUGUST_2020)
+def test_another_broker_s_holding_across_august_2020_runs(
+    tmp_path: Path, symbol: str, ratio: int, isin: str
+) -> None:
+    """Trading 212 held none of it at the split, so its cash-out does not apply.
+
+    The RAW file buys 2 in July 2020 and supplies the split, so they become
+    2 x ratio. Trading 212 then buys 1 and sells it in March 2021, which
+    leaves 2 x ratio.
+    """
+    rows = [
+        _deposit("2021-03-01 09:00:00"),
+        _trade(
+            "Market buy", "2021-03-01 14:00:00", "1", "100.00", ticker=symbol, isin=isin
+        ),
+        _trade(
+            "Market sell",
+            "2021-03-02 14:00:00",
+            "1",
+            "110.00",
+            ticker=symbol,
+            isin=isin,
+        ),
+    ]
+    raw_rows = (
+        "2020-07-01,TRANSFER,,1,1000.00,0.00,GBP",
+        f"2020-07-02,BUY,{symbol},2,300.00,0.00,GBP",
+        f"2020-08-31,STOCK_SPLIT,{symbol},{2 * (ratio - 1)},0.00,0.00,GBP",
+    )
+
+    result = run_cli(_known_split_cmd(tmp_path, rows, raw_rows=raw_rows))
+
+    assert f"\n  {symbol}: {2 * ratio}.00\n" in result.stdout, result.stdout
 
 
 def test_tesla_bought_after_2020_is_checked_for_2022(tmp_path: Path) -> None:
