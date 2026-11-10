@@ -741,6 +741,18 @@ def _held_over_the_period_end(*trades: BrokerTransaction) -> list[BrokerTransact
             ["VWRL on 2024-07-15"],
             id="sold in full and bought again",
         ),
+        # Topped up while still holding: the pool keeps the ERI it had.
+        pytest.param(
+            [
+                *_held_over_the_period_end(
+                    buy_transaction(dt.date(2024, 8, 1), "VWRL", 5, 100, 0, -500),
+                    sell_transaction(dt.date(2024, 9, 2), "VWRL", 15, 110, 0, 1650),
+                ),
+                _usd_eri("2"),
+            ],
+            ["VWRL on 2024-09-02"],
+            id="topped up after the period end",
+        ),
         # Sold in full and bought back within 30 days: that sale is matched
         # with the repurchase, which takes on the pool's cost, ERI included.
         pytest.param(
@@ -884,8 +896,25 @@ def _flagged_disposals(caplog: pytest.LogCaptureFixture) -> list[str]:
     ]
 
 
+# The text report's lines for ten units held at the end, costing £800.00
+# plus an estimated ERI of £16.00, which is also the dividend. No allowable
+# cost carries the ERI: the only disposal is matched with the repurchase,
+# whose own cost it takes.
+_ESTIMATED_30_DAY_TEXT = [
+    "VWRL: 10.00, £816.00",
+    (
+        "Proceeds include excess reported income estimated at the period-end "
+        "rate, marked below."
+    ),
+    (
+        "VWRL: £16.00 (included as dividend, estimated at the period-end rate "
+        "until 2024-12-30)"
+    ),
+]
+
+
 @pytest.mark.parametrize(
-    ("today", "sold", "pdf_line", "text_line", "warnings"),
+    ("today", "sold", "pdf_line", "text_lines", "warnings"),
     [
         # 10 x USD 2 at the distribution date rate, 1.60, is £12.50.
         pytest.param(
@@ -893,7 +922,7 @@ def _flagged_disposals(caplog: pytest.LogCaptureFixture) -> list[str]:
             10,
             "Cost basis increased by £12.50 (£1.2500/unit), due to excess "
             "reported income on 30 Jun 2024.",
-            "VWRL: £12.50 (included as dividend)",
+            ["VWRL: 10.00, £812.50", "VWRL: £12.50 (included as dividend)"],
             [],
             id="known",
         ),
@@ -904,8 +933,7 @@ def _flagged_disposals(caplog: pytest.LogCaptureFixture) -> list[str]:
             "Cost basis increased by £16.00 (£1.6000/unit), due to excess "
             "reported income on 30 Jun 2024, estimated at the period-end rate "
             "until 30 Dec 2024.",
-            "VWRL: £16.00 (included as dividend, estimated at the period-end "
-            "rate until 2024-12-30)",
+            _ESTIMATED_30_DAY_TEXT,
             [_provisional_warning("VWRL")],
             id="provisional",
         ),
@@ -917,8 +945,7 @@ def _flagged_disposals(caplog: pytest.LogCaptureFixture) -> list[str]:
             "Cost basis increased by £8.00 (£1.6000/unit), due to excess "
             "reported income on 30 Jun 2024, estimated at the period-end rate "
             "until 30 Dec 2024.",
-            "VWRL: £16.00 (included as dividend, estimated at the period-end "
-            "rate until 2024-12-30)",
+            _ESTIMATED_30_DAY_TEXT,
             [_provisional_warning("VWRL")],
             id="half bought back, provisional",
         ),
@@ -930,7 +957,7 @@ def test_eri_reached_by_a_30_day_repurchase_is_marked_while_estimated(
     today: dt.date,
     sold: int,
     pdf_line: str,
-    text_line: str,
+    text_lines: list[str],
     warnings: list[str],
 ) -> None:
     """Units sold before the period end and bought back after it.
@@ -958,7 +985,10 @@ def test_eri_reached_by_a_30_day_repurchase_is_marked_while_estimated(
     report = calculator.calculate(transactions)
 
     assert pdf_line in report_text(report, tmp_path)
-    assert text_line in [line.strip() for line in render_text(report).splitlines()]
+    text = [line.strip() for line in render_text(report).splitlines()]
+    assert [
+        line for line in text if "stimated" in line or line.startswith("VWRL:")
+    ] == text_lines
     assert _warnings(caplog) == warnings
 
 

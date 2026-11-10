@@ -104,15 +104,19 @@ disposal and the distribution date, which can make your gain higher or lower.
 If you take the other view, work out the difference for each such disposal and adjust its allowable
 cost yourself, or ask a tax adviser:
 
-1. Find the ERI, in the fund's currency, that the disposal's cost includes. Only the units it takes
-    from your holding carry ERI: the Section 104 line in the PDF report that has the note. Units
-    matched with a purchase on the same day or within 30 days do not. At the end of the reporting
-    period, your holding's cost took on the ERI per unit (from the bundled ERI file or the fund's
-    report) times the units you held. Each disposal takes the same fraction of the ERI still in that
-    cost as it takes of the holding's units: taking half the units takes half of it.
-2. Convert that amount at HMRC's rate for the month of the disposal, and again at HMRC's rate for
-    the month of the distribution date.
-3. Add the first pound figure less the second to the disposal's allowable cost. If the first is
+1. Find the ERI, in the fund's currency, that your holding's cost took on for the period. It is the
+    ERI per unit (from the bundled ERI file or the fund's report) times the units you held at the
+    end of the period, plus any units you sold before the end and bought back after it, within 30
+    days of the sale. The PDF report shows each part in pounds: the "Excess Reported Income" entry
+    on the period end, and a "Cost basis increased" line on the repurchase.
+2. Work out the share of it in the disposal's cost. Only the units the disposal takes from your
+    holding carry ERI: the Section 104 line in the PDF report that has the note. Units matched with
+    a purchase on the same day or within 30 days do not. Each disposal takes the same fraction of
+    the ERI still in the holding's cost as it takes of the holding's units: taking half the units
+    takes half of it.
+3. Convert that share at HMRC's rate for the month of the disposal, and again at HMRC's rate for the
+    month of the distribution date.
+4. Add the first pound figure less the second to the disposal's allowable cost. If the first is
     smaller, this reduces the cost.
 
 ## Unsupported functionality

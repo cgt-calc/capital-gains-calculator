@@ -218,9 +218,9 @@ class Matcher:
 
         A disposal from the pool before the report's distribution date is then
         flagged (see `_match_section_104`). Sterling needs no rate, so a report
-        in pounds is the same figure whichever date is used. A report reaches a
-        pool partly held at its period end and partly bought back within 30
-        days twice, and is noted once.
+        in pounds is the same figure whichever date is used. When part of a
+        pool was held at the period end and part bought back within 30 days,
+        the report reaches the pool twice and is noted once.
         """
         pool_eris = self.run.pool_eris[pool]
         if (
