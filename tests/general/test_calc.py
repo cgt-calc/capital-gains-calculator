@@ -29,6 +29,7 @@ from cgt_calc.const import (
     CAPITAL_GAIN_ALLOWANCES,
     CAPITAL_GAINS_TAX_RATES,
     DIVIDEND_ALLOWANCES,
+    ERI_TAX_DATE_DELTA,
     PERSONAL_ALLOWANCES,
     PRE_POOLING_REFUSED_ACTIONS,
     RENAME_DESCRIPTION_PREFIX,
@@ -50,6 +51,7 @@ from cgt_calc.model import (
     BrokerTransaction,
     CapitalGainsReport,
     CurrencyCode,
+    ForeignCurrencyAmount,
     Isin,
     Position,
     RuleType,
@@ -360,6 +362,72 @@ def test_eri_conflicting_report_raises_invalid_transaction_error() -> None:
 
     with pytest.raises(InvalidTransactionError, match="conflicting ERI report"):
         calculator.prepare_history(transactions)
+
+
+@pytest.mark.parametrize("dollars_first", [False, True])
+def test_eri_duplicates_keep_period_end_gbp_comparison(
+    caplog: pytest.LogCaptureFixture, *, dollars_first: bool
+) -> None:
+    """Equivalent period-end reports still match when later FX differs."""
+    day = dt.date(2024, 6, 30)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
+    calculator.ingester.currency_converter = CurrencyConverter(
+        None,
+        {
+            day: {CurrencyCode("USD"): Decimal(2)},
+            day + ERI_TAX_DATE_DELTA: {CurrencyCode("USD"): Decimal(5)},
+        },
+    )
+    pounds = ERITransaction(
+        date=day, isin=ERI_ISIN, price=Decimal("1.25"), currency=GBP
+    )
+    dollars = ERITransaction(
+        date=day, isin=ERI_ISIN, price=Decimal("2.5"), currency=CurrencyCode("USD")
+    )
+    reports: list[BrokerTransaction] = (
+        [dollars, pounds] if dollars_first else [pounds, dollars]
+    )
+
+    calculator.prepare_history(reports)
+
+    assert "Skipping duplicated ERI transaction" in caplog.text
+    eri = calculator.eris[day]["VWRL"]
+    assert eri.price == Decimal("1.25")
+    assert reports[0].price is not None
+    assert eri.reported_price == ForeignCurrencyAmount(
+        reports[0].price, reports[0].currency
+    )
+
+
+@pytest.mark.parametrize("dollars", ["2.5003", "6.25"])
+def test_eri_conflicts_keep_period_end_gbp_tolerance(dollars: str) -> None:
+    """Later FX cannot turn a period-end conflict into a duplicate."""
+    day = dt.date(2024, 6, 30)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
+    calculator.ingester.currency_converter = CurrencyConverter(
+        None,
+        {
+            day: {CurrencyCode("USD"): Decimal(2)},
+            day + ERI_TAX_DATE_DELTA: {CurrencyCode("USD"): Decimal(5)},
+        },
+    )
+
+    with pytest.raises(InvalidTransactionError, match="conflicting ERI report"):
+        calculator.prepare_history(
+            [
+                ERITransaction(
+                    date=day, isin=ERI_ISIN, price=Decimal("1.25"), currency=GBP
+                ),
+                ERITransaction(
+                    date=day,
+                    isin=ERI_ISIN,
+                    price=Decimal(dollars),
+                    currency=CurrencyCode("USD"),
+                ),
+            ]
+        )
 
 
 @pytest.mark.parametrize(

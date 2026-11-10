@@ -1497,6 +1497,9 @@ class TransactionIngester:
                 date=transaction.date,
                 distribution_date=distribution_date,
                 is_interest=symbol.upper() in self.interest_fund_tickers,
+                reported_price=ForeignCurrencyAmount(
+                    transaction.price, transaction.currency
+                ),
             )
         self._note_ticker_only_reports(transaction.isin, known, renamed, renames)
 

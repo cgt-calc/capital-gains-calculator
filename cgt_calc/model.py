@@ -141,6 +141,8 @@ class ExcessReportedIncome:
     date: dt.date
     distribution_date: dt.date
     is_interest: bool
+    # Keep the fund's per-unit figure alongside the GBP price used for cost.
+    reported_price: ForeignCurrencyAmount | None = None
 
 
 @dataclass
