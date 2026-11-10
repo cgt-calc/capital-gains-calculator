@@ -441,8 +441,8 @@ def _provisional_warning(symbol: str) -> str:
     )
 
 
-def _early_disposal_warning(symbol: str, date: str) -> str:
-    """Give the warning for a disposal whose cost carries this module's ERI."""
+def _early_disposal_message(symbol: str, date: str) -> str:
+    """Give the message for a disposal whose cost carries this module's ERI."""
     return (
         f"The cost of the disposal of {symbol} on {date} includes the excess "
         "reported income for the period ending 2024-06-30, whose fund "
@@ -493,7 +493,7 @@ _ESTIMATED_COSTS_PDF = (
                     "reported income distributions) Total"
                 ),
             ],
-            [_early_disposal_warning("VWRL", "2024-09-02")],
+            [],
             id="known",
         ),
         # It has not: the period-end rate, 1.25, stands in, so 10 x USD 2 is
@@ -535,10 +535,7 @@ _ESTIMATED_COSTS_PDF = (
                     "estimated at the period-end rate until 30 Dec 2024"
                 ),
             ],
-            [
-                _provisional_warning("VWRL"),
-                _early_disposal_warning("VWRL", "2024-09-02"),
-            ],
+            [_provisional_warning("VWRL")],
             id="provisional",
         ),
         # A bond fund's ERI is interest, and the interest total is marked.
@@ -578,10 +575,7 @@ _ESTIMATED_COSTS_PDF = (
                     "estimated at the period-end rate until 30 Dec 2024"
                 ),
             ],
-            [
-                _provisional_warning("VWRL"),
-                _early_disposal_warning("VWRL", "2024-09-02"),
-            ],
+            [_provisional_warning("VWRL")],
             id="provisional interest",
         ),
     ],
@@ -625,10 +619,12 @@ def test_eri_is_converted_at_the_fund_distribution_date_rate(
         _usd_eri("2"),
         sell_transaction(sale_date, "VWRL", 10, 110, 0, 1100),
     ]
+    caplog.set_level(logging.INFO)
 
     report = calculator.calculate(transactions)
 
     assert report.allowable_costs == Decimal(costs)
+    assert _early_disposals(caplog) == [_early_disposal_message("VWRL", "2024-09-02")]
     text = [line.strip() for line in render_text(report).splitlines()]
     assert [
         line for line in text if "stimated" in line or line.startswith("VWRL:")
@@ -821,6 +817,7 @@ def test_a_disposal_is_flagged_while_its_pool_carries_eri_not_yet_distributed(
     flags differ.
     """
     calculator = _eri_calculator(_flat_rates(transactions), ERI_DISTRIBUTION_DATE)
+    caplog.set_level(logging.INFO)
 
     calculator.calculate(transactions)
 
@@ -830,12 +827,13 @@ def test_a_disposal_is_flagged_while_its_pool_carries_eri_not_yet_distributed(
 def test_a_disposal_flagged_in_an_earlier_tax_year_is_not_flagged_again(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A later year's run does not repeat the flag of a disposal outside it.
+    """A later year's run names a disposal outside it only at debug level.
 
     Five of ten units are sold on 2 September 2024, before the distribution
     date, in 2024/25, and five on 2 May 2025, after it, in 2025/26. The
     2025/26 run has no flagged disposal to report: the first is in a report
-    for an earlier year, and the second comes after the distribution date.
+    for an earlier year, so it is logged for debugging only, and the second
+    comes after the distribution date.
     """
     transactions = [
         *_held_over_the_period_end(
@@ -847,10 +845,12 @@ def test_a_disposal_flagged_in_an_earlier_tax_year_is_not_flagged_again(
     calculator = _eri_calculator(
         _flat_rates(transactions), ERI_DISTRIBUTION_DATE, tax_year=2025
     )
+    caplog.set_level(logging.DEBUG)
 
     calculator.calculate(transactions)
 
     assert _flagged_disposals(caplog) == []
+    assert _flagged_disposals(caplog, logging.DEBUG) == ["VWRL on 2024-09-02"]
 
 
 def test_an_estimated_eri_passed_to_a_spouse_is_not_called_an_allowable_cost(
@@ -871,6 +871,7 @@ def test_an_estimated_eri_passed_to_a_spouse_is_not_called_an_allowable_cost(
     calculator = _eri_calculator(
         _flat_rates(transactions), ERI_DISTRIBUTION_DATE - dt.timedelta(days=1)
     )
+    caplog.set_level(logging.INFO)
 
     report = calculator.calculate(transactions)
 
@@ -887,12 +888,25 @@ def _flat_rates(
     return {date: {USD: Decimal(1)} for date in dates}
 
 
-def _flagged_disposals(caplog: pytest.LogCaptureFixture) -> list[str]:
-    """Name each disposal warned about for ERI before its distribution date."""
+def _early_disposals(
+    caplog: pytest.LogCaptureFixture, level: int = logging.INFO
+) -> list[str]:
+    """Give each message, logged at `level`, about a disposal's pending ERI."""
     return [
-        re.sub(r"^The cost of the disposal of (\S+ on \S+) includes .*", r"\1", warning)
-        for warning in _warnings(caplog)
-        if warning.startswith("The cost of the disposal of ")
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == level
+        and record.getMessage().startswith("The cost of the disposal of ")
+    ]
+
+
+def _flagged_disposals(
+    caplog: pytest.LogCaptureFixture, level: int = logging.INFO
+) -> list[str]:
+    """Name each disposal noted at `level` for ERI before its distribution date."""
+    return [
+        re.sub(r"^The cost of the disposal of (\S+ on \S+) includes .*", r"\1", message)
+        for message in _early_disposals(caplog, level)
     ]
 
 

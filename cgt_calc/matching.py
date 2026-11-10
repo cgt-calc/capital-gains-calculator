@@ -931,7 +931,7 @@ class Matcher:
             ]
             for eri in pending:
                 LOGGER.log(
-                    logging.WARNING
+                    logging.INFO
                     if self.date_in_tax_year(ctx.date_index)
                     else logging.DEBUG,
                     "The cost of the disposal of %s on %s includes the excess "

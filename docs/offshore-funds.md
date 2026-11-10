@@ -97,8 +97,8 @@ regulations nor HMRC's guidance say whether the cost added for them should still
 the distribution date, or the rate for the disposal date instead.
 
 cgt-calc assumes the distribution date: the cost added is the same pound figure as the income. This
-is cgt-calc's assumption, not HMRC's stated position. cgt-calc warns about each such disposal and
-notes it in the PDF report. The two readings differ by how far the exchange rate moved between the
+is cgt-calc's assumption, not HMRC's stated position. cgt-calc notes each such disposal in its
+output and in the PDF report. The two readings differ by how far the exchange rate moved between the
 disposal and the distribution date, which can make your gain higher or lower.
 
 If you take the other view, work out the difference for each such disposal and adjust its allowable
