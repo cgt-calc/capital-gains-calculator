@@ -391,8 +391,20 @@ def test_add_from_transactions_rejects_one_exported_ticker_for_two_isins(
     identities = [_transaction(NVIDIA_ISIN, "NVD"), _transaction(ISIN_A, "NVD")]
     if reverse:
         identities.reverse()
+    first, second = (identity.isin for identity in identities)
 
-    with pytest.raises(InvalidTransactionError, match="is exported for ISIN"):
+    with pytest.raises(
+        InvalidTransactionError,
+        match=re.escape(
+            f"Ticker NVD is exported for ISIN {first} and for ISIN {second}. Two "
+            "securities under one ticker cannot be told apart, and a row naming "
+            "no ISIN of its own would be pooled with whichever listing the "
+            "export stated first. Check the exports and calculate the two "
+            "securities in separate runs; to split the files and combine the "
+            "reports, see https://cgt-calc.uk/extra-data-and-options/"
+            "#two-securities-in-separate-runs\n"
+        ),
+    ):
         converter.add_from_transactions([_transaction(None, "NVD"), *identities])
 
 
@@ -554,7 +566,11 @@ def test_a_us_symbol_beside_the_london_fund_under_the_same_ticker_is_refused() -
         InvalidTransactionError,
         match=re.escape(
             "Ticker SPLG is a US symbol on another row of this run and the "
-            f"London ticker of ISIN {INVESCO_ISIN} on this one."
+            f"London ticker of ISIN {INVESCO_ISIN} on this one. Two securities "
+            "under one ticker would be pooled and matched as one holding. "
+            "Calculate them in separate runs; to split the files and combine the "
+            "reports, see https://cgt-calc.uk/extra-data-and-options/"
+            "#two-securities-in-separate-runs\n"
         ),
     ):
         converter.set_aside_london_tickers(
@@ -602,7 +618,11 @@ def test_an_exported_isin_beside_a_vanguard_fund_under_its_ticker_is_refused() -
         match=re.escape(
             "Ticker VERX is a Vanguard fund's on this row, which the bundled list "
             f"gives ISIN IE00BKX55S42, and another row of this run exports it with "
-            f"ISIN {ISIN_A}."
+            f"ISIN {ISIN_A}. Two securities under one ticker would be pooled and "
+            "matched as one holding. Calculate them in separate runs; to split the "
+            "files and combine the reports, see "
+            "https://cgt-calc.uk/extra-data-and-options/"
+            "#two-securities-in-separate-runs\n"
         ),
     ):
         converter.set_aside_london_tickers([vanguard, _transaction(ISIN_A, "VERX")])
@@ -632,7 +652,11 @@ def test_a_us_symbol_beside_a_vanguard_fund_under_its_ticker_is_refused() -> Non
         InvalidTransactionError,
         match=re.escape(
             "Ticker VERX is a Vanguard fund's on this row, which the bundled list "
-            "gives ISIN IE00BKX55S42, and a US symbol on another row of this run."
+            "gives ISIN IE00BKX55S42, and a US symbol on another row of this run. "
+            "Two securities under one ticker would be pooled and matched as one "
+            "holding. Calculate them in separate runs; to split the files and "
+            "combine the reports, see https://cgt-calc.uk/extra-data-and-options/"
+            "#two-securities-in-separate-runs\n"
         ),
     ) as excinfo:
         converter.set_aside_london_tickers([_us("VERX"), vanguard])

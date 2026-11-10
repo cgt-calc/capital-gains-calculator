@@ -165,7 +165,7 @@ Interactive Brokers dividend rows do, is not matched to a bundled ticker that be
 ISIN either. The ISIN says which security it is, so cgt-calc uses it, and treats the run's other
 transactions under the same ticker that carry no ISIN as the same security. If one of them is in
 fact the bundled fund, held at a broker whose export gives no ISIN, the two would be pooled as one
-holding: calculate them in separate runs.
+holding: calculate them in [separate runs](#two-securities-in-separate-runs).
 
 In both cases, a Vanguard transaction under the ticker is always Vanguard's own fund, so cgt-calc
 stops instead; see [`is a Vanguard fund's on this row`](#is-a-vanguard-funds-on-this-row).
@@ -224,20 +224,79 @@ already stands for a different ISIN in this run: a row in your ISIN translation 
 cgt-calc saved there, or another transaction gives it to that ISIN. cgt-calc would pool the two
 securities as one holding. If the row in your file is wrong, correct it, or give that ISIN a row
 that leaves the ticker out, as described under [`already linked to ISIN`](#already-linked-to-isin).
-If two of your exports really use one ticker for two securities, calculate them in separate runs.
+If two of your exports really use one ticker for two securities, calculate them in
+[separate runs](#two-securities-in-separate-runs).
 
 #### `is a US symbol on another row`
 
 One transaction, such as a Charles Schwab one, uses the ticker as a US symbol. Another uses the same
 ticker and carries the ISIN of the London fund that the bundled list gives the ticker to. They are
-two securities, and cgt-calc would pool them as one holding. Calculate them in separate runs.
+two securities, and cgt-calc would pool them as one holding. Calculate them in
+[separate runs](#two-securities-in-separate-runs).
 
 #### `is a Vanguard fund's on this row`
 
 A Vanguard transaction uses a ticker that the bundled list gives a Vanguard fund, such as `VERX`.
 Another transaction exports the same ticker with a different ISIN, such as Vertex's, or uses it as a
 US symbol, as a Charles Schwab one does. Vanguard sells only its own funds, so they are two
-securities, and cgt-calc would pool them as one holding. Calculate them in separate runs.
+securities, and cgt-calc would pool them as one holding. Calculate them in
+[separate runs](#two-securities-in-separate-runs).
+
+#### Two securities in separate runs
+
+Some errors, such as `is exported for ISIN` and `is a US symbol on another row`, stop a run that has
+two different securities under one ticker and ask you to calculate them in separate runs. cgt-calc
+can then calculate each security, but you need to choose each run's files with care and add up the
+two reports yourself.
+
+Do this only for two different securities. One security whose ISIN changed, as happens at some share
+splits, can also stop the run with `is exported for ISIN`, but it is one holding. Separate runs
+would split it and give the wrong cost, so work that holding out by hand (consider professional
+advice).
+
+cgt-calc pools and matches each security across all the files in a run, so every security, not only
+these two, needs all of its transactions in one run. Give one of the two securities a run of its
+own:
+
+- That run gets the security's transactions from every file that has any, whichever broker it comes
+    from.
+- The other run gets everything else.
+- Both runs need the same `--year` and tax settings, and the same extra data files, such as your
+    exchange rates file and any custom ERI file. Each needs its own `--output`, or the second run
+    replaces the first one's PDF.
+- The exception is a row in your ISIN translation file that gives the shared ticker to one of the
+    two securities. It also applies in the run that does not hold that security, so give that run a
+    copy of the file with `--isin-translation-file`, and in the copy take the ticker off that row.
+    Keep every other row, and leave the ISIN followed by a comma if the row had no other ticker.
+
+You can pass whole files when that already keeps every security in one run and the two securities
+apart: for example, the Charles Schwab export alone in one run, and the Vanguard export with all
+your other files in the other, when you hold none of the Schwab shares at another broker.
+
+Otherwise, keep the downloaded files unchanged and make two working copies of each file that holds
+the security with a run of its own and anything else. Delete that security's rows from the first
+copy, and every other row from the second. Pass the second copies to that security's run. That run
+then has none of the deposits that paid for the purchases, so it usually stops with
+`Reached a negative balance`: add `--no-balance-check` to it, which turns the check off for every
+file in that run. The first copies lose the cash of the deleted rows too. If money those rows
+brought in paid for later purchases, the other run stops the same way: use `--no-balance-check`
+there only once you have checked that the shortfall is only that money.
+
+To combine the reports for a tax year, add up the capital gains figures in their terminal summaries,
+from **Disposals** to **Total gain**. Deduct the annual exempt amount once, from the combined
+**Total gain**, and work out the tax on the rest, as
+[Tax estimates](tax-estimates.md#tax-at-the-basic-and-higher-rate) explains. Do not add the reports'
+**Taxable gain** or tax figures: each report deducts the whole annual exempt amount and taxes its
+gain as if it were your only one, so adding them counts the allowance twice.
+
+In 2010/11 and 2024/25 the rates changed during the year, so the tax also depends on how much of the
+combined **Gain** was made after the change. To find it, run each of the two again with
+`--no-report` for that part of the year, as
+[Report part of a tax year](usage.md#report-part-of-a-tax-year-advanced) shows, and add up their
+**Gain**.
+
+Add the dividend **Proceeds** and the interest figures as they are, but not the dividends' **Taxable
+proceeds**: each report deducts the whole dividend allowance from them.
 
 ### Temporary cache files
 
