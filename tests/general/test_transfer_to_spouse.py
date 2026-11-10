@@ -414,13 +414,17 @@ def test_the_pdf_names_the_rule_behind_each_part_of_a_transfer(
       other: £250, leaving the 50 units at £20, £1,000.
     - BAZ: 4 passed on 1 August are matched to the 4 bought at £13 on
       12 August: £52. The pool still gives up 4 at its £10 average, leaving
-      6 units, £60, and the 12 August purchase takes those £40.
-    - QUX: 30 passed on 2 September, the day 10 are bought at £9 and 14 days
-      before 5 are bought at £11. 10 match the day's purchase, £90, leaving
-      the 100 units at £8, £800. 5 match the later purchase, £55, and take
-      5 * £8 out of the pool, leaving 95 units, £760. The last 15 come from
-      the pool, 15 * £8 = £120, leaving 80 units, £640. £90 + £55 + £120 =
-      £265 passes to the recipient.
+      6 units, £60; the 12 August purchase later returns those 4 units and
+      their £40 to the pool.
+    - QUX: 30 passed on 2 September with a £3 fee, the day 10 are bought at
+      £9; 5 more are bought at £11 on 16 September. The fee is part of the
+      base cost (TCGA 1992 s38(2)) and is shared between the parts by units,
+      as a sale's fees are; it never leaves the pool. 10 match the day's
+      purchase: £90 + 10/30 * £3 = £91, leaving the 100 units at £8, £800.
+      5 match the later purchase: £55 + 5/30 * £3 = £55.50, and take 5 * £8
+      out of the pool, leaving 95 units, £760. The last 15 come from the
+      pool: 15 * £8 + the remaining £1.50 of the fee = £121.50, leaving 80
+      units, £640. £91 + £55.50 + £121.50 = £268 passes to the recipient.
     """
     may_1 = dt.date(2024, 5, 1)
     report = get_report(
@@ -436,7 +440,16 @@ def test_the_pdf_names_the_rule_behind_each_part_of_a_transfer(
             transfer_to_spouse_transaction(dt.date(2024, 8, 1), "BAZ", 4),
             _gbp_trade(dt.date(2024, 8, 12), ActionType.BUY, "BAZ", 4, 52),
             _gbp_trade(dt.date(2024, 9, 2), ActionType.BUY, "QUX", 10, 90),
-            transfer_to_spouse_transaction(dt.date(2024, 9, 2), "QUX", 30),
+            transaction(
+                dt.date(2024, 9, 2),
+                ActionType.TRANSFER_TO_SPOUSE,
+                "QUX",
+                30,
+                None,
+                3,
+                -3,
+                CurrencyCode(GBP),
+            ),
             _gbp_trade(dt.date(2024, 9, 16), ActionType.BUY, "QUX", 5, 55),
         ],
     )
@@ -462,11 +475,11 @@ def test_the_pdf_names_the_rule_behind_each_part_of_a_transfer(
     ) in text
     assert (
         "Transferred to spouse: 30 units of QUX (no gain/no loss) "
-        f"Base cost of £265.00 passes to the recipient. {header} "
-        f"1. SAME DAY 10 £90.00 {left} 100, new pool cost: £800.00 (£8.00/unit). "
-        "2. BED AND BREAKFAST 5 £55.00 base cost on 16 Sep 2024 "
+        f"Base cost of £268.00 passes to the recipient. {header} "
+        f"1. SAME DAY 10 £91.00 {left} 100, new pool cost: £800.00 (£8.00/unit). "
+        "2. BED AND BREAKFAST 5 £55.50 base cost on 16 Sep 2024 "
         f"{left} 95, new pool cost: £760.00 (£8.00/unit). "
-        f"3. SECTION 104 15 £120.00 {left} 80, new pool cost: £640.00 (£8.00/unit)."
+        f"3. SECTION 104 15 £121.50 {left} 80, new pool cost: £640.00 (£8.00/unit)."
     ) in text
 
 
