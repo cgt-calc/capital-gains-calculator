@@ -625,9 +625,12 @@ def test_basic(
 ) -> None:
     """Generate basic tests for test data."""
     if gbp_prices is None:
-        gbp_prices = {
-            t.date: {CurrencyCode("USD"): Decimal(1)} for t in broker_transactions
+        dates = {t.date for t in broker_transactions} | {
+            t.date + ERI_TAX_DATE_DELTA
+            for t in broker_transactions
+            if t.action is ActionType.EXCESS_REPORTED_INCOME
         }
+        gbp_prices = {date: {CurrencyCode("USD"): Decimal(1)} for date in dates}
     currency_converter = CurrencyConverter(None, gbp_prices)
     isin_converter = IsinConverter()
     historical_prices = {

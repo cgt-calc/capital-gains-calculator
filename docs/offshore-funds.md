@@ -9,6 +9,14 @@ For a reporting fund, excess reported income (ERI) is the income per unit above 
 investors. It can be taxable even though you did not receive it in cash. It can apply to both
 accumulating and distributing share classes.
 
+ERI income is reported on the fund distribution date, normally six months after the reporting period
+ends. cgt-calc converts that income to GBP using the exchange rate for the distribution date, which
+also determines the income tax year. The amount is based on the holding at reporting period end,
+including the relevant 30-day matching adjustment.
+
+CGT cost adjustments currently use the reporting-period-end exchange rate and increase the holding's
+cost at reporting-period end. Income and acquisition cost are valued separately.
+
 ## What to check
 
 1. Find the exact share class and ISIN in your statement or the fund documents.

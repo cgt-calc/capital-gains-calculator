@@ -131,6 +131,7 @@ class CapitalGainsCalculator:
             interest_fund_tickers,
             self.date_in_tax_year,
             self.is_cgt_exempt,
+            currency_converter,
         )
 
     @property

@@ -55,29 +55,29 @@ def test_eri_raw_file_option_adds_its_rows_to_the_bundled_ones(tmp_path: Path) -
             ("Gain:", "£266.42"),
             id="2021-22-pounds",
         ),
-        # Held at 31/10/2023 only: 10 x 34.5541 EUR at HMRC's October 2023
-        # rate of 1.1555 is £299.04, paid on 30/04/2024, in 2024/25.
+        # Held at 31/10/2023 only: 10 x 34.5541 EUR at the April 2024
+        # distribution rate of 1.1707 is £295.16, in 2024/25.
         pytest.param(
             "2023-10-02",
             "2024-06-03",
             "2024",
-            ["CSH2: £299.04 (included as dividend)"],
+            ["CSH2: £295.16 (included as dividend)"],
             "£12,109.04",
             ("Loss:", "£9.04"),
             id="2024-25",
         ),
         # Held at 31/10/2024, 07/03/2025 and 30/09/2025, all paid in 2025/26:
-        # 10 x 60.7270 / 1.1876 = £511.34, 10 x 25.0609 / 1.2073 = £207.58
-        # and 10 x 32.5745 / 1.1573 = £281.47, at HMRC's rates for October
-        # 2024, March 2025 and September 2025; £1,000.39 in all.
+        # Income uses April/September 2025 and March 2026 distribution rates:
+        # 607.270 / 1.1897, 250.609 / 1.1573 and 325.745 / 1.1469.
+        # Cost uplifts retain report-date FX, independently of income.
         pytest.param(
             "2024-10-01",
             "2025-11-03",
             "2025",
             [
-                "CSH2: £511.34 (included as dividend)",
-                "CSH2: £207.58 (included as dividend)",
-                "CSH2: £281.47 (included as dividend)",
+                "CSH2: £510.44 (included as dividend)",
+                "CSH2: £216.55 (included as dividend)",
+                "CSH2: £284.02 (included as dividend)",
             ],
             "£12,810.39",
             ("Loss:", "£710.39"),

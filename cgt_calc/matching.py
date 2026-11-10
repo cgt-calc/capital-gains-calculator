@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
     from .calculator_state import CalculatorState
+    from .currency_converter import CurrencyConverter
 
 LOGGER = logging.getLogger(__name__)
 
@@ -143,6 +144,7 @@ class Matcher:
         interest_fund_tickers: list[str],
         date_in_tax_year: Callable[[dt.date], bool],
         is_cgt_exempt: Callable[[str], bool],
+        currency_converter: CurrencyConverter,
     ):
         """Create matcher object."""
         self.history = state.history
@@ -152,6 +154,7 @@ class Matcher:
         self.interest_fund_tickers = interest_fund_tickers
         self.date_in_tax_year = date_in_tax_year
         self.is_cgt_exempt = is_cgt_exempt
+        self.currency_converter = currency_converter
         # What each name holds as the day being walked opens, before any of
         # the day's rows. Only the days that record a rename need it, and only
         # to tell a holding of a name's own from what the day put there.
@@ -160,6 +163,15 @@ class Matcher:
     def get_eri(self, symbol: str, date: dt.date) -> ExcessReportedIncome | None:
         """Return Excess Reported Income at specific date for the input symbol."""
         return self.history.eris.get(date, {}).get(symbol)
+
+    def _eri_income_price(self, eri: ExcessReportedIncome) -> Decimal:
+        """Value reported ERI per unit on its fund distribution date."""
+        reported = eri.reported_price
+        assert reported is not None
+        assert reported.currency is not None
+        return self.currency_converter.to_gbp(
+            reported.amount, reported.currency, eri.distribution_date
+        )
 
     def _warn_ticker_only_eri(self, eri: ExcessReportedIncome) -> None:
         """Warn, once, that a report just added to a holding's cost may not be its.
@@ -769,17 +781,17 @@ class Matcher:
                     # https://www.rawknowledge.ltd/eri-explained-four-tricky-questions-answered/
                     total_dist_amount = Decimal(0)
                     for eri in eris:
-                        eri_distribution = ExcessReportedIncomeDistribution(
-                            price=eri.price,
-                            amount=available_quantity * eri.price,
-                            quantity=available_quantity,
-                        )
                         self._warn_ticker_only_eri(eri)
-                        total_dist_amount += eri_distribution.amount
+                        total_dist_amount += available_quantity * eri.price
                         if self.date_in_tax_year(eri.distribution_date):
+                            income_price = self._eri_income_price(eri)
                             self.run.eris_distribution[eri.distribution_date][
                                 ctx.symbol
-                            ] += eri_distribution
+                            ] += ExcessReportedIncomeDistribution(
+                                price=income_price,
+                                amount=available_quantity * income_price,
+                                quantity=available_quantity,
+                            )
 
                     bed_and_breakfast_gain = (
                         bed_and_breakfast_proceeds - bed_and_breakfast_allowable_cost
@@ -1961,10 +1973,11 @@ class Matcher:
         self.run.portfolio[eri.symbol].amount = new_amount
 
         if self.date_in_tax_year(eri.distribution_date):
+            income_price = self._eri_income_price(eri)
             self.run.eris_distribution[eri.distribution_date][symbol] += (
                 ExcessReportedIncomeDistribution(
-                    price=eri.price,
-                    amount=allowable_cost,
+                    price=income_price,
+                    amount=quantity * income_price,
                     quantity=quantity,
                 )
             )

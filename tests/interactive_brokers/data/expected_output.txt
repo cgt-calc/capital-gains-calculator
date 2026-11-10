@@ -23,7 +23,7 @@ Capital gains
   Taxable gain:           £0.00
 
 Dividends
-  Proceeds:              £33.54
+  Proceeds:              £33.65
   Tax-free allowance:   £500.00
   Taxable proceeds:       £0.00
 
@@ -33,4 +33,4 @@ Interest
   Tax paid:               £0.00
 
 Excess Reported Income
-  CNX1: £12.54 (included as dividend)
+  CNX1: £12.65 (included as dividend)
