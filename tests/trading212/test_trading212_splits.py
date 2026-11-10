@@ -10,7 +10,7 @@ which is what makes the pair checkable.
 from __future__ import annotations
 
 import csv
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from fractions import Fraction
 import json
@@ -2056,10 +2056,11 @@ def _bought_then_sold(
     bought: str = "2024-06-03 14:00:00",
     sold: str = "2024-06-12 14:00:00",
     sold_as: str | None = None,
+    deposited: str = "2024-06-01 09:00:00",
 ) -> list[list[str]]:
     """Buy 2 for GBP 800 and sell 1 for GBP 88, with the cash to pay for it."""
     return [
-        _deposit("2024-06-01 09:00:00"),
+        _deposit(deposited),
         _trade("Market buy", bought, "2", "400.00", ticker=ticker, isin=isin),
         _trade("Market sell", sold, "1", "88.00", ticker=sold_as or ticker, isin=isin),
     ]
@@ -2091,10 +2092,10 @@ def _refusal(cmd: list[str]) -> str:
     return result.stderr
 
 
-def _carried(symbol: str, date: str, held: str) -> str:
+def _carried(symbol: str, date: str, held: str, ratio: int = 10) -> str:
     """Return the opening every refusal for a missing row shares."""
     return (
-        f"{symbol} traded at a new count from {date} after a 10-for-1 split, "
+        f"{symbol} traded at a new count from {date} after a {ratio}-for-1 split, "
         f"but no input has a split row for {symbol} dated {date}. The history "
         f"holds {held} {symbol} going into that day, and Trading 212 rows "
         f"change the {symbol} holding on or after it, so without the split "
@@ -2118,10 +2119,17 @@ def _add_split(symbol: str, date: str, raw_file: Path | None = None) -> str:
     )
 
 
-def _missing(symbol: str, date: str, held: str, raw_file: Path | None = None) -> str:
+def _missing(
+    symbol: str,
+    date: str,
+    held: str,
+    raw_file: Path | None = None,
+    *,
+    ratio: int = 10,
+) -> str:
     """Return the refusal for a split with no row on any date."""
     return (
-        _carried(symbol, date, held)
+        _carried(symbol, date, held, ratio)
         + f"Add the split {_add_split(symbol, date, raw_file)} See {NO_ROWS_DOCS}"
     )
 
@@ -2687,10 +2695,16 @@ def test_another_broker_s_history_is_not_checked(tmp_path: Path) -> None:
 # because the award rows are in dollars.
 
 
-def _award_export(tmp_path: Path, rows: list[dict[str, object]]) -> str:
+def _award_export(
+    tmp_path: Path, rows: list[dict[str, object]], year: int = 2024
+) -> str:
     """Write a complete Equity Awards export holding these rows."""
     path = tmp_path / "awards.json"
-    export = {"FromDate": "01/01/2024", "ToDate": "12/31/2024", "Transactions": rows}
+    export = {
+        "FromDate": f"01/01/{year}",
+        "ToDate": f"12/31/{year}",
+        "Transactions": rows,
+    }
     path.write_text(json.dumps(export), encoding="utf-8")
     return str(path)
 
@@ -2841,3 +2855,276 @@ def test_award_shares_vested_on_the_split_day_exempt_nothing(tmp_path: Path) -> 
     )
 
     assert "ERROR: " + _missing("NVDA", "2024-06-10", "2") + "\n" in stderr
+
+
+def test_alphabet_award_shares_dated_by_schwab_two_days_earlier_are_not_refused(
+    tmp_path: Path,
+) -> None:
+    """Schwab's table dates Alphabet's split 16 July 2022, a Saturday.
+
+    The first day of split-adjusted trading was Monday 18 July, so this is
+    the same split. A vest of 30 GOOG on 30 June at USD 110, below the USD
+    175 above which Schwab's prices are certainly pre-split, is already at
+    the new count; with 1 bought at Trading 212 after the split that is 31.
+    """
+    awards = _award_export(
+        tmp_path, [_award_vest("06/30/2022", "GOOG", "30", "$110.00")], year=2022
+    )
+    rows = [
+        _deposit("2022-07-01 09:00:00"),
+        _trade(
+            "Market buy",
+            "2022-07-26 14:00:00",
+            "1",
+            "90.00",
+            ticker="GOOG",
+            isin="US02079K1079",
+        ),
+    ]
+
+    result = run_cli(
+        _known_split_cmd(tmp_path, rows, extra=("--schwab-award-file", awards))
+    )
+
+    assert "\n  GOOG: 31.00\n" in result.stdout, result.stdout
+
+
+# ===== the rest of the table =====
+#
+# Written from the OCC's option adjustment memos rather than read from the
+# table: the ticker, the first day of split-adjusted trading, the ratio and an
+# ISIN the share is exported under. Lam Research's ISIN changed with its CUSIP
+# at the split, so it is here with both.
+
+ADDED_SPLITS = [
+    pytest.param("NVDA", "2021-07-20", 4, NVDA_ISIN, id="NVDA 2021"),
+    pytest.param("AMZN", "2022-06-06", 20, "US0231351067", id="AMZN"),
+    pytest.param("DXCM", "2022-06-13", 4, "US2521311074", id="DXCM"),
+    pytest.param("SHOP", "2022-06-29", 10, "CA82509L1076", id="SHOP"),
+    pytest.param("GOOGL", "2022-07-18", 20, "US02079K3059", id="GOOGL"),
+    pytest.param("GOOG", "2022-07-18", 20, "US02079K1079", id="GOOG"),
+    pytest.param("TSLA", "2022-08-25", 3, "US88160R1014", id="TSLA 2022"),
+    pytest.param("PANW", "2022-09-14", 3, "US6974351057", id="PANW"),
+    pytest.param("NVO", "2023-09-20", 2, "US6701002056", id="NVO"),
+    pytest.param("WMT", "2024-02-26", 3, "US9311421039", id="WMT"),
+    pytest.param("CMG", "2024-06-26", 50, "US1696561059", id="CMG"),
+    pytest.param("AVGO", "2024-07-15", 10, "US11135F1012", id="AVGO"),
+    pytest.param("MSTR", "2024-08-08", 10, "US5949724083", id="MSTR"),
+    pytest.param("CTAS", "2024-09-12", 4, "US1729081059", id="CTAS"),
+    pytest.param("DECK", "2024-09-17", 6, "US2435371073", id="DECK"),
+    pytest.param("LRCX", "2024-10-03", 10, "US5128071082", id="LRCX before"),
+    pytest.param("LRCX", "2024-10-03", 10, "US5128073062", id="LRCX after"),
+]
+
+
+@pytest.mark.parametrize(("symbol", "split_day", "ratio", "isin"), ADDED_SPLITS)
+def test_each_split_added_to_the_table_is_checked(
+    tmp_path: Path, symbol: str, split_day: str, ratio: int, isin: str
+) -> None:
+    """2 bought the week before the split and 1 sold the day after it stop."""
+    day = date.fromisoformat(split_day)
+    rows = _bought_then_sold(
+        ticker=symbol,
+        isin=isin,
+        deposited=f"{day - timedelta(days=7)} 09:00:00",
+        bought=f"{day - timedelta(days=7)} 14:00:00",
+        sold=f"{day + timedelta(days=1)} 14:00:00",
+    )
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    assert "ERROR: " + _missing(symbol, split_day, "2", ratio=ratio) + "\n" in stderr
+
+
+# NVIDIA split 4-for-1 from 20 July 2021 and 10-for-1 from 10 June 2024: 2
+# bought on 13 July 2021 are 8 after the first and 80 after the second.
+NVDA_ACROSS_BOTH = _bought_then_sold(
+    deposited="2021-07-13 09:00:00", bought="2021-07-13 14:00:00"
+)
+NVDA_2021_ROW = "2021-07-20,STOCK_SPLIT,NVDA,6,0.00,0.00,USD"
+
+
+def test_both_nvidia_splits_supplied_let_the_history_run(tmp_path: Path) -> None:
+    """The sale of 1 of 80 takes 800 / 80 = 10, a gain of 88 - 10 = 78.
+
+    79 remain at a cost of 800 - 10 = 790.
+    """
+    cmd = _known_split_cmd(
+        tmp_path,
+        NVDA_ACROSS_BOTH,
+        raw_rows=(NVDA_2021_ROW, "2024-06-10,STOCK_SPLIT,NVDA,72,0.00,0.00,USD"),
+    )
+
+    result = run_cli(cmd)
+
+    assert re.search(r"Allowable costs:\s+£10\.00\n", result.stdout), result.stdout
+    assert re.search(r"\n  Gain:\s+£78\.00\n", result.stdout), result.stdout
+    assert "  NVDA: 79.00, £790.00\n" in result.stdout, result.stdout
+
+
+def test_the_earlier_of_two_missing_splits_is_named_first(tmp_path: Path) -> None:
+    """With no rows at all, the 2 carried into 20 July 2021 are refused first."""
+    stderr = _refusal(_known_split_cmd(tmp_path, NVDA_ACROSS_BOTH))
+
+    assert "ERROR: " + _missing("NVDA", "2021-07-20", "2", ratio=4) + "\n" in stderr
+
+
+def test_a_row_for_the_other_known_split_is_not_offered_as_this_one(
+    tmp_path: Path,
+) -> None:
+    """The 2021 row makes the 2 into 8 and records that split, not 2024's.
+
+    So the refusal for 10 June 2024 says to add the split, without listing
+    the 2021 row as one that may record it.
+    """
+    cmd = _known_split_cmd(tmp_path, NVDA_ACROSS_BOTH, raw_rows=(NVDA_2021_ROW,))
+
+    stderr = _refusal(cmd)
+
+    expected = _missing("NVDA", "2024-06-10", "8", tmp_path / "splits.csv")
+    assert "ERROR: " + expected + "\n" in stderr
+
+
+# ===== Apple and Tesla in August 2020 =====
+#
+# Apple split 4-for-1 and Tesla 5-for-1 from 31 August 2020. Trading 212 paid
+# fractions of a share out in cash at these two, so a history carried across
+# either stops whatever split rows it has.
+
+AUGUST_2020 = [
+    pytest.param("AAPL", 4, "US0378331005", id="AAPL"),
+    pytest.param("TSLA", 5, "US88160R1014", id="TSLA"),
+]
+
+
+def _cashed_out(symbol: str, ratio: int) -> str:
+    """Return the refusal for a history carried across one of the two."""
+    return (
+        f"{symbol} traded at a new count from 2020-08-31 after a {ratio}-for-1 "
+        f"split, the history holds {symbol} going into that day, and Trading "
+        f"212 rows change the {symbol} holding on or after it. At this split "
+        "Trading 212 closed any fraction of a share for cash instead of "
+        "splitting it, and cgt-calc does not know how its exports show that, so "
+        "it cannot calculate this holding, with or without a split row. Work "
+        "the holding out by hand (consider professional advice). To help "
+        "cgt-calc support it, open an issue at "
+        "https://github.com/cgt-calc/capital-gains-calculator/issues/new saying "
+        f"what your export shows: whether its {symbol} rows before 2020-08-31 "
+        "are at the price per share before the split, any split rows for "
+        f"{symbol} and their dates, and how the closed fraction appears (as a "
+        "sale, a deposit or not at all) and its date. Do not attach the export "
+        "or post amounts or quantities. See "
+        "https://cgt-calc.uk/brokers/trading212/#apple-and-tesla-in-august-2020"
+    )
+
+
+def _across_august_2020(symbol: str, isin: str) -> list[list[str]]:
+    """Buy 2 on 24 August 2020 and sell 1 on 2 September."""
+    return _bought_then_sold(
+        ticker=symbol,
+        isin=isin,
+        deposited="2020-08-24 09:00:00",
+        bought="2020-08-24 14:00:00",
+        sold="2020-09-02 14:00:00",
+    )
+
+
+@pytest.mark.parametrize(("symbol", "ratio", "isin"), AUGUST_2020)
+@pytest.mark.parametrize("with_split_row", [False, True], ids=["no row", "a row"])
+def test_a_holding_carried_across_august_2020_is_refused(
+    tmp_path: Path, symbol: str, ratio: int, isin: str, with_split_row: bool
+) -> None:
+    """A split row giving the right ratio, 2 more times ratio - 1, is no remedy."""
+    added = 2 * (ratio - 1)
+    raw_rows = (
+        (f"2020-08-31,STOCK_SPLIT,{symbol},{added},0.00,0.00,USD",)
+        if with_split_row
+        else ()
+    )
+    cmd = _known_split_cmd(
+        tmp_path, _across_august_2020(symbol, isin), raw_rows=raw_rows
+    )
+
+    stderr = _refusal(cmd)
+
+    assert "ERROR: " + _cashed_out(symbol, ratio) + "\n" in stderr
+
+
+@pytest.mark.parametrize(
+    ("symbol", "isin"),
+    [
+        pytest.param("AAPL", "US0378331005", id="AAPL"),
+        pytest.param("TSLA", "US88160R1014", id="TSLA"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("bought", "sold"),
+    [
+        pytest.param("2020-08-24", "2020-08-28", id="sold out before"),
+        pytest.param("2020-09-01", "2020-09-02", id="bought after"),
+    ],
+)
+def test_a_history_not_carried_across_august_2020_runs(
+    tmp_path: Path, symbol: str, isin: str, bought: str, sold: str
+) -> None:
+    """Nothing is held going into 31 August, so the split changes nothing.
+
+    Each history also buys 1 and sells it after the split, so a Trading 212
+    row trades the share on or after 31 August either way, and only the
+    empty holding keeps it from being refused. The figures are not asserted:
+    no split applies to them.
+    """
+    rows = [
+        _deposit(f"{bought} 09:00:00"),
+        _trade(
+            "Market buy", f"{bought} 14:00:00", "2", "400.00", ticker=symbol, isin=isin
+        ),
+        _trade(
+            "Market sell", f"{sold} 14:00:00", "2", "400.00", ticker=symbol, isin=isin
+        ),
+        _trade(
+            "Market buy", "2020-09-03 14:00:00", "1", "100.00", ticker=symbol, isin=isin
+        ),
+        _trade(
+            "Market sell",
+            "2020-09-04 14:00:00",
+            "1",
+            "101.00",
+            ticker=symbol,
+            isin=isin,
+        ),
+    ]
+
+    result = run_cli(_known_split_cmd(tmp_path, rows))
+
+    assert "closed any fraction" not in result.stderr
+
+
+def test_tesla_bought_after_2020_is_checked_for_2022(tmp_path: Path) -> None:
+    """2 bought in March 2021 are not carried across August 2020, only 2022's."""
+    rows = _bought_then_sold(
+        ticker="TSLA",
+        isin="US88160R1014",
+        deposited="2021-03-01 09:00:00",
+        bought="2021-03-01 14:00:00",
+        sold="2022-08-26 14:00:00",
+    )
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    assert "ERROR: " + _missing("TSLA", "2022-08-25", "2", ratio=3) + "\n" in stderr
+
+
+def test_tesla_carried_across_both_splits_is_refused_for_2020(tmp_path: Path) -> None:
+    """Both splits fall due on the day of the sale, and 2020 is named first."""
+    rows = _bought_then_sold(
+        ticker="TSLA",
+        isin="US88160R1014",
+        deposited="2020-08-24 09:00:00",
+        bought="2020-08-24 14:00:00",
+        sold="2022-08-26 14:00:00",
+    )
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    assert "ERROR: " + _cashed_out("TSLA", 5) + "\n" in stderr

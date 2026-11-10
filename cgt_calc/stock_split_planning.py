@@ -717,9 +717,106 @@ class KnownSplit:
     # whether a Trading 212 row is this security, because another product
     # can trade under the same ticker; they never merge two holdings.
     isins: frozenset[Isin]
+    # Trading 212 closed fractions of a share for cash at this split instead
+    # of splitting them, and how its exports show that is not known, so a
+    # history carried across it is refused whatever split rows it has.
+    fractions_cashed_out: bool = False
 
 
+# In date order, so that a history crossing two splits of one share with rows
+# for neither is told about the earlier one first. Dates, ratios and CUSIPs
+# are from the OCC's option adjustment memos, cited for each entry; an ISIN
+# changes only where its CUSIP did.
 KNOWN_TRADING212_SPLITS: Final = (
+    # Apple four-for-one and Tesla five-for-one from 31 August 2020. Trading 212
+    # paid out fractions of a share in cash at these two.
+    # https://www.miaxglobal.com/sites/default/files/alert-files/AAPL_Split_47369.pdf
+    # https://www.miaxglobal.com/sites/default/files/alert-files/TSLA_Split_47432.pdf
+    KnownSplit(
+        symbol="AAPL",
+        date=dt.date(2020, 8, 31),
+        ratio=Fraction(4),
+        isins=frozenset({Isin("US0378331005")}),
+        fractions_cashed_out=True,
+    ),
+    KnownSplit(
+        symbol="TSLA",
+        date=dt.date(2020, 8, 31),
+        ratio=Fraction(5),
+        isins=frozenset({Isin("US88160R1014")}),
+        fractions_cashed_out=True,
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/NVDA_Split_48828.pdf
+    KnownSplit(
+        symbol="NVDA",
+        date=dt.date(2021, 7, 20),
+        ratio=Fraction(4),
+        isins=frozenset({Isin("US67066G1040")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/AMZN_split__50496.pdf
+    KnownSplit(
+        symbol="AMZN",
+        date=dt.date(2022, 6, 6),
+        ratio=Fraction(20),
+        isins=frozenset({Isin("US0231351067")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/DXCM_Split__50507.pdf
+    KnownSplit(
+        symbol="DXCM",
+        date=dt.date(2022, 6, 13),
+        ratio=Fraction(4),
+        isins=frozenset({Isin("US2521311074")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/SHOP_Split__50556.pdf
+    KnownSplit(
+        symbol="SHOP",
+        date=dt.date(2022, 6, 29),
+        ratio=Fraction(10),
+        isins=frozenset({Isin("CA82509L1076")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/GOOGL_Split__50542.pdf
+    KnownSplit(
+        symbol="GOOGL",
+        date=dt.date(2022, 7, 18),
+        ratio=Fraction(20),
+        isins=frozenset({Isin("US02079K3059")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/GOOG_Split__50543.pdf
+    KnownSplit(
+        symbol="GOOG",
+        date=dt.date(2022, 7, 18),
+        ratio=Fraction(20),
+        isins=frozenset({Isin("US02079K1079")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/TSLA__Split_50828.pdf
+    KnownSplit(
+        symbol="TSLA",
+        date=dt.date(2022, 8, 25),
+        ratio=Fraction(3),
+        isins=frozenset({Isin("US88160R1014")}),
+    ),
+    # https://boxoptions.com/assets/BOXOnnMemo205619.pdf
+    KnownSplit(
+        symbol="PANW",
+        date=dt.date(2022, 9, 14),
+        ratio=Fraction(3),
+        isins=frozenset({Isin("US6974351057")}),
+    ),
+    # Novo Nordisk's American depositary shares.
+    # https://boxexchange.com/assets/BOXOnnMemo206153.pdf
+    KnownSplit(
+        symbol="NVO",
+        date=dt.date(2023, 9, 20),
+        ratio=Fraction(2),
+        isins=frozenset({Isin("US6701002056")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/WMT_Split_54057.pdf
+    KnownSplit(
+        symbol="WMT",
+        date=dt.date(2024, 2, 26),
+        ratio=Fraction(3),
+        isins=frozenset({Isin("US9311421039")}),
+    ),
     # NVIDIA's ten-for-one split: split-adjusted trading from the market open
     # on 10 June 2024, as its FAQ states.
     # https://investor.nvidia.com/files/doc_downloads/2024/06/nvidia-2024-stock-split_faq_investors.pdf
@@ -728,6 +825,41 @@ KNOWN_TRADING212_SPLITS: Final = (
         date=dt.date(2024, 6, 10),
         ratio=Fraction(10),
         isins=frozenset({Isin("US67066G1040")}),
+    ),
+    # https://boxexchange.com/assets/BOXOnnMemo206607.pdf
+    KnownSplit(
+        symbol="CMG",
+        date=dt.date(2024, 6, 26),
+        ratio=Fraction(50),
+        isins=frozenset({Isin("US1696561059")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/AVGO_Split_54716.pdf
+    KnownSplit(
+        symbol="AVGO",
+        date=dt.date(2024, 7, 15),
+        ratio=Fraction(10),
+        isins=frozenset({Isin("US11135F1012")}),
+    ),
+    # https://boxexchange.com/assets/BOXOnnMemo206657.pdf
+    KnownSplit(
+        symbol="MSTR",
+        date=dt.date(2024, 8, 8),
+        ratio=Fraction(10),
+        isins=frozenset({Isin("US5949724083")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/CTAS_Split_55082.pdf
+    KnownSplit(
+        symbol="CTAS",
+        date=dt.date(2024, 9, 12),
+        ratio=Fraction(4),
+        isins=frozenset({Isin("US1729081059")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/DECK_Split_55174.pdf
+    KnownSplit(
+        symbol="DECK",
+        date=dt.date(2024, 9, 17),
+        ratio=Fraction(6),
+        isins=frozenset({Isin("US2435371073")}),
     ),
     # Super Micro Computer's ten-for-one split: split-adjusted trading from
     # 1 October 2024, when its CUSIP changed from 86800U104 to 86800U302.
@@ -739,6 +871,14 @@ KNOWN_TRADING212_SPLITS: Final = (
         ratio=Fraction(10),
         isins=frozenset({Isin("US86800U1043"), Isin("US86800U3023")}),
     ),
+    # Lam Research's CUSIP changed from 512807108 to 512807306 with its split.
+    # https://www.miaxglobal.com/sites/default/files/alert-files/LRCX_Split_55311.pdf
+    KnownSplit(
+        symbol="LRCX",
+        date=dt.date(2024, 10, 3),
+        ratio=Fraction(10),
+        isins=frozenset({Isin("US5128071082"), Isin("US5128073062")}),
+    ),
 )
 
 _NO_SPLIT_ROW_DOCS: Final = (
@@ -746,6 +886,14 @@ _NO_SPLIT_ROW_DOCS: Final = (
 )
 # One literal each, so that the link check reads the whole address.
 _OTHER_SPLIT_ROW_DOCS: Final = "https://cgt-calc.uk/brokers/trading212/#a-split-row-on-another-day-or-with-another-ratio"
+_CASHED_OUT_DOCS: Final = (
+    "https://cgt-calc.uk/brokers/trading212/#apple-and-tesla-in-august-2020"
+)
+_NEW_ISSUE: Final = "https://github.com/cgt-calc/capital-gains-calculator/issues/new"
+# Schwab dates a split by the first day its export states the new count, the
+# day after a split effective at the close: Alphabet's on Saturday 16 July
+# 2022, two days before the first day of split-adjusted trading.
+_SCHWAB_SPLIT_DATE_LEAD: Final = dt.timedelta(days=3)
 
 
 def known_splits_crossed(
@@ -788,6 +936,8 @@ def check_known_split(
     """
     if held <= 0 or _restated_by_schwab_awards(state, split, days):
         return
+    if split.fractions_cashed_out:
+        raise CalculationError(_cashed_out_message(split))
     transformation = state.history.splits.get(split.date, {}).get(split.symbol)
     if transformation is None:
         raise CalculationError(_missing_known_split_message(split, held, days))
@@ -814,9 +964,11 @@ def _restated_by_schwab_awards(
     added, it is the set the pool carried into this day.
     """
     history = SCHWAB_AWARD_SPLITS.get(split.symbol)
-    if history is None or (split.date, split.ratio) not in {
-        (date, Fraction(ratio)) for date, ratio in history.splits
-    }:
+    if history is None or not any(
+        Fraction(ratio) == split.ratio
+        and split.date - _SCHWAB_SPLIT_DATE_LEAD <= date <= split.date
+        for date, ratio in history.splits
+    ):
         return False
     award_accounts = {
         source_account(row)
@@ -882,7 +1034,9 @@ def _missing_known_split_message(
         "purchases before that day would be counted in old shares and its "
         "sales after it in new ones. "
     )
-    others = [row for row in _split_rows(days, symbol) if row.date != date]
+    # A row on the day of another known split of the share records that one.
+    known = {other.date for other in KNOWN_TRADING212_SPLITS if other.symbol == symbol}
+    others = [row for row in _split_rows(days, symbol) if row.date not in known]
     if not others:
         return message + (
             f"Add the split {_add_known_split(split, raw_file)} "
@@ -933,6 +1087,31 @@ def _missing_known_split_message(
         message
         + f"The inputs have {symbol} split rows on other dates:\n{listed}\n"
         + " ".join(advice)
+    )
+
+
+def _cashed_out_message(split: KnownSplit) -> str:
+    """Explain why a split Trading 212 paid fractions out at stops the run.
+
+    The holding is not printed: the message asks for an issue to be opened
+    without amounts or quantities, and an error is often pasted whole.
+    """
+    symbol, date = split.symbol, split.date
+    return (
+        f"{symbol} traded at a new count from {date} after a "
+        f"{split.ratio}-for-1 split, the history holds {symbol} going into "
+        f"that day, and Trading 212 rows change the {symbol} holding on or "
+        "after it. At this split Trading 212 closed any fraction of a share "
+        "for cash instead of splitting it, and cgt-calc does not know how its "
+        "exports show that, so it cannot calculate this holding, with or "
+        "without a split row. Work the holding out by hand (consider "
+        "professional advice). To help cgt-calc support it, open an issue at "
+        f"{_NEW_ISSUE} saying what your export shows: whether its {symbol} "
+        f"rows before {date} are at the price per share before the split, "
+        f"any split rows for {symbol} and their dates, and how the closed "
+        "fraction appears (as a sale, a deposit or not at all) and its date. "
+        "Do not attach the export or post amounts or quantities. "
+        f"See {_CASHED_OUT_DOCS}"
     )
 
 

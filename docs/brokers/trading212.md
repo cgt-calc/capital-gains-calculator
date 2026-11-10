@@ -121,9 +121,9 @@ the ratio, and cgt-calc applies it to the whole holding.
 Trading 212 does not export `Stock split close` and `Stock split open` rows for every split. In the
 exports examined, they first appear in December 2024, and an earlier split has neither them nor the
 older single `Stock Split` row: NVIDIA's 10-for-1 split of 10 June 2024 is one. Your purchases
-before the split are then counted in old shares and your sales after it in new ones. For the two
-splits below cgt-calc can stop instead, in the cases described after this list. Otherwise, it cannot
-tell that the split is missing:
+before the split are then counted in old shares and your sales after it in new ones. For the splits
+listed below cgt-calc can stop instead, in the cases described there. Otherwise, it cannot tell that
+the split is missing:
 
 - A sale of more shares than the old count holds stops the run with
     [`Tried to sell`](#tried-to-sell).
@@ -132,28 +132,52 @@ tell that the split is missing:
 - A missing consolidation gives no error at all. Each sale takes too small a share of the cost, so
     the report overstates the gain.
 
-cgt-calc knows two splits that the exports examined have no rows for: NVIDIA's 10-for-1 split of 10
-June 2024 (ISIN US67066G1040) and Super Micro Computer's 10-for-1 split of 1 October 2024
-(US86800U1043 or US86800U3023). It stops when your history holds the share going into that day, a
-Trading 212 row with one of those ISINs buys or sells it on or after that day, and no split row
-dated that day gives the 10-for-1 ratio. With no split row on that day, the message begins with the
-ticker and **traded at a new count**. With one that gives another ratio, it says the split **does
-not match** the 10-for-1 split that day. It does not check other splits, a share you hold across the
-split without trading it at Trading 212 afterwards, or rows without an ISIN, so the checks below
-still apply.
+cgt-calc knows the splits in this table, all made before December 2024. The date is the first day
+the shares traded at the new count:
 
-cgt-calc reads the NVIDIA shares in a complete Schwab Equity Awards export at the new count (see
+| Share                                     | Ticker  | First day at the new count | Split    | ISIN                         |
+| ----------------------------------------- | ------- | -------------------------- | -------- | ---------------------------- |
+| NVIDIA                                    | `NVDA`  | 20 July 2021               | 4-for-1  | US67066G1040                 |
+| Amazon                                    | `AMZN`  | 6 June 2022                | 20-for-1 | US0231351067                 |
+| DexCom                                    | `DXCM`  | 13 June 2022               | 4-for-1  | US2521311074                 |
+| Shopify                                   | `SHOP`  | 29 June 2022               | 10-for-1 | CA82509L1076                 |
+| Alphabet Class A                          | `GOOGL` | 18 July 2022               | 20-for-1 | US02079K3059                 |
+| Alphabet Class C                          | `GOOG`  | 18 July 2022               | 20-for-1 | US02079K1079                 |
+| Tesla                                     | `TSLA`  | 25 August 2022             | 3-for-1  | US88160R1014                 |
+| Palo Alto Networks                        | `PANW`  | 14 September 2022          | 3-for-1  | US6974351057                 |
+| Novo Nordisk (American depositary shares) | `NVO`   | 20 September 2023          | 2-for-1  | US6701002056                 |
+| Walmart                                   | `WMT`   | 26 February 2024           | 3-for-1  | US9311421039                 |
+| NVIDIA                                    | `NVDA`  | 10 June 2024               | 10-for-1 | US67066G1040                 |
+| Chipotle Mexican Grill                    | `CMG`   | 26 June 2024               | 50-for-1 | US1696561059                 |
+| Broadcom                                  | `AVGO`  | 15 July 2024               | 10-for-1 | US11135F1012                 |
+| MicroStrategy (now Strategy)              | `MSTR`  | 8 August 2024              | 10-for-1 | US5949724083                 |
+| Cintas                                    | `CTAS`  | 12 September 2024          | 4-for-1  | US1729081059                 |
+| Deckers Outdoor                           | `DECK`  | 17 September 2024          | 6-for-1  | US2435371073                 |
+| Super Micro Computer                      | `SMCI`  | 1 October 2024             | 10-for-1 | US86800U1043 or US86800U3023 |
+| Lam Research                              | `LRCX`  | 3 October 2024             | 10-for-1 | US5128071082 or US5128073062 |
+
+cgt-calc stops when your history holds the share going into that day, a Trading 212 row with one of
+those ISINs buys or sells it on or after that day, and no split row dated that day gives the split's
+ratio. With no split row on that day, the message begins with the ticker and **traded at a new
+count**. With one that gives another ratio, it says the split **does not match** the split that day.
+It does not check other splits, a share you hold across the split without trading it at Trading 212
+afterwards, or rows without an ISIN, so the checks below still apply. Apple's and Tesla's splits of
+August 2020 are not in the table: cgt-calc stops at those even with a split row, as
+[Apple and Tesla in August 2020](#apple-and-tesla-in-august-2020) explains.
+
+cgt-calc reads NVIDIA and Alphabet (`GOOG` and `GOOGL`) shares in a complete Schwab Equity Awards
+export at the new count (see
 [Share splits in complete exports](schwab.md#share-splits-in-complete-exports)), so it does not
-check an NVIDIA holding that such an export has added shares to since the holding last ended a day
-empty. That stays true after those award shares are sold, while other shares keep the holding above
-zero. A split applies to the whole holding, and cgt-calc cannot restate only part of one: if such a
-holding also has Trading 212 shares bought before 10 June 2024, the result may be wrong without an
-error. Work the split out by hand (consider professional advice). Do not add a split row for it: the
-row would restate the award shares too, and cgt-calc would not stop.
+check such a holding that the export has added shares to since the holding last ended a day empty.
+That stays true after those award shares are sold, while other shares keep the holding above zero. A
+split applies to the whole holding, and cgt-calc cannot restate only part of one: if such a holding
+also has Trading 212 shares bought before the split, the result may be wrong without an error. Work
+the split out by hand (consider professional advice). Do not add a split row for it: the row would
+restate the award shares too, and cgt-calc would not stop.
 
-Super Micro Computer's ISIN changed with the split. If your export lists the share under
-US86800U1043 before the split and US86800U3023 after it, cgt-calc stops earlier, with
-`is exported for ISIN`. If the export's own split rows change the ISIN, it stops with
+Super Micro Computer's and Lam Research's ISINs changed with their splits. If your export lists the
+share under the first ISIN in the table before the split and the second after it, cgt-calc stops
+earlier, with `is exported for ISIN`. If the export's own split rows change the ISIN, it stops with
 `changes the ISIN` while reading the export. A RAW row gets past neither. Do not calculate the two
 ISINs in separate runs, as the first message suggests for two different securities: here they are
 one holding, and splitting it would give the wrong cost. Work the holding out by hand (consider
@@ -167,8 +191,8 @@ company has split or consolidated its shares since you first bought them.
 
 Add the split yourself in a [RAW file](raw.md):
 
-1. Find the first day the shares traded at the new count, from the company's announcement of the
-    split.
+1. Find the first day the shares traded at the new count, from the table above or from the company's
+    announcement of the split.
 2. Work out how many shares you held at the start of that day: add up `No. of shares` for your
     purchases before it and take off your sales before it. If an earlier split of the share has no
     rows either, add a row for that one first and count the shares it added.
@@ -188,12 +212,13 @@ Add the split yourself in a [RAW file](raw.md):
     cgt-calc --year 2024 --trading212-dir trading212/ --raw-file splits.csv
     ```
 
-When it checks one of the two splits above, cgt-calc also checks that your row gives the 10-for-1
+When it checks one of the splits in the table, cgt-calc also checks that your row gives that split's
 ratio. Otherwise, it cannot check the number you write. Either way, check it in two ways. Run it for
 the tax year of the split and find the share reorganisation in the report: its ratio should be the
-company's, 10 for this split. Then compare the final portfolio with your holdings again: if the
-count of the share still differs, look for another split with no rows. If you hold the share at
-another broker as well, see [Holdings spread across brokers](raw.md#holdings-spread-across-brokers).
+company's, 10 for the NVIDIA split in the example. Then compare the final portfolio with your
+holdings again: if the count of the share still differs, look for another split with no rows. If you
+hold the share at another broker as well, see
+[Holdings spread across brokers](raw.md#holdings-spread-across-brokers).
 
 If you also bought or sold the share on the day of the split, cgt-calc stops with
 [`cannot be placed either side of it`](raw.md#cannot-be-placed-either-side-of-it), because the RAW
@@ -212,18 +237,20 @@ earlier that day; the entry linked above says what to do then.
 
 #### A split row on another day or with another ratio
 
-When cgt-calc stops for one of the two splits above, it names the share's split rows on other days,
-or the split rows of that day when they do not give the 10-for-1 ratio. It never moves or corrects
-them. Do not add a second split row while one of them may record the split: two rows apply it twice.
-What to do depends on where the row is:
+When cgt-calc stops for one of the splits in the table above, it names the share's split rows on
+other days, or the split rows of that day when they do not give the split's ratio. It never moves or
+corrects them. It does not name a row dated the day of another split of the share that it knows,
+such as NVIDIA's of 20 July 2021 or Tesla's of 31 August 2020: that row records the other split. Do
+not add a second split row while one of them may record the split: two rows apply it twice. What to
+do depends on where the row is:
 
-- **A `STOCK_SPLIT` row in your RAW file.** First check that it records this split and not another:
-    NVIDIA also split 4-for-1 in July 2021, and a row for that one belongs on its own day. Then
-    change its date to the split day, or correct its number to the shares the split added to the
-    whole holding. A RAW row has no time, so if you also traded the share on the split day, cgt-calc
-    stops with [`cannot be placed either side of it`](raw.md#cannot-be-placed-either-side-of-it):
-    take the row out of the RAW file and use a `Stock Split` row in a working copy of the export
-    instead, as described above.
+- **A `STOCK_SPLIT` row in your RAW file.** First check that it records this split and not another
+    split of the same share: a row for that one belongs on its own day. Then change its date to the
+    split day, or correct its number to the shares the split added to the whole holding. A RAW row
+    has no time, so if you also traded the share on the split day, cgt-calc stops with
+    [`cannot be placed either side of it`](raw.md#cannot-be-placed-either-side-of-it): take the row
+    out of the RAW file and use a `Stock Split` row in a working copy of the export instead, as
+    described above.
 - **A `Stock Split` row you added to a working copy of the export.** Correct its number of shares,
     or move its `Time` to the split day before your first trade at the new count. Move it only if no
     trade of the share falls between its old time and the new one; otherwise work the split out by
@@ -260,6 +287,30 @@ What to do depends on where the row is:
     date and the split day. If it gives another ratio, correct its number there. If a trade does
     fall in between, or the row's time and order cannot be kept, work the split out by hand
     (consider professional advice).
+
+#### Apple and Tesla in August 2020
+
+Apple's 4-for-1 split and Tesla's 5-for-1 split both took effect from 31 August 2020. At these two,
+Trading 212 did not split fractions of a share: it closed the fractional part of each holding for
+cash. cgt-calc does not know how an export shows that, so no split row can make the result right.
+cgt-calc stops when your history holds Apple (ISIN US0378331005) or Tesla (US88160R1014) going into
+31 August 2020 and a Trading 212 row with that ISIN buys or sells it on or after that day, even if
+you have added a split row. The message begins with the ticker and **traded at a new count**, and
+says that Trading 212 **closed any fraction of a share for cash**. A history that bought the share
+only after the split, or sold all of it before, runs as usual. Tesla's 3-for-1 split of 25 August
+2022 is checked like the others in the table above.
+
+Work the holding out by hand (consider professional advice). To help cgt-calc support these splits,
+open a [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) that says
+what your export shows:
+
+- whether your rows from before 31 August 2020 are at the price per share before the split: on 28
+    August 2020, Apple closed at about 500 USD and Tesla at about 2,200 USD;
+- any split rows for the share, and their dates;
+- how the fraction closed for cash appears, for example as a sale or a deposit, and its date.
+
+Do not attach the export or post amounts or quantities: anyone can read an issue (see
+[Reporting problems](../reporting-problems.md)).
 
 ### Dates and time zones
 
