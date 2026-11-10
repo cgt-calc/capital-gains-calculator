@@ -3,8 +3,8 @@
 ## Prerequisites
 
 - **Python 3.12** or newer (tested on 3.12, 3.13, and 3.14)
-- **LaTeX** if you want a PDF report. Install `pdflatex` using the instructions below. You can run
-    cgt-calc without it by using `--no-report`.
+
+cgt-calc creates the PDF report itself. You do not need LaTeX or any other program to create it.
 
 ## Install cgt-calc
 
@@ -36,30 +36,11 @@ uvx cgt-calc
 ## Nix
 
 The Nix community maintains a
-[`cgt-calc` package in nixpkgs](https://search.nixos.org/packages?query=cgt-calc), which bundles
-`pdflatex` so no separate LaTeX install is needed:
+[`cgt-calc` package in nixpkgs](https://search.nixos.org/packages?query=cgt-calc):
 
 ```shell
 nix run nixpkgs#cgt-calc
 ```
-
-## Installing LaTeX
-
-### macOS
-
-```shell
-brew install --cask mactex-no-gui
-```
-
-### Debian/Ubuntu
-
-```shell
-apt install texlive-latex-base
-```
-
-### Windows
-
-[Install MiKTeX.](https://miktex.org/download)
 
 ## Check the installation
 
@@ -97,6 +78,79 @@ Run `cgt-calc --version` afterwards to check the installed version. If you use `
 `uvx cgt-calc@latest --version` to fetch and check the latest release, then use
 `uvx cgt-calc@latest` with your usual report options. Docker users should follow
 [Updating the image](docker.md#updating-the-image).
+
+If you installed the unreleased version, use
+[Update the unreleased version](#update-the-unreleased-version) instead.
+
+## Install the unreleased version
+
+The `main` branch on GitHub has changes that are not in a release yet. This code is unreleased and
+may change. [cgt-calc.uk](https://cgt-calc.uk/) shows the docs for the latest release, and
+[next.cgt-calc.uk](https://next.cgt-calc.uk/) shows the docs for `main`.
+
+You need [Git](https://git-scm.com/downloads) installed. Install the version on `main` with uv, pipx
+or pip. Each command replaces a release installed with the same tool, or with pip in the same
+virtual environment.
+
+With uv:
+
+```shell
+uv tool install git+https://github.com/cgt-calc/capital-gains-calculator
+```
+
+With pipx:
+
+```shell
+pipx install --force git+https://github.com/cgt-calc/capital-gains-calculator
+```
+
+With pip, inside an active Python virtual environment:
+
+```shell
+python -m pip install git+https://github.com/cgt-calc/capital-gains-calculator
+```
+
+Or run it without installing. `uvx` fetches the latest `main` each time:
+
+```shell
+uvx --from git+https://github.com/cgt-calc/capital-gains-calculator cgt-calc
+```
+
+`cgt-calc --version` shows which code you have. For example, `cgt-calc 3.0.0.post13+g327ebae` is 13
+commits after release 3.0.0, at commit `327ebae`.
+
+Docker users can use the `edge` tag instead; see [Available tags](docker.md#available-tags). The
+[Nix package](#nix) is built from a release, so it cannot install `main`.
+
+### Update the unreleased version
+
+To get the latest changes on `main`, use the command for the tool you installed it with:
+
+| Install method                           | Update command                                                                                     |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| uv                                       | `uv tool upgrade cgt-calc`                                                                         |
+| pipx                                     | `pipx reinstall cgt-calc`                                                                          |
+| pip, in the original virtual environment | `python -m pip install --force-reinstall git+https://github.com/cgt-calc/capital-gains-calculator` |
+
+Run `cgt-calc --version` afterwards. The characters after `+g` should match the start of the latest
+commit ID in the
+[list of commits on `main`](https://github.com/cgt-calc/capital-gains-calculator/commits/main/).
+
+### Go back to the latest release
+
+| Install method                           | Command                                            |
+| ---------------------------------------- | -------------------------------------------------- |
+| uv                                       | `uv tool install cgt-calc@latest`                  |
+| pipx                                     | `pipx install --force cgt-calc`                    |
+| pip, in the original virtual environment | `python -m pip install --force-reinstall cgt-calc` |
+
+Without `@latest` or `--force`, `uv tool install cgt-calc` and `pipx install cgt-calc` keep the
+unreleased version. pip needs `--force-reinstall`: the unreleased version counts as newer than the
+release it follows, so `python -m pip install --upgrade cgt-calc` would keep it. `--force-reinstall`
+also reinstalls cgt-calc's dependencies.
+
+If you used `uvx --from`, run `uvx cgt-calc@latest` instead. After that,
+[upgrade cgt-calc](#upgrade-cgt-calc) as usual.
 
 ## Shell completions (optional)
 

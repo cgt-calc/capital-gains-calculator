@@ -3,14 +3,26 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
+import datetime as dt
 from decimal import Decimal
 from fractions import Fraction
 import logging
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Final, Literal
 
-from .exceptions import CalculationError, InvalidTransactionError, SymbolMissingError
-from .model import ActionType, Position
-from .parsers.raw import RawTransaction
+from .exceptions import (
+    CalculationError,
+    InvalidTransactionError,
+    SymbolMissingError,
+    raw_file_to_add_to,
+)
+from .model import ActionType, Isin, Position
+from .parsers.raw import RawTransaction, raw_file_of
+from .parsers.schwab_equity_award_json import (
+    SPLITS as SCHWAB_AWARD_SPLITS,
+    SchwabAwardTransaction,
+)
+from .parsers.trading212 import Trading212Transaction
 from .rename_planning import connected_names
 from .stock_splits import (
     SplitMode,
@@ -27,7 +39,8 @@ from .stock_splits import (
 from .util import indent_entry, strip_zeros
 
 if TYPE_CHECKING:
-    import datetime as dt
+    from collections.abc import Iterable, Mapping
+    from pathlib import Path
 
     from .calculator_state import CalculatorState
     from .model import BrokerTransaction, TransactionSource
@@ -577,9 +590,10 @@ def _split_chronology_message(
     """Explain why a same-day row cannot be placed around a reorganisation.
 
     Times the export does state are not always enough, so the reason has
-    to say which situation this is. Telling someone whose export already
-    states its times to supply times would send them looking for a file
-    that does not exist.
+    to say which situation this is: a row ahead of a single booked instant,
+    a row at or between the two halves of a reorganisation, or two rows
+    that neither times nor one RAW file put in order. The last two are told
+    how to move the day into RAW.
     """
     preamble = (
         f"Cannot apply the reorganisation of {symbol} on {date_index}: "
@@ -600,20 +614,38 @@ def _split_chronology_message(
             "Work the day out by hand (consider professional advice)."
         )
     if len(instants) > 1 and stamp is not None:
-        return preamble + (
+        reason = (
             f"This row is stamped {stamp}, at or between the two halves of "
-            f"the reorganisation at {min(instants)} and {max(instants)}. If "
-            f"you know the real order, move the day's {symbol} rows out of "
-            "their exports into one RAW input in that order, with the "
-            "reorganisation as one STOCK_SPLIT row stating the change to the "
-            "whole holding; otherwise work the day out by hand (consider "
-            "professional advice)."
+            f"the reorganisation at {min(instants)} and {max(instants)}."
         )
-    return preamble + (
-        "The two come from different inputs, or from an export that gives "
-        "neither times nor a documented order. Run again with the day's "
-        f"{symbol} rows in one input that states times, or work the day out "
-        "by hand (consider professional advice)."
+    else:
+        reason = (
+            "The two come from different inputs, or from an export that gives "
+            "neither times nor a documented order."
+        )
+    return f"{preamble}{reason} {_move_the_day_to_raw(symbol)}"
+
+
+# One literal, so that the link check reads the whole address.
+_CHRONOLOGY_DOCS: Final = (
+    "https://cgt-calc.uk/brokers/raw/#cannot-be-placed-either-side-of-it"
+)
+
+
+def _move_the_day_to_raw(symbol: str) -> str:
+    """Say how a day nothing places can be settled, and what that costs.
+
+    Moving a row into the RAW input moves its cash into that input's own
+    balance, which the balance check then holds to account.
+    """
+    return (
+        f"If you know the real order, move the day's {symbol} rows out of "
+        "their exports into one RAW input in that order, with the "
+        "reorganisation as one STOCK_SPLIT row stating the change to the "
+        "whole holding; otherwise work the day out by hand (consider "
+        "professional advice). Moving rows also moves their cash into the "
+        f"RAW input's own balance: see {_CHRONOLOGY_DOCS} for the cash rows "
+        "that keep each balance right."
     )
 
 
@@ -664,4 +696,483 @@ def _broker_split_delta_message(
         "the reorganisation as a RAW STOCK_SPLIT row stating the change to "
         "the whole holding, or as a broker export that states the counts "
         "either side of the event."
+    )
+
+
+@dataclass(frozen=True)
+class KnownSplit:
+    """A split a Trading 212 history can cross with no row for it.
+
+    The exports examined have no rows for these, so their purchases before
+    the split are counted in old shares and their sales after it in new
+    ones. Nothing here applies a split: a history that needs one and does
+    not supply a matching row is refused.
+    """
+
+    symbol: str
+    # The first day of split-adjusted trading, the date a supplied row takes.
+    date: dt.date
+    ratio: Fraction
+    # The issuer's identifiers either side of the split. They only decide
+    # whether a Trading 212 row is this security, because another product
+    # can trade under the same ticker; they never merge two holdings.
+    isins: frozenset[Isin]
+    # Trading 212 closed fractions of a share for cash at this split instead
+    # of splitting them, and how its exports show that is not known, so a
+    # history carried across it is refused whatever split rows it has.
+    fractions_cashed_out: bool = False
+
+
+# In date order, so that a history crossing two splits of one share with rows
+# for neither is told about the earlier one first. Dates, ratios and CUSIPs
+# are from the source cited for each entry, an OCC option adjustment memo
+# where no other is given; an ISIN changes only where its CUSIP did.
+KNOWN_TRADING212_SPLITS: Final = (
+    # Apple four-for-one and Tesla five-for-one from 31 August 2020. Trading 212
+    # paid out fractions of a share in cash at these two.
+    # https://www.miaxglobal.com/sites/default/files/alert-files/AAPL_Split_47369.pdf
+    # https://www.miaxglobal.com/sites/default/files/alert-files/TSLA_Split_47432.pdf
+    KnownSplit(
+        symbol="AAPL",
+        date=dt.date(2020, 8, 31),
+        ratio=Fraction(4),
+        isins=frozenset({Isin("US0378331005")}),
+        fractions_cashed_out=True,
+    ),
+    KnownSplit(
+        symbol="TSLA",
+        date=dt.date(2020, 8, 31),
+        ratio=Fraction(5),
+        isins=frozenset({Isin("US88160R1014")}),
+        fractions_cashed_out=True,
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/NVDA_Split_48828.pdf
+    KnownSplit(
+        symbol="NVDA",
+        date=dt.date(2021, 7, 20),
+        ratio=Fraction(4),
+        isins=frozenset({Isin("US67066G1040")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/AMZN_split__50496.pdf
+    KnownSplit(
+        symbol="AMZN",
+        date=dt.date(2022, 6, 6),
+        ratio=Fraction(20),
+        isins=frozenset({Isin("US0231351067")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/DXCM_Split__50507.pdf
+    KnownSplit(
+        symbol="DXCM",
+        date=dt.date(2022, 6, 13),
+        ratio=Fraction(4),
+        isins=frozenset({Isin("US2521311074")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/SHOP_Split__50556.pdf
+    KnownSplit(
+        symbol="SHOP",
+        date=dt.date(2022, 6, 29),
+        ratio=Fraction(10),
+        isins=frozenset({Isin("CA82509L1076")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/GOOGL_Split__50542.pdf
+    KnownSplit(
+        symbol="GOOGL",
+        date=dt.date(2022, 7, 18),
+        ratio=Fraction(20),
+        isins=frozenset({Isin("US02079K3059")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/GOOG_Split__50543.pdf
+    KnownSplit(
+        symbol="GOOG",
+        date=dt.date(2022, 7, 18),
+        ratio=Fraction(20),
+        isins=frozenset({Isin("US02079K1079")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/TSLA__Split_50828.pdf
+    KnownSplit(
+        symbol="TSLA",
+        date=dt.date(2022, 8, 25),
+        ratio=Fraction(3),
+        isins=frozenset({Isin("US88160R1014")}),
+    ),
+    # https://boxoptions.com/assets/BOXOnnMemo205619.pdf
+    KnownSplit(
+        symbol="PANW",
+        date=dt.date(2022, 9, 14),
+        ratio=Fraction(3),
+        isins=frozenset({Isin("US6974351057")}),
+    ),
+    # Novo Nordisk's American depositary shares.
+    # https://boxexchange.com/assets/BOXOnnMemo206153.pdf
+    KnownSplit(
+        symbol="NVO",
+        date=dt.date(2023, 9, 20),
+        ratio=Fraction(2),
+        isins=frozenset({Isin("US6701002056")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/WMT_Split_54057.pdf
+    KnownSplit(
+        symbol="WMT",
+        date=dt.date(2024, 2, 26),
+        ratio=Fraction(3),
+        isins=frozenset({Isin("US9311421039")}),
+    ),
+    # NVIDIA's ten-for-one split: split-adjusted trading from the market open
+    # on 10 June 2024, as its FAQ states.
+    # https://investor.nvidia.com/files/doc_downloads/2024/06/nvidia-2024-stock-split_faq_investors.pdf
+    KnownSplit(
+        symbol="NVDA",
+        date=dt.date(2024, 6, 10),
+        ratio=Fraction(10),
+        isins=frozenset({Isin("US67066G1040")}),
+    ),
+    # https://boxexchange.com/assets/BOXOnnMemo206607.pdf
+    KnownSplit(
+        symbol="CMG",
+        date=dt.date(2024, 6, 26),
+        ratio=Fraction(50),
+        isins=frozenset({Isin("US1696561059")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/AVGO_Split_54716.pdf
+    KnownSplit(
+        symbol="AVGO",
+        date=dt.date(2024, 7, 15),
+        ratio=Fraction(10),
+        isins=frozenset({Isin("US11135F1012")}),
+    ),
+    # https://boxexchange.com/assets/BOXOnnMemo206657.pdf
+    KnownSplit(
+        symbol="MSTR",
+        date=dt.date(2024, 8, 8),
+        ratio=Fraction(10),
+        isins=frozenset({Isin("US5949724083")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/CTAS_Split_55082.pdf
+    KnownSplit(
+        symbol="CTAS",
+        date=dt.date(2024, 9, 12),
+        ratio=Fraction(4),
+        isins=frozenset({Isin("US1729081059")}),
+    ),
+    # https://www.miaxglobal.com/sites/default/files/alert-files/DECK_Split_55174.pdf
+    KnownSplit(
+        symbol="DECK",
+        date=dt.date(2024, 9, 17),
+        ratio=Fraction(6),
+        isins=frozenset({Isin("US2435371073")}),
+    ),
+    # Super Micro Computer's ten-for-one split: split-adjusted trading from
+    # 1 October 2024, when its CUSIP changed from 86800U104 to 86800U302.
+    # https://www.nasdaqtrader.com/TraderNews.aspx?id=ECA2024-451
+    # https://www.sec.gov/Archives/edgar/data/1375365/000137536525000005/smci-20240930.htm
+    KnownSplit(
+        symbol="SMCI",
+        date=dt.date(2024, 10, 1),
+        ratio=Fraction(10),
+        isins=frozenset({Isin("US86800U1043"), Isin("US86800U3023")}),
+    ),
+    # Lam Research's CUSIP changed from 512807108 to 512807306 with its split.
+    # https://www.miaxglobal.com/sites/default/files/alert-files/LRCX_Split_55311.pdf
+    KnownSplit(
+        symbol="LRCX",
+        date=dt.date(2024, 10, 3),
+        ratio=Fraction(10),
+        isins=frozenset({Isin("US5128071082"), Isin("US5128073062")}),
+    ),
+)
+
+_NO_SPLIT_ROW_DOCS: Final = (
+    "https://cgt-calc.uk/brokers/trading212/#a-split-with-no-rows-in-the-export"
+)
+# One literal each, so that the link check reads the whole address.
+_OTHER_SPLIT_ROW_DOCS: Final = "https://cgt-calc.uk/brokers/trading212/#a-split-row-on-another-day-or-with-another-ratio"
+_CASHED_OUT_DOCS: Final = (
+    "https://cgt-calc.uk/brokers/trading212/#apple-and-tesla-in-august-2020"
+)
+_NEW_ISSUE: Final = "https://github.com/cgt-calc/capital-gains-calculator/issues/new"
+# Schwab dates a split by the first day its export states the new count, the
+# day after a split effective at the close: Alphabet's on Saturday 16 July
+# 2022, two days before the first day of split-adjusted trading. A third day
+# allows for a Monday market holiday.
+_SCHWAB_SPLIT_DATE_LEAD: Final = dt.timedelta(days=3)
+
+
+def known_splits_crossed(
+    transactions: Iterable[BrokerTransaction],
+) -> list[KnownSplit]:
+    """Return the known splits this run's Trading 212 rows trade across.
+
+    Read once the tickers are canonical. A row counts by the ISIN it was
+    exported with: one without an ISIN cannot be shown to be this security,
+    and a refusal telling the holder of another one to add a split would
+    have no correct remedy.
+    """
+    return [
+        split
+        for split in KNOWN_TRADING212_SPLITS
+        if any(
+            isinstance(transaction, Trading212Transaction)
+            and transaction.symbol == split.symbol
+            and transaction.date >= split.date
+            and quantity_sign(transaction.action) != 0
+            and transaction.isin in split.isins
+            for transaction in transactions
+        )
+    ]
+
+
+def check_known_split(
+    state: CalculatorState,
+    split: KnownSplit,
+    held: Decimal,
+    days: Mapping[dt.date, list[BrokerTransaction]],
+) -> None:
+    """Refuse a holding carried across a known split with no matching row.
+
+    ``held`` is the pool going into the first date on or after the split,
+    read before that day's planning restated it. Only a row on the split's
+    own date with its exact ratio matches: a row on another date may
+    already have restated the holding, and adding a second would apply the
+    split twice.
+    """
+    if held <= 0 or _restated_by_schwab_awards(state, split, days):
+        return
+    # The fractions paid out were Trading 212's; a holding from other brokers
+    # alone is checked like any other split.
+    if split.fractions_cashed_out and _carried_from(
+        state, split.symbol, days, Trading212Transaction
+    ):
+        raise CalculationError(_cashed_out_message(split))
+    transformation = state.history.splits.get(split.date, {}).get(split.symbol)
+    if transformation is None:
+        raise CalculationError(_missing_known_split_message(split, held, days))
+    if transformation.ratio != split.ratio:
+        raise CalculationError(_wrong_known_split_message(split, transformation, days))
+
+
+def _restated_by_schwab_awards(
+    state: CalculatorState,
+    split: KnownSplit,
+    days: Mapping[dt.date, list[BrokerTransaction]],
+) -> bool:
+    """Say whether Schwab Equity Awards shares exempt this pool from the check.
+
+    That parser already states its counts at the new count for the splits in
+    its own table and writes no split row, so a pool it has added to is
+    positive with no row and needs none for those shares. A split applies to
+    the whole pool, so a pool that also holds old-count shares cannot be put
+    right by any row and is left unchecked.
+    """
+    history = SCHWAB_AWARD_SPLITS.get(split.symbol)
+    if history is None or not any(
+        Fraction(ratio) == split.ratio
+        and split.date - _SCHWAB_SPLIT_DATE_LEAD <= date <= split.date
+        for date, ratio in history.splits
+    ):
+        return False
+    return _carried_from(state, split.symbol, days, SchwabAwardTransaction)
+
+
+def _carried_from(
+    state: CalculatorState,
+    symbol: str,
+    days: Mapping[dt.date, list[BrokerTransaction]],
+    kind: type[BrokerTransaction],
+) -> bool:
+    """Say whether an account exporting ``kind`` rows added to the pool.
+
+    ``holding_sources`` is source history, not what each account still
+    holds: an account stays in it until the whole pool ends a day empty. Read
+    here, after the day's cleanup and before the current row's own source is
+    added, it is the set the pool carried into this day.
+    """
+    accounts = {
+        source_account(row)
+        for rows in days.values()
+        for row in rows
+        if isinstance(row, kind) and row.symbol == symbol
+    }
+    return bool(state.history.holding_sources.get(symbol, set()) & accounts)
+
+
+def _split_row_source(
+    row: BrokerTransaction,
+) -> Literal["raw", "trading212", "other"]:
+    """Say who wrote a split row, which decides how it can be corrected.
+
+    A RAW row has no time, so moving it to another date keeps its meaning.
+    A Trading 212 row's time places the day's trades either side of it, and
+    only the Trading 212 parser builds a `StockSplitTransaction`.
+    """
+    if isinstance(row, RawTransaction):
+        return "raw"
+    if isinstance(row, Trading212Transaction | StockSplitTransaction):
+        return "trading212"
+    return "other"
+
+
+def _split_rows(
+    days: Mapping[dt.date, list[BrokerTransaction]], symbol: str
+) -> list[BrokerTransaction]:
+    """Return every split row of ``symbol`` in the run, in date order."""
+    return [
+        row
+        for rows in days.values()
+        for row in rows
+        if row.action is ActionType.STOCK_SPLIT and row.symbol == symbol
+    ]
+
+
+def _add_known_split(split: KnownSplit, raw_file: Path | None) -> str:
+    """Say how to supply the split, as the documented remedy does."""
+    return (
+        f"as one STOCK_SPLIT row dated {split.date} in "
+        f"{raw_file_to_add_to(raw_file)}, stating how many shares it added to "
+        f"the whole holding, or, if you also traded {split.symbol} that day, "
+        "as a Stock Split row in a working copy of the export."
+    )
+
+
+def _missing_known_split_message(
+    split: KnownSplit,
+    held: Decimal,
+    days: Mapping[dt.date, list[BrokerTransaction]],
+) -> str:
+    """Explain a known split the history needs and has no row for."""
+    symbol, date = split.symbol, split.date
+    raw_file = raw_file_of(row for rows in days.values() for row in rows)
+    message = (
+        f"{symbol} traded at a new count from {date} after a "
+        f"{split.ratio}-for-1 split, but no input has a split row for "
+        f"{symbol} dated {date}. The history holds {strip_zeros(held)} "
+        f"{symbol} going into that day, and Trading 212 rows change the "
+        f"{symbol} holding on or after it, so without the split its "
+        "purchases before that day would be counted in old shares and its "
+        "sales after it in new ones. "
+    )
+    # A row on the day of another known split of the share records that one.
+    known = {other.date for other in KNOWN_TRADING212_SPLITS if other.symbol == symbol}
+    others = [row for row in _split_rows(days, symbol) if row.date not in known]
+    if not others:
+        return message + (
+            f"Add the split {_add_known_split(split, raw_file)} "
+            f"See {_NO_SPLIT_ROW_DOCS}"
+        )
+    sources = {_split_row_source(row) for row in others}
+    advice = [
+        (
+            f"Do not add a split row for {symbol} on {date} while one of these "
+            "may record this split: two rows would apply it twice."
+        )
+    ]
+    if "raw" in sources:
+        advice.append(
+            "If a STOCK_SPLIT row in your RAW file records this split rather "
+            f"than an earlier one, change its date to {date}; if you also "
+            f"traded {symbol} that day, replace it with a Stock Split row in "
+            "a working copy of the export instead, because a RAW row has no "
+            "time to place that day's trades against."
+        )
+    if "trading212" in sources:
+        advice.append(
+            "A split row in a Trading 212 file has a time that places trades "
+            "either side of it. Do not change the date of the export's own "
+            "split rows: if they record this split, replace them in a working "
+            "copy of the export as the page below describes. A Stock Split row "
+            f"you added to a working copy can have its time moved to {date}, "
+            "before your first trade at the new count, but only if no trade of "
+            f"{symbol} falls between its old time and the new one; otherwise "
+            "work the split out by hand (consider professional advice)."
+        )
+    if "other" in sources:
+        advice.append(
+            "A split row from another broker's export is that broker's record "
+            "of the split, so do not add a split row beside it. If it records "
+            "this split, check it against that broker's records: if no trade "
+            f"of {symbol} falls between its date and {date}, change its date to "
+            f"{date} in a working copy of that export, and otherwise, or if "
+            "its time and order cannot be kept, work the split out by hand "
+            "(consider professional advice)."
+        )
+    advice.append(
+        "If none of them records this split, add it "
+        f"{_add_known_split(split, raw_file)} See {_OTHER_SPLIT_ROW_DOCS}"
+    )
+    listed = "\n".join(indent_entry(row) for row in others)
+    return (
+        message
+        + f"The inputs have {symbol} split rows on other dates:\n{listed}\n"
+        + " ".join(advice)
+    )
+
+
+def _cashed_out_message(split: KnownSplit) -> str:
+    """Explain why a split at which Trading 212 paid fractions out stops the run.
+
+    The holding is not printed: the message asks for an issue to be opened
+    without amounts or quantities, and an error is often pasted whole.
+    """
+    symbol, date = split.symbol, split.date
+    return (
+        f"{symbol} traded at a new count from {date} after a "
+        f"{split.ratio}-for-1 split, the {symbol} holding going into that day "
+        "includes shares bought at Trading 212, and Trading 212 rows change "
+        "it on or after that day. At this split Trading 212 closed any "
+        "fraction of a share for cash instead of splitting it, and cgt-calc "
+        "does not know how its "
+        "exports show that, so it cannot calculate this holding, with or "
+        "without a split row. Work the holding out by hand (consider "
+        "professional advice). To help cgt-calc support it, open an issue at "
+        f"{_NEW_ISSUE} saying what your export shows: whether its {symbol} "
+        f"rows before {date} are at the price per share before the split, "
+        f"any split rows for {symbol} and their dates, and how the closed "
+        "fraction appears (as a sale, a deposit or not at all) and its date. "
+        "Do not attach the export or post amounts or quantities. "
+        f"See {_CASHED_OUT_DOCS}"
+    )
+
+
+def _wrong_known_split_message(
+    split: KnownSplit,
+    transformation: SplitTransformation,
+    days: Mapping[dt.date, list[BrokerTransaction]],
+) -> str:
+    """Explain a split row for a known split that gives another ratio.
+
+    The day's planning has accepted one row: a RAW row whenever one is
+    there, since it is used in place of the broker's, and otherwise the
+    only broker row, because two of those are refused before this.
+    """
+    symbol, date = split.symbol, split.date
+    rows = [row for row in _split_rows(days, symbol) if row.date == date]
+    sources = {_split_row_source(row) for row in rows}
+    if "raw" in sources:
+        advice = (
+            "A STOCK_SPLIT row states how many shares the split added to the "
+            "whole holding, not the count after it: correct the number in "
+            "your RAW file."
+        )
+    elif "trading212" in sources:
+        advice = (
+            "These rows are in a Trading 212 file. If you added a Stock Split "
+            "row, correct its number of shares: it states how many shares the "
+            "split added, not the count after it. If they are the export's "
+            "own rows, a RAW row added beside them is refused or loses their "
+            "times, so replace them in a working copy of the export as the "
+            "page below describes."
+        )
+    else:
+        advice = (
+            "This row is from another broker's export: check it against that "
+            "broker's records and correct or replace it in that export's own "
+            "format, without adding a split row beside it, and if its time "
+            "and order cannot be kept, work the split out by hand (consider "
+            "professional advice)."
+        )
+    listed = "\n".join(indent_entry(row) for row in rows)
+    return (
+        f"The {symbol} split on {date} does not match {symbol}'s "
+        f"{split.ratio}-for-1 split that day: the history records "
+        f"{transformation.event.describe()}. The day's split rows are:\n"
+        f"{listed}\n{advice} See {_OTHER_SPLIT_ROW_DOCS}"
     )

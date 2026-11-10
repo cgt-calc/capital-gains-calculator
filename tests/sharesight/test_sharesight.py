@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 from decimal import Decimal
+import re
 import shutil
 from typing import TYPE_CHECKING
 
@@ -103,6 +104,8 @@ def test_parse_income_report_missing_local_column(tmp_path: Path) -> None:
         list(SharesightParser().load_from_dir(tmp_path))
 
     assert excinfo.value.row_index == 6
+    # Sharesight may have changed the report, so a cgt-calc update may be needed.
+    assert excinfo.value.needs_update
 
 
 def test_parse_income_report_missing_foreign_column(tmp_path: Path) -> None:
@@ -456,8 +459,12 @@ def test_parse_income_report_section_without_rows(tmp_path: Path) -> None:
 
 
 def test_unknown_report_is_ignored(tmp_path: Path) -> None:
-    """Ignore CSV files that are not Sharesight reports."""
-    _write_csv(tmp_path / "Some Other Report.csv", [["Header"], ["Data"]])
+    """Ignore CSV files that are not Sharesight reports, without reading them.
+
+    The file is UTF-16, which cgt-calc refuses in a report, so reading it at
+    all would fail the test.
+    """
+    (tmp_path / "Some Other Report.csv").write_bytes("Header\nData\n".encode("utf-16"))
 
     assert SharesightParser().load_from_dir(tmp_path) == []
 
@@ -649,6 +656,92 @@ def test_parse_trade_report_with_newer_aliases(tmp_path: Path) -> None:
     assert transaction.amount == Decimal(19)
 
 
+@pytest.mark.parametrize(
+    ("trade_rows", "beside_income"),
+    [
+        pytest.param(
+            [
+                ["Ticker" if column == "Code" else column for column in TRADE_HEADER],
+                [
+                    "LSE",
+                    "ABC",
+                    "Abc plc",
+                    "Buy",
+                    "01/10/2020",
+                    "10",
+                    "5",
+                    "0",
+                    "GBP",
+                    "1",
+                    "50",
+                    "",
+                ],
+            ],
+            True,
+            id="Code renamed, beside an income report",
+        ),
+        pytest.param(
+            [
+                ["Portfolio - All Trades Report"],
+                [],
+                ["* Prices and brokerage are specified in market currency."],
+            ],
+            False,
+            id="no trades table",
+        ),
+        pytest.param([], False, id="empty file"),
+    ],
+)
+def test_load_from_dir_refuses_a_trades_report_without_a_recognised_header(
+    tmp_path: Path, trade_rows: list[list[str]], *, beside_income: bool
+) -> None:
+    """Refuse an All Trades report in which no row is the trades header.
+
+    Its trades would be left out without a word. Beside an income report
+    with a dividend, not even the directory's warning of no transactions
+    would show.
+    """
+    if beside_income:
+        _write_csv(
+            tmp_path / "Taxable Income Report.csv",
+            [
+                ["Local Income"],
+                ["Dividend Payments"],
+                LOCAL_DIVIDEND_HEADER,
+                ["ABC", "Abc plc", "10/10/2020", "3", "0", "0", "3", ""],
+                ["Total"],
+                ["Total Local Income"],
+            ],
+        )
+    trades = tmp_path / "All Trades Report.csv"
+    _write_csv(trades, trade_rows)
+
+    with pytest.raises(
+        ParsingError,
+        match=re.escape(
+            "No row has the headings that start the All Trades table (Code, Type, "
+            "and Market or Market Code), so no trade can be read from this file. "
+            "If the portfolio has no trades at all, take the file out of the "
+            "directory."
+        ),
+    ) as excinfo:
+        SharesightParser.load_from_dir(tmp_path)
+
+    assert excinfo.value.file == trades
+    assert excinfo.value.row_index is None
+    assert excinfo.value.needs_update
+
+
+def test_parse_trade_report_with_a_header_and_no_trades(tmp_path: Path) -> None:
+    """Read a trades header with no trade row below it as no trades."""
+    _write_csv(
+        tmp_path / "All Trades Report.csv",
+        [TRADE_HEADER, [""] * len(TRADE_HEADER)],
+    )
+
+    assert SharesightParser.load_from_dir(tmp_path) == []
+
+
 def test_parse_trade_report_with_foreign_brokerage(tmp_path: Path) -> None:
     """Reject brokerage whose currency differs from the instrument currency."""
     _write_csv(
@@ -743,6 +836,7 @@ def test_parse_trade_report_unknown_action(tmp_path: Path) -> None:
         SharesightParser().load_from_dir(tmp_path)
 
     assert excinfo.value.row_index == 2
+    assert excinfo.value.needs_update
 
 
 def test_parse_trade_report_refuses_a_line_of_spaces_in_the_trades(

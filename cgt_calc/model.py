@@ -104,6 +104,20 @@ class SpinOff:
     dest_price: Decimal | None = None
 
 
+class DatePeriod(NamedTuple):
+    """A run of days, both ends included.
+
+    An open period, with no end, runs on indefinitely.
+    """
+
+    start: dt.date
+    end: dt.date | None
+
+    def includes(self, date: dt.date) -> bool:
+        """Tell whether `date` falls in the period."""
+        return self.start <= date and (self.end is None or date <= self.end)
+
+
 @dataclass
 class TaxTreaty:
     """Class representing a treaty between UK and different countries."""
@@ -616,7 +630,6 @@ class RuleType(Enum):
     EXCESS_REPORTED_INCOME_DISTRIBUTION = 8
     RENAME = 9
     INTEREST_TAX = 10
-    TRANSFER_TO_SPOUSE = 11
     STOCK_SPLIT = 12
     OPTION = 13
 

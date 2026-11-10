@@ -30,6 +30,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from typing import NamedTuple, TypedDict
 import urllib.error
 import urllib.request
@@ -49,6 +50,10 @@ MAX_FILES = 10
 # GitHub lists at most this many files when it compares two commits, so a
 # list this long may have been cut short.
 MAX_COMPARED_FILES = 300
+# Codecov now and then refuses a read with 403 Forbidden that it answers
+# later. A refused read is asked again after each of these waits, in seconds,
+# and the run fails only when the read after the last wait is refused too.
+RETRY_WAITS = (15, 30, 60)
 # The jq filter that cuts GitHub's account of a pull request down to what
 # PullRequest holds.
 PULL = (
@@ -385,12 +390,43 @@ def gh(*args: str) -> str:
 
 
 def codecov(repo: str, path: str) -> str:
-    """Read one endpoint of Codecov's public API for the repository."""
+    """Read one endpoint of Codecov's public API for the repository.
+
+    A read refused with 403 is asked again after each of the waits in
+    `RETRY_WAITS`, and the last refusal is raised. Each 403 goes in the log
+    with the headers that say when to ask again, if Codecov sent them, and
+    the start of its answer, so a run shows why it was refused. Any other
+    refusal is raised at once.
+    """
     owner, name = repo.split("/")
     url = f"https://api.codecov.io/api/v2/github/{owner}/repos/{name}/{path}"
-    with urllib.request.urlopen(url, timeout=60) as response:
-        text: str = response.read().decode()
-    return text
+    waits = iter(RETRY_WAITS)
+    while True:
+        try:
+            with urllib.request.urlopen(url, timeout=60) as response:
+                text: str = response.read().decode()
+        except urllib.error.HTTPError as error:
+            if error.code != HTTPStatus.FORBIDDEN:
+                raise
+            wait = next(waits, None)
+            sent = "".join(
+                f", {header}: {error.headers[header]}"
+                for header in ("Retry-After", "X-RateLimit-Reset")
+                if header in error.headers
+            )
+            # Quoted, so that a line break in it cannot start a line of its
+            # own, which GitHub might read as a command to the workflow.
+            said = repr(error.read().decode(errors="replace")[:200])
+            then = "Not asking again." if wait is None else f"Asking again in {wait}s."
+            print(
+                f"Codecov refused {url} with {error.code}{sent}, saying {said}. {then}",
+                file=sys.stderr,
+            )
+            if wait is None:
+                raise
+            time.sleep(wait)
+        else:
+            return text
 
 
 def merged_into(repo: str, pull: PullRequest) -> str | None:

@@ -60,6 +60,7 @@ from .base_parsers import (
     next_account_token,
     read_csv_rows,
     read_input,
+    read_text,
     use_current_tickers,
 )
 
@@ -249,7 +250,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
     if label in {"Full Redemption", "Full Redemption Adj"}:
         return ActionType.FULL_REDEMPTION
 
-    raise ParsingError(file, f"Unknown action: '{label}'")
+    raise ParsingError(file, f"Unknown action: '{label}'", needs_update=True)
 
 
 def _parse_decimal(
@@ -297,7 +298,9 @@ class SchwabTransaction(BrokerTransaction):
             date = dt.datetime.strptime(date_str, "%m/%d/%Y").date()
         except ValueError as exc:
             raise ParsingError(
-                file, f"Invalid date format: {date_str} from row: {row_dict}"
+                file,
+                f"Invalid date format: {date_str!r}, expected MM/DD/YYYY, "
+                "e.g. '01/15/2023'",
             ) from exc
         # The date the export states. A vest priced from the award file is
         # re-dated to its vest, but the file's own date range and its row
@@ -888,7 +891,16 @@ def _award_prices_from_lines(
         try:
             date = dt.datetime.strptime(date_str, "%Y/%m/%d").date()
         except ValueError:
-            date = dt.datetime.strptime(date_str, "%m/%d/%Y").date()
+            try:
+                date = dt.datetime.strptime(date_str, "%m/%d/%Y").date()
+            except ValueError as err:
+                # The upper half of the split award row states the date.
+                raise ParsingError(
+                    schwab_award_transactions_file,
+                    f"Invalid date format: {date_str!r}, expected MM/DD/YYYY "
+                    "or YYYY/MM/DD, e.g. '01/15/2023'",
+                    row_index=row_index,
+                ) from err
         symbol_header = RequiredAwardColumn.SYMBOL.value
         symbol = row_dict[symbol_header] if row_dict[symbol_header] != "" else None
         fair_market_value_price_header = (
@@ -1226,7 +1238,10 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                     file_path.open(encoding=cls.encoding) as file,
                 ):
                     parsing_msg(file_path)
-                    rows = cls._read_rows(file, file_path, from_directory=True)
+                    text = read_text(file, file_path, cls.encoding)
+                    rows = cls._read_rows(
+                        io.StringIO(text), file_path, from_directory=True
+                    )
             except OSError as exc:
                 # Branch on what the path is, not on the exception type:
                 # opening a directory raises IsADirectoryError on POSIX but

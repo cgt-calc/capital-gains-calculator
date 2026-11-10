@@ -176,6 +176,17 @@ class Matcher:
             self._eris_in_pounds[key] = self.eri_in_pounds(eri)
         return self._eris_in_pounds[key]
 
+    def _warn_ticker_only_eri(self, eri: ExcessReportedIncome) -> None:
+        """Warn, once, that a report just added to a holding's cost may not be its.
+
+        Called where a report is applied, not where it is found: a report
+        dated while nothing was held changes nothing, and needs no warning.
+        """
+        warning = self.history.ticker_only_eri_warnings.get(eri.symbol)
+        if warning is not None and eri.symbol not in self.run.ticker_only_eri_warned:
+            self.run.ticker_only_eri_warned.add(eri.symbol)
+            LOGGER.warning("%s", warning)
+
     def _disposal_log_prefix(self, date_index: dt.date, symbol: str) -> str:
         """Name the kind of disposal recorded for a symbol on a day.
 
@@ -312,6 +323,14 @@ class Matcher:
 
         bnb_acquisition = HmrcTransactionData()
         bed_and_breakfast_fees = Decimal(0)
+        # Cost with no shares behind it on a day that also brought shares is
+        # logged as an entry of its own, so the report does not state it as
+        # the fees of those shares. A day of cost alone is logged as one
+        # Section 104 entry with no units.
+        cost_only = (
+            record.cost_only if acquisition.quantity > 0 else HmrcTransactionData()
+        )
+        shares_cost = acquisition_amount - cost_only.amount
 
         # What an earlier disposal took under the 30-day rule has to leave the
         # pool at the price it was given, and it was identified against the
@@ -344,7 +363,7 @@ class Matcher:
                     new_quantity=position.quantity + bnb_acquisition.quantity,
                     new_pool_cost=position.amount + bnb_acquisition.amount,
                     fees=bed_and_breakfast_fees,
-                    allowable_cost=acquisition_amount,
+                    allowable_cost=shares_cost,
                     eris=bnb_acquisition.eris,
                 )
             )
@@ -352,23 +371,36 @@ class Matcher:
             acquisition.quantity,
             modified_amount,
         )
-        # A fee's cost goes into the pool whatever became of the day's shares,
-        # so it is stated even when a 30-day claim has taken every one of them.
         if (
             acquisition.quantity - bnb_acquisition.quantity > 0
             or bnb_acquisition.quantity == 0
-            or record.cost_only.amount != 0
         ):
             calculation_entries.append(
                 CalculationEntry(
                     rule_type=RuleType.SECTION_104,
                     quantity=acquisition.quantity - bnb_acquisition.quantity,
-                    amount=-(modified_amount - bnb_acquisition.amount),
+                    amount=-(
+                        modified_amount - bnb_acquisition.amount - cost_only.amount
+                    ),
+                    new_quantity=position.quantity + acquisition.quantity,
+                    new_pool_cost=position.amount + modified_amount - cost_only.amount,
+                    fees=acquisition.fees - bed_and_breakfast_fees - cost_only.fees,
+                    allowable_cost=shares_cost,
+                    spin_off=spin_off,
+                )
+            )
+        # A fee's cost goes into the pool whatever became of the day's shares,
+        # so it is stated even when a 30-day claim has taken every one of them.
+        if cost_only.amount != 0:
+            calculation_entries.append(
+                CalculationEntry(
+                    rule_type=RuleType.SECTION_104,
+                    quantity=Decimal(0),
+                    amount=-cost_only.amount,
                     new_quantity=position.quantity + acquisition.quantity,
                     new_pool_cost=position.amount + modified_amount,
-                    fees=acquisition.fees - bed_and_breakfast_fees,
-                    allowable_cost=acquisition_amount,
-                    spin_off=spin_off,
+                    fees=cost_only.fees,
+                    allowable_cost=cost_only.amount,
                 )
             )
         return calculation_entries
@@ -539,11 +571,7 @@ class Matcher:
                     )
                 ctx.calculation_entries.append(
                     CalculationEntry(
-                        rule_type=(
-                            RuleType.TRANSFER_TO_SPOUSE
-                            if ctx.no_gain_no_loss
-                            else RuleType.SAME_DAY
-                        ),
+                        rule_type=RuleType.SAME_DAY,
                         quantity=available_quantity,
                         amount=same_day_amount,
                         gain=same_day_gain,
@@ -761,6 +789,7 @@ class Matcher:
                             amount=available_quantity * eri.price,
                             quantity=available_quantity,
                         )
+                        self._warn_ticker_only_eri(eri)
                         total_dist_amount += eri_distribution.amount
                         if self.date_in_tax_year(eri.distribution_date):
                             self.run.eris_distribution[eri.distribution_date][
@@ -805,11 +834,7 @@ class Matcher:
                     )
                     ctx.calculation_entries.append(
                         CalculationEntry(
-                            rule_type=(
-                                RuleType.TRANSFER_TO_SPOUSE
-                                if ctx.no_gain_no_loss
-                                else RuleType.BED_AND_BREAKFAST
-                            ),
+                            rule_type=RuleType.BED_AND_BREAKFAST,
                             quantity=available_quantity,
                             amount=bed_and_breakfast_amount,
                             gain=bed_and_breakfast_gain,
@@ -858,11 +883,7 @@ class Matcher:
                 )
             ctx.calculation_entries.append(
                 CalculationEntry(
-                    rule_type=(
-                        RuleType.TRANSFER_TO_SPOUSE
-                        if ctx.no_gain_no_loss
-                        else RuleType.SECTION_104
-                    ),
+                    rule_type=RuleType.SECTION_104,
                     quantity=available_quantity,
                     amount=r104_amount,
                     gain=r104_gain,
@@ -917,8 +938,9 @@ class Matcher:
                     f"{date_index}: the holding opens at "
                     f"{strip_zeros(position.quantity)} units here and at "
                     f"{strip_zeros(transformation.day_open_quantity)} where "
-                    "the reorganisation was worked out. Please report this: "
-                    "the two passes over the history disagree."
+                    "the reorganisation was worked out. The two passes over "
+                    "the history disagree.",
+                    needs_update=True,
                 )
             self.run.portfolio[symbol] = Position(
                 transformation.scaled_day_open_quantity, position.amount
@@ -1341,8 +1363,8 @@ class Matcher:
                     f"{date_index}: the day closes at {strip_zeros(closing)} "
                     "units where the reorganisation and the day's activity "
                     f"come to {strip_zeros(transformation.expected_day_close)}."
-                    " Please report this: the two passes over the history "
-                    "disagree."
+                    " The two passes over the history disagree.",
+                    needs_update=True,
                 )
 
     @staticmethod
@@ -1940,6 +1962,7 @@ class Matcher:
 
         if allowable_cost == 0:
             return None
+        self._warn_ticker_only_eri(eri)
 
         if eri.provisional_rate:
             LOGGER.warning(
@@ -2226,7 +2249,7 @@ class Matcher:
             if date_index in self.run.eris_distribution:
                 for symbol in self.run.eris_distribution[date_index]:
                     data = self.run.eris_distribution[date_index][symbol]
-                    is_interest = symbol in self.interest_fund_tickers
+                    is_interest = symbol.upper() in self.interest_fund_tickers
                     if is_interest:
                         self.run.total_foreign_interest += data.amount
                     self.run.calculation_log_yields[date_index][

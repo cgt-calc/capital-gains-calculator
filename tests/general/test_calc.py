@@ -3,19 +3,26 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import datetime as dt
 from decimal import Decimal, localcontext
 from enum import Enum
 import itertools
 import logging
+import os
 from pathlib import Path
 import re
+import select
+import signal
 import subprocess
 import sys
+import time
 from typing import TYPE_CHECKING
 
 import pytest
+import typst
 
+from cgt_calc import stock_split_planning
 from cgt_calc.const import (
     BALANCE_CHECK_CONTEXT_ROWS,
     BASIC_RATE_LIMITS,
@@ -51,6 +58,7 @@ from cgt_calc.model import (
 )
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.parsers.eri.model import ERITransaction
+from cgt_calc.parsers.vanguard import VanguardTransaction
 from cgt_calc.rename_planning import RENAME_DAY_UNSUPPORTED_ACTIONS
 from cgt_calc.render_text import render_text
 from cgt_calc.share_prices import SharePrices
@@ -58,9 +66,10 @@ from cgt_calc.spin_off_handler import SpinOffHandler
 from cgt_calc.stock_splits import (
     QUANTITY_DECREASING_ACTIONS,
     QUANTITY_INCREASING_ACTIONS,
+    SplitTransformation,
 )
 from cgt_calc.util import round_decimal
-from tests.utils import assert_stdout_matches, build_cmd, report_path, run_cli
+from tests.utils import assert_stdout_matches, build_cmd, pdf_text, report_path, run_cli
 
 from .calc_test_data import (
     GBP,
@@ -127,6 +136,7 @@ def create_calculator(
     balance_check: bool = True,
     cgt_exempt_tickers: list[str] | None = None,
     gifts_to_spouse: bool = False,
+    interest_fund_tickers: list[str] | None = None,
 ) -> CapitalGainsCalculator:
     """Create a calculator with standard test configuration.
 
@@ -146,7 +156,7 @@ def create_calculator(
         price_fetcher,
         SpinOffHandler(),
         SharePrices(),
-        interest_fund_tickers=[],
+        interest_fund_tickers=interest_fund_tickers or [],
         cgt_exempt_tickers=cgt_exempt_tickers,
         balance_check=balance_check,
         gifts_to_spouse=gifts_to_spouse,
@@ -165,7 +175,7 @@ def test_main_prints_help_when_no_arguments() -> None:
     assert result.returncode == 0
     assert "usage:" in result.stdout
     assert "Calculate UK capital gains" in result.stdout
-    assert "--no-pdflatex" in result.stdout
+    assert "--no-report" in result.stdout
 
 
 def test_no_report_completion_message() -> None:
@@ -552,7 +562,17 @@ def test_dividend_and_tax_currency_mismatch_has_a_calculation_error() -> None:
 @pytest.mark.parametrize(
     ("amount", "error_match"),
     [
-        (Decimal(1), "must not be positive"),
+        # The whole first line, so the sentence saying how to fix the row is
+        # checked as well as the reason.
+        (
+            Decimal(1),
+            "^"
+            + re.escape(
+                "Fee amount must not be positive: a positive fee would reduce the "
+                "pooled cost. Enter the charge as a negative price."
+            )
+            + "\n",
+        ),
         (Decimal("NaN"), "must be a finite number"),
         (Decimal("Infinity"), "must be a finite number"),
         (Decimal("-Infinity"), "must be a finite number"),
@@ -2474,6 +2494,317 @@ def test_excess_reported_income_stays_off_a_name_another_isin_owns() -> None:
     assert report.total_eri_amount(is_interest=False) == Decimal(300)
 
 
+# Bundled under IGCB, a London ticker that is also the NYSE symbol of a US bond
+# fund.
+IGCB_FUND = Isin("IE00BKW9SW28")
+# Bundled under IHYG and SHYG. SHYG is also the symbol of a US iShares fund on
+# NYSE Arca; IHYG is no US symbol.
+SHYG_FUND = Isin("IE00B66F4759")
+# Bundled under WLDS and WSML, both of them US symbols: Wearable Devices on
+# Nasdaq, and a US iShares fund.
+WLDS_FUND = Isin("IE00BF4RFH31")
+# Bundled under VUSA and VUSD, neither of them a US symbol.
+VUSA_FUND = Isin("IE00B3XXRP09")
+# A Vanguard fund bundled under VERX, also Vertex's Nasdaq symbol.
+VERX_FUND = Isin("IE00BKX55S42")
+
+
+def _ticker_only_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """Return the warnings about a report matched by a US symbol alone."""
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("Excess reported income of fund")
+    ]
+
+
+def test_a_report_matched_by_a_us_symbol_alone_warns_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A report reaching a holding by a ticker that is also a US symbol warns.
+
+    No row says whether the SHYG holding is the bundled fund or the US one.
+    VUSA's fund is bundled too, but VUSA is no US symbol, so its report is
+    applied without a word. The figures are as they were: both reports raise
+    the costs, and SHYG's two reports give one warning between them. The
+    rows it offers keep the fund's other ticker, IHYG, either way.
+
+    SHYG: 100 shares cost 1000, and reports of 1 and 2 a share add 100 and
+    200: 1300. Sold for 2000, a gain of 700. VUSA: 10 shares cost 500, and a
+    report of 3 a share adds 30: 530. Sold for 600, a gain of 70. Together
+    770.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions: list[BrokerTransaction] = [
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "SHYG", 100, 1000),
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "VUSA", 10, 500),
+        _eri(dt.date(2024, 6, 30), SHYG_FUND, 1),
+        _eri(dt.date(2024, 6, 30), VUSA_FUND, 3),
+        _eri(dt.date(2024, 12, 31), SHYG_FUND, 2),
+        _gbp_trade(dt.date(2025, 2, 3), ActionType.SELL, "SHYG", 100, 2000),
+        _gbp_trade(dt.date(2025, 2, 3), ActionType.SELL, "VUSA", 10, 600),
+    ]
+    transactions.sort(key=_transaction_sort_key)
+
+    warning = (
+        "Excess reported income of fund IE00B66F4759 was added to SHYG because "
+        "cgt-calc's bundled ISIN list gives that fund the ticker SHYG, which is "
+        "also a US symbol, and no row in your files says which security SHYG "
+        "is.\n"
+        "If your SHYG is not that fund, add this row to your ISIN translation "
+        "file:\n"
+        "    IE00B66F4759,IHYG\n"
+        "If it is that fund, add this row instead:\n"
+        "    IE00B66F4759,IHYG,SHYG\n"
+        "See https://cgt-calc.uk/extra-data-and-options/"
+        "#tickers-that-are-also-us-symbols"
+    )
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(770)
+    assert _ticker_only_warnings(caplog) == [warning]
+
+    # A calculation run again over the same history warns again.
+    calculator.calculate_capital_gain()
+
+    assert _ticker_only_warnings(caplog) == [warning, warning]
+
+
+def test_a_warning_names_the_fund_s_other_us_symbol_its_rows_keep(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Both rows a WLDS warning offers keep WSML, also a US symbol, for the fund.
+
+    Either row replaces the fund's bundled entry, and cgt-calc warns about no
+    ticker on it again. So the warning names WSML too: a user settling WLDS
+    alone would otherwise silence a later US WSML holding without knowing.
+
+    100 shares cost 1000, and a report of 1 a share adds 100: 1100. Sold for
+    1500, a gain of 400.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions: list[BrokerTransaction] = [
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "WLDS", 100, 1000),
+        _eri(dt.date(2024, 6, 30), WLDS_FUND, 1),
+        _gbp_trade(dt.date(2025, 2, 3), ActionType.SELL, "WLDS", 100, 1500),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(400)
+    assert _ticker_only_warnings(caplog) == [
+        (
+            "Excess reported income of fund IE00BF4RFH31 was added to WLDS because "
+            "cgt-calc's bundled ISIN list gives that fund the ticker WLDS, which "
+            "is also a US symbol, and no row in your files says which security "
+            "WLDS is.\n"
+            "If your WLDS is not that fund, add this row to your ISIN translation "
+            "file:\n"
+            "    IE00BF4RFH31,WSML\n"
+            "If it is that fund, add this row instead:\n"
+            "    IE00BF4RFH31,WLDS,WSML\n"
+            "Either row also gives that fund WSML, which is a US symbol too: leave "
+            "WSML out if your WSML is not that fund.\n"
+            "See https://cgt-calc.uk/extra-data-and-options/"
+            "#tickers-that-are-also-us-symbols"
+        )
+    ]
+
+
+def test_a_report_carried_by_bed_and_breakfast_warns_too(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A report reaching the holding through a repurchase warns as well.
+
+    All 100 IGCB are sold on 20 December, before the fund's report of 31
+    December, and bought back on 10 January. The sale is matched with the
+    repurchase, and the report, of 2 a share, goes with the shares as if they
+    had been held on its date. Nothing is held on the date itself.
+
+    The sale, for 1500, is matched with the repurchase at 1200: a gain of
+    300. The repurchased shares take the pool's cost of 1000 and the report's
+    200: 1200. Sold on 3 February for 1500, a gain of 300. Together 600.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions: list[BrokerTransaction] = [
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "IGCB", 100, 1000),
+        _gbp_trade(dt.date(2024, 12, 20), ActionType.SELL, "IGCB", 100, 1500),
+        _eri(dt.date(2024, 12, 31), IGCB_FUND, 2),
+        _gbp_trade(dt.date(2025, 1, 10), ActionType.BUY, "IGCB", 100, 1200),
+        _gbp_trade(dt.date(2025, 2, 3), ActionType.SELL, "IGCB", 100, 1500),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(600)
+    assert len(_ticker_only_warnings(caplog)) == 1
+
+
+def test_a_report_on_a_holding_renamed_to_a_us_symbol_names_both(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A report reaching a holding before its rename to IGCB names both tickers.
+
+    The shares are OLD when the fund reports and IGCB from the rename day.
+    The report is applied to OLD, which no bundled row names: it reaches OLD
+    only because IGCB is the fund's ticker, and the rows that settle it are
+    IGCB's.
+
+    100 shares cost 1000, and income of 2 a share adds 200: 1200. Sold for
+    3000, a gain of 1800.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions: list[BrokerTransaction] = [
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "OLD", 100, 1000),
+        _eri(dt.date(2024, 5, 8), IGCB_FUND, 2),
+        _rename_transaction(RENAME_DAY, "OLD", "IGCB"),
+        _gbp_trade(dt.date(2024, 5, 20), ActionType.SELL, "IGCB", 100, 3000),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(1800)
+    [warning] = _ticker_only_warnings(caplog)
+    assert warning.startswith(
+        "Excess reported income of fund IE00BKW9SW28 was added to OLD (renamed "
+        "to or from IGCB) because cgt-calc's bundled ISIN list gives that fund "
+        "the ticker IGCB,"
+    )
+    assert "    IE00BKW9SW28,\n" in warning
+    assert "    IE00BKW9SW28,IGCB\n" in warning
+
+
+@pytest.mark.parametrize(
+    ("other_broker_row", "warnings"),
+    [(False, 0), (True, 1)],
+    ids=["Vanguard only", "and another broker"],
+)
+def test_a_vanguard_holding_warns_only_with_another_broker_s_row(
+    other_broker_row: bool, warnings: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A holding seen only in Vanguard exports is Vanguard's own fund.
+
+    VERX is a Vanguard fund's London ticker and Vertex's US symbol. Vanguard
+    sells only its own funds, so its report is applied without a warning. A
+    row under VERX from another broker, here a dividend, could be Vertex, and
+    the warning is back.
+
+    100 shares cost 1000, and a report of 1 a share adds 100: 1100. Sold for
+    1500, a gain of 400, whichever rows name the holding.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions: list[BrokerTransaction] = [
+        VanguardTransaction.from_fields(
+            dt.date(2024, 5, 1),
+            ActionType.BUY,
+            "VERX",
+            Decimal(100),
+            Decimal(10),
+            Decimal(-1000),
+            CurrencyCode("GBP"),
+            is_reversal=False,
+        ),
+        _eri(dt.date(2024, 6, 30), VERX_FUND, 1),
+        VanguardTransaction.from_fields(
+            dt.date(2025, 2, 3),
+            ActionType.SELL,
+            "VERX",
+            Decimal(100),
+            Decimal(15),
+            Decimal(1500),
+            CurrencyCode("GBP"),
+            is_reversal=False,
+        ),
+    ]
+    if other_broker_row:
+        transactions.append(
+            transaction(
+                dt.date(2024, 7, 15),
+                ActionType.DIVIDEND,
+                "VERX",
+                amount=5,
+                currency=GBP,
+            )
+        )
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(400)
+    assert len(_ticker_only_warnings(caplog)) == warnings
+
+
+def test_a_fund_named_by_its_own_isin_keeps_its_report_without_a_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A row exporting IGCB with the fund's ISIN says which security it is.
+
+    An Interactive Brokers dividend names its security that way. The report
+    is the holding's own, and nothing is left to warn about.
+
+    100 shares cost 1000, and a report of 1 a share adds 100: 1100. Sold for
+    1500, a gain of 400.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions: list[BrokerTransaction] = [
+        _gbp_trade(dt.date(2024, 5, 1), ActionType.BUY, "IGCB", 100, 1000),
+        _eri(dt.date(2024, 6, 30), IGCB_FUND, 1),
+        transaction(
+            dt.date(2024, 7, 15),
+            ActionType.DIVIDEND,
+            "IGCB",
+            amount=5,
+            currency=GBP,
+            isin=IGCB_FUND,
+        ),
+        _gbp_trade(dt.date(2025, 2, 3), ActionType.SELL, "IGCB", 100, 1500),
+    ]
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(400)
+    assert _ticker_only_warnings(caplog) == []
+
+
+@pytest.mark.parametrize(
+    ("report_day", "buy_day", "sale_day"),
+    [
+        (dt.date(2024, 6, 30), dt.date(2024, 7, 1), dt.date(2024, 9, 2)),
+        (dt.date(2024, 12, 31), dt.date(2024, 5, 1), dt.date(2024, 12, 20)),
+        (dt.date(2024, 12, 31), dt.date(2024, 5, 1), dt.date(2024, 12, 31)),
+    ],
+    ids=["bought after it", "sold before it", "sold on its day"],
+)
+def test_a_report_dated_while_nothing_is_held_does_not_warn(
+    report_day: dt.date,
+    buy_day: dt.date,
+    sale_day: dt.date,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A report read but applied to no holding gives no warning.
+
+    Nothing is held at the end of the report's day. A sale in the 30 days
+    before it, or on the day itself, is looked at for a repurchase that would
+    carry the report, and there is none. Nothing was added to the cost, so
+    there is nothing to warn about.
+
+    100 shares cost 1000 and sell for 1500: a gain of 500.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    transactions: list[BrokerTransaction] = [
+        _eri(report_day, IGCB_FUND, 1),
+        _gbp_trade(buy_day, ActionType.BUY, "IGCB", 100, 1000),
+        _gbp_trade(sale_day, ActionType.SELL, "IGCB", 100, 1500),
+    ]
+    # Where the command line puts a report: after its day's other rows.
+    transactions.sort(key=_transaction_sort_key)
+
+    report = get_report(calculator, transactions)
+
+    assert report.total_gain() == Decimal(500)
+    assert _ticker_only_warnings(caplog) == []
+
+
 def test_the_first_pass_leaves_a_rename_day_under_the_closing_ticker() -> None:
     """Reconciliation carries both shares and their source accounts to NEW."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
@@ -2612,6 +2943,23 @@ def test_one_renamed_holding_cannot_borrow_the_other_s_shares() -> None:
         r" report the old and new tickers so the pair can be added\.\n",
     ):
         get_report(calculator, transactions)
+
+
+def test_a_rename_day_sale_above_a_purchase_is_not_blamed_on_the_order() -> None:
+    """On a rename day a sale already counts every purchase that day makes.
+
+    100 OLD held and 50 NEW bought that day give the holding 150 to sell, so
+    a sale of 151 NEW is one short wherever the purchase is written, and
+    moving the purchase above it would change nothing.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    with pytest.raises(
+        InvalidTransactionError,
+        match=r"^Tried to sell 151 NEW on 2024-05-10, but the holding is 150\."
+        r" Check that the history includes the purchase",
+    ):
+        get_report(calculator, _rename_day_rows("NEW", ("rename", "sell", "buy"), 151))
 
 
 def test_a_holding_renamed_to_two_names_on_a_trading_day_is_refused() -> None:
@@ -2875,9 +3223,9 @@ def test_run_with_example_files(request: pytest.FixtureRequest) -> None:
     result = run_cli(cmd)
 
     # The progress narrative is a contract: it must reach stderr, in order.
-    # The last two lines depend on whether pdflatex runs, so match by prefix.
+    pdf = Path(report_path(request)).with_suffix(".pdf")
     stderr_lines = [line for line in result.stderr.splitlines() if line.strip()]
-    assert stderr_lines[:-2] == [
+    assert stderr_lines == [
         "Parsing tests/schwab/data/schwab_transactions.csv...",
         "Loaded 13 transactions from Charles Schwab",
         "Parsing tests/morgan_stanley/data/Releases Report.csv...",
@@ -2889,33 +3237,59 @@ def test_run_with_example_files(request: pytest.FixtureRequest) -> None:
         "First pass complete",
         "Bed & breakfast match: VUAG disposed 2020-06-03, re-acquired 2020-07-02",
         "Second pass complete",
+        f"Writing PDF report to {pdf}...",
+        "Done! Report generated successfully.",
     ]
-    assert stderr_lines[-2].startswith("Writing ")
-    assert stderr_lines[-1].startswith("Done!")
     expected_file = (
         Path("tests") / "general" / "data" / "test_run_with_example_files_output.txt"
     )
     assert_stdout_matches(result, cmd, expected_file)
 
-    # The LaTeX source is pinned too. pdflatex leaves no source behind, so
-    # the one CI job that runs it compiles the PDF instead of checking this.
-    if "--no-pdflatex" in cmd:
-        cmd_str = " ".join([param or "''" for param in cmd])
-        output = Path(report_path(request))
-        tex_path = output.parent / f"{output.stem}.tex"
-        expected_tex_file = (
-            Path("tests")
-            / "general"
-            / "data"
-            / "test_run_with_example_files_report.tex"
-        )
-        assert tex_path.read_text(encoding="utf-8") == expected_tex_file.read_text(
-            encoding="utf-8"
-        ), (
-            "Run with example files generated an unexpected LaTeX report, "
-            "if the change is intended update the golden with:\n"
-            f"{cmd_str} && cp {tex_path} {expected_tex_file}"
-        )
+    # The PDF's text is pinned too.
+    expected_report = (
+        Path("tests") / "general" / "data" / "test_run_with_example_files_report.txt"
+    )
+    cmd_str = " ".join([param or "''" for param in cmd])
+    assert pdf_text(pdf) == expected_report.read_text(encoding="utf-8"), (
+        "Run with example files generated an unexpected PDF report, "
+        "if the change is intended update the golden with:\n"
+        f"{cmd_str} && uv run python -c 'from pathlib import Path; "
+        "from tests.utils import pdf_text; "
+        f'Path("{expected_report}").write_text(pdf_text(Path("{pdf}")), '
+        'encoding="utf-8")\''
+    )
+
+
+# The advice on reporting a failure, written out as it was agreed, with a
+# made-up version where the running one goes.
+REPORTING_ADVICE = (
+    "This may need a cgt-calc update. Upgrade and retry; for an import, use a fresh,\n"
+    "unchanged export. If it still fails, open an issue with cgt-calc 9.8.7, the\n"
+    "complete error, and the smallest redacted example that still fails:\n"
+    "https://github.com/cgt-calc/capital-gains-calculator/issues/new\n"
+    "Never upload unredacted data. What to send and what to redact:\n"
+    "https://cgt-calc.uk/reporting-problems/\n"
+)
+
+
+def _run_main(monkeypatch: pytest.MonkeyPatch, *args: str) -> int:
+    """Run the CLI in this process as version 9.8.7, reading and saving no cache."""
+    monkeypatch.setattr("cgt_calc.cli.get_version", lambda: "9.8.7")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "cgt-calc",
+            *args,
+            "--exchange-rates-file=",
+            "--isin-translation-file=",
+            "--spin-offs-file=",
+        ],
+    )
+    # main() enables the FloatOperation trap on the active decimal context;
+    # keep that from leaking into other tests in the same worker.
+    with localcontext():
+        return main()
 
 
 def test_an_unexpected_error_prints_its_traceback_then_how_to_report_it(
@@ -2923,23 +3297,17 @@ def test_an_unexpected_error_prints_its_traceback_then_how_to_report_it(
 ) -> None:
     """A failure cgt-calc did not expect ends with the advice on reporting it.
 
-    The advice is written out here as it was agreed, with a made-up version
-    where the running one goes. It follows the last line of the traceback and
-    the blank line that closes every error. The traceback itself still opens
-    the output, after the line saying the error was unexpected.
+    The advice follows the last line of the traceback and the blank line that
+    closes every error. The traceback itself still opens the output, after
+    the line saying the error was unexpected.
     """
 
     def explode(args: argparse.Namespace) -> None:
         raise RuntimeError("boom")
 
     monkeypatch.setattr("cgt_calc.cli.calculate_cgt", explode)
-    monkeypatch.setattr("cgt_calc.cli.get_version", lambda: "9.8.7")
-    monkeypatch.setattr(sys, "argv", ["cgt-calc", "--year", "2021"])
 
-    # main() enables the FloatOperation trap on the active decimal context;
-    # keep that from leaking into other tests in the same worker.
-    with localcontext():
-        assert main() == 1
+    assert _run_main(monkeypatch, "--year", "2021") == 1
 
     err = capsys.readouterr().err
     assert err.startswith(
@@ -2948,15 +3316,157 @@ def test_an_unexpected_error_prints_its_traceback_then_how_to_report_it(
         "ERROR: Details:\n"
         "Traceback (most recent call last):\n"
     )
+    assert err.endswith(f"RuntimeError: boom\n\n{REPORTING_ADVICE}")
+
+
+@pytest.mark.parametrize(
+    ("export", "message"),
+    [
+        pytest.param(
+            "Action,Time\nADR Fee,2024-12-02 12:00:00\n",
+            "row 2: Unknown action: ADR Fee",
+            id="unknown action",
+        ),
+        pytest.param(
+            "Action,Time,Bogus\n", "row 1: Unknown column(s) Bogus", id="header"
+        ),
+    ],
+)
+def test_a_broker_export_cgt_calc_does_not_know_ends_with_how_to_report_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    export: str,
+    message: str,
+) -> None:
+    """A broker may add an action or change its columns after a release.
+
+    The error keeps its file and row, and the advice on reporting it follows
+    once, after the blank line that closes every error. Trading 212 accepts a
+    header with only some of its columns, which keeps the export small.
+    """
+    (tmp_path / "export.csv").write_text(export, encoding="utf-8")
+
+    status = _run_main(
+        monkeypatch, "--year", "2024", "--trading212-dir", str(tmp_path), "--no-report"
+    )
+
+    assert status == 1
+    err = capsys.readouterr().err
     assert err.endswith(
-        "RuntimeError: boom\n"
-        "\n"
-        "This may need a cgt-calc update. Upgrade and retry; for an import, use a fresh,\n"
-        "unchanged export. If it still fails, open an issue with cgt-calc 9.8.7, the\n"
-        "complete error, and the smallest redacted example that still fails:\n"
-        "https://github.com/cgt-calc/capital-gains-calculator/issues/new\n"
-        "Never upload unredacted data. What to send and what to redact:\n"
-        "https://cgt-calc.uk/reporting-problems/\n"
+        f"\nERROR: While parsing {tmp_path / 'export.csv'}, {message}\n"
+        f"\n{REPORTING_ADVICE}"
+    )
+    assert err.count(REPORTING_ADVICE) == 1
+
+
+@pytest.mark.parametrize(
+    ("field", "message"),
+    [
+        pytest.param(
+            "day_open_quantity",
+            "the holding opens at 10 units here and at 11 where the "
+            "reorganisation was worked out.",
+            id="opening",
+        ),
+        pytest.param(
+            "expected_day_close",
+            "the day closes at 20 units where the reorganisation and the day's "
+            "activity come to 21.",
+            id="closing",
+        ),
+    ],
+)
+def test_two_passes_that_disagree_on_a_reorganisation_end_with_how_to_report_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    field: str,
+    message: str,
+) -> None:
+    """The second pass checks each reorganisation against the first pass's plan.
+
+    The history buys 10 FOO, then a STOCK_SPLIT row adds 10, so the split day
+    opens at 10 units and closes at 20. Only a fault in cgt-calc makes the
+    passes disagree, so no input reaches these checks; the plan is given one
+    unit too many here instead, making it 11 or 21.
+    """
+
+    @dataclasses.dataclass(frozen=True)
+    class OneUnitOut(SplitTransformation):
+        """The first pass's plan, with `field` one unit too high."""
+
+        def __post_init__(self) -> None:
+            object.__setattr__(self, field, getattr(self, field) + 1)
+
+    monkeypatch.setattr(stock_split_planning, "SplitTransformation", OneUnitOut)
+    raw_file = tmp_path / "raw.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2023-04-28,TRANSFER,,1,100.00,0.00,GBP\n"
+        "2023-05-01,BUY,FOO,10,10.00,0.00,GBP\n"
+        "2023-06-01,STOCK_SPLIT,FOO,10,0.00,0.00,GBP\n",
+        encoding="utf-8",
+    )
+
+    status = _run_main(
+        monkeypatch, "--year", "2023", "--raw-file", str(raw_file), "--no-report"
+    )
+
+    assert status == 1
+    err = capsys.readouterr().err
+    assert err.endswith(
+        "\nERROR: Cannot apply the reorganisation of FOO on 2023-06-01: "
+        f"{message} The two passes over the history disagree.\n"
+        f"\n{REPORTING_ADVICE}"
+    )
+    assert err.count(REPORTING_ADVICE) == 1
+
+
+def test_a_report_typst_cannot_compile_ends_with_how_to_report_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Typst failing on cgt-calc's own template is a fault in cgt-calc.
+
+    Every value reaches the template as checked JSON data, never as markup, so
+    no input is known to make Typst fail; the compiler is replaced by one that
+    does. The failure is not one cgt-calc expects, so its traceback is shown,
+    followed by the advice.
+    """
+
+    class FailingCompiler:
+        def __init__(self, **options: object) -> None:
+            pass
+
+        def compile(self, **options: object) -> bytes:
+            raise typst.TypstError("made-up failure", "made-up diagnostic")
+
+    monkeypatch.setattr(typst, "Compiler", FailingCompiler)
+    raw_file = tmp_path / "raw.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2023-04-28,TRANSFER,,1,100.00,0.00,GBP\n",
+        encoding="utf-8",
+    )
+
+    status = _run_main(
+        monkeypatch,
+        "--year",
+        "2023",
+        "--raw-file",
+        str(raw_file),
+        "--output",
+        str(tmp_path / "report.pdf"),
+    )
+
+    assert status == 1
+    err = capsys.readouterr().err
+    # Python prints an exception made with two arguments as their tuple.
+    assert err.endswith(
+        "typst.TypstError: ('made-up failure', 'made-up diagnostic')\n"
+        f"\n{REPORTING_ADVICE}"
     )
 
 
@@ -2973,10 +3483,8 @@ def test_a_known_error_prints_its_message_and_no_reporting_advice(
         raise CalculationError("made-up refusal")
 
     monkeypatch.setattr("cgt_calc.cli.calculate_cgt", refuse)
-    monkeypatch.setattr(sys, "argv", ["cgt-calc", "--year", "2021"])
 
-    with localcontext():
-        assert main() == 1
+    assert _run_main(monkeypatch, "--year", "2021") == 1
 
     assert capsys.readouterr().err == "\nERROR: made-up refusal\n\n"
 
@@ -3088,6 +3596,93 @@ def test_a_custom_period_reaches_the_report_through_the_command_line(
     assert "Disposals: 1" in lines
     assert "Disposal proceeds: £120.00" in lines
     assert "Allowable costs: £100.00" in lines
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs a POSIX pseudo-terminal")
+@pytest.mark.skipif(
+    signal.getsignal(signal.SIGINT) == signal.SIG_IGN,
+    reason="SIGINT is ignored here, as in a background job, so the run would be too",
+)
+@pytest.mark.parametrize("verbose", [False, True], ids=["plain", "verbose"])
+def test_ctrl_c_at_the_spin_off_prompt_stops_the_run_with_one_line(
+    tmp_path: Path, verbose: bool
+) -> None:
+    """Ctrl-C ends the run with one line instead of a traceback.
+
+    The spin-off source prompt is where a run waits for the user, and with
+    nothing held no answer is accepted, so Ctrl-C is a likely way out. stdin
+    is a pseudo-terminal, so the run asks, and SIGINT is sent once the prompt
+    is on stdout, as a terminal sends it on Ctrl-C. The process must still die
+    by SIGINT, which a shell shows as 130 and which stops a calling script.
+    --verbose keeps the traceback, once, after the same line.
+    """
+    history = tmp_path / "history.csv"
+    history.write_text(
+        RAW_HEADER + "2020-11-16,SPIN_OFF,NEW,10,0,0,GBP\n", encoding="utf-8"
+    )
+    cmd = build_cmd(
+        "--raw-file",
+        str(history),
+        "--year",
+        "2020",
+        "--no-report",
+        "--spin-offs-file=",
+        *(["--verbose"] if verbose else []),
+    )
+    prompt = (
+        b"For a spin-off, please enter the original ticker from which the new "
+        b"stock (symbol: NEW) was spun off on 2020-11-16: "
+    )
+
+    primary, secondary = os.openpty()
+    try:
+        with subprocess.Popen(
+            cmd, stdin=secondary, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        ) as run:
+            assert run.stdout is not None
+            try:
+                # Nothing else goes to stdout first. A run that never asks is
+                # waited for a minute, then fails the checks below.
+                shown = b""
+                while (
+                    len(shown) < len(prompt)
+                    and select.select([run.stdout], [], [], 60)[0]
+                ):
+                    if not (chunk := os.read(run.stdout.fileno(), len(prompt))):
+                        break
+                    shown += chunk
+                # Wait as a person would, so the signal finds the read waiting.
+                # One that lands after the prompt is written but before the
+                # read begins is only noted, and the read then waits; on a busy
+                # machine that can still happen, and a second one ends it.
+                time.sleep(0.2)
+                run.send_signal(signal.SIGINT)
+                try:
+                    out, err = run.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    run.send_signal(signal.SIGINT)
+                    out, err = run.communicate(timeout=60)
+            finally:
+                run.kill()  # Does nothing once the run has ended.
+    finally:
+        os.close(primary)
+        os.close(secondary)
+
+    assert shown + out == prompt, err
+    assert run.returncode == -signal.SIGINT, err
+    assert err.count(b"Stopped by Ctrl-C") == 1, err
+    # An error stands apart, with a blank line before and after it.
+    line = b"\nERROR: Stopped by Ctrl-C before the run finished.\n"
+    if verbose:
+        # Logged with the line; Python does not print it a second time. The
+        # rate limiters for exchange rate and ISIN lookups run threads that
+        # log a debug line now and then, so what follows is not checked.
+        assert line + b"Traceback (most recent call last):\n" in err
+        assert b"\nKeyboardInterrupt\n\n" in err
+        assert err.count(b"Traceback") == 1
+    else:
+        assert err.endswith(line + b"\n")
+        assert b"Traceback" not in err
 
 
 def test_negative_balance_error_shows_only_relevant_transactions() -> None:
@@ -3308,6 +3903,36 @@ def test_taxable_gain_requires_an_allowance() -> None:
 
     with pytest.raises(CalculationError, match=r"allowance.*unavailable"):
         report.taxable_gain()
+
+
+def test_summary_says_what_a_missing_allowance_leaves_out() -> None:
+    """A year with no annual exempt amount gets no Taxable gain row, and a note."""
+    report = CapitalGainsReport(
+        2027,
+        [],
+        0,
+        Decimal(0),
+        Decimal(0),
+        {},
+        Decimal(0),
+        None,
+        None,
+        {},
+        {},
+        Decimal(0),
+        Decimal(0),
+        Decimal(0),
+        show_unrealized_gains=False,
+    )
+
+    lines = render_text(report).splitlines()
+
+    assert not any(line.strip().startswith("Taxable gain:") for line in lines)
+    assert (
+        "WARNING: cgt-calc does not know the annual exempt amount for 2027/2028, so "
+        "Taxable gain and any tax estimate are left out. Update cgt-calc, or take "
+        "the amount from GOV.UK and work out the taxable gain yourself."
+    ) in lines
 
 
 def test_foreign_fees_folded_into_gbp_transaction() -> None:
@@ -4525,3 +5150,26 @@ def test_an_action_the_calculation_does_not_process_is_refused_by_name() -> None
         r" the actions listed at https://cgt-calc\.uk/brokers/raw/#actions-to-use\n",
     ):
         get_report(calculator, [cancel])
+
+
+def test_a_reinvested_dividend_row_is_ignored_with_a_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The row adds no income or holding, and the warning names it.
+
+    Schwab writes it, and a RAW file can name it too, so the warning names
+    no broker.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    row = _gbp_trade(dt.date(2024, 5, 1), ActionType.REINVEST_DIVIDENDS, "FOO", 1, 10)
+
+    with caplog.at_level(logging.WARNING, logger="cgt_calc.ingestion"):
+        report = get_report(calculator, [row])
+
+    assert report.total_dividends_amount() == 0
+    assert report.portfolio == []
+    assert (
+        "Ignored the reinvested dividend row for FOO on 2024-05-01, so any dividend "
+        "or share purchase it records is left out of the report. Check your broker "
+        "statement that other rows record the dividend and the shares bought with it."
+    ) in caplog.messages

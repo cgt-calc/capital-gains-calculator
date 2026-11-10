@@ -1,0 +1,147 @@
+Capital Gains Tax Calculations for 2020-21
+Overall - Capital Gains
+Number of acquisitions 9
+Number of disposals 4
+Total disposal proceeds £43,836.90
+Total allowable costs £18,666.33
+Total capital gain before loss £25,170.57
+Total capital loss £0
+Total capital gain after loss £25,170.57
+Amounts are rounded to the nearest penny individually, so a line may differ from its
+components by a penny.
+Overall - Dividends and Interests
+Number of dividend distributions 1
+Number of interest transactions 1
+Number of interest tax transactions 0
+Number of excess reported income distributions 2
+Total amount of dividends proceeds £21.49
+(including £21.37 from excess reported income distributions)
+Total amount of dividends tax allowance due to double taxation treaties £0.02
+Total amount of dividends tax yearly allowance £2,000.00
+Total amount of taxable dividends proceeds £0.00
+Total amount of UK interests proceeds £0.00
+Total amount of foreign interests proceeds £1.03
+Total amount of interest tax paid £0.00
+Page 1 of 6
+Capital Gains Tax Calculations for 2020-21
+Capital Gains Events
+02 June 2020
+Acquisition 1: 100 units of VUAG
+for £2,042.38 (£20.42/unit), including £4.89 fees
+Rule Quantity Actual cost
+1. SECTION 104 100 £2,042.38
+Number of units in the pool: 100, new pool cost: £2,042.38 (£20.42/unit).
+03 June 2020
+Acquisition 2: 154 units of VUAG
+for £3,569.68 (£23.18/unit), including £8.15 fees
+Rule Quantity Actual cost
+1. SECTION 104 154 £3,569.68
+Number of units in the pool: 254, new pool cost: £5,612.06 (£22.09/unit).
+Disposal 1: 254 units of VUAG
+for £5,887.53 (£23.18/unit), £12.22 fees allowed as cost
+Chargeable gain is £148.45
+Capital gain to date is £148.45
+Rule Quantity Disposal Allowable Gain or loss
+proceeds cost
+1. SAME DAY 154 £3,569.61 £3,577.09 loss £7.49
+Number of units left in the pool: 100, new pool cost: £2,042.38 (£20.42/unit).
+2. BED AND BREAKFAST 30.5 £706.97 £739.19 loss £32.22
+allowable cost on 02 Jul 2020
+Number of units left in the pool: 69.5, new pool cost: £1,419.45 (£20.42/unit).
+3. SECTION 104 69.5 £1,610.96 £1,422.80 gain £188.16
+Number of units left in the pool: 0.
+Page 2 of 6
+Capital Gains Tax Calculations for 2020-21
+06 June 2020
+Acquisition 3: 90 units of VUAG
+for £2,351.26 (£26.13/unit), including £4.07 fees
+Rule Quantity Actual cost
+1. SECTION 104 90 £2,351.26
+Number of units in the pool: 90, new pool cost: £2,351.26 (£26.13/unit).
+Disposal 2: 90 units of VUAG
+for £2,420.54 (£26.89/unit), £4.07 fees allowed as cost
+Chargeable gain is £65.20
+Capital gain to date is £213.65
+Rule Quantity Disposal Allowable Gain or loss
+proceeds cost
+1. SAME DAY 90 £2,420.54 £2,355.34 gain £65.20
+Number of units left in the pool: 0.
+24 June 2020
+Acquisition 4: 1 units of VNRG
+for £8.07 (£8.07/unit)
+Rule Quantity Actual cost
+1. SECTION 104 1 £8.07
+Number of units in the pool: 1, new pool cost: £8.07 (£8.07/unit).
+30 June 2020
+Excess Reported Income: VNRG cost increased by £0.84
+(£0.8358/unit)
+Rule Quantity Original cost After income
+distribution
+1. EXCESS REPORTED INCOME 1 of VNRG £8.07 £8.91
+Number of units in the pool: 1, new pool cost: £8.91 (£8.91/unit).
+Page 3 of 6
+Capital Gains Tax Calculations for 2020-21
+02 July 2020
+Acquisition 5: 30.5 units of VUAG
+for £737.72 (£24.19/unit), including £3.19 fees
+Rule Quantity Actual cost
+1. BED AND BREAKFAST 30.5 £643.46
+Number of units in the pool: 30.5, new pool cost: £643.46 (£21.10/unit)
+Cost basis increased by £20.54 (£0.6733/unit), due to excess reported income
+on 30 Jun 2020.
+25 November 2020
+Acquisition 6: 100 units of GME
+for £1,106.25 (£11.06/unit)
+Rule Quantity Actual cost
+1. SECTION 104 100 £1,106.25
+Number of units in the pool: 100, new pool cost: £1,106.25 (£11.06/unit).
+27 November 2020
+Acquisition 7: 1 units of NVDA
+for £401.01 (£401.01/unit)
+Rule Quantity Actual cost
+1. SECTION 104 1 £401.01
+Number of units in the pool: 1, new pool cost: £401.01 (£401.01/unit).
+26 January 2021
+Acquisition 8: 100 units of GME
+for £6,554.80 (£65.55/unit)
+Rule Quantity Actual cost
+1. SECTION 104 100 £6,554.80
+Number of units in the pool: 200, new pool cost: £7,661.05 (£38.31/unit).
+Page 4 of 6
+Capital Gains Tax Calculations for 2020-21
+01 February 2021
+Disposal 3: 200 units of GME
+for £32,453.25 (£162.27/unit)
+Chargeable gain is £24,792.20
+Capital gain to date is £25,005.85
+Rule Quantity Disposal Allowable Gain or loss
+proceeds cost
+1. SECTION 104 200 £32,453.25 £7,661.05 gain £24,792.20
+Number of units left in the pool: 0.
+25 March 2021
+Acquisition 9: 212 units of GOOG
+for £15,427.37 (£72.77/unit)
+Rule Quantity Actual cost
+1. SECTION 104 212 £15,427.37
+Number of units in the pool: 212, new pool cost: £15,427.37 (£72.77/unit).
+01 April 2021
+Disposal 4: 40 units of GOOG
+for £3,075.58 (£76.89/unit), £0.04 fees allowed as cost
+Chargeable gain is £164.72
+Capital gain to date is £25,170.57
+Rule Quantity Disposal Allowable Gain or loss
+proceeds cost
+1. SECTION 104 40 £3,075.58 £2,910.86 gain £164.72
+Number of units left in the pool: 172, new pool cost: £12,516.55 (£72.77/unit).
+Interest and Dividends Events
+30 December 2020
+Excess Reported Income Distribution 1: VUAG (dividend) for £20.54 (£0.6733/unit)
+Page 5 of 6
+Capital Gains Tax Calculations for 2020-21
+Excess Reported Income Distribution 2: VNRG (dividend) for £0.84 (£0.8358/unit)
+03 February 2021
+Interest Foreign 1: USD for £1.03
+02 April 2021
+Dividend 1: NVDA for £0.11 (tax paid at source: £0.01), tax treaty amount: £0.02
+(treaty rate for USA: 15.00%)
+Page 6 of 6

@@ -1,0 +1,48 @@
+Capital Gains Tax Calculations for 2023-24
+Overall - Capital Gains
+Number of acquisitions 2
+Number of disposals 0
+Total disposal proceeds £0.00
+Total allowable costs £0.00
+Total capital gain before loss £0
+Total capital loss £0
+Total capital gain after loss £0
+Amounts are rounded to the nearest penny individually, so a line may differ from its
+components by a penny.
+Overall - Dividends and Interests
+Number of dividend distributions 0
+Number of interest transactions 0
+Number of interest tax transactions 0
+Number of excess reported income distributions 0
+Total amount of dividends proceeds £0.00
+Total amount of dividends tax allowance due to double taxation treaties £0.00
+Total amount of dividends tax yearly allowance £1,000.00
+Total amount of taxable dividends proceeds £0.00
+Total amount of UK interests proceeds £0.00
+Total amount of foreign interests proceeds £0.00
+Total amount of interest tax paid £0.00
+Page 1 of 2
+Capital Gains Tax Calculations for 2023-24
+Capital Gains Events
+02 May 2023
+Acquisition 1: 0.9 units of FOO
+for £90.00 (£100.00/unit)
+Rule Quantity Actual cost
+1. SECTION 104 0.9 £90.00
+Number of units in the pool: 0.9, new pool cost: £90.00 (£100.00/unit).
+15 May 2023
+Acquisition 2: 0.0111111111 units of FOO
+for £10.00 (£900.00/unit)
+Rule Quantity Actual cost
+1. SECTION 104 0.0111111111 £10.00
+Number of units in the pool: 0.1111111111, new pool cost: £100.00
+(£900.00/unit).
+Share reorganisation: 0.9 units of FOO restated as 0.1 (ratio 1/9)
+Neither a disposal nor an acquisition: the new holding is the same asset, held from
+the same dates, with the same pooled cost (TCGA 1992 s127).
+Stated as 1 units before the event and 0.11111111 after.
+Reconciled to that count by -0.0000000011 units, from 0.1111111111 to
+0.11111111.
+Units in the pool at this point in the day: 0.11111111, pool cost: £100.00
+(£900.00/unit).
+Page 2 of 2

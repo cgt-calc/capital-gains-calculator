@@ -21,19 +21,34 @@ if TYPE_CHECKING:
 class CgtError(Exception):
     """Base class for exceptions."""
 
+    def __init__(self, *args: object, needs_update: bool = False) -> None:
+        """Initialise; `needs_update` marks a failure that may need a cgt-calc update.
+
+        The CLI follows such a failure with the advice on upgrading and
+        reporting it. It suits an unchanged broker export cgt-calc does not
+        recognise, or a failed check of cgt-calc's own workings.
+        """
+        super().__init__(*args)
+        self.needs_update = needs_update
+
 
 class ParsingError(CgtError):
     """Parsing error."""
 
     def __init__(
-        self, file: Path, message: str, *, row_index: int | None = None
+        self,
+        file: Path,
+        message: str,
+        *,
+        row_index: int | None = None,
+        needs_update: bool = False,
     ) -> None:
         """Initialise."""
         self.file = file
         self.detail = message
         self.row_index = row_index
         self._update_message()
-        super().__init__(self.message)
+        super().__init__(self.message, needs_update=needs_update)
 
     def _update_message(self) -> None:
         location = f"While parsing {self.file}"
@@ -48,6 +63,24 @@ class ParsingError(CgtError):
         self._update_message()
 
 
+def not_text_in(encoding: str, file: Path) -> ParsingError:
+    """Say that ``file`` is not text in ``encoding``, and how to put it right."""
+    name = "UTF-8" if encoding.lower().startswith("utf") else encoding.title()
+    # The stdin marker, args_validators.STDIN_PATH, which cannot be
+    # imported here without a cycle.
+    if str(file) == "-":
+        detail = (
+            f"standard input is not {name} text. What is piped or redirected "
+            f"into it must be {name}."
+        )
+    else:
+        detail = (
+            f"this file is not {name} text. Save it as {name}, or use the "
+            "original file if another program re-saved it."
+        )
+    return ParsingError(file, detail)
+
+
 @contextmanager
 def reading_as(encoding: str, file: Path) -> Generator[None]:
     """Report text that is not in ``encoding`` as a parsing error naming the file.
@@ -58,20 +91,7 @@ def reading_as(encoding: str, file: Path) -> Generator[None]:
     try:
         yield
     except UnicodeDecodeError as err:
-        name = "UTF-8" if encoding.lower().startswith("utf") else encoding.title()
-        # The stdin marker, args_validators.STDIN_PATH, which cannot be
-        # imported here without a cycle.
-        if str(file) == "-":
-            detail = (
-                f"standard input is not {name} text. What is piped or redirected "
-                f"into it must be {name}."
-            )
-        else:
-            detail = (
-                f"this file is not {name} text. Save it as {name}, or use the "
-                "original file if another program re-saved it."
-            )
-        raise ParsingError(file, detail) from err
+        raise not_text_in(encoding, file) from err
 
 
 @contextmanager
@@ -122,6 +142,21 @@ class InvalidTransactionError(CgtError):
         super().__init__(self.message)
 
 
+def raw_file_to_add_to(raw_file: Path | None) -> str:
+    """Say which file a RAW row goes in: the run's RAW file, or a new one.
+
+    cgt-calc reads one --raw-file, so a run that already reads one has the
+    row added to it, named as it was passed. Standard input has no name to
+    give. The stdin marker is args_validators.STDIN_PATH, which cannot be
+    imported here without a cycle.
+    """
+    if raw_file is None:
+        return "a file passed with --raw-file"
+    if str(raw_file) == "-":
+        return "your RAW file"
+    return f"your RAW file ({raw_file})"
+
+
 class UnclassifiedGiftError(CgtError):
     """Raised when a broker reports a gift of shares without saying who got them.
 
@@ -130,12 +165,24 @@ class UnclassifiedGiftError(CgtError):
     buries the instructions.
     """
 
-    def __init__(self, transaction: BrokerTransaction, readings: list[Decimal]):
+    def __init__(
+        self,
+        transaction: BrokerTransaction,
+        readings: list[Decimal],
+        raw_file: Path | None,
+        left_over: Sequence[BrokerTransaction],
+        *,
+        gifts_to_spouse: bool,
+    ):
         """Initialise.
 
         `readings` holds every share count the row could be stating. There is
         normally one; a count printed before a stock split can be two, where
-        the export does not say whether it was restated.
+        the export does not say whether it was restated. `raw_file` is the
+        RAW file the run reads, if it reads one. `left_over` holds the RAW
+        rows of the gift's day and symbol that no gift took, which are more
+        likely this gift with its count typed wrongly than a second transfer.
+        `gifts_to_spouse` says whether the run passed --gifts-to-spouse.
         """
         self.transaction = transaction
         rows = "\n".join(
@@ -160,22 +207,74 @@ class UnclassifiedGiftError(CgtError):
             "tax year, or within the window after separating), it is a no "
             "gain/no loss transfer."
         )
+        if raw_file is None:
+            add_this_line = (
+                "Put this line in a CSV and pass it with --raw-file alongside "
+                "the file you already use"
+            )
+            adding_a_line = (
+                "putting a line in a CSV and passing it with --raw-file "
+                "alongside the file you already use"
+            )
+            # Nothing was read from a RAW file, so no row there can be meant
+            # for this gift.
+            mistyped = ""
+        else:
+            add_this_line = f"Add this line to {raw_file_to_add_to(raw_file)}"
+            adding_a_line = f"adding a line to {raw_file_to_add_to(raw_file)}"
+            # A row typed with the wrong date or count leaves the gift
+            # unclassified, and adding the printed line beside it would take
+            # the shares out twice.
+            mistyped = (
+                "If your RAW file already has a row meant for this gift with "
+                "another date or quantity, correct that row instead of adding "
+                "one, or cgt-calc counts both.\n"
+                "\n"
+            )
+        counts = " or ".join(strip_zeros(reading) for reading in readings)
+        # The row to correct is named before the lines to add, so the user
+        # does not add one beside it first.
+        named_row = ""
+        if left_over:
+            rows_named = " and ".join(
+                f"a {row.action.name} row with "
+                + (
+                    "no quantity"
+                    if row.quantity is None
+                    else f"quantity {strip_zeros(row.quantity)}"
+                )
+                for row in left_over
+            )
+            option_note = (
+                " --gifts-to-spouse says who received the shares, not how many "
+                "left, so it cannot settle which count is right."
+                if gifts_to_spouse
+                else ""
+            )
+            which = "that row" if len(left_over) == 1 else "one of those rows"
+            named_row = (
+                f"Your RAW file has {rows_named} for {transaction.symbol} on "
+                f"{transaction.date} that no reported gift accounts for."
+                f"{option_note} If {which} is meant for this gift, correct its "
+                f"quantity to {counts} instead of adding a line, or cgt-calc "
+                "counts both. Add a line below only if this gift is a separate "
+                "transfer.\n"
+                "\n"
+            )
+            # The general warning would only repeat the row named above.
+            mistyped = ""
         if len(readings) == 1:
             how = (
-                f"{spouse} Put this line in a CSV and pass it with --raw-file "
-                "alongside the file you already use, and the gift is then taken "
-                f"as accounted for:\n{rows}"
+                f"{spouse} {add_this_line}, and the gift is then taken as "
+                f"accounted for:\n{rows}"
             )
         else:
-            options = " or ".join(strip_zeros(reading) for reading in readings)
             how = (
-                f"{spouse} You record that by putting a line in a CSV and "
-                "passing it with --raw-file alongside the file you already "
-                "use.\n"
+                f"{spouse} You record that by {adding_a_line}.\n"
                 "\n"
                 f"{transaction.symbol} split after this date and the export does "
                 "not say whether it restated the count, so the gift was either "
-                f"{options} shares. Check a statement to see which, and add that "
+                f"{counts} shares. Check a statement to see which, and add that "
                 f"line:\n{rows}"
             )
         self.message = (
@@ -183,11 +282,12 @@ class UnclassifiedGiftError(CgtError):
             f"{transaction.date}, but not who received them, and that decides "
             "the tax.\n"
             "\n"
+            f"{named_row}"
             f"{how}\n"
             "\n"
-            "If they went to anyone else, it is a disposal at market value. Put "
-            "this line in the CSV instead, with the market value of the gift "
-            f"divided by its units as the price:\n{gift_rows}\n"
+            "If they went to anyone else, it is a disposal at market value. Use "
+            "this line instead, with the market value of the gift divided by "
+            f"its units as the price:\n{gift_rows}\n"
             "Market value has its own rules (TCGA 1992 s272): for quoted "
             "shares it follows the day's quoted prices, and unquoted shares "
             "need an open-market valuation of the holding given away. If the "
@@ -199,6 +299,7 @@ class UnclassifiedGiftError(CgtError):
             "is not a connected person, write GIFT_UNCONNECTED instead and the "
             "loss counts like any other.\n"
             "\n"
+            f"{mistyped}"
             "See https://cgt-calc.uk/brokers/raw/#transfers-to-a-spouse-or-civil-partner"
         )
         super().__init__(self.message)
@@ -397,22 +498,6 @@ class BundledPriceCurrencyError(CalculationError):
         )
 
 
-class LatexRenderError(CgtError):
-    """Raised when LaTeX PDF rendering fails."""
-
-    def __init__(self, log_path: Path) -> None:
-        """Initialise."""
-        super().__init__(f"LaTeX compilation failed: see '{log_path}'")
-
-
-class MissingExternalToolError(CgtError):
-    """Raised when a required external command-line tool is missing."""
-
-    def __init__(self, tool: str):
-        """Initialise."""
-        super().__init__(f"Required tool '{tool}' is not available on PATH")
-
-
 class TransactionDumpError(CgtError):
     """Raised when the parsed-transaction CSV cannot be written."""
 
@@ -441,10 +526,20 @@ class ExternalApiError(CgtError):
 
 
 class InteractiveInputRequiredError(CgtError):
-    """Raised when a prompt is needed but stdin is not a terminal."""
+    """Raised when a prompt is needed but cannot be answered.
 
-    def __init__(self, symbol: str, date: dt.date, spin_offs_file: Path | None):
-        """Initialise."""
+    Either stdin is not a terminal, or input ended at the prompt.
+    """
+
+    def __init__(
+        self,
+        symbol: str,
+        date: dt.date,
+        spin_offs_file: Path | None,
+        *,
+        input_ended: bool = False,
+    ):
+        """Initialise; `input_ended` means the prompt was shown and read EOF."""
         if spin_offs_file is None:
             # An empty --spin-offs-file disables the cache, so there is no file
             # to add the row to: naming one would send the user in a circle.
@@ -457,11 +552,18 @@ class InteractiveInputRequiredError(CgtError):
                 f"Add a '{symbol},<source>' row to {spin_offs_file} "
                 "(header 'dst,src') and rerun."
             )
-        super().__init__(
-            f"Cannot ask which stock {symbol} was spun off from on {date}: "
-            "standard input is not a terminal (this also applies when piping "
-            f"transactions via '-'). {hint}"
-        )
+        if input_ended:
+            problem = (
+                f"Input ended while asking which stock {symbol} was spun off "
+                f"from on {date}."
+            )
+        else:
+            problem = (
+                f"Cannot ask which stock {symbol} was spun off from on {date}: "
+                "standard input is not a terminal (this also applies when "
+                "piping transactions via '-')."
+            )
+        super().__init__(f"{problem} {hint}")
 
 
 class MarketDataMissingError(CgtError):

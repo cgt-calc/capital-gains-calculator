@@ -129,7 +129,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
                 "https://cgt-calc.uk/brokers/vanguard/#a-reversed-purchase-or-disposal",
             )
 
-    raise ParsingError(file, f"Unknown action: {label}")
+    raise ParsingError(file, f"Unknown action: {label}", needs_update=True)
 
 
 def _parse_decimal(value: str, context: str) -> Decimal:
@@ -140,9 +140,8 @@ def _parse_decimal(value: str, context: str) -> Decimal:
 
 def _parse_details(
     details: str, action: ActionType, amount: Decimal
-) -> tuple[str | None, Decimal | None, Decimal | None, CurrencyCode]:
-    """Extract symbol, quantity, price, currency from a Details string."""
-    currency = CurrencyCode("GBP")
+) -> tuple[str | None, Decimal | None, Decimal | None]:
+    """Extract symbol, quantity and price from a Details string."""
     quantity = None
     price = None
     symbol = None
@@ -159,13 +158,15 @@ def _parse_details(
         symbol = match.group(3) or match.group(2).strip()
         price = amount / quantity
     elif action == ActionType.DIVIDEND:
+        # The rate after "@" is declared per unit in the fund's distribution
+        # currency, while Amount is the sterling credit to the cash account
+        # (#1040), so neither a unit count nor a sterling price follows from
+        # them. Even at a sterling rate a count would only be an estimate:
+        # Amount is rounded to the penny and a holding can be fractional.
         match = DIV_RE.match(details)
         assert match
         symbol = match.group(1)
-        currency = CurrencyCode(match.group(2))
-        price = _parse_decimal(match.group(3), "Details price")
-        quantity = Decimal(round(amount / price))
-    return symbol, quantity, price, currency
+    return symbol, quantity, price
 
 
 def _strip_reversal(details: str) -> tuple[str, bool]:
@@ -229,7 +230,7 @@ class VanguardTransaction(BrokerTransaction):
         self.details_text, self.is_reversal = _strip_reversal(row[CashColumn.DETAILS])
         self.action = action_from_str(self.details_text, file)
         self.amount = _parse_decimal(row[CashColumn.AMOUNT], CashColumn.AMOUNT.value)
-        self.symbol, self.quantity, self.price, self.currency = _parse_details(
+        self.symbol, self.quantity, self.price = _parse_details(
             self.details_text, self.action, self.amount
         )
 

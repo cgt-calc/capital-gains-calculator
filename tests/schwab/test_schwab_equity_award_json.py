@@ -295,10 +295,36 @@ def _read_json(
     return parser.read_transactions(io.StringIO(content), Path("awards.json"))
 
 
-def test_unknown_symbol_warns(caplog: pytest.LogCaptureFixture) -> None:
-    """Warn about symbols without known split history."""
+def test_unknown_symbol_warns_once(caplog: pytest.LogCaptureFixture) -> None:
+    """Warn once per symbol without known split history, not once per row.
+
+    ZZZ and YYY each have two rows and each warn once, in the order they
+    first appear. The cash rows name no symbol, whether as null or blank, so
+    they hold nothing whose share counts could be checked and do not warn.
+    """
     content = (
-        '{"Transactions": [{"Date": "01/15/2023", "Action": "Dividend",'
+        '{"Transactions": ['
+        '{"Date": "02/15/2023", "Action": "Dividend",'
+        ' "Symbol": "ZZZ", "Description": "Div", "Quantity": null,'
+        ' "Amount": "$12.00", "FeesAndCommissions": null,'
+        ' "TransactionDetails": []},'
+        '{"Date": "02/10/2023", "Action": "Dividend",'
+        ' "Symbol": "YYY", "Description": "Div", "Quantity": null,'
+        ' "Amount": "$7.00", "FeesAndCommissions": null,'
+        ' "TransactionDetails": []},'
+        '{"Date": "01/25/2023", "Action": "Dividend",'
+        ' "Symbol": "YYY", "Description": "Div", "Quantity": null,'
+        ' "Amount": "$6.00", "FeesAndCommissions": null,'
+        ' "TransactionDetails": []},'
+        '{"Date": "01/20/2023", "Action": "MoneyLink Transfer",'
+        ' "Symbol": null, "Description": "Out", "Quantity": null,'
+        ' "Amount": "-$5.00", "FeesAndCommissions": null,'
+        ' "TransactionDetails": []},'
+        '{"Date": "01/18/2023", "Action": "Wire Funds",'
+        ' "Symbol": "", "Description": "Out", "Quantity": null,'
+        ' "Amount": "-$3.00", "FeesAndCommissions": null,'
+        ' "TransactionDetails": []},'
+        '{"Date": "01/15/2023", "Action": "Dividend",'
         ' "Symbol": "ZZZ", "Description": "Div", "Quantity": null,'
         ' "Amount": "$10.00", "FeesAndCommissions": null,'
         ' "TransactionDetails": []}]}'
@@ -307,9 +333,16 @@ def test_unknown_symbol_warns(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING):
         transactions = _read_json(content)
 
-    assert "check the share counts" in caplog.text
+    warning = (
+        "cgt-calc corrects Schwab Equity Awards share counts for splits only for "
+        "GOOG, GOOGL, NVDA, so the counts for {0} are used as the export states "
+        "them. If {0} has split since its first transaction in the export, check "
+        "those counts against a Schwab statement before filing."
+    )
+    assert caplog.messages == [warning.format("ZZZ"), warning.format("YYY")]
     assert transactions[0].action == ActionType.DIVIDEND
     assert transactions[0].amount == Decimal(10)
+    assert len(transactions) == 6
 
 
 def test_forced_disbursement_parses_as_transfer() -> None:
@@ -551,8 +584,10 @@ def test_schwab_json_unknown_action_fails(tmp_path: Path) -> None:
     }
     json_path.write_text(json.dumps(data), encoding="utf-8")
 
-    with pytest.raises(ParsingError, match=r"Unknown action: UnknownAction"):
+    with pytest.raises(ParsingError, match=r"Unknown action: UnknownAction") as exc:
         schwab_equity_award_json.SchwabEquityAwardsParser().load_from_file(json_path)
+
+    assert exc.value.needs_update
 
 
 def test_schwab_json_deposit_missing_details_fails(tmp_path: Path) -> None:
@@ -1507,6 +1542,42 @@ def test_run_with_schwab_equity_award_json(
     assert_stdout_matches(result, cmd, expected_file)
 
 
+def _goog_gift(date: str, quantity: str) -> dict[str, object]:
+    """Return a `Gift` row, which does not say who received the shares."""
+    return {
+        "Date": date,
+        "Action": "Gift",
+        "Symbol": "GOOG",
+        "Quantity": quantity,
+        "Description": "Share Transfer",
+        "FeesAndCommissions": None,
+        "Amount": None,
+        "TransactionDetails": [],
+    }
+
+
+# 13.6 GOOG vested on 25 September 2023 at $131.25.
+GOOG_VEST = {
+    "Date": "09/27/2023",
+    "Action": "Deposit",
+    "Symbol": "GOOG",
+    "Quantity": "13.6",
+    "Description": "RS",
+    "FeesAndCommissions": None,
+    "Amount": None,
+    "TransactionDetails": [
+        {
+            "Details": {
+                "AwardDate": "01/01/2019",
+                "AwardId": "C987654",
+                "VestDate": "09/25/2023",
+                "VestFairMarketValue": "$131.25",
+            }
+        }
+    ],
+}
+
+
 def test_gifts_to_spouse_option_reports_each_gift_row_as_a_spouse_transfer(
     request: pytest.FixtureRequest, tmp_path: Path
 ) -> None:
@@ -1519,42 +1590,16 @@ def test_gifts_to_spouse_option_reports_each_gift_row_as_a_spouse_transfer(
     £103.9110. Gifts of 2 and 3 pass on 2 x 103.9110 = £207.82 and
     3 x 103.9110 = £311.73 of that cost, and 13.6 - 2 - 3 = 8.6 shares stay.
     """
-
-    def gift(date: str, quantity: str) -> dict[str, object]:
-        return {
-            "Date": date,
-            "Action": "Gift",
-            "Symbol": "GOOG",
-            "Quantity": quantity,
-            "Description": "Share Transfer",
-            "FeesAndCommissions": None,
-            "Amount": None,
-            "TransactionDetails": [],
-        }
-
-    vest = {
-        "Date": "09/27/2023",
-        "Action": "Deposit",
-        "Symbol": "GOOG",
-        "Quantity": "13.6",
-        "Description": "RS",
-        "FeesAndCommissions": None,
-        "Amount": None,
-        "TransactionDetails": [
-            {
-                "Details": {
-                    "AwardDate": "01/01/2019",
-                    "AwardId": "C987654",
-                    "VestDate": "09/25/2023",
-                    "VestFairMarketValue": "$131.25",
-                }
-            }
-        ],
-    }
     award_file = tmp_path / "awards.json"
     award_file.write_text(
         json.dumps(
-            {"Transactions": [gift("10/24/2023", "3"), gift("10/09/2023", "2"), vest]}
+            {
+                "Transactions": [
+                    _goog_gift("10/24/2023", "3"),
+                    _goog_gift("10/09/2023", "2"),
+                    GOOG_VEST,
+                ]
+            }
         ),
         encoding="utf-8",
     )
@@ -1579,6 +1624,88 @@ def test_gifts_to_spouse_option_reports_each_gift_row_as_a_spouse_transfer(
     assert "Final portfolio\n  GOOG: 8.60\n" in result.stdout
     assert "  2023-10-09: GOOG 2 units, base cost £207.82\n" in result.stdout
     assert "  2023-10-24: GOOG 3 units, base cost £311.73\n" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("gifts_to_spouse", "from_stdin"),
+    [
+        pytest.param(False, False, id="without --gifts-to-spouse"),
+        pytest.param(True, False, id="with --gifts-to-spouse"),
+        pytest.param(False, True, id="RAW file on standard input"),
+    ],
+)
+def test_a_gift_refusal_names_the_raw_file_and_the_row_left_over(
+    request: pytest.FixtureRequest,
+    tmp_path: Path,
+    gifts_to_spouse: bool,
+    from_stdin: bool,
+) -> None:
+    """The refusal names the RAW row left over before the line to add.
+
+    The RAW file was meant to classify the gift of 2 GOOG but says 1. Adding
+    the printed line beside that row would take 1 + 2 = 3 shares out, so the
+    refusal names the row and says to correct it first, and to add the line
+    only for a separate transfer. Without the option the gift has no row to
+    match; with it, the row of 1 is left without a gift, and the option
+    cannot say which count is right. The line goes in the one RAW file the
+    run reads, and standard input has no file name to give.
+    """
+    award_file = tmp_path / "awards.json"
+    award_file.write_text(
+        json.dumps({"Transactions": [_goog_gift("10/09/2023", "2"), GOOG_VEST]}),
+        encoding="utf-8",
+    )
+    raw = (
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2023-10-09,TRANSFER_TO_SPOUSE,GOOG,1,0.00,0.00,USD\n"
+    )
+    raw_file = tmp_path / "transfers.csv"
+    raw_file.write_text(raw, encoding="utf-8")
+    cmd = build_cmd(
+        "--year",
+        "2023",
+        "--schwab-award-file",
+        str(award_file),
+        "--raw-file",
+        "-" if from_stdin else str(raw_file),
+        *(["--gifts-to-spouse"] if gifts_to_spouse else []),
+        "--output",
+        report_path(request),
+    )
+
+    refused = subprocess.run(
+        cmd,
+        input=raw if from_stdin else None,
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    assert refused.returncode != 0
+    named = "your RAW file" if from_stdin else f"your RAW file ({raw_file})"
+    option_note = (
+        " --gifts-to-spouse says who received the shares, not how many left, so "
+        "it cannot settle which count is right."
+        if gifts_to_spouse
+        else ""
+    )
+    assert (
+        "that decides the tax.\n\nYour RAW file has a TRANSFER_TO_SPOUSE row "
+        "with quantity 1 for GOOG on 2023-10-09 that no reported gift accounts "
+        f"for.{option_note} If that row is meant for this gift, correct its "
+        "quantity to 2 instead of adding a line, or cgt-calc counts both. Add a "
+        "line below only if this gift is a separate transfer.\n\nIf you gave them"
+    ) in refused.stderr
+    assert (
+        f"Add this line to {named}, and the gift is then taken as accounted "
+        "for:\n  2023-10-09,TRANSFER_TO_SPOUSE,GOOG,2,0.00,0.00,USD\n"
+    ) in refused.stderr
+    # The row is named above, so the general warning no longer comes before
+    # the link that ends the refusal.
+    assert (
+        "the loss counts like any other.\n\nSee https://cgt-calc.uk/brokers/raw/"
+        "#transfers-to-a-spouse-or-civil-partner"
+    ) in refused.stderr
 
 
 COMPLETE_CSV_HEADER = [

@@ -30,6 +30,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 STOCK_ACTIVITY_COMMENT_MARKER: Final[str] = "Stock Activity"
+INCOME_REPORT: Final[str] = "Taxable Income Report*.csv"
+TRADE_REPORT: Final[str] = "All Trades Report*.csv"
 LOGGER = logging.getLogger(__name__)
 
 
@@ -197,16 +199,24 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
 
     @classmethod
     @override
+    def file_path_filter(cls, file_path: Path) -> bool:
+        """Choose the two reports, so that no other CSV in the directory is read."""
+        return file_path.match(INCOME_REPORT, case_sensitive=False) or file_path.match(
+            TRADE_REPORT, case_sensitive=False
+        )
+
+    @classmethod
+    @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[SharesightTransaction]:
         """Parse Sharesight transactions from reports."""
-        if file_path.match("Taxable Income Report*.csv", case_sensitive=False):
+        if file_path.match(INCOME_REPORT, case_sensitive=False):
             return list(cls._parse_income_report(file, file_path))
 
-        if file_path.match("All Trades Report*.csv", case_sensitive=False):
+        if file_path.match(TRADE_REPORT, case_sensitive=False):
             return list(cls._parse_trade_report(file, file_path))
-        return []
+        raise AssertionError(f"file_path_filter let through {file_path}")
 
     @classmethod
     @override
@@ -255,6 +265,7 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
             raise ParsingError(
                 file,
                 f"Missing expected columns in {section}: {', '.join(sorted(missing))}",
+                needs_update=True,
             )
 
     @staticmethod
@@ -446,7 +457,9 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
             elif trade_type == "Sell":
                 action = ActionType.SELL
             else:
-                raise ValueError(f"Unknown action: {trade_type}")
+                raise ParsingError(
+                    file, f"Unknown action: {trade_type}", needs_update=True
+                )
 
             market = row_dict[TradeColumn.MARKET]
             symbol = f"{market}:{row_dict[TradeColumn.CODE]}"
@@ -568,3 +581,15 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
                     "that row, or remove the blank row.",
                     row_index=rows_iter.line,
                 )
+        # list_end is set once a header row is recognised, even with no trade
+        # below it. A file without one, such as another worksheet or edited
+        # headings, would give no trades without a word.
+        if list_end is None:
+            raise ParsingError(
+                file_path,
+                "No row has the headings that start the All Trades table (Code, "
+                "Type, and Market or Market Code), so no trade can be read from "
+                "this file. If the portfolio has no trades at all, take the file "
+                "out of the directory.",
+                needs_update=True,
+            )

@@ -1,25 +1,31 @@
 version: 2
+# The cooldown in each entry makes Dependabot wait at least 7 days after a
+# release before opening a version update for it, so a compromised release
+# has time to be found and pulled first. Security updates are not delayed.
 updates:
   - package-ecosystem: uv
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     labels:
       - "dependencies"
     ignore:
-      # The build backend's requirement in pyproject.toml already allows
-      # every release of this minor version, so raising its floor each
-      # week changes nothing. Ignoring patch updates by type would not
-      # stop it: with no locked version, Dependabot measures the update
-      # type from the first version in the requirement, which is the
-      # upper bound. Raise this bound when the requirement moves to the
-      # next minor version, or the weekly bumps come back.
-      - dependency-name: "uv-build"
-        versions: ["<0.14"]
+      # The build backend, hatchling, is required with no upper bound
+      # from the oldest release that writes our licence as PEP 639
+      # metadata. Dependabot would raise that lower bound to each new
+      # release, as it did for uv_build. A higher lower bound changes
+      # nothing for our builds, which already get the newest hatchling,
+      # and would only break builds in distributions that ship an older
+      # one.
+      - dependency-name: "hatchling"
   - package-ecosystem: pre-commit
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     labels:
       - "dependencies"
   - package-ecosystem: github-actions
@@ -30,12 +36,16 @@ updates:
       - "/.github/actions/*"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     labels:
       - "dependencies"
   - package-ecosystem: docker
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     labels:
       - "dependencies"
     ignore:

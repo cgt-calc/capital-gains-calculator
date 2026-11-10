@@ -294,11 +294,8 @@ RENAME_DESCRIPTION_PREFIX: Final = "renamed from "
 # Resource files
 # =============================================================================
 
-assert __package__ is not None
-PACKAGE_NAME: Final = __package__
-
-# LaTeX template for calculations report
-LATEX_TEMPLATE_RESOURCE: Final = "template.tex.j2"
+# Typst template for calculations report
+TYPST_TEMPLATE_RESOURCE: Final = "template.typ"
 
 # Bundled USD share prices for a few vests, used when no prices file is passed
 SHARE_PRICES_RESOURCE: Final = "share_prices.csv"
@@ -309,6 +306,97 @@ TICKER_RENAMES_RESOURCE: Final = "ticker_renames.csv"
 # BrokerTransaction.market for a symbol assigned in the United States, on an
 # exchange or over the counter.
 US_MARKET: Final = "US"
+
+# Tickers the bundled ISIN list gives a fund based outside the US that are also
+# the symbols of other securities in the US. A row naming one of them, with no
+# ISIN or market to say which security it is, may be either.
+#
+# Every bundled ticker of a non-US ISIN that was a symbol on a US exchange in the
+# Nasdaq Trader directories (nasdaqlisted.txt and otherlisted.txt) on 2026-11-09,
+# less five-letter symbols ending in F, which are the fund's own over-the-counter
+# symbol. Plus SPLG, a US symbol until 2025-10-31, when the SPDR fund became
+# SPYM. A lower bound: past US symbols other than SPLG, and over-the-counter
+# ones, are not checked. Keep a symbol on refreshing even when it has left the
+# directory, since exports from before then still carry it.
+US_SYMBOLS_OF_BUNDLED_TICKERS: Final = frozenset(
+    {
+        "AGGS",
+        "CBRX",
+        "CBUS",
+        "CNYA",
+        "CORP",
+        "CTEC",
+        "EMCR",
+        "EMES",
+        "ERNA",
+        "ESGE",  # codespell:ignore esge
+        "ESGG",
+        "ESGU",
+        "FLOT",
+        "FWRG",
+        "FXAC",
+        "FXC",
+        "GHYG",
+        "GOVT",
+        "HEAL",
+        "HIGH",
+        "HYGU",
+        "IBGL",
+        "IBGM",
+        "IBTA",
+        "IBTG",
+        "IBTL",
+        "IBTM",
+        "IDNA",
+        "IDSE",
+        "IDVY",
+        "IGCB",
+        "IVAI",
+        "LQDA",
+        "LQDH",
+        "MAGG",
+        "MCHS",
+        "METG",
+        "MIDD",
+        "MINE",
+        "MINV",
+        "MUNI",
+        "NDIA",
+        "OPEN",
+        "PLAY",
+        "PRFD",
+        "PSFE",
+        "QDIV",
+        "RBTX",
+        "RISE",
+        "SAWG",
+        "SDHY",
+        "SECA",
+        "SEMI",
+        "SHLD",
+        "SHYG",
+        "SMBS",
+        "SPGP",
+        "SPLG",
+        "SPMD",
+        "SPME",
+        "SPOG",
+        "SSAC",
+        "SUJA",
+        "TREX",
+        "TRSG",
+        "TRUD",
+        "TRXS",
+        "VECA",
+        "VERX",
+        "WDTE",
+        "WINA",
+        "WING",
+        "WLDS",
+        "WOOD",
+        "WSML",
+    }
+)
 
 # ISIN initial translation file
 INITIAL_ISIN_TRANSLATION_RESOURCE: Final = "initial_isin_translation.csv"

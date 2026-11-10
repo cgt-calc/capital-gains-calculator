@@ -87,7 +87,7 @@ def _action_from_str(label: str, file: Path) -> ActionType:
         "CASH WITHDRAWAL": ActionType.TRANSFER,
     }.get(label)
     if action is None:
-        raise ParsingError(file, f"Unknown action: {label}")
+        raise ParsingError(file, f"Unknown action: {label}", needs_update=True)
     return action
 
 

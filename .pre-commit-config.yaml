@@ -1,3 +1,6 @@
+# The bundled fonts and their licence ship exactly as published, so no hook
+# rewrites them (the licence has trailing spaces).
+exclude: ^cgt_calc/resources/fonts/
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -8,9 +11,7 @@ repos:
       - id: check-toml
       - id: check-yaml
       - id: end-of-file-fixer
-        exclude: ^tests/.*\.tex$
       - id: trailing-whitespace
-        exclude: ^tests/.*\.tex$
   - repo: https://github.com/scop/pre-commit-shfmt
     rev: v3.14.1-1
     hooks:

@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Prepare and install deps
         uses: ./.github/actions/install-deps
@@ -63,7 +63,7 @@ jobs:
       UV_PYTHON: ${{ matrix.python-version }}
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Prepare and install deps
         uses: ./.github/actions/install-deps
@@ -83,7 +83,7 @@ jobs:
         # from this repository authenticate with the token. Pull requests
         # from forks can't read secrets and fall back to tokenless
         # uploads, supported for public repositories.
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: coverage.xml
           flags: python-${{ matrix.python-version }}-${{ matrix.os }}
@@ -96,7 +96,7 @@ jobs:
       - name: Upload test results to Codecov
         # Upload also when tests fail: failed tests are the point.
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           report_type: test_results
           files: junit.xml
@@ -110,7 +110,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Prepare and install deps
         uses: ./.github/actions/install-deps
@@ -134,12 +134,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Only the links dependency group is needed, so the full dev toolchain
       # is not installed here.
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: true
           python-version: ${{ env.PYTHON_VERSION }}
@@ -150,7 +150,7 @@ jobs:
       # overwrites an existing key, so the key is unique per run and the most
       # recent cache is restored by prefix.
       - name: Restore lychee cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .lycheecache
           key: lychee-${{ github.run_id }}
@@ -168,30 +168,61 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      # Stamped into the image, as a publish build stamps a real version,
-      # and read back below.
-      IMAGE_VERSION: 0.0.0.post1+ci
+      # A VERSION override in the form git describe gives an edge build
+      # after a pre-release tag, and the normalised version the image built
+      # with it must report.
+      OVERRIDE_DESCRIBE: v0.0.0-rc.1-1-gabcdef0
+      OVERRIDE_VERSION: 0.0.0rc1.post1+gabcdef0
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history and tags, from which the image's build takes its
+          # version.
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          # One uvx run needs no cache, and saving one would race the
+          # test jobs for the same key.
+          enable-cache: false
+
+      # What any build of this checkout is named, which the image built
+      # below without VERSION must report.
+      - name: Compute the expected version
+        run: |
+          version="$(uvx --from hatchling --with hatch-vcs hatchling version)"
+          # Without the release tags, every build would be 0.0.postN alike.
+          case "$version" in
+            0.0.post*) echo "The checkout has no release tag: $version" >&2; exit 1 ;;
+          esac
+          echo "IMAGE_VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Build image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           tags: local/cgt-calc:test
           load: true
-          build-args: |
-            VERSION=${{ env.IMAGE_VERSION }}
           cache-from: type=gha
           # Only main writes the layer cache. Every run can read main's
           # entries, but ones written from a pull request or the merge
           # queue are of little or no use to later runs and fill the
           # repository's 10 GB cache limit.
           cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max' || '' }}
+
+      - name: Check the image has no system fonts
+        # The renderer ignores system fonts; this makes the next step's PDF
+        # a render on a host that has none. It runs Typst's own font search,
+        # which falls back to the standard font folders when fontconfig
+        # names none.
+        run: |
+          docker run --rm local/cgt-calc:test -lc \
+            "/build/.venv/bin/python -c 'import typst; families = typst.Fonts(include_system_fonts=True, include_embedded_fonts=False).families(); assert families == [], families'"
 
       - name: Run the installed cgt-calc
         # The pytest step mounts the workspace over /build, which hides the
@@ -205,18 +236,19 @@ jobs:
             local/cgt-calc:test \
             -lc "cgt-calc --version | grep -Fx 'cgt-calc $IMAGE_VERSION' && cgt-calc --year 2022 --raw-file tests/raw/data/test_data.csv --no-balance-check --exchange-rates-file tests/exchange_rates_data.csv --output /tmp/report.pdf && test -s /tmp/report.pdf"
 
+      # uv run installs the mounted checkout, which Git inside the container
+      # cannot read, so give its build the version too.
       - name: Run pytest inside container
         run: |
           docker run --rm \
-            -e ENABLE_PDFLATEX=1 \
             -e CGT_TEST_MODE_STRICT=1 \
+            -e SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CGT_CALC="$IMAGE_VERSION" \
             -v "${{ github.workspace }}:/build" \
             local/cgt-calc:test \
             -lc "cd /build && uv run pytest -q --cov --cov-report=xml --junitxml=junit.xml -o junit_family=legacy"
 
       - name: Upload coverage to Codecov
-        # The only job running the test suite with pdflatex enabled.
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: coverage.xml
           flags: docker
@@ -226,7 +258,7 @@ jobs:
       - name: Upload test results to Codecov
         # Upload also when tests fail: failed tests are the point.
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           report_type: test_results
           files: junit.xml
@@ -236,13 +268,32 @@ jobs:
 
       - name: Upload e2e tests outputs
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-outputs
           path: out/test-*
           # Long enough to look into a failed run, short of the 90-day default
           # that keeps every push's reports for a quarter.
           retention-days: 14
+
+      # A build context whose Git history cannot be read, such as a linked
+      # worktree, passes VERSION instead. The dependency stages come from
+      # the build above. After the test steps, so a failure here skips none
+      # of them.
+      - name: Build image with a given VERSION
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: runtime
+          tags: local/cgt-calc:override
+          load: true
+          build-args: |
+            VERSION=${{ env.OVERRIDE_DESCRIBE }}
+
+      - name: Check the given VERSION
+        run: |
+          docker run --rm local/cgt-calc:override -lc "cgt-calc --version" |
+            grep -Fx "cgt-calc $OVERRIDE_VERSION"
 
       - name: Check the package is a small layer of its own
         # A source change should rewrite this layer, which is a few MB, and

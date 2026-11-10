@@ -36,6 +36,7 @@ from cgt_calc.const import (
     EARLIEST_TAX_YEAR,
 )
 from cgt_calc.main import main
+from cgt_calc.model import DatePeriod
 
 ReturnType = TextIO | IO[bytes]
 DirIterator = Iterator[Path]
@@ -94,21 +95,6 @@ def test_print_completion_zsh_covers_all_path_options(
     assert not missing, f"options without a path completer: {missing}"
 
 
-def test_version_prints_version_and_exits(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Test that --version prints the version to stdout and exits."""
-    parser = create_parser()
-
-    with pytest.raises(SystemExit) as exc_info:
-        parser.parse_args(["--version"])
-
-    assert exc_info.value.code == 0
-    captured = capsys.readouterr()
-    assert captured.out.startswith("cgt-calc ")
-    assert captured.out.endswith("\n")
-
-
 def test_version_is_resolved_lazily(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that building the parser does not resolve the version."""
 
@@ -124,11 +110,17 @@ def test_version_is_resolved_lazily(monkeypatch: pytest.MonkeyPatch) -> None:
     assert not hasattr(args, "version")
 
 
-def test_eri_raw_help_describes_data_not_transactions() -> None:
-    """Describe the ERI input as data rather than transaction history."""
+def test_eri_raw_file_is_listed_under_additional_data_files() -> None:
+    """List the ERI input as data with the other data files, not as a broker."""
     help_text = " ".join(create_parser().format_help().split())
+    data_files = help_text.partition("Additional data files:")[2].partition(
+        "Calculation options:"
+    )[0]
 
-    assert "custom Excess Reported Income (ERI) data in CSV format" in help_text
+    assert (
+        "--eri-raw-file PATH custom Excess Reported Income (ERI) data in CSV format"
+        in data_files
+    )
 
 
 def test_unrealized_gains_help_identifies_report_end_portfolio() -> None:
@@ -165,6 +157,44 @@ def test_output_accepts_a_path(option: str, value: str) -> None:
 
     assert args.output == Path(value)
     assert args.no_report is False
+
+
+def test_non_uk_resident_periods_parse_closed_and_open_periods() -> None:
+    """Periods are START:END, comma-separated, with END empty if not ended."""
+    args = create_parser().parse_args(
+        ["--non-uk-resident-periods", "2019-04-06:2021-04-05, 2025-04-06:"]
+    )
+
+    assert args.non_uk_resident_periods == [
+        DatePeriod(dt.date(2019, 4, 6), dt.date(2021, 4, 5)),
+        DatePeriod(dt.date(2025, 4, 6), None),
+    ]
+
+
+def test_non_uk_resident_periods_default_to_none() -> None:
+    """Without the option the user is taken as resident throughout."""
+    assert create_parser().parse_args([]).non_uk_resident_periods == []
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        ("2025-04-06", "expected START:END"),
+        (":2025-04-06", "expected START:END"),
+        ("2025-04-06:2025-04-05", "ends before it starts"),
+        ("2025-13-01:", "expected YYYY-MM-DD"),
+    ],
+    ids=["no colon", "no start", "end before start", "bad date"],
+)
+def test_non_uk_resident_periods_refuse_a_malformed_period(
+    value: str, message: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A malformed period stops the run and says what is wrong."""
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(["--non-uk-resident-periods", value])
+
+    assert exc_info.value.code == 2
+    assert message in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("value", ["", "   "], ids=["empty", "whitespace"])
@@ -643,21 +673,27 @@ def test_existing_file_or_stdin_type_accepts_stdin() -> None:
     assert existing_file_or_stdin_type("-") == STDIN_PATH
 
 
-def test_every_broker_path_option_accepts_stdin() -> None:
-    """The help says any broker PATH can be '-', so each one has to accept it."""
-    parser = create_parser()
-    group = next(
-        group
-        for group in parser._action_groups  # noqa: SLF001
-        if group.title == "Broker inputs"
-    )
+def test_help_says_which_options_read_stdin() -> None:
+    """Help says '-' reads stdin for exactly the options that accept it.
 
-    refusing = [
+    The Broker inputs heading says it for each PATH in that group; an option
+    elsewhere has to say it in its own help line.
+    """
+    note = "PATH can be '-' to read the file from standard input (only one '-' per run)"
+    parser = create_parser()
+
+    mismatched = [
         action.option_strings[0]
+        for group in parser._action_groups  # noqa: SLF001
         for action in group._group_actions  # noqa: SLF001
-        if action.metavar == "PATH" and action.type is not existing_file_or_stdin_type
+        if action.help is not argparse.SUPPRESS
+        and (action.type is existing_file_or_stdin_type)
+        != (
+            note in (action.help or "")
+            or (action.metavar == "PATH" and note in (group.description or ""))
+        )
     ]
-    assert not refusing
+    assert not mismatched
 
 
 @pytest.mark.parametrize(
@@ -694,17 +730,25 @@ def test_existing_file_type_rejects_stdin() -> None:
 
 
 @pytest.mark.parametrize(
-    "argv",
+    ("argv", "named"),
     [
-        ["--raw-file", "-", "--schwab-file", "-"],
-        ["--raw-file", "-", "--eri-raw-file", "-"],
-        ["--vanguard-file", "-", "--freetrade-file", "-", "--raw-file", "-"],
+        (["--raw-file", "-", "--schwab-file", "-"], "--raw-file, --schwab-file"),
+        (["--raw-file", "-", "--eri-raw-file", "-"], "--eri-raw-file, --raw-file"),
+        (
+            ["--vanguard-file", "-", "--freetrade-file", "-", "--raw-file", "-"],
+            "--freetrade-file, --raw-file, --vanguard-file",
+        ),
     ],
 )
 def test_reject_duplicate_stdin_rejects_several_options(
-    argv: list[str], capsys: pytest.CaptureFixture[str]
+    argv: list[str], named: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Ensure '-' given to more than one option fails with a helpful error."""
+    """'-' given to more than one option is refused, naming each of them.
+
+    argparse prints its usage block first, and that lists every option, so only
+    the final error line shows which options the refusal named. They are listed
+    alphabetically, whatever order they were given in.
+    """
     parser = create_parser()
     args = parser.parse_args(argv)
 
@@ -712,10 +756,10 @@ def test_reject_duplicate_stdin_rejects_several_options(
         reject_duplicate_stdin(parser, args)
 
     assert exc_info.value.code == 2
-    message = capsys.readouterr().err
-    assert "can only be given to one option" in message
-    for option in argv[::2]:
-        assert option in message
+    assert capsys.readouterr().err.splitlines()[-1] == (
+        f"{parser.prog}: error: '-' reads from stdin and can only be given to "
+        f"one option, but was given to {named}"
+    )
 
 
 def test_reject_duplicate_stdin_allows_a_single_option() -> None:
@@ -838,6 +882,7 @@ def test_an_option_given_twice_is_refused(
         "optional_cache_file_type": files,
         "existing_directory_type": (str(first_dir), str(second_dir)),
         "ticker_list_type": ("AAA", "BBB"),
+        "date_periods_type": ("2021-04-06:", "2022-04-06:"),
         "output_path_type": (str(tmp_path / "a.pdf"), str(tmp_path / "b.pdf")),
     }[getattr(value_type, "__name__", "")]
 

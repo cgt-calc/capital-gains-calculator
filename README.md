@@ -25,8 +25,8 @@ uv tool install cgt-calc
 cgt-calc --year 2025 --schwab-file schwab_transactions.csv
 ```
 
-Replace the Schwab option with the one for your broker. LaTeX is needed to create the PDF report.
-See [Installation](https://cgt-calc.uk/installation/), [Brokers](https://cgt-calc.uk/brokers/), and
+Replace the Schwab option with the one for your broker. See
+[Installation](https://cgt-calc.uk/installation/), [Brokers](https://cgt-calc.uk/brokers/), and
 [Generate a report](https://cgt-calc.uk/usage/) for the complete steps.
 
 ## What cgt-calc calculates
@@ -50,14 +50,17 @@ This compact 2025/26 example shows foreign-currency transactions, how sales are 
 acquired at different times, gains and losses, a dividend with overseas tax, and cash interest.
 
 <a href="https://cgt-calc.uk/assets/example_report.pdf">
-  <img src="https://cgt-calc.uk/assets/example_report_preview.webp" alt="Preview of the 2025/26 example report" width="600">
+  <img src="https://cgt-calc.uk/assets/example_report_preview.webp" alt="Pages 1 and 2 of the 2025/26 example report, overlapping: the capital gains summary and the first capital gains events" width="600">
 </a>
 
 ## 🤝 Contributing
 
 Contributions are welcome! If you find a bug, have feature ideas, or want to add support for more
 brokers, please open an **issue** or **pull request**. See the
-[development guide](https://cgt-calc.uk/development/contributing/).
+[development guide](https://next.cgt-calc.uk/development/contributing/).
+
+Found cgt-calc useful? A star on [GitHub](https://github.com/cgt-calc/capital-gains-calculator) is a
+quick way to say thank you, and it also helps other people find it.
 
 ## ⚠️ Disclaimer
 
@@ -69,4 +72,6 @@ advisers, the results may contain errors, and tax rules change.
 You are responsible for providing complete data and checking the figures against your records and
 current HMRC guidance before using them in a tax return. For unusual or uncertain circumstances,
 consider consulting a suitably qualified tax adviser. The software is provided "as is", without
-warranty of any kind; see the [MIT License](LICENSE).
+warranty of any kind; see the [MIT License](LICENSE). The PDF report's Noto Sans fonts ship with
+cgt-calc under the
+[SIL Open Font License](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/fonts/noto-sans/OFL.txt).

@@ -1,7 +1,7 @@
+# .git stays in the context: the Dockerfile reads the package version from it.
 .coverage
 .coverage.*
 .DS_Store
-.git
 .mypy_cache
 .pytest_cache
 .ruff_cache

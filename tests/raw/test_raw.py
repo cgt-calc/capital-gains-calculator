@@ -15,10 +15,20 @@ import sys
 import pytest
 
 from cgt_calc.args_validators import STDIN_PATH
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import (
+    AmountMissingError,
+    InvalidTransactionError,
+    ParsingError,
+)
 from cgt_calc.logging import force_utf8_stdio
-from cgt_calc.model import ActionType
+from cgt_calc.model import (
+    ActionType,
+    BrokerTransaction,
+    CurrencyCode,
+    TransactionSource,
+)
 from cgt_calc.parsers.raw import COLUMNS, RawParser
+from tests.general.test_calc import create_calculator, get_report
 from tests.utils import (
     assert_stdout_matches,
     build_cmd,
@@ -67,6 +77,130 @@ def test_run_with_raw_files(request: pytest.FixtureRequest) -> None:
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output_2.txt"
     assert_stdout_matches(result, cmd, expected_file)
+
+
+def test_bond_fund_typed_in_lower_case_is_reported_as_interest(tmp_path: Path) -> None:
+    """--interest-fund-tickers matches a symbol typed in lower case.
+
+    The option's values are upper case, so `iglt` never matched `IGLT` and
+    the bond fund's distribution was reported as a dividend. 100 units at
+    £0.25 pay £25.00, all foreign interest and none of it dividends.
+    """
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(
+        raw_file,
+        [
+            COLUMNS,
+            ["2023-05-02", "TRANSFER", "", "1", "1100.00", "0.00", "GBP"],
+            ["2023-05-02", "BUY", "iglt", "100", "11.00", "0.00", "GBP"],
+            ["2023-07-03", "DIVIDEND", "iglt", "100", "0.25", "0.00", "GBP"],
+        ],
+    )
+
+    cmd = build_cmd(
+        "--year",
+        "2023",
+        "--raw-file",
+        str(raw_file),
+        "--interest-fund-tickers",
+        "IGLT",
+        "--output",
+        str(tmp_path / "out"),
+    )
+    result = run_cli(cmd)
+    assert re.search(r"\n  Foreign proceeds: +£25\.00\n", result.stdout)
+    assert re.search(r"\n  Proceeds: +£0\.00\n", result.stdout)
+
+
+def test_a_split_day_moved_into_raw_computes_with_the_balance_check_on(
+    tmp_path: Path,
+) -> None:
+    """The route the `cannot be placed either side of it` refusal gives works.
+
+    Left in the Schwab export, the purchase of 20 on the day of the split is
+    refused: the export has no times, so nothing says whether the 20 are
+    before or after it. Following the advice, the purchase moves out of a
+    working copy of the export into RAW, in its real order after the split,
+    with a STOCK_SPLIT row for the whole holding and a TRANSFER row depositing
+    the purchase's cost, because RAW rows keep a cash balance of their own.
+
+    - 10 bought at $100 on 2 May: $1,000 at 1.2457 dollars to the pound is
+      £802.76.
+    - The split adds 90, so the 10 become 100.
+    - 20 bought after it at $10.50: $210 at 1.2709 dollars to the pound is
+      £165.24.
+    - The holding is 120 units at £968.00 (802.7615 + 165.2372 = 967.9987).
+    - Schwab's balance is $1,210 deposited less $1,000 spent, $210; RAW's is
+      the $210 deposited less the $210 spent, $0.
+    """
+    schwab_file = tmp_path / "schwab.csv"
+    _write_csv(
+        schwab_file,
+        [
+            [
+                "Date",
+                "Action",
+                "Symbol",
+                "Description",
+                "Quantity",
+                "Price",
+                "Fees & Comm",
+                "Amount",
+            ],
+            ["06/10/2024", "Stock Split", "FOO", "FOO CORP", "90", "", "", ""],
+            [
+                "05/02/2024",
+                "Buy",
+                "FOO",
+                "FOO CORP",
+                "10",
+                "$100.00",
+                "$0.00",
+                "-$1000.00",
+            ],
+            [
+                "05/01/2024",
+                "MoneyLink Transfer",
+                "",
+                "Tfr BANK",
+                "",
+                "",
+                "",
+                "$1210.00",
+            ],
+        ],
+    )
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(
+        raw_file,
+        [
+            COLUMNS,
+            ["2024-06-10", "TRANSFER", "", "1", "210", "0", "USD"],
+            ["2024-06-10", "STOCK_SPLIT", "FOO", "90", "0", "0", "USD"],
+            ["2024-06-10", "BUY", "FOO", "20", "10.50", "0", "USD"],
+        ],
+    )
+
+    cmd = build_cmd(
+        "--year",
+        "2024",
+        "--schwab-file",
+        str(schwab_file),
+        "--raw-file",
+        str(raw_file),
+        "--no-report",
+    )
+    result = run_cli(cmd)
+
+    assert stderr_alerts(result.stderr) == []
+    assert (
+        "Final balance\n  Charles Schwab: 210.00 (USD)\n  Unknown: 0.00 (USD)\n"
+        in result.stdout
+    )
+    assert (
+        "Portfolio at the end of 2024/2025 tax year\n  FOO: 120.00, £968.00\n"
+        in result.stdout
+    )
 
 
 def test_run_with_raw_files_stdin(request: pytest.FixtureRequest) -> None:
@@ -338,6 +472,130 @@ def test_read_raw_transactions_negative_fees(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    ("action", "symbol", "quantity", "price"),
+    [
+        ("DIVIDEND_TAX", "XYZ", "1", "5.00"),
+        ("INTEREST_TAX", "", "1", "5.00"),
+        ("DIVIDEND_TAX", "XYZ", "-1", "-5.00"),
+    ],
+    ids=["dividend tax", "interest tax", "negative quantity and price"],
+)
+def test_read_raw_transactions_refuses_positive_tax(
+    tmp_path: Path, action: str, symbol: str, quantity: str, price: str
+) -> None:
+    """Refuse tax with a positive amount, a sign typed the wrong way round.
+
+    If accepted, 1 x 5.00 would be reported as 5.00 of negative tax paid and
+    added to the cash balance instead of taken from it. The amount is what
+    is checked: -1 x -5.00 - 0.00 is 5.00 too, though the price is negative.
+    """
+    raw_file = tmp_path / "raw_positive_tax.csv"
+    rows = [COLUMNS, ["2024-06-15", action, symbol, quantity, price, "0.00", "USD"]]
+    _write_csv(raw_file, rows)
+
+    with pytest.raises(ParsingError) as exc:
+        RawParser().load_from_file(raw_file)
+
+    message = str(exc.value)
+    assert "row 2" in message
+    assert (
+        f"{action} cannot be positive. Enter the tax deducted as a negative "
+        "price; if some of it was refunded, enter only the part that was not."
+    ) in message
+
+
+@pytest.mark.parametrize(
+    ("action", "symbol", "quantity", "price", "amount"),
+    [
+        ("DIVIDEND_TAX", "XYZ", "-1", "5.00", "-5.00"),
+        ("INTEREST_TAX", "", "1", "0.00", "0"),
+    ],
+    ids=["negative quantity", "zero"],
+)
+def test_read_raw_transactions_accepts_tax_that_is_not_positive(
+    tmp_path: Path, action: str, symbol: str, quantity: str, price: str, amount: str
+) -> None:
+    """Accept tax whose amount is not positive, whatever the sign of its price.
+
+    The amount is quantity x price - fees: -1 x 5.00 - 0.00 is -5.00, the
+    same deduction as 1 x -5.00. Tax of nothing, 1 x 0.00, is not positive.
+    """
+    raw_file = tmp_path / "raw_tax.csv"
+    rows = [COLUMNS, ["2024-06-15", action, symbol, quantity, price, "0.00", "USD"]]
+    _write_csv(raw_file, rows)
+
+    transactions = RawParser().load_from_file(raw_file)
+
+    assert [transaction.amount for transaction in transactions] == [Decimal(amount)]
+
+
+def test_a_raw_tax_row_with_no_price_stops_as_amount_missing(tmp_path: Path) -> None:
+    """A tax row with a blank price has no amount to check the sign of.
+
+    It stops with the error any other row without an amount gives, which the
+    guide names, rather than failing inside the sign check.
+    """
+    raw_file = tmp_path / "raw_tax_no_price.csv"
+    rows = [COLUMNS, ["2024-06-15", "INTEREST_TAX", "", "1", "", "0.00", "GBP"]]
+    _write_csv(raw_file, rows)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    with pytest.raises(AmountMissingError, match=r"^Amount missing\.\n"):
+        calculator.prepare_history(list(RawParser().load_from_file(raw_file)))
+
+
+@pytest.mark.parametrize(
+    ("rows", "first_row", "conflicting_row"),
+    [
+        (
+            [
+                ["2023-05-01", "BUY", "foo", "10", "50", "1", "GBP"],
+                ["2023-05-02", "BUY", "FOO", "10", "100", "1", "GBP"],
+                ["2023-06-10", "SELL", "FOO", "10", "110", "1", "GBP"],
+            ],
+            2,
+            3,
+        ),
+        (
+            [
+                ["2023-04-03", "BUY", "BAR", "5", "20", "1", "GBP"],
+                ["2023-05-01", "BUY", "foo", "10", "50", "1", "GBP"],
+                ["2023-05-15", "SELL", "BAR", "5", "22", "1", "GBP"],
+                ["2023-06-10", "SELL", "FOO", "10", "110", "1", "GBP"],
+            ],
+            3,
+            5,
+        ),
+    ],
+    ids=["observed", "another symbol before and between"],
+)
+def test_read_raw_transactions_refuses_symbols_differing_only_by_letter_case(
+    tmp_path: Path, rows: list[list[str]], first_row: int, conflicting_row: int
+) -> None:
+    """A symbol typed in another letter case is refused, naming both rows.
+
+    Symbols are matched exactly, so `foo` and `FOO` were two holdings. Before
+    this check, the observed file's sale was matched only with the `FOO`
+    purchase: a gain of 1,099 - 1,001 = 98. Pooled, the 20 shares cost 501 +
+    1,001 = 1,502, so the 10 sold cost 751 and the gain is 1,099 - 751 = 348.
+    In the second file the two spellings are not neighbours, and the first
+    spelling is not on the first data row (row 2; the header is row 1). The
+    parser stops at the first conflict; later conflicting rows are not reported.
+    """
+    raw_file = tmp_path / "raw_letter_case.csv"
+    _write_csv(raw_file, [COLUMNS, *rows])
+
+    with pytest.raises(ParsingError) as exc:
+        RawParser().load_from_file(raw_file)
+
+    assert str(exc.value) == (
+        f"While parsing {raw_file}: RAW symbols 'foo' (row {first_row}) and 'FOO' "
+        f"(row {conflicting_row}) differ only by letter case. "
+        "Use one spelling consistently."
+    )
+
+
+@pytest.mark.parametrize(
     "blank", ["", "   ", ",,,,,,"], ids=["empty line", "only spaces", "only commas"]
 )
 def test_read_raw_transactions_skips_a_blank_row(tmp_path: Path, blank: str) -> None:
@@ -505,7 +763,8 @@ def test_read_raw_transactions_unknown_action_names_its_row(tmp_path: Path) -> N
     """A row the parser refuses outright is reported at its own line too.
 
     The row above it is a good one, so an error dropped on the way out would
-    leave two transactions and no report at all.
+    leave two transactions and no report at all. The user wrote the row, so
+    it is not marked as needing a cgt-calc update, unlike a broker's.
     """
     raw_file = tmp_path / "raw_unknown_action.csv"
     raw_file.write_text(
@@ -519,6 +778,41 @@ def test_read_raw_transactions_unknown_action_names_its_row(tmp_path: Path) -> N
         RawParser().load_from_file(raw_file)
 
     assert exc.value.row_index == 3
+    assert not exc.value.needs_update
+
+
+@pytest.mark.parametrize(
+    "date",
+    [
+        pytest.param("15/08/2023", id="day first"),
+        # Written the right way round, but June has 30 days.
+        pytest.param("2023-06-31", id="no such day"),
+    ],
+)
+def test_read_raw_transactions_quotes_an_unreadable_date_with_the_form_it_takes(
+    tmp_path: Path, date: str
+) -> None:
+    """A date that cannot be read is quoted at its own row, with the form RAW takes.
+
+    The header is row 1 and a good row is row 2, so the date is on row 3.
+    The user wrote the file, so it is not marked as needing a cgt-calc update.
+    """
+    raw_file = tmp_path / "raw_bad_date.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2023-08-14,BUY,XYZ,10,2.50,0,USD\n"
+        f"{date},BUY,XYZ,10,2.50,0,USD\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ParsingError) as exc:
+        RawParser().load_from_file(raw_file)
+
+    assert str(exc.value) == (
+        f"While parsing {raw_file}, row 3: Invalid date: '{date}', "
+        "expected YYYY-MM-DD, e.g. '2023-08-15'"
+    )
+    assert not exc.value.needs_update
 
 
 @pytest.mark.parametrize(
@@ -663,3 +957,202 @@ def test_read_raw_transactions_gift(tmp_path: Path) -> None:
     assert transaction.action == ActionType.GIFT
     assert transaction.quantity == Decimal("21.5")
     assert transaction.price == Decimal("480.00")
+
+
+# What a refused sale says about the purchases written below it, before the
+# advice every refused sale ends with.
+_CHECK_THE_ORDER = (
+    "A RAW file's rows on one date are read in the order written, as the order "
+    "the trades happened, and the holding is checked after each row. Check the "
+    "order these trades really happened in. If the purchase came first, write it "
+    "above the sale. If the sale came first, keep that order: unless it was a "
+    "short sale, of shares not yet held, which cgt-calc does not support, the "
+    "shares it sold were already held. "
+)
+
+
+def _usual_advice(raw_file: Path | None) -> str:
+    """Return the advice every refused sale ends with, naming where a RAW row goes."""
+    where = (
+        "a file passed with --raw-file"
+        if raw_file is None
+        else f"your RAW file ({raw_file})"
+    )
+    return (
+        "Check that the history includes the purchase, vest or transfer that "
+        "acquired the shares and any split or rename since, and that no disposal "
+        "appears twice. A purchase, vest or split the exports cannot supply can go "
+        f"in {where}, using an action listed at "
+        "https://cgt-calc.uk/brokers/raw/#actions-to-use; a rename cannot: report "
+        "the old and new tickers so the pair can be added."
+    )
+
+
+def _refusal(transactions: list[BrokerTransaction]) -> str:
+    """Run a 2024/25 calculation that must be refused, and return why."""
+    with pytest.raises(InvalidTransactionError) as error:
+        get_report(create_calculator(tax_year=2024, balance_check=False), transactions)
+    # The rows beneath the message describe the refused transaction.
+    return error.value.message.split("\n")[0]
+
+
+def _raw_rows(tmp_path: Path, rows: list[list[str]]) -> list[BrokerTransaction]:
+    """Write `rows` as a RAW file and read them back as the CLI would."""
+    _write_csv(tmp_path / "raw.csv", [COLUMNS, *rows])
+    return list(RawParser().load_from_file(tmp_path / "raw.csv"))
+
+
+@pytest.mark.parametrize(
+    ("rows", "message"),
+    [
+        pytest.param(
+            [
+                ["2024-05-01", "SELL", "AAA", "10", "5.00", "0", "GBP"],
+                ["2024-05-01", "BUY", "AAA", "10", "4.00", "0", "GBP"],
+            ],
+            "Tried to sell AAA on 2024-05-01, but no AAA is held. The same file "
+            "buys 10 AAA lower down the same date (row 3), enough to cover this "
+            "sale.",
+            id="nothing-held",
+        ),
+        pytest.param(
+            [
+                ["2024-05-01", "BUY", "AAA", "5", "4.00", "0", "GBP"],
+                ["2024-05-02", "SELL", "AAA", "12", "5.00", "0", "GBP"],
+                ["2024-05-02", "BUY", "AAA", "4", "4.00", "0", "GBP"],
+                ["2024-05-02", "BUY", "BBB", "100", "1.00", "0", "GBP"],
+                ["2024-05-02", "BUY", "AAA", "3", "4.00", "0", "GBP"],
+                ["2024-05-03", "BUY", "AAA", "50", "4.00", "0", "GBP"],
+            ],
+            "Tried to sell 12 AAA on 2024-05-02, but the holding is 5. The same "
+            "file buys 7 AAA lower down the same date (rows 4, 6), enough to cover "
+            "this sale.",
+            id="two-purchases-make-up-the-shortfall",
+        ),
+    ],
+)
+def test_a_sale_above_the_purchase_covering_it_names_that_purchase(
+    tmp_path: Path, rows: list[list[str]], message: str
+) -> None:
+    """A RAW sale written above a same-day purchase that covers it says so.
+
+    The first sells 10 with nothing held and 10 bought below. The second
+    holds 5 and sells 12, and the 4 and 3 bought below make up exactly the 7
+    missing; the BBB purchase between them and the AAA bought the next day
+    are not counted.
+    """
+    raw_rows = _raw_rows(tmp_path, rows)
+
+    assert _refusal(raw_rows) == (
+        f"{message} {_CHECK_THE_ORDER}{_usual_advice(tmp_path / 'raw.csv')}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("rows", "headline"),
+    [
+        pytest.param(
+            [
+                ["2024-05-01", "SELL", "AAA", "10", "5.00", "0", "GBP"],
+                ["2024-05-01", "BUY", "AAA", "9", "4.00", "0", "GBP"],
+            ],
+            "Tried to sell AAA on 2024-05-01, but no AAA is held.",
+            id="one-share-short",
+        ),
+        pytest.param(
+            [
+                ["2024-05-01", "SELL", "AAA", "-10", "5.00", "0", "GBP"],
+                ["2024-05-01", "BUY", "AAA", "10", "4.00", "0", "GBP"],
+            ],
+            "Tried to sell AAA on 2024-05-01, but no AAA is held.",
+            id="negative-count-sold",
+        ),
+        pytest.param(
+            [
+                ["2024-05-01", "BUY", "AAA", "5", "4.00", "0", "GBP"],
+                ["2024-05-01", "SELL", "AAA", "10", "5.00", "0", "GBP"],
+            ],
+            "Tried to sell 10 AAA on 2024-05-01, but the holding is 5.",
+            id="purchase-above-already-counted",
+        ),
+        pytest.param(
+            [
+                ["2024-05-01", "SELL", "AAA", "10", "5.00", "0", "GBP"],
+                ["2024-05-01", "SELL", "AAA", "10", "5.00", "0", "GBP"],
+            ],
+            "Tried to sell AAA on 2024-05-01, but no AAA is held.",
+            id="sale-below",
+        ),
+    ],
+)
+def test_a_sale_the_purchases_below_it_would_not_cover_keeps_the_usual_advice(
+    tmp_path: Path, rows: list[list[str]], headline: str
+) -> None:
+    """Purchases below a sale are named only where reordering could help.
+
+    9 bought below a sale of 10 leave it one short. A sale of a negative
+    count is not a sale any purchase covers. The 5 bought above a sale of 10
+    are already in the holding it finds, and nothing is bought below it.
+    A second sale below the first buys nothing.
+    """
+    raw_rows = _raw_rows(tmp_path, rows)
+
+    assert _refusal(raw_rows) == f"{headline} {_usual_advice(tmp_path / 'raw.csv')}"
+
+
+def _export_row(action: ActionType, quantity: int, index: int) -> BrokerTransaction:
+    """Read an AAA trade of 2024-05-01 from a broker export, at GBP 4 a share.
+
+    An export does not say that a day's rows are in the order they happened.
+    """
+    return BrokerTransaction(
+        date=dt.date(2024, 5, 1),
+        action=action,
+        symbol="AAA",
+        description="",
+        quantity=Decimal(quantity),
+        price=Decimal(4),
+        fees=Decimal(0),
+        amount=Decimal(-4 * quantity if action is ActionType.BUY else 4 * quantity),
+        currency=CurrencyCode("GBP"),
+        broker="Export",
+        source=TransactionSource(
+            parser="Export",
+            account="export",
+            file=Path("export.csv"),
+            row=index + 2,
+            index=index,
+        ),
+    )
+
+
+def test_a_broker_export_s_row_order_is_not_pointed_out() -> None:
+    """Only a RAW file records which of a day's rows came first.
+
+    An export listing a sale of 10 above the purchase of 10 it draws on says
+    nothing about which came first, so the usual advice stands.
+    """
+    rows = [_export_row(ActionType.SELL, 10, 0), _export_row(ActionType.BUY, 10, 1)]
+
+    assert _refusal(rows) == (
+        f"Tried to sell AAA on 2024-05-01, but no AAA is held. {_usual_advice(None)}"
+    )
+
+
+def test_a_purchase_from_another_input_is_not_read_as_lower_down(
+    tmp_path: Path,
+) -> None:
+    """Row positions in two files say nothing about each other.
+
+    An export's purchase of 10, its sixth row, is read before the RAW file,
+    so the RAW sale of 15 below it finds 10 held. The export's purchase is
+    already in that count, and its row number is no position in the RAW file.
+    """
+    raw_rows = _raw_rows(
+        tmp_path, [["2024-05-01", "SELL", "AAA", "15", "5.00", "0", "GBP"]]
+    )
+
+    assert _refusal([_export_row(ActionType.BUY, 10, 5), *raw_rows]) == (
+        "Tried to sell 15 AAA on 2024-05-01, but the holding is 10. "
+        f"{_usual_advice(tmp_path / 'raw.csv')}"
+    )

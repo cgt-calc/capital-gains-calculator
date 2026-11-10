@@ -148,6 +148,16 @@ the report rather than assuming that bundled ERI data was matched. Some bond-fun
 taxed as interest rather than dividends; see
 [Bond-fund income](../extra-data-and-options.md#bond-fund-income).
 
+Vanguard says it does not pay the income of an
+[accumulation share class](https://www.vanguardinvestor.co.uk/need-help/answer/see-dividend-with-accumulation-share-class)
+into your account, and cgt-calc reads Vanguard dividends only from `DIV:` rows, so it does not count
+that income. For a fund based in the UK, add it in a RAW file as described in
+[Income reinvested in accumulation units](raw.md#income-reinvested-in-accumulation-units). Vanguard
+says you can see details of the dividends reported for a UK fund under **Transactions**, on the
+**Corporate actions** tab. A fund from Vanguard Investment Series plc and an ETF from Vanguard Funds
+plc are based in Ireland: for those, follow the [offshore funds guide](../offshore-funds.md)
+instead. Check the fund company in your fund documents if you are unsure.
+
 ## Known limitations
 
 - When a file contains both tables, ordinary transactions come from Cash Transactions. An unmatched
@@ -223,7 +233,8 @@ instead has to be reconciled with the original trade, and the row does not say w
 disposal that is, so the share matching cannot be worked out from it.
 
 Keep the export unchanged, and please report the row with your cgt-calc version and a sanitised copy
-in a [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new). No export
+in a [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new). For guidance
+on preparing a redacted example, see [Reporting problems](../reporting-problems.md). No export
 containing a reversed trade has been examined, so what the row means is not established: it may
 cancel a trade that never stood, or record something that is itself a disposal. A real example is
 what would let cgt-calc handle it for you instead of stopping.

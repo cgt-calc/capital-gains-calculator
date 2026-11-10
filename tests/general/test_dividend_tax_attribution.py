@@ -780,7 +780,8 @@ def test_autoconvert_gbp_dividend_with_foreign_tax_reports_no_treaty(
 
     assert reported == [(DIVIDEND_DATE, Decimal(80), Decimal(-12), False)]
     assert any(
-        "Source country of the GBP dividend is unknown" in record.message
+        f"The source country of the GBP dividend from FOO on {DIVIDEND_DATE} is unknown"
+        in record.message
         for record in caplog.records
     )
 

@@ -139,7 +139,23 @@ with:
 - the CSV header and a sanitised failing row.
 
 Do not upload an unredacted report: it can contain holdings and other sensitive financial
-information.
+information. For guidance on preparing a redacted example, see
+[Reporting problems](../reporting-problems.md).
+
+### `No row has the headings that start the All Trades table`
+
+cgt-calc read a CSV file whose name starts with `All Trades Report`, but no row in it has the
+`Code`, `Type` and `Market` (or `Market Code`) headings that start the trades table, so it cannot
+read any trade from the file. This happens when another worksheet was saved as the CSV file, when
+the headings were edited during conversion, or when Sharesight has changed the report format.
+
+Open the CSV file and look for the trades table. If it is not there, save the sheet containing the
+All Trades table again, as described in [All Trades](#all-trades). If the table is there, export the
+report again and convert it without editing the headings. If the error remains, follow the steps
+under [`Missing expected columns`](#missing-expected-columns).
+
+If the portfolio has no trades at all, move the file out of the directory: it adds nothing to the
+calculation.
 
 ### `Unknown action`
 

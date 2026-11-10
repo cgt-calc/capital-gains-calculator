@@ -264,6 +264,64 @@ def test_read_mssb_release_invalid_header(tmp_path: Path) -> None:
         "CSV header mismatch. Missing: 'Vest Date'. Extra: (no name), 'Vest date'."
         in str(exc.value)
     )
+    # Morgan Stanley may have renamed the column, so a cgt-calc update may be
+    # needed.
+    assert exc.value.needs_update
+
+
+@pytest.mark.parametrize(
+    ("filename", "rows"),
+    [
+        pytest.param(
+            RELEASES_REPORT_FILENAME,
+            [
+                COLUMNS_RELEASE,
+                [
+                    "25-Mar-2023",
+                    "ORDER-1",
+                    "GSU Class C",
+                    "Dividend",
+                    "Complete",
+                    "$10.00",
+                    "3.000",
+                    "$0.00",
+                    "3",
+                    "Fractional Shares",
+                ],
+            ],
+            id="release",
+        ),
+        pytest.param(
+            WITHDRAWALS_REPORT_FILENAME,
+            [
+                COLUMNS_WITHDRAWAL,
+                [
+                    "02-Apr-2021",
+                    "ORDER-2",
+                    "Cash",
+                    "Dividend",
+                    "Complete",
+                    "$1.00",
+                    "-4,218.95",
+                    "$4,218.95",
+                    "0",
+                    "N/A",
+                ],
+            ],
+            id="withdrawal",
+        ),
+    ],
+)
+def test_read_mssb_unknown_type_is_marked_as_needing_an_update(
+    tmp_path: Path, filename: str, rows: list[list[str]]
+) -> None:
+    """A type cgt-calc does not know is refused, marked as needing an update."""
+    _write_csv(tmp_path / filename, rows)
+
+    with pytest.raises(ParsingError, match=r", row 2: Unknown type: Dividend$") as exc:
+        MSSBParser().load_from_dir(tmp_path)
+
+    assert exc.value.needs_update
 
 
 def test_read_mssb_release_header_only_file(tmp_path: Path) -> None:

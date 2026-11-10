@@ -45,25 +45,6 @@ change-template: "- $TITLE @$AUTHOR (#$NUMBER)"
 change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
 version-resolver:
   default: patch
-autolabeler:
-  - label: "bug"
-    title:
-      - "/^fix[:(]/i"
-  - label: "feature"
-    title:
-      - "/^feat[:(]/i"
-  - label: "documentation"
-    title:
-      - "/^docs[:(]/i"
-  - label: "testing"
-    title:
-      - "/^test[:(]/i"
-  - label: "github structure"
-    title:
-      - "/^ci[:(]/i"
-  - label: "code quality"
-    title:
-      - "/^refactor[:(]/i"
 template: |
   ## Changes
 

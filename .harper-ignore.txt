@@ -15,10 +15,6 @@
 # "without giving you new shares" is correct; the PronounKnew rule reads
 # "you new" as a slip for "you knew".
 ^raw\.md:.*PronounKnew
-# An example commit hash in a comment about `git describe` output.
-^version\.py:.*`g3473d67`
-# "a backup tag" is a compound noun; Harper reads it as the verb "back up".
-^version\.py:.*PhrasalVerbAsCompoundNoun
 # "A fee on the row is real money" is complete; MissingPreposition misfires.
 ^ingestion\.py:.*MissingPreposition
 # "CR CR LF" spells out the doubled carriage return; the repeat is the point.
@@ -34,6 +30,8 @@
 ^interactive-brokers\.md:.*ItsContraction
 # "lists under its known limitations" - the page's limitations, a possessive.
 ^trading212\.py:.*ItsContraction
+# "taxes its gain" - the report's gain, a possessive.
+^extra-data-and-options\.md:.*ItsContraction
 # "the rows that preceded it are already in the units it leaves behind"
 # already agrees; PronounInflectionBe reads the wrong subject.
 ^matching\.py:.*PronounInflectionBe
@@ -87,14 +85,16 @@
 ^args_validators\.py:.*MissingPreposition
 # "Trading 212's" - Harper splits the possessive after a number.
 ^trading212\.md:.*SpellCheck.*`s`
-# '-.tex' is the LaTeX source file `--output -` would have created.
-^args_validators\.py:.*`tex`
 # "The others are minor currencies" is complete; MissingPreposition misfires.
 ^extra-data-and-options\.md:.*MissingPreposition
 # "the Georgian lari at the rouble's rate" - Harper joins "lari at" into "lariat".
 ^extra-data-and-options\.md:.*MergeWords
 # The ticker SAEM, in the comment that stops codespell rewriting it as "SAME".
 ^const\.py:.*SpellCheck.*`saem`
+# The ticker ESGE, in the comment that stops codespell rewriting it as "EDGE".
+^const\.py:.*SpellCheck.*`esge`
+# set_aside_london_tickers(), a method named in a docstring.
+^isin_converter\.py:.*SpellCheck.*`london`
 # "a trade earlier that day" is a time, not a comparison with "than".
 ^trading212\.md:.*ThatThan
 # "file system" as two words is standard; CompoundNouns wants "filesystem".
@@ -105,3 +105,17 @@
 ^schwab\.md:.*OneOfTheSingular
 # "a narrow and a wide screen" describes screen widths, not the widescreen format.
 ^contributing\.md:.*CompoundNouns.*widescreen
+# Super Micro Computer's CUSIPs either side of its split, in the comment on the
+# table of known splits; Harper splits each code and flags the end of it.
+^stock_split_planning\.py:.*`U(104|302)`
+# "Super Micro Computer" is the company's name, three words.
+^stock_split_planning\.py:.*MicroComputer
+# "Trading 212's" - Harper splits the possessive after the number.
+^stock_split_planning\.py:.*SpellCheck.*`s`
+# The site names cgt-calc.uk and next.cgt-calc.uk at the end of a sentence;
+# Harper reads the domain's "uk" as a misspelt word.
+^(contributing|releasing)\.md:.*SpellCheck.*`uk`
+# "Latin Extended-A and -B" names two Unicode blocks; AnA reads the A as an article.
+^render_pdf\.py:.*AnA
+# "`output_path`'s" - Harper splits the possessive after the backticks.
+^render_pdf\.py:.*SpellCheck.*`s`

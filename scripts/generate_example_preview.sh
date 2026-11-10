@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Generate the example report images: a cropped teaser for the README and one
+# Generate the example report images: a two-page teaser for the README and one
 # full-page image per page for the docs site. Both are WebP: these pages are
 # grey antialiased text, which PNG stores several times less compactly.
 # Requires: ImageMagick (with Ghostscript).
@@ -14,18 +14,21 @@ set -euo pipefail
 PDF_PATH="docs/assets/example_report.pdf"
 OUTPUT_PATH="docs/assets/example_report_preview.webp"
 
-# Rendering resolution (DPI)
-DPI=300
-
-# Height (in pixels) of the top strip to keep after rendering.
-# Width is taken as full page width automatically.
-CROP_HEIGHT=1975
-
-# Margin (in pixels) to add after trimming.
-BORDER=20
-
-# Resize after cropping, and the quality to encode the teaser with.
-FINAL_WIDTH=1200
+# The teaser shows page 2 lying on page 1 as sheets of paper: a thin grey edge
+# and a soft shadow on a transparent background, so it suits GitHub's light and
+# dark themes. Page 1's capital gains summary stays in view above page 2, and
+# the picture fades out below page 2's first disposal. The offsets and HEIGHT
+# follow the example report's layout, so check the teaser after that changes.
+# The README shows it at half size.
+DPI=200
+TEASER_PAGE_WIDTH=1080 # each page, before its edge and shadow
+EDGE_COLOR="#d0d7de"   # GitHub's border grey
+EDGE_WIDTH=2
+SHADOW="28x14+0+8" # opacity (%) x blur + x offset + y offset
+OFFSET_X=64        # page 2's shift right; only page 1's blank margin shows
+OFFSET_Y=656       # page 2's shift down, to just below page 1's capital gains summary
+HEIGHT=1560        # the picture ends just below page 2's first disposal
+FADE=45            # its last rows fade to transparent
 QUALITY=82
 
 # Full-page images for the docs site: prefix, resolution and width.
@@ -40,28 +43,32 @@ PAGE_QUALITY=82
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 echo "Generating preview from '$PDF_PATH' → '$OUTPUT_PATH'"
-echo "Density: ${DPI} DPI, Crop: full-width x ${CROP_HEIGHT}, Trim: on"
+echo "Density: ${DPI} DPI, Pages: 1-2, Page width: ${TEASER_PAGE_WIDTH}"
 
-# Pipeline:
-# 1) Render first page at DPI
-# 2) Crop full width, top CROP_HEIGHT pixels
-# 3) Trim uniform border
-# 4) Add optional white border margin
-# 5) Flatten onto white to remove transparency
-# 6) Resize to look good in README
-# 7) Write the WebP
-magick -density "$DPI" "$PDF_PATH[0]" -units PixelsPerInch -strip miff:- |
-    magick miff:- \
-        -gravity North -crop "x${CROP_HEIGHT}+0+0" +repage \
-        -trim +repage \
-        -bordercolor white -border "${BORDER}" \
-        -background white -alpha remove -alpha off \
-        -resize "${FINAL_WIDTH}" \
-        -quality "${QUALITY}" \
-        -strip "$OUTPUT_PATH"
+# Each page: flatten onto white paper, resize, draw its thin edge, then put its
+# own soft shadow behind it. Page 2's shadow falls on page 1.
+PAGE_STYLE=(
+    -background white -alpha remove -alpha off
+    -resize "$TEASER_PAGE_WIDTH"
+    -bordercolor "$EDGE_COLOR" -border "$EDGE_WIDTH"
+    \( +clone -background black -shadow "$SHADOW" \) +swap
+    -background none -layers merge
+)
+
+# Style pages 1 and 2, move page 2 by the offsets ("!" adds them to the current
+# offset) and lay it over page 1. Keep the top HEIGHT rows, scale the opacity
+# of the last FADE rows down to zero, and write the WebP with transparency.
+magick -density "$DPI" \
+    \( "${PDF_PATH}[0]" "${PAGE_STYLE[@]}" \) \
+    \( "${PDF_PATH}[1]" "${PAGE_STYLE[@]}" -repage "+${OFFSET_X}+${OFFSET_Y}!" \) \
+    -background none -layers merge +repage \
+    -crop "x${HEIGHT}+0+0" +repage \
+    -channel A -fx "u*min(1,(h-1-j)/${FADE})" +channel \
+    -quality "$QUALITY" \
+    -strip "$OUTPUT_PATH"
 
 echo "✅ Preview generated: $OUTPUT_PATH"
-echo "👀 Check if it looks good or adjust CROP_HEIGHT in the script."
+echo "👀 Check the teaser; if the report layout moved, adjust OFFSET_X, OFFSET_Y or HEIGHT in the script."
 
 echo
 echo "Generating full-page images from '$PDF_PATH' → '${PAGE_PREFIX}N.webp'"

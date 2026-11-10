@@ -1,6 +1,6 @@
 """Hargreaves Lansdown parser."""
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -11,7 +11,7 @@ from typing import ClassVar, TextIO, override
 
 import pdfplumber
 
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
 from cgt_calc.parsers.base_parsers import BaseDirParser, StandardCSVParser
 from cgt_calc.util import parse_decimal
@@ -170,9 +170,24 @@ class HargreavesLansdownParser(
     @override
     def read_row(cls, row: dict[str, str], file_path: Path) -> BrokerTransaction | None:
         """Read a single transaction from a CSV row and cross-reference with PDFs."""
-        reference = row.get("Reference", "").strip()
-        if not reference:
+        # The reader gives None for each cell a short row leaves out, so the
+        # shared width check does not see a short row. Nor does it see a row
+        # with one cell too many: HL's header line ends in a comma, which adds
+        # a column with no name that the rows leave out, and the extra cell
+        # goes under it. Either way the value is no longer under its heading,
+        # and the row would be read with the wrong amount, usually 0.
+        cells: Mapping[str, str | None] = row
+        stated_reference = cells["Reference"]
+        if stated_reference is not None and not stated_reference.strip():
             return None
+        named = [value for column, value in cells.items() if column]
+        if None in named or (cells.get("") or "").strip():
+            raise UnexpectedColumnCountError(
+                [value for value in cells.values() if value is not None],
+                len(named),
+                file_path,
+            )
+        reference = row["Reference"].strip()
 
         description = row.get("Description", "")
         action_type = cls._determine_action_type(reference)
@@ -181,13 +196,18 @@ class HargreavesLansdownParser(
                 file_path,
                 f"Unknown transaction type for reference '{reference}' "
                 f"(description: '{description}')",
+                needs_update=True,
             )
 
         date_str = row.get("Trade date", "")
         try:
             trade_date = datetime.strptime(date_str, "%d/%m/%Y").date()
         except ValueError as err:
-            raise ParsingError(file_path, f"Invalid date format: {date_str}") from err
+            raise ParsingError(
+                file_path,
+                f"Invalid date in column 'Trade date': {date_str!r}, "
+                "expected DD/MM/YYYY, e.g. '25/02/2026'",
+            ) from err
 
         quantity = None
         price = None
@@ -195,11 +215,13 @@ class HargreavesLansdownParser(
         symbol = None
         isin = None
 
-        amount_str = row.get("Value (£)", "0")
+        amount_str = row["Value (£)"]
+        if not amount_str:
+            raise ParsingError(file_path, "This row has no value in column 'Value (£)'")
         amount = (
-            parse_decimal(amount_str, "column 'Value (£)'", strip=",")
-            if amount_str and amount_str != "n/a"
-            else Decimal(0)
+            Decimal(0)
+            if amount_str == "n/a"
+            else parse_decimal(amount_str, "column 'Value (£)'", strip=",")
         )
 
         # Live PDF lookup only when needed for buy/sell actions

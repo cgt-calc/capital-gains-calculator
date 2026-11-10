@@ -32,6 +32,7 @@ from cgt_calc.stock_splits import (
 from cgt_calc.util import (
     approx_equal,
     approx_equal_scaled,
+    is_blank_row,
     normalize_amount,
     parse_decimal,
 )
@@ -382,7 +383,7 @@ def action_from_str(label: str, file: Path) -> ActionType:
             "https://cgt-calc.uk/brokers/trading212/#known-limitations",
         )
 
-    raise ParsingError(file, f"Unknown action: {label}")
+    raise ParsingError(file, f"Unknown action: {label}", needs_update=True)
 
 
 class Trading212Transaction(BrokerTransaction):
@@ -1221,6 +1222,10 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
         lines = lines[1:]
         transactions: list[BrokerTransaction] = []
         for index, row in enumerate(lines, start=2):
+            # A row with nothing in any cell is a cleared spreadsheet row or a
+            # stray line, not a transaction, however many commas it has.
+            if is_blank_row(row):
+                continue
             try:
                 transaction = Trading212Transaction(header, row, file_path)
             except ParsingError as err:
@@ -1240,7 +1245,10 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
         unknown = set(header) - COLUMN_SET
         if unknown:
             raise ParsingError(
-                file, f"Unknown column(s) {', '.join(sorted(unknown))}", row_index=1
+                file,
+                f"Unknown column(s) {', '.join(sorted(unknown))}",
+                row_index=1,
+                needs_update=True,
             )
 
     @staticmethod

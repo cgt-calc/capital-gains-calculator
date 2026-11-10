@@ -22,9 +22,7 @@ from cgt_calc.exceptions import (
     InvalidTransactionError,
     IsinMissingError,
     IsinTranslationError,
-    LatexRenderError,
     MarketDataMissingError,
-    MissingExternalToolError,
     ParsingError,
     PriceMissingError,
     QuantityMissingError,
@@ -142,8 +140,6 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
     ),
     (SharePriceMissingError("FOO", DATE), ["FOO", "2023-01-01"]),
     (BundledPriceCurrencyError("FOO", DATE, "GBP"), ["FOO", "2023-01-01", "GBP"]),
-    (LatexRenderError(Path("render.log")), ["render.log"]),
-    (MissingExternalToolError("pdflatex"), ["pdflatex"]),
     (IsinTranslationError("ISIN XS123 is broken"), ["ISIN XS123 is broken"]),
     (
         TransactionDumpError("parsed.csv already exists"),
@@ -162,7 +158,9 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
         ["FOO", "2023-01-01", "--prices-file (header 'date,symbol,price')"],
     ),
     (
-        UnclassifiedGiftError(TRANSACTION, [Decimal(1)]),
+        UnclassifiedGiftError(
+            TRANSACTION, [Decimal(1)], None, [], gifts_to_spouse=False
+        ),
         # The row to paste, the shares it covers, and the other outcome.
         [
             "2023-01-01,TRANSFER_TO_SPOUSE,FOO,1,0.00,0.00,USD",
@@ -174,7 +172,13 @@ CONTEXT_CASES: list[tuple[CgtError, list[str]]] = [
     ),
     (
         # Both readings of a count printed before a split, and why.
-        UnclassifiedGiftError(TRANSACTION, [Decimal(1), Decimal(20)]),
+        UnclassifiedGiftError(
+            TRANSACTION,
+            [Decimal(1), Decimal(20)],
+            None,
+            [],
+            gifts_to_spouse=False,
+        ),
         [
             "2023-01-01,TRANSFER_TO_SPOUSE,FOO,1,0.00,0.00,USD",
             "2023-01-01,TRANSFER_TO_SPOUSE,FOO,20,0.00,0.00,USD",

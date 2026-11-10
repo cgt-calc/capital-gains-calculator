@@ -82,7 +82,6 @@ class LineView:
     rule: str
     quantity: Decimal
     new_quantity: Decimal
-    shows_proceeds: bool
     is_gain: bool
     proceeds: Decimal | None = None
     cost: Decimal | None = None
@@ -230,9 +229,7 @@ _DISPOSAL_KINDS: Final = frozenset(
 )
 _ACQUISITION_KINDS: Final = frozenset({EventKind.ACQUISITION, EventKind.MANAGEMENT_FEE})
 # Events the report states in prose alone, with no list of matching rules.
-_WITHOUT_LINES: Final = frozenset(
-    {EventKind.RENAME, EventKind.SPLIT, EventKind.TRANSFER_TO_SPOUSE}
-)
+_WITHOUT_LINES: Final = frozenset({EventKind.RENAME, EventKind.SPLIT})
 
 _UK_CURRENCY_CODE: Final = "GBP"
 
@@ -283,9 +280,7 @@ def _per_unit(amount: Decimal, quantity: Decimal) -> Decimal | None:
     return round_decimal(amount / quantity, 2)
 
 
-def _build_line(
-    entry: CalculationEntry, kind: EventKind, overall_quantity: Decimal
-) -> LineView:
+def _build_line(entry: CalculationEntry, kind: EventKind) -> LineView:
     """Build the view of one matching rule within an event."""
     is_acquisition = kind in _ACQUISITION_KINDS
     spin_off = entry.spin_off
@@ -296,7 +291,6 @@ def _build_line(
         rule=entry.rule_type.name.replace("_", " "),
         quantity=entry.quantity,
         new_quantity=entry.new_quantity,
-        shows_proceeds=entry.quantity < overall_quantity,
         is_gain=entry.gain > 0,
         proceeds=round_decimal(entry.amount + entry.fees, 2),
         cost=round_decimal(entry.allowable_cost, 2),
@@ -407,12 +401,10 @@ def _with_kind_fields(
             replace(event, split=entries[0].stock_split), entries[0]
         )
     if kind is EventKind.TRANSFER_TO_SPOUSE:
-        return _with_pool_after(
-            replace(
-                event,
-                base_cost_passed=round_decimal(_total(entries, "allowable_cost"), 2),
-            ),
-            entries[-1],
+        # Each line states the pool after it, so the event keeps the total alone.
+        return replace(
+            event,
+            base_cost_passed=round_decimal(_total(entries, "allowable_cost"), 2),
         )
     # What is left states the cost the event added to the pool.
     cost = round_decimal(entries[0].allowable_cost, 2)
@@ -460,14 +452,32 @@ def _build_event(
         is_disposal=is_disposal,
         is_acquisition=kind in _ACQUISITION_KINDS,
         is_gift=kind in _GIFT_KINDS,
-        pool_units_left=is_disposal or kind is EventKind.EXEMPT,
+        pool_units_left=is_disposal
+        or kind in {EventKind.EXEMPT, EventKind.TRANSFER_TO_SPOUSE},
         quantity=quantity,
         fees=round_decimal(_total(entries, "fees"), 2),
         lines=()
         if kind in _WITHOUT_LINES
-        else tuple(_build_line(entry, kind, quantity) for entry in entries),
+        else tuple(_build_line(entry, kind) for entry in entries),
     )
     return _with_kind_fields(event, entries, totals)
+
+
+def _build_events(
+    key: str, entries: list[CalculationEntry], totals: _Totals
+) -> tuple[EventView, ...]:
+    """Build the views of one symbol's day, stating apart cost with no units.
+
+    The calculation logs cost a day added with no units after the entries for
+    the shares it bought, as an entry with no quantity, so that it reads as an
+    entry of its own rather than as the fees of that purchase.
+    """
+    if key.startswith("buy$") and len(entries) > 1 and entries[-1].quantity == 0:
+        return (
+            _build_event(key, entries[:-1], totals),
+            _build_event(key, entries[-1:], totals),
+        )
+    return (_build_event(key, entries, totals),)
 
 
 def _build_income_event(
@@ -536,7 +546,9 @@ def build_report_view(report: CapitalGainsReport) -> ReportView:
         DayView(
             date=date,
             events=tuple(
-                _build_event(key, entries, totals) for key, entries in symbols.items()
+                event
+                for key, entries in symbols.items()
+                for event in _build_events(key, entries, totals)
             ),
         )
         for date, symbols in report.calculation_log.items()

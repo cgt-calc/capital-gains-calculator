@@ -67,6 +67,10 @@ received and negative for money paid. A £250 deposit and a £40 withdrawal look
 2024-03-14,TRANSFER,,1,-40.00,0.00,GBP
 ```
 
+A positive amount on a `DIVIDEND_TAX` or `INTEREST_TAX` row is refused; enter tax still withheld as
+a negative `price`. If part of the tax for that payment was refunded, enter only the amount still
+withheld.
+
 Do not leave `quantity` or `price` blank. On a row that moves cash, such as a trade, dividend,
 deposit or withdrawal, cgt-calc then has no amount to apply and stops with `Amount missing`.
 
@@ -171,8 +175,9 @@ and the cash balance is £20 short, which can stop the run with `Reached a negat
 To check the result, run cgt-calc for the tax year that date falls in. The summary lists the income
 under Dividends or Interest, and the PDF report has an entry on that date headed “Cost added to FUND
 with no new shares: £20.00”. Under that heading, “Number of units in the pool” should be the units
-you hold and “new pool cost” £20 more than the cost before. If you bought more of the fund the same
-day, the PDF shows the £20 as part of that purchase's fees instead.
+you hold and “new pool cost” £20 more than the pool cost before that entry. If you bought more of
+the fund the same day, the entry follows the purchase, so compare it with the “new pool cost” under
+the purchase.
 
 If cgt-calc stops with
 `Cannot add the cost of the FEE row for FUND on 2024-06-28: no units of FUND are held that day`, you
@@ -207,6 +212,9 @@ Irish one, see [Offshore Funds (ERI)](../offshore-funds.md).
     that warning is issued only when withholding tax was deducted and cgt-calc cannot infer a
     country from the currency. Verify foreign dividend income and tax against the broker statement
     rather than assuming that treaty limits were applied.
+- For the same reason, a ticker that is both a London fund's and a US security's, such as `OPEN`, is
+    matched to the fund, with a warning. See
+    [Tickers that are also US symbols](../extra-data-and-options.md#tickers-that-are-also-us-symbols).
 - The format does not identify the instrument type. It is intended for ordinary shares and funds; do
     not rely on it for options, futures, bonds, contracts for difference, crypto assets or another
     instrument whose UK tax treatment differs.
@@ -274,9 +282,16 @@ created 209, and the sale below it is written in post-split shares at the post-s
 !!! warning "Same-day chronology across inputs"
 
     Within one RAW file the row order settles which units a same-day trade is stated in. Between
-    two inputs it does not, and neither does the order cgt-calc merges them in, so a same-day trade
-    from another input is refused unless both sides carry times. Put the day's rows for that symbol
-    in one input, or work that day out by hand.
+    two inputs it does not, and neither does the order cgt-calc merges them in. For a trade from
+    another input, cgt-calc uses the time of day instead, but only when both the trade and the
+    reorganisation have one. Without times, cgt-calc cannot tell the order even of two rows in the
+    same broker export.
+
+    A trade timed after the reorganisation is in the new units. A trade timed before it is in the
+    old units, but only if the reorganisation is exported as two timed rows, such as Trading 212's
+    `Stock split close` and `Stock split open`. Any other same-day trade stops the run with
+    [`cannot be placed either side of it`](#cannot-be-placed-either-side-of-it), which explains how
+    to move that day's rows into this file.
 
 cgt-calc has no way to check the order you wrote. A sale placed on the wrong side of a `STOCK_SPLIT`
 row is refused when its quantity only makes sense on the other side, but a quantity that is
@@ -354,7 +369,12 @@ units from another source, and says so.
 
 A RAW `STOCK_SPLIT` row is the answer to that refusal, and you do not have to edit the broker export
 to use it: where a date has both, the RAW row states the change to the whole holding, so cgt-calc
-uses it and ignores the broker's own row for the same event.
+uses it and ignores the broker's own row for the same event. The exception is a day on which a
+broker export also has another row that changes how much of that security you hold, such as a
+purchase, sale, vest, reinvested dividend or transfer. The RAW `STOCK_SPLIT` row has no time of day,
+so cgt-calc cannot tell whether the broker's row came before or after it, and stops with
+[`cannot be placed either side of it`](#cannot-be-placed-either-side-of-it) until you move the day's
+rows into this file.
 
 Which accounts a holding is built from is remembered until a day closes with the whole pooled
 holding at zero, and a ticker rename carries the record to the new name along with the holding. So
@@ -378,7 +398,7 @@ Leave `price` at `0`, since a gift has no sale price. Put any fee you paid to ma
 
 No broker export marks these, so you add the row yourself. You do not have to convert your whole
 history to the RAW format to do it: pass a small RAW file of just the transfers alongside your
-broker export.
+broker export. If you already use a RAW file, add the rows to it instead: cgt-calc reads only one.
 
 ```shell
 cgt-calc --year 2024 --schwab-file transactions.csv --raw-file transfers.csv
@@ -390,7 +410,9 @@ for each: see
 [Gifts that all went to your spouse or civil partner](schwab.md#gifts-that-all-went-to-your-spouse-or-civil-partner).
 
 The report and the PDF show the base cost that passes to the recipient, and the text report prints
-the exact RAW row to give them.
+the exact RAW row to give them. Under each transfer, the PDF lists the matching rules that applied,
+with the shares and base cost each one covers, as it does for a sale: see
+[Labels in the PDF](../usage.md#labels-in-the-pdf).
 
 ### If you received the shares
 
@@ -414,9 +436,10 @@ of your export rather than let it be read as a purchase at nothing.
 
 Buying the same shares within 30 days of a transfer changes the figure. The transfer is matched
 against that purchase in the same way a sale would be, so the recipient inherits the cost of those
-shares rather than your pool average. Selling and transferring the same shares on the same day is
-refused when there is such a purchase, because there is no rule for splitting it between the two;
-the error says what to do instead.
+shares rather than your pool average. The PDF shows that part of the transfer on its own line:
+**SAME DAY** for a purchase that day, or **BED AND BREAKFAST** with the purchase date. Selling and
+transferring the same shares on the same day is refused when there is such a purchase, because there
+is no rule for splitting it between the two; the error says what to do instead.
 
 ## Gifts to anyone else
 
@@ -501,7 +524,8 @@ source code: some actions exist only for broker imports and a RAW row cannot sup
 data. For a real event that the table does not cover, do not force it into the nearest-looking
 action; verify its UK tax treatment and open a
 [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) if cgt-calc should
-support it.
+support it. For guidance on preparing a redacted example, see
+[Reporting problems](../reporting-problems.md).
 
 ### `Amount missing`
 
@@ -533,6 +557,18 @@ separate files are each read by their own date without an error. Check the final
 disposal against the broker records rather than adding a made-up purchase to make the calculation
 run.
 
+If the message says the same file buys the shares lower down the same date, the holding runs short
+only because the sale is written above that purchase. cgt-calc reads the rows of one date in the
+order you wrote them, as [the order the trades happened](#the-order-of-rows-on-one-date), and checks
+the holding after each row. This can happen when rows copied from a statement that lists the newest
+first are then sorted by date, which leaves each day's rows reversed. Check your broker's records
+for the order the trades really happened in:
+
+- If the purchase came first, write it above the sale.
+- If the sale came first, keep that order and do not move the purchase above it. Unless it was a
+    short sale, of shares you did not yet hold, the shares it sold were already held, so look for
+    the missing acquisition as described above. cgt-calc does not accept a short sale in a RAW file.
+
 ### `also has units from` on a `STOCK_SPLIT` row
 
 A broker's own split row states the change at that one account, and the holding also has units that
@@ -547,10 +583,23 @@ used and the broker's own row for the same event is ignored. See
 A same-day row changes the quantity of the security, but cgt-calc cannot establish whether that
 quantity uses the units before or after the reorganisation. This happens across separate inputs,
 within a broker export whose row order is not a record of what happened first, and when a timed row
-falls at or between the two timestamps of a paired reorganisation. If you know the real order, put
-that day's rows for the symbol in one RAW input in [that order](#the-order-of-rows-on-one-date),
-without [importing the same rows twice](#combining-raw-with-a-broker-export). Otherwise, work that
-day out by hand and leave its rows out.
+falls at or between the two timestamps of a paired reorganisation. If you know the real order, move
+that day's rows for the symbol out of working copies of their exports and into your RAW file in
+[that order](#the-order-of-rows-on-one-date), with the reorganisation as one `STOCK_SPLIT` row
+stating the change to the whole holding (see [Share reorganisations](#share-reorganisations)).
+Otherwise, work that day out by hand and leave its rows out.
+
+Moving a row moves its cash too: RAW rows keep a balance of their own, separate from the broker's
+(see [Combining RAW with a broker export](#combining-raw-with-a-broker-export)). So that the balance
+check still passes:
+
+- For each purchase you move, add a `TRANSFER` row on the same date depositing its cost, in the same
+    currency.
+- A sale you move takes its proceeds out of the broker's balance. If they paid for a later purchase
+    there, the run stops with `Reached a negative balance` for that broker. Add them back as a
+    deposit in the working copy of that export, and add a `TRANSFER` row on the same date taking
+    them out of your RAW file. If that export has no row for a deposit, run with
+    `--no-balance-check` instead, once you have checked that the shortfall is only those proceeds.
 
 Do not upload an unredacted RAW file to GitHub: it can contain dates, holdings, income and other
 sensitive financial information.

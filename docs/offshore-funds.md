@@ -25,6 +25,28 @@ accumulating and distributing share classes.
     income outside the tool and do not use its income totals. See HMRC's
     [income classification](https://www.gov.uk/government/publications/offshore-funds-self-assessment-helpsheet-hs265/hs265-offshore-funds).
 
+## Years you were not UK resident
+
+ERI is taxed on its fund distribution date, six months after the reporting period ends. If you were
+not UK resident on that date, the ERI isn't taxed in the UK, and so it isn't added to the cost of
+your units either ([regulation 99(3)](https://www.legislation.gov.uk/uksi/2009/3001/regulation/99)
+of the Offshore Funds (Tax) Regulations 2009 and
+[section 368](https://www.legislation.gov.uk/ukpga/2005/5/section/368) of the Income Tax (Trading
+and Other Income) Act 2005).
+
+To leave this ERI out, list the periods you were not UK resident as `START:END`, with both dates
+included. Leave `END` empty for a period that hasn't ended. For a split year, start the period on
+the first day of the overseas part. For example, abroad for two tax years and again since April
+2025:
+
+```shell
+cgt-calc --non-uk-resident-periods 2019-04-06:2021-04-05,2025-04-06: ...
+```
+
+Every ERI distributed in one of these periods is then left out, both as income and as a cost. The
+option is only used for ERI: cgt-calc doesn't apply any other residence rules, such as those for
+gains on disposals.
+
 ## Bundled data
 
 cgt-calc currently bundles:

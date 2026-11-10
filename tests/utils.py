@@ -2,32 +2,47 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+import pdfplumber
 import pytest
+
+from cgt_calc.render_pdf import render_pdf
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from cgt_calc.model import BrokerTransaction
+    from cgt_calc.model import BrokerTransaction, CapitalGainsReport
 
 
-def build_cmd(*args: str, keep_tex: bool = False) -> list[str]:
-    """Return CLI command for cgt_calc with optional pdflatex disabled.
+def build_cmd(*args: str) -> list[str]:
+    """Return the CLI command for cgt_calc with the shared exchange rate cache."""
+    return [
+        sys.executable,
+        "-m",
+        "cgt_calc.main",
+        *args,
+        "--exchange-rates-file",
+        "tests/exchange_rates_data.csv",
+    ]
 
-    Pass keep_tex when the test reads the generated .tex. Rendering a PDF puts
-    the LaTeX source in a temporary file and leaves no .tex next to the report,
-    so a test asserting on the source has to skip pdflatex even where
-    ENABLE_PDFLATEX asks for it.
+
+def pdf_text(path: Path) -> str:
+    """Return a PDF report's text as a reader sees it, page after page."""
+    with pdfplumber.open(path) as pdf:
+        return "".join(f"{page.extract_text()}\n" for page in pdf.pages)
+
+
+def report_text(report: CapitalGainsReport, directory: Path) -> str:
+    """Render the report to a PDF in `directory` and return its text, one line.
+
+    Line breaks only shape the page, so each run of whitespace becomes one
+    space and a phrase can be found wherever the line wraps.
     """
-    cmd = [sys.executable, "-m", "cgt_calc.main", *args]
-    if keep_tex or not os.getenv("ENABLE_PDFLATEX"):
-        cmd.append("--no-pdflatex")
-    cmd += ["--exchange-rates-file", "tests/exchange_rates_data.csv"]
-    return cmd
+    render_pdf(report, directory / "report.pdf")
+    return " ".join(pdf_text(directory / "report.pdf").split())
 
 
 def report_path(request: pytest.FixtureRequest) -> str:

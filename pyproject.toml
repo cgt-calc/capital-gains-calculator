@@ -1,15 +1,20 @@
 [build-system]
-requires = ["uv_build>=0.13.0,<0.14.0"]
-build-backend = "uv_build"
+# hatchling 1.27 is the first release to write license and license-files
+# below as PEP 639 metadata by default. setuptools-scm 9 is the first to
+# accept the scm table in [tool.hatch.version.raw-options].
+requires = ["hatchling>=1.27.0", "hatch-vcs>=0.5.0", "setuptools-scm>=9.0.0"]
+build-backend = "hatchling.build"
 
 [project]
 name = "cgt-calc"
-version = "0.0.0"
+dynamic = ["version"]
 description = "Calculate UK capital gains tax from broker exports for your HMRC Self Assessment"
 authors = [{ name = "Ruslan Sayfutdinov", email = "ruslan@sayfutdinov.com" }]
 readme = "README.md"
-license = "MIT"
-license-files = ["LICENSE"]
+# The code is MIT; the bundled Noto Sans fonts are under the SIL Open Font
+# License, which travels with them.
+license = "MIT AND OFL-1.1"
+license-files = ["LICENSE", "cgt_calc/resources/fonts/noto-sans/OFL.txt"]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Environment :: Console",
@@ -39,7 +44,6 @@ requires-python = ">=3.12"
 dependencies = [
   "colorama>=0.4.6",
   "defusedxml>=0.7.1,<1.0.0",
-  "Jinja2>=2.11.3,<4.0.0",
   "pandas>=3.1.0",
   "pdfplumber>=0.11.9",
   "requests>=2.27.1",
@@ -47,7 +51,9 @@ dependencies = [
   "yfinance>=1.7.0",
   "openpyxl>=3.1.5",
   "xlrd>=2.0.2",
-  "shtab>=1.12.1",
+  "shtab>=1.13.0",
+  # Typst changes its language between minor versions; Dependabot raises the cap.
+  "typst>=0.15.0,<0.16",
   # zoneinfo needs a tz database where the OS does not ship one.
   "tzdata>=2026.5; sys_platform == 'win32' or sys_platform == 'emscripten'",
 ]
@@ -65,23 +71,27 @@ cgt-calc = "cgt_calc.cli:init"
 dev = [
   "codespell>=2.4.1",
   "dprint-py>=0.64.3.0",
-  "harper-cli>=2.12.0",
+  "harper-cli>=2.13.0",
+  # The build backend, for the tests of the version it gives a build.
+  "hatch-vcs>=0.5.0",
+  "hatchling>=1.27.0",
   "mypy>=2.4.0",
   "packaging>=26.3",
-  "pandas-stubs>=3.0.5.260914",
-  "pytest>=8.4.2,<10.0.0",
+  "pandas-stubs>=3.1.0.261029",
+  "pytest>=9.2.0,<10.0.0",
   "pytest-clarity>=1.0.1",
   "pytest-cov>=7.0.0",
-  "pytest-env>=1.8.1",
+  "pytest-env>=1.8.3",
   "pytest-xdist>=3.8.0",
-  "reportlab>=5.0.1",
-  "ruff>=0.17.2",
-  "ty>=0.0.89,<0.1.0",
+  "reportlab>=5.1.0",
+  "ruff>=0.17.3",
+  "setuptools-scm>=9.0.0",
+  "ty>=0.0.95,<0.1.0",
   "types-colorama>=0.4.15.20260508",
   "types-defusedxml>=0.7.0.20260504",
-  "types-python-dateutil>=2.9.0.20261021",
+  "types-python-dateutil>=2.9.0.20261029",
   "types-reportlab>=5.0.0.20261008",
-  "types-requests>=2.33.0.20261006",
+  "types-requests>=2.33.0.20261030",
 ]
 docs = [
   "zensical>=0.0.71",
@@ -92,8 +102,41 @@ links = [
   "lychee-bin>=0.24.2",
 ]
 
-[tool.uv.build-backend]
-module-root = "."
+[tool.hatch.version]
+# The version comes from the latest release tag: v3.0.0 itself builds as
+# 3.0.0, and 13 commits later as 3.0.0.post13+g<commit>. A clone without
+# the release tags, such as a shallow one, builds as 0.0.postN+g<commit>.
+# Builds without Git history read .git_archival.txt (source archives),
+# PKG-INFO (sdists) or SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CGT_CALC, and
+# fail without one.
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+# Without it, the per-package SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CGT_CALC
+# is ignored.
+dist_name = "cgt-calc"
+version_scheme = "post-release"
+# Count only release tags, as a backup tag left behind by a rebase would
+# otherwise name a version that does not exist.
+scm.git.describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "v[0-9]*"]
+
+[tool.hatch.build]
+# Choose the package's files by path, not by .gitignore, so a resource
+# whose name .gitignore matches still ships, and the Docker image,
+# built without .gitignore, gets the same files. Bytecode stays out.
+ignore-vcs = true
+
+[tool.hatch.build.targets.sdist]
+# The sdist holds cgt_calc/ plus pyproject.toml, the readme, the
+# licence and .gitignore, which hatchling always adds. Without this
+# it would take the whole project tree.
+only-include = ["cgt_calc"]
+
+[tool.uv]
+# A checkout's editable install takes its version when it is built. Rebuild
+# it on the first uv run after a commit or tag, so --version names the
+# current commit. Uncommitted changes do not trigger a rebuild.
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
 
 [tool.ruff]
 required-version = ">=0.13.0"
@@ -248,7 +291,7 @@ blanket-ignore-comment = "error"
 
 [tool.codespell]
 quiet-level = 2
-skip = "uv.lock,./.git/*,./.mypy_cache/*,./.pytest_cache/*,./.ruff_cache/*,./.venv/*,./dist/*,*.csv,./env/*,./out/*,./site/*,./.wrangler/*"
+skip = "uv.lock,./.git/*,./.mypy_cache/*,./.pytest_cache/*,./.ruff_cache/*,./.venv/*,./dist/*,*.csv,*.pdf,./env/*,./out/*,./site/*,./.wrangler/*,./cgt_calc/resources/fonts/*"
 
 [tool.pytest.ini_options]
 addopts = "-vv -n auto"

@@ -5,6 +5,7 @@ import argparse
 from collections.abc import Iterable, Sequence
 import csv
 import dataclasses
+import io
 import itertools
 import logging
 from pathlib import Path
@@ -20,10 +21,16 @@ from cgt_calc.args_validators import (
     existing_file_or_stdin_type,
     set_completer,
 )
-from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError, reading_as
+from cgt_calc.exceptions import (
+    ParsingError,
+    UnexpectedColumnCountError,
+    not_text_in,
+    reading_as,
+)
 from cgt_calc.logging import parsing_msg
 from cgt_calc.model import BrokerTransaction, TransactionSource
 from cgt_calc.ticker_renames import ambiguity, current_ticker
+from cgt_calc.util import is_blank_row
 
 if TYPE_CHECKING:
     import datetime as dt
@@ -31,6 +38,24 @@ if TYPE_CHECKING:
 LOGGER = logging.getLogger(__name__)
 
 _ACCOUNT_COUNTER = itertools.count(1)
+
+
+def read_text(file: TextIO, file_path: Path, encoding: str) -> str:
+    """Read all of a broker input, refusing UTF-16 text without a byte-order mark.
+
+    UTF-8 and Windows-1252 read each ASCII character of such text as that
+    character and a NUL, so a file whose characters are all ASCII, as nearly
+    every character of an export is, decodes without an error. The parser
+    would then report a header or a row it cannot read, or find no rows at
+    all, instead of the encoding. Only the first line is checked: a NUL
+    further down is left to the parser as before, so a file that loaded with
+    NULs after its last row, as a Vanguard export can, still loads.
+    ``encoding`` is the one the refusal names.
+    """
+    text = file.read()
+    if "\x00" in text.partition("\n")[0]:
+        raise not_text_in(encoding, file_path)
+    return text
 
 
 def read_input(file_path: Path, encoding: str) -> str:
@@ -42,9 +67,9 @@ def read_input(file_path: Path, encoding: str) -> str:
     """
     with reading_as(encoding, file_path):
         if file_path == STDIN_PATH:
-            return sys.stdin.read()
+            return read_text(sys.stdin, file_path, encoding)
         with file_path.open(encoding=encoding) as file:
-            return file.read()
+            return read_text(file, file_path, encoding)
 
 
 def read_csv_rows(
@@ -289,7 +314,8 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
         )
         if show_parsing_msg:
             parsing_msg("stdin" if file_path == STDIN_PATH else file_path)
-        transactions = cls.read_transactions(file, file_path)
+        text = read_text(file, file_path, cls.encoding)
+        transactions = cls.read_transactions(io.StringIO(text), file_path)
         use_current_tickers(transactions, file_path)
         if not transactions and warn_on_empty:
             LOGGER.warning("No transactions detected in file %s", file_path)
@@ -367,6 +393,9 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
 
     columns: ClassVar[set[str]]
     optional_columns: ClassVar[set[str]] = set()
+    # Whether an unchanged export with another header means the broker changed
+    # its columns, which takes a cgt-calc update, rather than an edited file.
+    header_mismatch_needs_update: ClassVar[bool] = False
 
     @classmethod
     def _validate_header(cls, header: Sequence[str], file_path: Path) -> None:
@@ -379,6 +408,7 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                 file_path,
                 f"CSV header mismatch. Missing: {_column_names(missing)}. "
                 f"Extra: {_column_names(extra)}.",
+                needs_update=cls.header_mismatch_needs_update,
             )
 
     @classmethod
@@ -416,10 +446,22 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
         transactions: list[T] = []
         saw_row = False
         for row in reader:
+            # Set before the blank check, so a header over rows of only commas
+            # or spaces loads no transactions, with the warning for that,
+            # rather than being refused as an empty file.
             saw_row = True
             # Counted from the lines the reader has taken, not from the rows
             # it has given: it skips an empty line without giving a row.
             index = header_row + reader.line_num - 1
+            # The fields past the header arrive as one list under the restkey.
+            # Spread them back out so the row is checked, counted and printed
+            # as the file states it.
+            stated = [value for key, value in row.items() if key is not None]
+            cells = [*stated, *row.get(None, [])]
+            # A row with nothing in any cell is a cleared spreadsheet row or a
+            # stray line, not a transaction, however many commas it has.
+            if is_blank_row(cells):
+                continue
             try:
                 # A row with MORE fields than the header collects the extras
                 # under DictReader's `None` key (`restkey`), which changes
@@ -434,12 +476,8 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                 # trying to parse a `None` field, and reported with row
                 # context rather than as an unhandled traceback.
                 if len(row) != expected_col_count:
-                    # The fields past the header arrive as one list under the
-                    # restkey. Spread them back out so the row is counted and
-                    # printed as the file states it.
-                    stated = [value for key, value in row.items() if key is not None]
                     raise UnexpectedColumnCountError(
-                        [*stated, *row.get(None, [])], expected_col_count, file_path
+                        cells, expected_col_count, file_path
                     )
                 transaction = cls.read_row(row, file_path)
                 if transaction:

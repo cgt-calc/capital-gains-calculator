@@ -79,7 +79,10 @@ class ERIRawParser(BaseSingleFileParser[ERIRaw]):
     arg_name = "eri-raw"
     pretty_name = "Historical Excess Reported Income data"
     format_name = "CSV"
-    argument_help = "custom Excess Reported Income (ERI) data in CSV format"
+    argument_help = (
+        "custom Excess Reported Income (ERI) data in CSV format; PATH can be '-' "
+        "to read the file from standard input (only one '-' per run)"
+    )
 
     @staticmethod
     def _validate_header(header: list[str], file: Path) -> None:

@@ -5,8 +5,6 @@
 Most users need:
 
 - **cgt-calc installed.** Follow the [installation guide](installation.md) before continuing.
-- **LaTeX installed if you want a PDF report.** It is not needed for a terminal-only report using
-    `--no-report`.
 - **A complete transaction history from every relevant account.** Follow the instructions for each
     [supported broker](brokers/index.md). Earlier purchases or employer-share awards can establish
     the cost of shares sold later. Purchases in the 30 days after the report ends can be matched to
@@ -17,12 +15,25 @@ Most users need:
 
 Depending on your investments, you may also need:
 
+- **Income kept by a UK accumulation fund, recorded by hand.** An accumulation share class, usually
+    with “Acc” or “Accumulation” in its name, adds its income to the value of your units instead of
+    paying it to you. That income is taxable, and it counts as an amount spent on your units.
+    Neither Vanguard nor Hargreaves Lansdown pays it into your account, and cgt-calc does not count
+    it from their exports. Add it in a small RAW file, as described in
+    [Income reinvested in accumulation units](brokers/raw.md#income-reinvested-in-accumulation-units),
+    and pass it alongside your export. Other brokers have not been checked. With another broker,
+    first run cgt-calc without the rows for this income: if the PDF lists a dividend from the fund
+    for that distribution under **Interest and Dividends Events**, cgt-calc already counts that
+    income, so do not add them.
 - **Extra income data for some funds outside the UK.** This can apply whether the fund pays income
     to you or reinvests it. Check the [offshore funds guide](offshore-funds.md).
 - **Transfers to or from a spouse or civil partner, recorded by hand.** No broker export marks
     these. Add them in a small RAW file using the
     [`TRANSFER_TO_SPOUSE` or `TRANSFER_FROM_SPOUSE`](brokers/raw.md#transfers-to-a-spouse-or-civil-partner)
     action and pass it alongside your export.
+
+Put every row you record by hand in one RAW file: cgt-calc reads only one, and a second `--raw-file`
+stops the run.
 
 Do not include the same transaction in more than one export. cgt-calc can validate the transactions
 it receives, but it cannot detect every missing or duplicated export.
@@ -73,9 +84,10 @@ source. If your broker is not listed, you can convert its transactions to the ge
 cgt-calc prints a summary to the terminal and, by default, writes the detailed PDF report to
 `out/calculations.pdf`.
 
-The PDF has a **Capital Gains Events** section, an **Interest and Dividends Events** section when
-there is income to show, and **Overall** summaries at the end. Interest is grouped monthly per
-broker, even if your broker pays it daily.
+The PDF opens with the **Overall** summaries, then has a **Capital Gains Events** section and an
+**Interest and Dividends Events** section when there is income to show. In the events, a table under
+each acquisition or disposal shows how it was matched: one row per rule, with the pool left after
+it. Interest is grouped monthly per broker, even if your broker pays it daily.
 
 Use `--output` to choose a different PDF location:
 
@@ -92,16 +104,16 @@ cgt-calc --year 2024 --schwab-file transactions.csv > report.txt
 
 Redirecting stdout does not change where the PDF is saved.
 
-Use `--no-report` instead of `--output` to print the terminal summary without generating a report.
-This creates neither a PDF nor LaTeX source and does not require `pdflatex`:
+Use `--no-report` instead of `--output` to print the terminal summary without creating a PDF:
 
 ```shell
 cgt-calc --year 2024 --schwab-file transactions.csv --no-report
 ```
 
-To save the LaTeX source without creating a PDF, use `--no-pdflatex`. The source follows the
-`--output` path with a `.tex` extension (by default, `out/calculations.tex`). For example,
-`--output reports/2024-25.pdf` writes `reports/2024-25.tex`.
+The PDF shows holding names written with Latin, Greek or Cyrillic letters, digits, common
+punctuation and currency signs. If a name in your files uses other characters, such as Chinese, Thai
+or emoji, cgt-calc prints the summary and then stops without creating the PDF, naming the
+characters. To get a PDF, change the name in your input file, or use `--no-report` to skip it.
 
 ## Check the result
 
@@ -141,7 +153,7 @@ original cost. Check any unexpected matches against HMRC's
 
 An acquisition is labelled too. Shares matched to a disposal, or to a transfer to a spouse or civil
 partner, in the previous 30 days read **BED AND BREAKFAST**. The rest read **SECTION 104**,
-including shares matched on the same day: only the disposal reads **SAME DAY**.
+including shares matched on the same day: only the disposal or transfer reads **SAME DAY**.
 
 Three other labels are not matching rules:
 
@@ -153,11 +165,12 @@ Three other labels are not matching rules:
 - **OPTION:** the grant of an option you wrote, with its allowable cost and gain or loss. See
     [written equity options](brokers/schwab.md#written-equity-options).
 
-A [transfer to a spouse or civil partner](brokers/raw.md#transfers-to-a-spouse-or-civil-partner) has
-no labelled lines of its own, so its entry in the PDF does not say which matching rule applied. It
-shows the base cost that passes to the recipient instead. The matching rules still apply, so a
-purchase on the same day or in the following 30 days can make that cost differ from the average cost
-of your pooled holding.
+A [transfer to a spouse or civil partner](brokers/raw.md#transfers-to-a-spouse-or-civil-partner) is
+matched in the same way as a disposal, so a purchase on the same day or in the following 30 days can
+make the base cost that passes to the recipient differ from the average cost of your pooled holding.
+Its lines carry the same labels. Each line shows the shares matched under that rule and the base
+cost they pass on. A **BED AND BREAKFAST** line also gives the date the matched shares were bought
+or received. The lines add up to the base cost stated above them, apart from penny rounding.
 
 ## Use the figures
 
@@ -239,7 +252,7 @@ Choose a new filename in an existing directory, separate from the report and cac
 refuses existing files, missing directories and paths the run would write later. If writing fails,
 the error names the path; remove any partly written file or choose another name before retrying.
 
-The usual input checks and `--output`, `--no-report` and `--no-pdflatex` options still apply.
+The usual input checks and the `--output` and `--no-report` options still apply.
 
 ## Report part of a tax year (advanced)
 
@@ -278,11 +291,12 @@ python convert_export.py broker_export.xlsx | cgt-calc --year 2024 --raw-file -
 ```
 
 `-` works with every broker option that takes one file: `--schwab-file`, `--schwab-award-file`,
-`--freetrade-file`, `--interactive-brokers-file`, `--revolut-file`, `--vanguard-file`, `--raw-file`
-and `--eri-raw-file`. Options that take a directory need a path, and so do `--prices-file`,
-`--exchange-rates-file`, `--isin-translation-file` and `--spin-offs-file`. The output options,
-`--output` and `--dump-transactions`, need a path as well: cgt-calc does not write the report or the
-parsed transactions to standard output.
+`--freetrade-file`, `--interactive-brokers-file`, `--revolut-file`, `--vanguard-file` and
+`--raw-file`. It also works with `--eri-raw-file`, for [custom ERI data](custom-eri-data.md).
+Options that take a directory need a path, and so do `--prices-file`, `--exchange-rates-file`,
+`--isin-translation-file` and `--spin-offs-file`. The output options, `--output` and
+`--dump-transactions`, need a path as well: cgt-calc does not write the report or the parsed
+transactions to standard output.
 
 Reading from standard input changes a few things:
 

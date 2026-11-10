@@ -5,20 +5,47 @@ inputs:
   python-version:
     description: Python version to build with
     required: true
+  next:
+    description: Build for next.cgt-calc.uk, with the unreleased-version banner and noindex
+    required: false
+    default: "false"
 
 runs:
   using: composite
   steps:
     - name: Install uv
-      uses: astral-sh/setup-uv@v7
+      uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       with:
         enable-cache: true
         python-version: ${{ inputs.python-version }}
         cache-suffix: docs
 
+    # The next site differs from a release only in its address and theme
+    # overrides. Zensical's TOML config has no includes or environment
+    # variables, so the build edits a copy, and stops if a line has moved.
+    - name: Configure the next site
+      if: inputs.next == 'true'
+      shell: bash
+      run: |
+        python3 - <<'EOF'
+        from pathlib import Path
+
+        text = Path("zensical.toml").read_text(encoding="utf-8")
+        for old, new in [
+            ('site_url = "https://cgt-calc.uk/"\n', 'site_url = "https://next.cgt-calc.uk/"\n'),
+            ("[project.theme]\n", '[project.theme]\ncustom_dir = "overrides/next"\n'),
+        ]:
+            if text.count(old) != 1:
+                raise SystemExit(f"zensical.toml must contain {old!r} exactly once")
+            text = text.replace(old, new)
+        Path("zensical-next.toml").write_text(text, encoding="utf-8")
+        EOF
+
     - name: Build docs
       shell: bash
-      run: uv run --group docs zensical build --clean
+      env:
+        CONFIG_FILE: ${{ inputs.next == 'true' && 'zensical-next.toml' || 'zensical.toml' }}
+      run: uv run --group docs zensical build --clean -f "${CONFIG_FILE}"
 
     - name: Compute content digest
       shell: bash

@@ -32,6 +32,7 @@ from .exceptions import (
     QuantityNotPositiveError,
     SymbolMissingError,
     UnclassifiedGiftError,
+    raw_file_to_add_to,
 )
 from .logging import bullet, style_text
 from .model import (
@@ -46,6 +47,8 @@ from .model import (
     Position,
     SpinOff,
 )
+from .parsers.raw import raw_file_of
+from .parsers.vanguard import VanguardTransaction
 from .rename_planning import (
     connected_names,
     end_name,
@@ -54,7 +57,12 @@ from .rename_planning import (
     rename_day_units,
     rename_pair,
 )
-from .stock_split_planning import plan_stock_splits, source_account
+from .stock_split_planning import (
+    check_known_split,
+    known_splits_crossed,
+    plan_stock_splits,
+    source_account,
+)
 from .stock_splits import quantity_sign
 from .transaction_log import add_to_list, day_acquisitions
 from .util import (
@@ -68,59 +76,38 @@ from .util import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
+    from pathlib import Path
 
     from .calculator_state import CalculatorState
     from .currency_converter import CurrencyConverter
     from .current_price_fetcher import CurrentPriceFetcher
     from .income import IncomeProcessor
     from .isin_converter import IsinConverter
+    from .model import DatePeriod, Isin
     from .share_prices import SharePrices
     from .spin_off_handler import SpinOffHandler
+    from .stock_split_planning import KnownSplit
 
 LOGGER = logging.getLogger(__name__)
 
 
-# Where a history that fails a share-count check usually goes wrong, as the
-# troubleshooting sections of the broker guides already say. A missing
-# acquisition is the commonest, not the only one: a duplicated disposal or a
-# missing split or rename fails the same way, and adding a purchase would hide
-# it. Only what a RAW row can state is offered as something to add. A rename
-# has no RAW action, so it is reported instead, for the built-in rename table.
-_SHORTFALL_CAUSE = (
-    "Check that the history includes the purchase, vest or transfer that "
-    "acquired the shares and any split or rename since, and that no disposal "
-    "appears twice. A purchase, vest or split the exports cannot supply can go "
-    "in a file passed with --raw-file, using an action listed at "
-    "https://cgt-calc.uk/brokers/raw/#actions-to-use; a rename cannot: report "
-    "the old and new tickers so the pair can be added."
-)
+def _shortfall_cause(raw_file: Path | None) -> str:
+    """Say where a history that fails a share-count check usually goes wrong.
 
-
-def _nothing_held(action: str, symbol: str, transaction: BrokerTransaction) -> str:
-    """Say that a disposal found no holding, and the usual cause.
-
-    ``action`` places the shares in its verb phrase, as in
-    ``"transfer {} to a spouse"``. No count is stated: the check runs before
-    the quantity is validated.
+    The troubleshooting sections of the broker guides already say so. A
+    missing acquisition is the commonest, not the only one: a duplicated
+    disposal or a missing split or rename fails the same way, and adding a
+    purchase would hide it. Only what a RAW row can state is offered as
+    something to add, in the run's RAW file if it reads one. A rename has no
+    RAW action, so it is reported instead, for the built-in rename table.
     """
     return (
-        f"Tried to {action.format(symbol)} on {transaction.date}, but no "
-        f"{symbol} is held. {_SHORTFALL_CAUSE}"
-    )
-
-
-def _shortfall(
-    action: str,
-    symbol: str,
-    transaction: BrokerTransaction,
-    wanted: Decimal,
-    held: Decimal,
-) -> str:
-    """Say what a disposal asked for, what was held, and the usual cause."""
-    shares = f"{display_str(wanted)} {symbol}"
-    return (
-        f"Tried to {action.format(shares)} on {transaction.date}, but the "
-        f"holding is {display_str(held)}. {_SHORTFALL_CAUSE}"
+        "Check that the history includes the purchase, vest or transfer that "
+        "acquired the shares and any split or rename since, and that no "
+        "disposal appears twice. A purchase, vest or split the exports cannot "
+        f"supply can go in {raw_file_to_add_to(raw_file)}, using an action "
+        "listed at https://cgt-calc.uk/brokers/raw/#actions-to-use; a rename "
+        "cannot: report the old and new tickers so the pair can be added."
     )
 
 
@@ -301,6 +288,7 @@ class TransactionIngester:
         balance_check: bool,
         autoconvert_currency: bool = False,
         gifts_to_spouse: bool = False,
+        non_uk_resident_periods: list[DatePeriod] | None = None,
         date_in_tax_year: Callable[[dt.date], bool],
     ):
         """Create transaction ingester object."""
@@ -318,10 +306,109 @@ class TransactionIngester:
         self.balance_check = balance_check
         self.autoconvert_currency = autoconvert_currency
         self.gifts_to_spouse = gifts_to_spouse
+        self.non_uk_resident_periods = non_uk_resident_periods or []
         self.date_in_tax_year = date_in_tax_year
         # The day of the run, which decides whether the distribution date of
         # excess reported income has come and so whether its rate is known.
         self.today = dt.datetime.now().date()
+        # The RAW file the run reads, named by errors that say where to add a
+        # row. Set from the history by prepare_history().
+        self.raw_file: Path | None = None
+        # The tickers of rows from any input but Vanguard. Set by
+        # prepare_history().
+        self.non_vanguard_symbols: set[str] = set()
+        # The run's rows by date, which a refused sale reads to find the
+        # purchases written below it. Set by prepare_history().
+        self.days: dict[dt.date, list[BrokerTransaction]] = {}
+
+    def _nothing_held(
+        self,
+        action: str,
+        symbol: str,
+        transaction: BrokerTransaction,
+        cover: str = "",
+    ) -> str:
+        """Say that a disposal found no holding, and the usual cause.
+
+        ``action`` places the shares in its verb phrase, as in
+        ``"transfer {} to a spouse"``. No count is stated: the check runs
+        before the quantity is validated. ``cover`` is what
+        `_covered_lower_down` says about the sale, if anything.
+        """
+        return (
+            f"Tried to {action.format(symbol)} on {transaction.date}, but no "
+            f"{symbol} is held. {cover}{_shortfall_cause(self.raw_file)}"
+        )
+
+    def _shortfall(
+        self,
+        action: str,
+        symbol: str,
+        transaction: BrokerTransaction,
+        wanted: Decimal,
+        held: Decimal,
+        cover: str = "",
+    ) -> str:
+        """Say what a disposal asked for, what was held, and the usual cause."""
+        shares = f"{display_str(wanted)} {symbol}"
+        return (
+            f"Tried to {action.format(shares)} on {transaction.date}, but the "
+            f"holding is {display_str(held)}. {cover}"
+            f"{_shortfall_cause(self.raw_file)}"
+        )
+
+    def _covered_lower_down(
+        self, symbol: str, transaction: BrokerTransaction, held: Decimal
+    ) -> str:
+        """Point out purchases written below a sale that would cover it.
+
+        A RAW file's rows on one date are the order the trades happened, and
+        the holding is checked after each row, so a sale written above the
+        purchase that covers it is refused, although the same-day rule would
+        match the two (TCGA 1992 s105(1)). The file cannot say whether the
+        order is wrong or the sale really came first, so the user is asked to
+        check rather than told to move the purchase. Only the sale's own file
+        is searched: no other input records the order of a day's rows. On a
+        rename day the sale was checked against everything the day acquires,
+        as `_available_units` says, so the order is not the cause. A split
+        day never gets here: its planning refuses a day that sells more than
+        it has.
+        """
+        source = transaction.source
+        if (
+            source is None
+            or not source.rows_in_time_order
+            or source.index is None
+            or transaction.quantity is None
+            or rename_day_units(self.history, transaction.date, symbol) is not None
+        ):
+            return ""
+        below = [
+            (row.source.row, row.quantity)
+            for row in self.days[transaction.date]
+            if row.action is ActionType.BUY
+            and row.symbol == symbol
+            and row.quantity is not None
+            and row.source is not None
+            and row.source.file == source.file
+            and row.source.index is not None
+            and row.source.index > source.index
+        ]
+        bought = sum((quantity for _, quantity in below), Decimal(0))
+        if not 0 < transaction.quantity <= held + bought:
+            return ""
+        rows = ", ".join(str(row) for row, _ in below)
+        return (
+            f"The same file buys {display_str(bought)} {symbol} lower down the "
+            f"same date (row{'s' if len(below) > 1 else ''} {rows}), enough to "
+            "cover this sale. A RAW file's rows on one date are read in the order "
+            "written, as the order the trades happened, and the holding is "
+            "checked after each row. Check the order these trades really happened "
+            "in. If the purchase came first, write it above the sale. If the sale "
+            "came first, keep that order: unless it was a short sale, of shares "
+            "not yet held, which cgt-calc does not support, the shares it sold "
+            "were already held. "
+        )
 
     def add_acquisition(
         self,
@@ -864,7 +951,13 @@ class TransactionIngester:
         available = self._available_units(symbol, transaction.date)
         if available is None:
             raise InvalidTransactionError(
-                transaction, _nothing_held("sell {}", symbol, transaction)
+                transaction,
+                self._nothing_held(
+                    "sell {}",
+                    symbol,
+                    transaction,
+                    self._covered_lower_down(symbol, transaction, Decimal(0)),
+                ),
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
@@ -873,7 +966,14 @@ class TransactionIngester:
         if available < pooled_quantity:
             raise InvalidTransactionError(
                 transaction,
-                _shortfall("sell {}", symbol, transaction, pooled_quantity, available),
+                self._shortfall(
+                    "sell {}",
+                    symbol,
+                    transaction,
+                    pooled_quantity,
+                    available,
+                    self._covered_lower_down(symbol, transaction, available),
+                ),
             )
 
         amount = get_amount_or_fail(transaction)
@@ -1028,7 +1128,7 @@ class TransactionIngester:
         if available is None:
             raise InvalidTransactionError(
                 transaction,
-                _nothing_held("transfer {} to a spouse", symbol, transaction),
+                self._nothing_held("transfer {} to a spouse", symbol, transaction),
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
@@ -1036,7 +1136,7 @@ class TransactionIngester:
         if available < quantity:
             raise InvalidTransactionError(
                 transaction,
-                _shortfall(
+                self._shortfall(
                     "transfer {} to a spouse", symbol, transaction, quantity, available
                 ),
             )
@@ -1089,7 +1189,7 @@ class TransactionIngester:
         available = self._available_units(symbol, transaction.date)
         if available is None:
             raise InvalidTransactionError(
-                transaction, _nothing_held("give away {}", symbol, transaction)
+                transaction, self._nothing_held("give away {}", symbol, transaction)
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
@@ -1109,7 +1209,9 @@ class TransactionIngester:
         if available < quantity:
             raise InvalidTransactionError(
                 transaction,
-                _shortfall("give away {}", symbol, transaction, quantity, available),
+                self._shortfall(
+                    "give away {}", symbol, transaction, quantity, available
+                ),
             )
         connected = transaction.action is ActionType.GIFT
         key = (transaction.date, symbol)
@@ -1218,22 +1320,24 @@ class TransactionIngester:
             for transaction in transactions
         ):
             return transactions
-        # Counted, not a set: two gifts of the same shares on the same day need
-        # two classifications, or one row would silently account for both.
-        classified = Counter(
-            (transaction.date, transaction.symbol, transaction.quantity)
-            for transaction in transactions
-            if transaction.action
-            in {
+        # Every classifying row of a day and symbol, whatever count it states.
+        rows_on_day: defaultdict[
+            tuple[dt.date, str | None], list[BrokerTransaction]
+        ] = defaultdict(list)
+        for transaction in transactions:
+            if transaction.action in {
                 ActionType.TRANSFER_TO_SPOUSE,
                 ActionType.GIFT,
                 ActionType.GIFT_UNCONNECTED,
-            }
+            }:
+                rows_on_day[transaction.date, transaction.symbol].append(transaction)
+        # Counted, not a set: two gifts of the same shares on the same day need
+        # two classifications, or one row would silently account for both.
+        classified = Counter(
+            (day, symbol, row.quantity)
+            for (day, symbol), rows in rows_on_day.items()
+            for row in rows
         )
-        # Every classifying row of a day and symbol, whatever count it states.
-        rows_on_day: Counter[tuple[dt.date, str | None]] = Counter()
-        for (day, symbol, _), count in classified.items():
-            rows_on_day[day, symbol] += count
         # Gifts of one symbol on one day all draw on the same rows, and a gift
         # printed before a split can state either of two counts, so which row
         # each takes has to be settled for the day as a whole.
@@ -1279,27 +1383,42 @@ class TransactionIngester:
             # Walk the same order first come, first served to name the gift
             # that is left without a row. With --gifts-to-spouse a gift of one
             # possible count is not refused for that: it waits to be promoted.
-            unused_rows = rows_on_day[day, symbol]
+            # The walk takes every row it can before refusing, so the rows the
+            # refusal names as left over are none that a later gift takes.
+            left_over = list(rows_on_day[day, symbol])
             without_row: list[tuple[int, list[Decimal]]] = []
+            refused: tuple[int, list[Decimal]] | None = None
             for index, readings in gifts:
                 taken = next((r for r in readings if available[r] > 0), None)
                 if taken is not None:
                     available[taken] -= 1
-                    unused_rows -= 1
+                    left_over.remove(
+                        next(row for row in left_over if row.quantity == taken)
+                    )
                     settled.add(index)
                 elif self.gifts_to_spouse and len(readings) == 1:
                     without_row.append((index, readings))
-                else:
-                    raise UnclassifiedGiftError(transactions[index], readings)
-            if not without_row:
-                # That order is one the search already rejected, so it cannot
-                # have placed every gift.
-                raise AssertionError("every gift found a row after all")
-            if unused_rows:
-                # A row for this day and symbol is left without a gift while a
-                # gift has no row, so they disagree about how many shares left.
-                index, readings = without_row[0]
-                raise UnclassifiedGiftError(transactions[index], readings)
+                elif refused is None:
+                    refused = (index, readings)
+            if refused is None:
+                if not without_row:
+                    # That order is one the search already rejected, so it
+                    # cannot have placed every gift.
+                    raise AssertionError("every gift found a row after all")
+                if left_over:
+                    # A row for this day and symbol is left without a gift
+                    # while a gift has no row, so they disagree about how
+                    # many shares left.
+                    refused = without_row[0]
+            if refused is not None:
+                index, readings = refused
+                raise UnclassifiedGiftError(
+                    transactions[index],
+                    readings,
+                    self.raw_file,
+                    left_over,
+                    gifts_to_spouse=self.gifts_to_spouse,
+                )
             for index, _ in without_row:
                 auto_classified.add(index)
                 LOGGER.debug(
@@ -1389,6 +1508,12 @@ class TransactionIngester:
         on its date. ``renames`` is every rename of the run, so that a fund
         whose ISIN is known by one of its tickers is still found on the dates
         it was held under another.
+
+        A report whose fund distribution date falls in a period the user was
+        not UK resident is left out, both as income and as an addition to
+        cost: only income charged to UK tax is added to the
+        acquisition cost (Offshore Funds (Tax) Regulations 2009, reg 99(3)),
+        so ERI distributed while not UK resident is neither.
         """
         distribution_date = transaction.date + ERI_TAX_DATE_DELTA
 
@@ -1401,6 +1526,19 @@ class TransactionIngester:
                 transaction,
                 "Excess reported income price must be finite and non-negative.",
             )
+
+        if any(
+            period.includes(distribution_date)
+            for period in self.non_uk_resident_periods
+        ):
+            LOGGER.info(
+                "Leaving out the ERI of %s for the period ending %s: its fund "
+                "distribution date %s falls in a period of non-residence",
+                transaction.isin,
+                transaction.date,
+                distribution_date,
+            )
+            return
 
         if transaction.price == Decimal(0):
             return
@@ -1445,9 +1583,56 @@ class TransactionIngester:
                 symbol=symbol,
                 date=transaction.date,
                 distribution_date=distribution_date,
-                is_interest=symbol in self.interest_fund_tickers,
+                is_interest=symbol.upper() in self.interest_fund_tickers,
                 currency=transaction.currency,
             )
+        self._note_ticker_only_reports(transaction.isin, known, renamed, renames)
+
+    def _note_ticker_only_reports(
+        self,
+        isin: Isin,
+        known: set[str],
+        renamed: set[str],
+        renames: Mapping[str, str],
+    ) -> None:
+        """Prepare a warning for each holding a report reaches by a US symbol.
+
+        The bundled list gives a fund a ticker that is also a US symbol, and
+        nothing in the run says which of the two securities a holding under
+        it is. The report then reaches the holding by its ticker alone, and
+        reaches the names a rename joins to it too: the warning names both,
+        and the mapping row that settles it. A renamed name with an ISIN of its
+        own is not in ``renamed``, so the report never reaches it.
+
+        Vanguard sells only its own funds, so a holding seen in nothing but
+        Vanguard exports is the fund.
+        """
+        for ticker in sorted(known):
+            rows = self.isin_converter.ticker_only_rows(isin, ticker)
+            holding = connected_names(renames, ticker)
+            if rows is None or not holding & self.non_vanguard_symbols:
+                continue
+            remove, confirm, kept_us_symbols = rows
+            # Either row stops cgt-calc warning about every ticker it keeps.
+            kept = "".join(
+                f"Either row also gives that fund {other}, which is a US symbol "
+                f"too: leave {other} out if your {other} is not that fund.\n"
+                for other in kept_us_symbols
+            )
+            for name in sorted(holding & ({ticker} | renamed)):
+                via = "" if name == ticker else f" (renamed to or from {ticker})"
+                self.history.ticker_only_eri_warnings.setdefault(
+                    name,
+                    f"Excess reported income of fund {isin} was added to {name}"
+                    f"{via} because cgt-calc's bundled ISIN list gives that fund "
+                    f"the ticker {ticker}, which is also a US symbol, and no row "
+                    f"in your files says which security {ticker} is.\n"
+                    f"If your {ticker} is not that fund, add this row to your ISIN "
+                    f"translation file:\n    {remove}\n"
+                    f"If it is that fund, add this row instead:\n    {confirm}\n"
+                    f"{kept}"
+                    "See https://cgt-calc.uk/extra-data-and-options/#tickers-that-are-also-us-symbols",
+                )
 
     def _same_eri(
         self, previous: ExcessReportedIncome, price: Decimal, currency: CurrencyCode
@@ -1523,7 +1708,7 @@ class TransactionIngester:
             raise InvalidTransactionError(
                 transaction,
                 "Fee amount must not be positive: a positive fee would reduce "
-                "the pooled cost.",
+                "the pooled cost. Enter the charge as a negative price.",
             )
         transaction.fees = -amount
         transaction.quantity = Decimal(0)
@@ -1583,10 +1768,22 @@ class TransactionIngester:
         transaction: BrokerTransaction,
         days: dict[dt.date, list[BrokerTransaction]],
         planned: set[dt.date],
+        known_splits: list[KnownSplit],
     ) -> None:
-        """Plan the day's reorganisations, and note where units came from."""
+        """Plan the day's reorganisations, and note where units came from.
+
+        ``known_splits`` is what `known_splits_crossed` found and this run
+        has not reached yet. Each is checked on the first date on or after
+        it, against the pool as that day opens, and then dropped.
+        """
         if transaction.date not in planned:
             planned.add(transaction.date)
+            due = [split for split in known_splits if split.date <= transaction.date]
+            # Read before planning: a split row on this date restates the pool.
+            held_at_open = [
+                self.run.portfolio.get(split.symbol, Position()).quantity
+                for split in due
+            ]
             # Every earlier day has closed, so a holding absent from the
             # portfolio now is one that really emptied rather than one whose
             # running count touched zero between a same-day sale and buy. A
@@ -1612,6 +1809,9 @@ class TransactionIngester:
             # that set would make this order wrong.
             plan_renames(self.state, transaction.date, days[transaction.date])
             plan_stock_splits(self.state, transaction.date, days[transaction.date])
+            for split, quantity in zip(due, held_at_open, strict=True):
+                known_splits.remove(split)
+                check_known_split(self.state, split, quantity, days)
         if quantity_sign(transaction.action) > 0 and transaction.symbol:
             self.history.holding_sources[transaction.symbol].add(
                 source_account(transaction)
@@ -1640,6 +1840,7 @@ class TransactionIngester:
         transactions: list[BrokerTransaction],
     ) -> None:
         """Run the first pass over the broker transactions."""
+        self.raw_file = raw_file_of(transactions)
         self.history.first_date = _first_history_date(transactions)
         # We keep a balance per broker,currency pair
         balance: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(
@@ -1652,8 +1853,18 @@ class TransactionIngester:
         balance_history: list[Decimal] = []
 
         self.isin_converter.add_from_transactions(transactions)
+        # After add_from_transactions, which rewrites an alias to the ticker
+        # the holding and its reports go under.
+        self.non_vanguard_symbols = {
+            transaction.symbol
+            for transaction in transactions
+            if transaction.symbol and not isinstance(transaction, VanguardTransaction)
+        }
 
         transactions = self._resolve_gifts(transactions)
+        # After add_from_transactions, so that a row exported under an alias
+        # such as NVD is read under the ticker the pool and RAW rows use.
+        known_splits = known_splits_crossed(transactions)
         # The cash balance is judged once a day is complete rather than after
         # every row. Within one day the row order is not consistently reliable
         # for sequencing cash: a RAW file records it deliberately, a broker
@@ -1673,7 +1884,7 @@ class TransactionIngester:
         # day's rows is processed: what a row's count means depends on
         # whether a reorganisation followed it that day, and the pool has to
         # be in the day's closing units before the first of them is pooled.
-        days = self._group_by_date(transactions)
+        days = self.days = self._group_by_date(transactions)
         planned: set[dt.date] = set()
         # A rename moves the pool where its row sits, so a purchase or sale
         # of the same holding written under the name the day is retiring is
@@ -1696,7 +1907,7 @@ class TransactionIngester:
         )
 
         for i, transaction in enumerate(transactions):
-            self._open_transaction_day(transaction, days, planned)
+            self._open_transaction_day(transaction, days, planned, known_splits)
             self._convert_foreign_fees(transaction)
             if transaction.action == ActionType.EXCESS_REPORTED_INCOME:
                 self.add_eri(transaction, run_renames)
@@ -1802,7 +2013,15 @@ class TransactionIngester:
                 else:
                     self.add_gift(transaction)
             elif transaction.action is ActionType.REINVEST_DIVIDENDS:
-                LOGGER.warning("Ignoring unsupported action: %s", transaction.action)
+                # Neither income, an acquisition nor cash: nothing is recorded.
+                LOGGER.warning(
+                    "Ignored the reinvested dividend row for %s on %s, so any "
+                    "dividend or share purchase it records is left out of the "
+                    "report. Check your broker statement that other rows record "
+                    "the dividend and the shares bought with it.",
+                    transaction.symbol,
+                    transaction.date,
+                )
             else:
                 raise InvalidTransactionError(
                     transaction,

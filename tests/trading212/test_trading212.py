@@ -1919,19 +1919,20 @@ def test_foreign_tax_the_row_cannot_convert_leaves_the_amount_received(
 
 
 @pytest.mark.parametrize(
-    ("action", "message"),
+    ("action", "message", "needs_update"),
     [
         pytest.param(
             "Stock distribution",
             r"Stock distribution rows are not supported\. See "
             r"https://cgt-calc\.uk/brokers/trading212/#known-limitations",
+            False,
             id="listed as unsupported",
         ),
-        pytest.param("ADR Fee", "Unknown action: ADR Fee", id="not known"),
+        pytest.param("ADR Fee", "Unknown action: ADR Fee", True, id="not known"),
     ],
 )
 def test_a_refused_action_says_whether_it_is_unsupported_or_unknown(
-    tmp_path: Path, action: str, message: str
+    tmp_path: Path, action: str, message: str, needs_update: bool
 ) -> None:
     """A row the Trading 212 page lists as unsupported says so, with the link.
 
@@ -1939,6 +1940,7 @@ def test_a_refused_action_says_whether_it_is_unsupported_or_unknown(
     a row that is refused on purpose. It is kept for every other label that
     is not read. `ADR Fee` is one: it is on a single real row, too little to
     decide how to read it, so a report of the row is what the page asks for.
+    Only that one is marked as needing a cgt-calc update.
     """
     rows = [
         HEADER_2024,
@@ -1960,8 +1962,10 @@ def test_a_refused_action_says_whether_it_is_unsupported_or_unknown(
         ),
     ]
 
-    with pytest.raises(ParsingError, match=rf"row 2: {message}$"):
+    with pytest.raises(ParsingError, match=rf"row 2: {message}$") as excinfo:
         Trading212Parser().load_from_dir(_prepare_file(tmp_path, rows))
+
+    assert excinfo.value.needs_update is needs_update
 
 
 def _make_sell_row(shares: str, price: str, total: str) -> list[str]:
@@ -2276,6 +2280,80 @@ def test_read_trading212_transactions_invalid_decimal(tmp_path: Path) -> None:
     message = str(exc.value)
     assert "row 2" in message
     assert "Invalid decimal in Total" in message
+
+
+def test_a_trade_s_isin_outranks_a_london_fund_s_ticker(tmp_path: Path) -> None:
+    """A US security under a bundled London fund's ticker is calculated as itself.
+
+    IGCB is the London ticker the bundled list gives an Irish fund with
+    excess reported income, and the NYSE symbol of a US bond fund. Each row
+    names its ISIN, a US one, so the holding is the US fund: the run used to
+    stop on the ticker being the Irish fund's already, and now leaves that
+    fund's income out.
+
+    1,000 shares cost 20,000.00 and sell for 21,000.00: a gain of 1,000.00,
+    with no income from the Irish fund's report for 31 December 2024 added.
+    """
+    trade: dict[str | Trading212Column, str] = {
+        Trading212Column.ISIN: "US0000000010",
+        Trading212Column.TICKER: "IGCB",
+        Trading212Column.NAME: "TCW Corporate Bond ETF",
+        Trading212Column.NO_OF_SHARES: "1000",
+        Trading212Column.CURRENCY_PRICE_PER_SHARE: "GBP",
+        Trading212Column.EXCHANGE_RATE: "1.00",
+        Trading212Column.CURRENCY_TOTAL: "GBP",
+    }
+    rows = [
+        HEADER_2024,
+        _make_row(
+            HEADER_2024,
+            {
+                Trading212Column.ACTION: "Deposit",
+                Trading212Column.TIME: "2024-12-01 10:00:00",
+                Trading212Column.TOTAL: "30000.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "deposit-1",
+            },
+        ),
+        _make_row(
+            HEADER_2024,
+            {
+                **trade,
+                Trading212Column.ACTION: "Market buy",
+                Trading212Column.TIME: "2024-12-02 10:00:00",
+                Trading212Column.PRICE_PER_SHARE: "20.00",
+                Trading212Column.TOTAL: "20000.00",
+                Trading212Column.TRANSACTION_ID: "buy-1",
+            },
+        ),
+        _make_row(
+            HEADER_2024,
+            {
+                **trade,
+                Trading212Column.ACTION: "Market sell",
+                Trading212Column.TIME: "2025-02-03 10:00:00",
+                Trading212Column.PRICE_PER_SHARE: "21.00",
+                Trading212Column.RESULT: "1000.00",
+                Trading212Column.CURRENCY_RESULT: "GBP",
+                Trading212Column.TOTAL: "21000.00",
+                Trading212Column.TRANSACTION_ID: "sell-1",
+            },
+        ),
+    ]
+    cmd = build_cmd(
+        "--year",
+        "2024",
+        "--trading212-dir",
+        str(_prepare_file(tmp_path, rows)),
+        "--no-report",
+    )
+
+    result = run_cli(cmd)
+
+    assert stderr_alerts(result.stderr) == []
+    assert re.search(r"Allowable costs:\s+£20,000\.00\n", result.stdout)
+    assert re.search(r"Total gain:\s+£1,000\.00\n", result.stdout)
+    assert "Excess Reported Income" not in result.stdout
 
 
 def test_run_with_trading212_2026_files(request: pytest.FixtureRequest) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import os
 from pathlib import Path
 import re
@@ -149,34 +150,56 @@ def test_spin_offs_file_ignores_spaces_around_a_ticker(tmp_path: Path) -> None:
 def test_non_interactive_run_raises_clear_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Without a terminal the prompt is replaced by an actionable error."""
+    """Without a terminal the prompt is replaced by an actionable error.
+
+    Nothing is read: piped input may be the transactions themselves.
+    """
+
+    def no_prompt(prompt: str) -> str:
+        raise AssertionError("prompted without a terminal")
+
     spin_offs_file = tmp_path / "spin_offs.csv"
     handler = SpinOffHandler(spin_offs_file)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+    monkeypatch.setattr("builtins.input", no_prompt)
 
     with pytest.raises(InteractiveInputRequiredError) as excinfo:
-        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
+        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {"OLD": Position()})
 
-    message = str(excinfo.value)
-    assert "NEW" in message
-    assert str(spin_offs_file) in message
-    assert "dst,src" in message
+    assert str(excinfo.value) == (
+        "Cannot ask which stock NEW was spun off from on 2021-05-10: standard "
+        "input is not a terminal (this also applies when piping transactions "
+        f"via '-'). Add a 'NEW,<source>' row to {spin_offs_file} (header "
+        "'dst,src') and rerun."
+    )
 
 
-def test_eof_during_prompt_raises_clear_error(
+def test_input_ending_at_the_prompt_says_so(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """EOF while reading the answer is reported like a missing terminal."""
+    """Ending input at the prompt on a terminal is not called a missing terminal.
+
+    `input` raises EOFError when Ctrl-D (Ctrl-Z then Enter on Windows) is
+    pressed instead of an answer. OLD is held, so a ticker could have been
+    entered.
+    """
 
     def read_eof(prompt: str) -> str:
         raise EOFError
 
-    handler = SpinOffHandler(tmp_path / "spin_offs.csv")
+    spin_offs_file = tmp_path / "spin_offs.csv"
+    handler = SpinOffHandler(spin_offs_file)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr("builtins.input", read_eof)
 
-    with pytest.raises(InteractiveInputRequiredError):
-        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
+    with pytest.raises(InteractiveInputRequiredError) as excinfo:
+        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {"OLD": Position()})
+
+    assert str(excinfo.value) == (
+        "Input ended while asking which stock NEW was spun off from on "
+        f"2021-05-10. Add a 'NEW,<source>' row to {spin_offs_file} "
+        "(header 'dst,src') and rerun."
+    )
 
 
 def test_interactive_prompt_uses_clear_spin_off_wording(
@@ -201,6 +224,94 @@ def test_interactive_prompt_uses_clear_spin_off_wording(
             "(symbol: NEW) was spun off on 2021-05-10: "
         )
     ]
+
+
+@pytest.mark.parametrize(
+    ("held", "listed"),
+    [
+        pytest.param(
+            10,
+            "Available choices: AAA, BBB, CCC, DDD, EEE, FFF, GGG, HHH, III, JJJ",
+            id="ten holdings, all listed",
+        ),
+        pytest.param(
+            11,
+            "Available choices (first 10 of 11): AAA, BBB, CCC, DDD, EEE, FFF, "
+            "GGG, HHH, III, JJJ",
+            id="eleven holdings, ten listed",
+        ),
+        pytest.param(
+            12,
+            "Available choices (first 10 of 12): AAA, BBB, CCC, DDD, EEE, FFF, "
+            "GGG, HHH, III, JJJ",
+            id="twelve holdings, ten listed",
+        ),
+    ],
+)
+def test_a_ticker_not_held_lists_the_holdings_to_choose_from(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    held: int,
+    listed: str,
+) -> None:
+    """After a ticker not held, the holdings are listed as plain tickers.
+
+    They are comma-separated, at most ten. The holdings are AAA, BBB and so
+    on, `held` of them, put in the portfolio in reverse so the listing has to
+    sort them. Ten fit the list whole. Eleven is the first count the cap cuts:
+    the first ten are AAA to JJJ, KKK is left out, and the label says the ten
+    shown are out of 11. Of twelve, KKK and LLL are left out, out of 12.
+    """
+    tickers = [letter * 3 for letter in "ABCDEFGHIJKL"[:held]]
+    portfolio: dict[str, Position] = {
+        ticker: Position() for ticker in reversed(tickers)
+    }
+    answers = iter(["ACME", "AAA"])
+    handler = SpinOffHandler(tmp_path / "spin_offs.csv")
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
+
+    with caplog.at_level(logging.INFO):
+        source = handler.get_spin_off_source("NEW", SPIN_OFF_DATE, portfolio)
+
+    assert source == "AAA"
+    assert [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("Available choices")
+    ] == [listed]
+
+
+def test_with_no_holdings_the_choices_read_none(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """With nothing held, the choices line says none rather than ending blank.
+
+    No answer can name a holding, so the prompt repeats until input ends,
+    which stops the run.
+    """
+    answers = iter(["ACME"])
+
+    def answer(prompt: str) -> str:
+        if (reply := next(answers, None)) is None:
+            raise EOFError
+        return reply
+
+    handler = SpinOffHandler(tmp_path / "spin_offs.csv")
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", answer)
+
+    with caplog.at_level(logging.INFO), pytest.raises(InteractiveInputRequiredError):
+        handler.get_spin_off_source("NEW", SPIN_OFF_DATE, {})
+
+    assert [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("Available choices")
+    ] == ["Available choices: none"]
 
 
 def test_recording_spin_off_creates_missing_parent_directories(

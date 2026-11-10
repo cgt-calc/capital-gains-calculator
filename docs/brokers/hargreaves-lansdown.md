@@ -88,6 +88,12 @@ but any other non-blank reference stops the import with `Unknown transaction typ
 
 - Dividends, tax deductions, transfers of investments and corporate actions are not mapped. A
     non-blank row for any of them stops the import rather than being silently discarded.
+- Income from accumulation units of a UK fund is not paid into your account. HL says it is not shown
+    on your Income Account transaction history but is included on your
+    [consolidated tax certificate](https://www.hl.co.uk/help/profile-settings/investment-reports-tax-certificates/income-received-not-on-transaction-history),
+    and cgt-calc does not count it. Add it in a RAW file as described in
+    [Income reinvested in accumulation units](raw.md#income-reinvested-in-accumulation-units). For a
+    fund based outside the UK, see [Offshore Funds (ERI)](../offshore-funds.md) instead.
 - Every recognised buy or sell requires a matching PDF. The
     [HL service terms](https://www.hl.co.uk/__data/assets/pdf_file/0015/37122/Online-Ts-and-Cs.pdf)
     say that it does not issue contract notes for some fund transactions, including certain regular
@@ -136,6 +142,26 @@ version, the complete error and a sanitised copy of the row.
 Use the CSV downloaded from the Tax Centre rather than a statement, tax certificate or spreadsheet
 created by converting a PDF. Keep its headings unchanged. cgt-calc skips the identifying preamble
 above the `Trade date` row, but requires the exported transaction columns below it.
+
+### `This row has ... columns, not ...` or `This row has no value in column 'Value (£)'`
+
+The named row no longer has one cell under each column heading, or its `Value (£)` cell is empty.
+This usually happens after the CSV is edited by hand or in a spreadsheet, for example when a row is
+moved between files as described under
+[`Two files in the directory hold this transaction`](#two-files-in-the-directory-hold-this-transaction):
+a quote mark or a cell was deleted, a cell was added, or a value was cleared. cgt-calc stops rather
+than read the row with a wrong value, usually zero.
+
+Compare the row with the same row in the original download. Restore the missing quote mark, cell or
+value, or remove the cell that was added. If you no longer have the original, download the
+Transaction Summary again.
+
+If a CSV you have not edited is refused, open a
+[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with your cgt-calc
+version, the complete error and a sanitised copy of the row. The column-count message quotes the
+whole row: remove references, account numbers and anything else you would not publish before sharing
+it. For guidance on preparing a redacted example, see
+[Reporting problems](../reporting-problems.md).
 
 ### `Two files in the directory hold this transaction`
 

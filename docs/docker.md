@@ -1,8 +1,8 @@
 # Docker
 
-The published Docker image includes cgt-calc, Python and LaTeX. Use it if you already have Docker
-and do not want to install these tools on your computer. Images are available for amd64 and arm64
-(Apple silicon).
+The published Docker image includes cgt-calc and Python. Use it if you already have Docker and do
+not want to install these tools on your computer. Images are available for amd64 and arm64 (Apple
+silicon).
 
 Open a terminal in the directory containing your transaction files, then start the container:
 
@@ -75,4 +75,13 @@ directory:
 ```shell
 docker buildx build --tag capital-gains-calculator .
 docker run --rm -it -v "$PWD":/data capital-gains-calculator
+```
+
+The build reads cgt-calc's version from the repository's Git history, which Docker receives with the
+rest of the directory. If you build from a linked Git worktree, whose history is stored outside its
+directory, the build stops and asks for the version. Pass it like this:
+
+```shell
+docker buildx build --build-arg VERSION="$(git describe --tags --match 'v[0-9]*')" \
+  --tag capital-gains-calculator .
 ```

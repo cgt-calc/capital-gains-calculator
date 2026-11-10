@@ -20,6 +20,7 @@ from cgt_calc.util import is_blank_row, parse_decimal
 from .base_parsers import BaseSingleFileParser, read_csv_rows
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
 
 
@@ -112,7 +113,14 @@ class RawTransaction(BrokerTransaction):
         }
 
         date_str = row_values[RawColumn.DATE]
-        date = dt.datetime.strptime(date_str, "%Y-%m-%d").date()
+        try:
+            date = dt.datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError as err:
+            # "date", not "date format": a typed 2023-06-31 has the right form.
+            raise ParsingError(
+                file,
+                f"Invalid date: {date_str!r}, expected YYYY-MM-DD, e.g. '2023-08-15'",
+            ) from err
 
         action = _action_from_str(row_values[RawColumn.ACTION], file)
         symbol = row_values[RawColumn.SYMBOL] or None
@@ -136,6 +144,21 @@ class RawTransaction(BrokerTransaction):
             amount -= fees
         else:
             amount = None
+        # Tax deducted is money paid, so a positive tax row would be reported
+        # as negative tax paid. A broker export can hold one, reversing an
+        # earlier deduction, so like the fees above this is checked only where
+        # a person types the value. The amount is checked rather than the
+        # price, as a negative quantity reverses the sign of the price.
+        if (
+            action in {ActionType.DIVIDEND_TAX, ActionType.INTEREST_TAX}
+            and amount is not None
+            and amount > 0
+        ):
+            raise ValueError(
+                f"{action.name} cannot be positive. Enter the tax deducted as a "
+                "negative price; if some of it was refunded, enter only the part "
+                "that was not."
+            )
 
         currency = CurrencyCode(row_values[RawColumn.CURRENCY])
         broker = "Unknown"
@@ -151,6 +174,21 @@ class RawTransaction(BrokerTransaction):
             currency,
             broker,
         )
+
+
+def raw_file_of(rows: Iterable[BrokerTransaction]) -> Path | None:
+    """Return the RAW file the run reads, if any of `rows` came from one.
+
+    A RAW file with no rows leaves nothing to find, so it reads as none.
+    """
+    return next(
+        (
+            row.source.file
+            for row in rows
+            if isinstance(row, RawTransaction) and row.source
+        ),
+        None,
+    )
 
 
 class RawParser(BaseSingleFileParser[RawTransaction]):
@@ -223,6 +261,11 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
             )
 
         transactions: list[RawTransaction] = []
+        # Symbols are matched exactly, so `foo` and `FOO` would be two holdings
+        # and a sale of one would not be matched with the other's purchases.
+        # A symbol written in two letter cases is refused, not folded into one.
+        # Maps each case-folded symbol to its first spelling and row.
+        spellings: dict[str, tuple[str, int]] = {}
         for index, row in enumerate(data_rows, start=start_index):
             # Skip harmless blank rows left by editors or tooling.
             if is_blank_row(row):
@@ -234,6 +277,17 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
                 raise
             except ValueError as err:
                 raise ParsingError(file_path, str(err), row_index=index) from err
+            if (symbol := transaction.symbol) is not None:
+                first, first_index = spellings.setdefault(
+                    symbol.casefold(), (symbol, index)
+                )
+                if first != symbol:
+                    raise ParsingError(
+                        file_path,
+                        f"RAW symbols '{first}' (row {first_index}) and '{symbol}' "
+                        f"(row {index}) differ only by letter case. "
+                        "Use one spelling consistently.",
+                    )
             transaction.source = TransactionSource(row=index)
             transactions.append(transaction)
         return transactions

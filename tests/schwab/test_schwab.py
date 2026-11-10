@@ -4,6 +4,7 @@ import datetime as dt
 from decimal import Decimal
 import io
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -108,6 +109,72 @@ def test_award_price_with_thousands_separators_is_parsed(tmp_path: Path) -> None
     awards = _read_award_file(award_file)
 
     assert awards.award_prices[dt.date(2023, 8, 15)]["BAR"] == Decimal("1250.00")
+
+
+def test_an_award_date_that_cannot_be_read_is_refused_without_a_traceback(
+    tmp_path: Path,
+) -> None:
+    """An unreadable award date names the file and row instead of crashing.
+
+    '2023-08-15' is neither YYYY/MM/DD nor MM/DD/YYYY. It used to escape as a
+    ValueError, so the run printed "Unexpected error!", a traceback and the
+    advice on reporting a bug, when the fix is to correct one date. The date
+    is on the upper half of the split award row: row 2, below the header.
+    """
+    award_file = tmp_path / "awards.csv"
+    award_file.write_text(
+        "Date,Action,Symbol,Description,Quantity,FeesAndCommissions,"
+        "DisbursementElection,Amount,AwardDate,AwardId,FairMarketValuePrice,"
+        "SalePrice,SharesSoldWithheldForTaxes,NetSharesDeposited,Taxes\n"
+        "2023-08-15,Lapse,BAR,Restricted Stock Lapse,400,,,,,,,,,,\n"
+        ',,,,,,,,03/21/2022,101883189,$140.35,,200,200,"$13,192.90"\n'
+    )
+
+    result = subprocess.run(
+        build_cmd(
+            "--year",
+            "2023",
+            "--schwab-file",
+            "tests/schwab/data/rsu_settlement/transactions.csv",
+            "--schwab-award-file",
+            str(award_file),
+            "--no-report",
+        ),
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    assert result.returncode == 1
+    # The error is the last thing printed: no advice on reporting it follows.
+    assert result.stderr.endswith(
+        f"\nERROR: While parsing {award_file}, row 2: Invalid date format: "
+        "'2023-08-15', expected MM/DD/YYYY or YYYY/MM/DD, e.g. '01/15/2023'\n\n"
+    )
+    assert "Traceback" not in result.stderr
+    assert "Unexpected error!" not in result.stderr
+
+
+def test_award_date_written_year_first_is_read(tmp_path: Path) -> None:
+    """The award-price CSV is also read with its dates as YYYY/MM/DD.
+
+    That is the form the reader first took, before Schwab moved the file to
+    MM/DD/YYYY (#323), which test_run_with_schwab_rsu_settlement_files covers.
+    2023/08/15 is 15 August 2023, priced at the lower half's
+    FairMarketValuePrice of $140.35.
+    """
+    award_file = tmp_path / "awards.csv"
+    award_file.write_text(
+        "Date,Action,Symbol,Description,Quantity,FeesAndCommissions,"
+        "DisbursementElection,Amount,AwardDate,AwardId,FairMarketValuePrice,"
+        "SalePrice,SharesSoldWithheldForTaxes,NetSharesDeposited,Taxes\n"
+        "2023/08/15,Lapse,BAR,Restricted Stock Lapse,400,,,,,,,,,,\n"
+        ',,,,,,,,03/21/2022,101883189,$140.35,,200,200,"$13,192.90"\n'
+    )
+
+    awards = _read_award_file(award_file)
+
+    assert awards.award_prices == {dt.date(2023, 8, 15): {"BAR": Decimal("140.35")}}
 
 
 def test_each_award_in_a_price_csv_keeps_its_own_price(tmp_path: Path) -> None:
@@ -346,10 +413,18 @@ def test_action_from_str(label: str, action: ActionType) -> None:
     assert action_from_str(label, Path("transactions.csv")) == action
 
 
-def test_action_from_str_unknown() -> None:
-    """Raise on unknown action labels."""
-    with pytest.raises(ParsingError, match="Unknown action"):
-        action_from_str("Dance", Path("transactions.csv"))
+def test_an_unknown_action_is_refused_with_its_row() -> None:
+    """An action label cgt-calc does not know is refused, naming its row.
+
+    The error is marked as needing a cgt-calc update, which may read the row.
+    """
+    with pytest.raises(
+        ParsingError,
+        match=r"^While parsing transactions\.csv, row 2: Unknown action: 'Dance'$",
+    ) as excinfo:
+        _read(SCHWAB_HEADER + '01/15/2023,Dance,,x,,,,"$1.00"\n')
+
+    assert excinfo.value.needs_update
 
 
 def test_read_transactions_empty_file() -> None:
@@ -390,11 +465,23 @@ def test_read_transactions_as_of_date() -> None:
     assert transactions[0].date == dt.date(2023, 1, 15)
 
 
-def test_read_transactions_invalid_date() -> None:
-    """Raise on unparsable dates."""
-    content = SCHWAB_HEADER + "2023-01-15,Credit Interest,,Interest,,,,$1.00\n"
-    with pytest.raises(ParsingError, match="Invalid date format"):
+@pytest.mark.parametrize(
+    ("cell", "date"),
+    [
+        pytest.param("2023-01-15", "2023-01-15", id="another format"),
+        # Only the date before " as of " is parsed, so only that is named.
+        pytest.param("13/45/2023 as of 01/12/2023", "13/45/2023", id="as of"),
+    ],
+)
+def test_read_transactions_invalid_date(cell: str, date: str) -> None:
+    """An unparsable date is quoted, with its row and the format Schwab writes."""
+    content = SCHWAB_HEADER + f"{cell},Credit Interest,,Interest,,,,$1.00\n"
+    with pytest.raises(ParsingError) as excinfo:
         _read(content)
+    assert str(excinfo.value) == (
+        f"While parsing transactions.csv, row 2: Invalid date format: '{date}', "
+        "expected MM/DD/YYYY, e.g. '01/15/2023'"
+    )
 
 
 def test_read_transactions_ninth_column_must_be_empty() -> None:

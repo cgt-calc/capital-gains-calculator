@@ -572,7 +572,17 @@ def test_a_same_day_row_from_another_input_is_refused() -> None:
         run(
             [
                 trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
-                trade(EVENT_DAY, ActionType.BUY, "FOO", "2", "10", source=elsewhere(0)),
+                trade(
+                    EVENT_DAY,
+                    ActionType.BUY,
+                    "FOO",
+                    "2",
+                    "10",
+                    # Another file of the reorganisation's own account, so the
+                    # holding is in one account and only the row's place is in
+                    # question.
+                    source=elsewhere(0, account="Testing account"),
+                ),
                 legacy_split(EVENT_DAY, "FOO", "10"),
             ]
         )
@@ -620,11 +630,11 @@ def test_a_row_at_or_between_the_two_halves_of_a_reorganisation_is_refused(
         "If you know the real order, move the day's FOO rows out of their exports "
         "into one RAW input in that order, with the reorganisation as one "
         "STOCK_SPLIT row stating the change to the whole holding; otherwise work "
-        "the day out by hand (consider professional advice)."
+        "the day out by hand (consider professional advice). Moving rows also "
+        "moves their cash into the RAW input's own balance: see "
+        "https://cgt-calc.uk/brokers/raw/#cannot-be-placed-either-side-of-it for "
+        "the cash rows that keep each balance right."
     ) in message
-    # Both state their times, so asking for times would send the reader after
-    # a file that does not exist.
-    assert "in one input that states times" not in message
 
 
 # ===== keeping the broker's own count =====
@@ -898,7 +908,7 @@ def test_the_report_shows_a_reorganisation_rather_than_a_free_purchase(
     tmp_path: Path,
 ) -> None:
     """It is not a zero-cost buy, and must not be rendered as one."""
-    from cgt_calc.render_latex import render_pdf  # noqa: PLC0415
+    from tests.utils import report_text  # noqa: PLC0415
 
     calculator = create_calculator(tax_year=2023, balance_check=False)
     report = get_report(
@@ -911,13 +921,12 @@ def test_the_report_shows_a_reorganisation_rather_than_a_free_purchase(
             ),
         ],
     )
-    render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
-    source = (tmp_path / "report.tex").read_text(encoding="utf-8")
+    text = report_text(report, tmp_path)
 
-    assert "Share reorganisation" in source
-    assert "ratio 1/9" in source
-    assert strip_zeros(Decimal("-1.1E-9")) in source
-    assert "0.1111111100"[:10] in source
+    assert "Share reorganisation" in text
+    assert "ratio 1/9" in text
+    assert strip_zeros(Decimal("-1.1E-9")) in text
+    assert "0.1111111100"[:10] in text
 
 
 def test_normalisation_leaves_the_exported_row_alone() -> None:
@@ -1091,7 +1100,7 @@ def test_a_disposal_already_matched_does_not_reach_an_unresolved_split() -> None
 
 def test_a_substituted_holding_says_so_in_the_report(tmp_path: Path) -> None:
     """A reader has to be able to see that no ratio was used."""
-    from cgt_calc.render_latex import render_pdf  # noqa: PLC0415
+    from tests.utils import report_text  # noqa: PLC0415
 
     calculator = create_calculator(tax_year=2023, balance_check=False)
     report = get_report(
@@ -1106,12 +1115,8 @@ def test_a_substituted_holding_says_so_in_the_report(tmp_path: Path) -> None:
     assert entry.stock_split.ratio_description == (
         "unresolved — broker 0.0001 -> 0.00000667 used directly"
     )
-    render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
-    source = (tmp_path / "report.tex").read_text(encoding="utf-8")
-    # The arrow is spelt out for LaTeX, whose default font has no ">" sign.
-    assert (
-        r"unresolved — broker 0.0001 -\textgreater{} 0.00000667 used directly" in source
-    )
+    text = report_text(report, tmp_path)
+    assert "unresolved — broker 0.0001 -> 0.00000667 used directly" in text
 
 
 def _event(**overrides: object) -> StockSplitEvent:
@@ -2451,7 +2456,16 @@ def test_a_row_stamped_before_a_lone_booking_instant_is_refused() -> None:
     with pytest.raises(CalculationError, match="cannot be placed either side") as error:
         run(
             [
-                trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+                trade(
+                    POOL_DAY,
+                    ActionType.BUY,
+                    "FOO",
+                    "10",
+                    "10",
+                    # The whole holding is in the reorganisation's own input,
+                    # so nothing but the row's place is in question.
+                    source=_stamped(SPLIT_OPENED - dt.timedelta(days=1)),
+                ),
                 trade(
                     EVENT_DAY,
                     ActionType.BUY,
@@ -2463,11 +2477,14 @@ def test_a_row_stamped_before_a_lone_booking_instant_is_refused() -> None:
                 legacy_split(EVENT_DAY, "FOO", "10", source=_stamped(SPLIT_OPENED)),
             ]
         )
-    message = str(error.value)
-    assert "the instant on it is when the broker booked the entry" in message
-    # Both rows state their times, so asking for times would send the reader
-    # after a file that does not exist.
-    assert "in one input that states times" not in message
+    assert (
+        "Both rows state their times, but the reorganisation is a single row, and "
+        "the instant on it is when the broker booked the entry rather than when the "
+        "units changed: a share trades in the new units from the opening of the "
+        "ex-date, which need not be when the broker wrote the row. Anything the "
+        "export booked after that row is in the new units; this row was not. Work "
+        "the day out by hand (consider professional advice)."
+    ) in str(error.value)
 
 
 def test_a_row_stamped_after_a_lone_booking_instant_is_left_alone() -> None:
@@ -2506,13 +2523,16 @@ def test_a_row_stamped_after_a_lone_booking_instant_is_left_alone() -> None:
 @pytest.mark.parametrize(
     ("row_source", "reorganisation"),
     [
+        # In the first two, the row is in another file of the pool's own
+        # account, so the holding is in one account and only the row's place
+        # is in question.
         pytest.param(
-            _stamped(SPLIT_OPENED),
+            replace(_stamped(SPLIT_OPENED), account="Testing account"),
             legacy_split(EVENT_DAY, "FOO", "10"),
             id="only the row",
         ),
         pytest.param(
-            elsewhere(0),
+            elsewhere(0, account="Testing account"),
             # Stamped in the pool's own input, so the row is the only thing
             # from another one.
             legacy_split(
@@ -2547,8 +2567,8 @@ def test_a_time_stated_on_one_side_only_places_nothing(
     """A time needs another to be compared with.
 
     With a time on the row or on the reorganisation but not on both, the
-    refusal says that the two are in different inputs and what to run again
-    with. It does not claim the row is stamped anywhere.
+    refusal says that the two are in different inputs and how to move the day
+    into RAW. It does not claim the row is stamped anywhere.
     """
     with pytest.raises(CalculationError, match="cannot be placed either side") as error:
         run(
@@ -2560,9 +2580,14 @@ def test_a_time_stated_on_one_side_only_places_nothing(
         )
     assert (
         "The two come from different inputs, or from an export that gives neither "
-        "times nor a documented order. Run again with the day's FOO rows in one "
-        "input that states times, or work the day out by hand (consider "
-        "professional advice)."
+        "times nor a documented order. If you know the real order, move the day's "
+        "FOO rows out of their exports into one RAW input in that order, with the "
+        "reorganisation as one STOCK_SPLIT row stating the change to the whole "
+        "holding; otherwise work the day out by hand (consider professional "
+        "advice). Moving rows also moves their cash into the RAW input's own "
+        "balance: see "
+        "https://cgt-calc.uk/brokers/raw/#cannot-be-placed-either-side-of-it"
+        " for the cash rows that keep each balance right."
     ) in str(error.value)
 
 

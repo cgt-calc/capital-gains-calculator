@@ -124,21 +124,24 @@ class SpinOffHandler:
                 )
             except EOFError as err:
                 raise InteractiveInputRequiredError(
-                    symbol, date, self.spin_offs_file
+                    symbol, date, self.spin_offs_file, input_ended=True
                 ) from err
             if ticker in portfolio:
                 break
             LOGGER.error(
                 "Invalid ticker: %s, couldn't find it in the portfolio!", ticker
             )
-            if len(portfolio) > CHOICES_TO_SHOW:
+            choices = sorted(portfolio)
+            shown = ", ".join(choices[:CHOICES_TO_SHOW]) or "none"
+            if len(choices) > CHOICES_TO_SHOW:
                 LOGGER.info(
-                    "Available choices (showing %d): %s",
+                    "Available choices (first %d of %d): %s",
                     CHOICES_TO_SHOW,
-                    sorted(portfolio)[:CHOICES_TO_SHOW],
+                    len(choices),
+                    shown,
                 )
             else:
-                LOGGER.info("Available choices: %s", sorted(portfolio))
+                LOGGER.info("Available choices: %s", shown)
         self.cache[symbol] = ticker
         self._write_spin_off_file()
         return ticker

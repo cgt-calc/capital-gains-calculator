@@ -1,16 +1,17 @@
-"""The rendered report shows each disposal's figures on one basis.
+"""The PDF report shows each figure and name as a reader should see it.
 
 Every figure in the PDF is the exact amount rounded to the penny on its own,
 so a line can be out by a penny against its own components; that bound is
 arithmetic, not a defect. What must not happen is a line out by the fee: the
 proceeds shown net of the sale fee beside an allowable cost that already
-includes it. The figures are parsed back out of the LaTeX source, so the
-check covers what the reader sees rather than the values behind it.
+includes it. The figures are read back from the PDF's text, so the check
+covers what the reader sees.
 
-A name from the user's files is printed as text: the characters LaTeX acts on
-are escaped, in the source and, where pdflatex is available, in a compiled PDF.
+A name from the user's files prints as written: no character in it acts as
+Typst markup. A run of whitespace in it prints as one space, and its
+characters must come from the set the report's fonts are checked to show.
 
-A report that cannot be saved says why.
+A report that cannot be saved says why, and the run says where the PDF went.
 """
 
 from __future__ import annotations
@@ -20,16 +21,24 @@ from decimal import Decimal
 import os
 from pathlib import Path
 import re
+import shutil
 import sys
+from typing import TYPE_CHECKING
+import unicodedata
 
+import pdfplumber
 import pytest
 
-from cgt_calc.exceptions import CgtError, MissingExternalToolError
+from cgt_calc.exceptions import CgtError
 from cgt_calc.model import ActionType
-from cgt_calc.render_latex import render_pdf
+from cgt_calc.render_pdf import render_pdf
+from tests.utils import build_cmd, pdf_text, report_text, run_cli
 
 from .calc_test_data import GBP, transaction
 from .test_calc import create_calculator, get_report
+
+if TYPE_CHECKING:
+    from cgt_calc.model import CapitalGainsReport
 
 PENNY = Decimal("0.01")
 
@@ -37,11 +46,15 @@ POOL_DAY = dt.date(2024, 6, 1)
 SPLIT_DAY = dt.date(2024, 6, 10)
 BAR_BUY_DAY = dt.date(2024, 7, 1)
 BAR_SALE_DAY = dt.date(2024, 8, 1)
+# A pool bought the tax year before, so a report's events fit one page.
+PREVIOUS_YEAR_DAY = dt.date(2024, 3, 1)
+EARLIER_SALE_DAY = dt.date(2024, 6, 20)
+DISTRIBUTION_DAY = dt.date(2024, 6, 28)
 
 # FOO: a pool of 100, then on one day a purchase of 20 and a sale of 120, so the
 # sale is matched same day for 20 and against the pool for 100 and the sale fee
 # is apportioned between the two lines. BAR: one purchase sold at a loss, one
-# matching line, so only the heading carries its proceeds. A fee on every leg.
+# matching line, whose row repeats the heading's proceeds. A fee on every leg.
 TRANSACTIONS = [
     transaction(POOL_DAY, ActionType.BUY, "FOO", 100, 10, 1, -1001, GBP),
     transaction(SPLIT_DAY, ActionType.BUY, "FOO", 20, 12, 1, -241, GBP),
@@ -51,12 +64,31 @@ TRANSACTIONS = [
 ]
 
 HEADING = re.compile(r"^Disposal \d+: \S+ units of (\w+) for £([\d,.]+)")
+# A row of a disposal's table: number, rule, quantity, then proceeds, allowable
+# cost and the gain or loss.
 ENTRY = re.compile(
-    r"\\item \\textbf\{[A-Z0-9 ]+\}\. Quantity: [\d.]+, "
-    r"(?:disposal proceeds: £([\d,.]+), )?"
-    r"allowable cost(?: on [^:]+)?: £([\d,.]+), (gain|loss): £([\d,.]+)\."
+    r"\d+\. [A-Z0-9 ]+? [\d.]+ £([\d,.]+) £([\d,.]+) (gain|loss) £([\d,.]+)"
 )
-TOTAL = re.compile(r"Total disposal proceeds: £([\d,.]+)")
+TOTAL = re.compile(r"Total disposal proceeds £([\d,.]+)")
+
+# The verified character set, written out here apart from cgt_calc.render_pdf.
+VERIFIED_RANGES = [
+    (0x0020, 0x007E),
+    (0x00A0, 0x02FF),
+    (0x0370, 0x03FF),
+    (0x0400, 0x04FF),
+    (0x1E00, 0x1EFF),
+    (0x2010, 0x2027),
+    (0x2030, 0x203A),
+    (0x20A0, 0x20C0),
+]
+# The symbols beyond those ranges that v3.0.0 printed.
+VERIFIED_SYMBOLS = [
+    0x0E3F, 0x203B, 0x203D, 0x2044, 0x204E, 0x2052, 0x2103, 0x2116,
+    0x2117, 0x211E, 0x2120, 0x2122, 0x2127, 0x212E, 0x2190, 0x2191,
+    0x2192, 0x2193, 0x2422, 0x2423, 0x25E6, 0x25EF, 0x266A, 0x27E8,
+    0x27E9, 0xFB00, 0xFB01, 0xFB02, 0xFB03, 0xFB04, 0xFB05, 0xFB06,
+]  # fmt: skip
 
 
 def money(text: str) -> Decimal:
@@ -65,29 +97,24 @@ def money(text: str) -> Decimal:
 
 
 def render(tmp_path: Path) -> str:
-    """Render the scenario to LaTeX source, flattened to one line per block."""
+    """Render the scenario and return the PDF's text on one line."""
     report = get_report(
         create_calculator(tax_year=2024, balance_check=False), TRANSACTIONS
     )
-    render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
-    source = (tmp_path / "report.tex").read_text(encoding="utf-8")
-    # Line breaks and \mbox{} only shape the typesetting.
-    source = re.sub(r"\\mbox\{([^}]*)\}", r"\1", source)
-    return re.sub(r"\s+", " ", source)
+    return report_text(report, tmp_path)
 
 
 def disposals(
-    source: str,
-) -> list[tuple[str, Decimal, list[tuple[Decimal | None, Decimal, Decimal]]]]:
+    text: str,
+) -> list[tuple[str, Decimal, list[tuple[Decimal, Decimal, Decimal]]]]:
     """Each disposal's symbol and proceeds with its (proceeds, cost, gain) lines."""
     found = []
-    for block in source.split("\\subsubsection*{ ")[1:]:
+    for block in re.split(r"(?=Disposal \d+: )", text)[1:]:
         heading = HEADING.match(block)
-        if heading is None:
-            continue
+        assert heading is not None, block
         lines = [
             (
-                money(proceeds) if proceeds else None,
+                money(proceeds),
                 money(cost),
                 money(gain) if sign == "gain" else -money(gain),
             )
@@ -95,6 +122,22 @@ def disposals(
         ]
         found.append((heading[1], money(heading[2]), lines))
     return found
+
+
+def name_report(name: str) -> CapitalGainsReport:
+    """Buy, sell and take a dividend on a holding called `name`.
+
+    The purchase heading reads "10 units of NAME for £1,000.00" and the
+    dividend "NAME for £5.00".
+    """
+    return get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            transaction(POOL_DAY, ActionType.BUY, name, 10, 100, 0, -1000, GBP),
+            transaction(BAR_SALE_DAY, ActionType.SELL, name, 10, 120, 0, 1200, GBP),
+            transaction(BAR_SALE_DAY, ActionType.DIVIDEND, name, None, None, 0, 5, GBP),
+        ],
+    )
 
 
 def test_proceeds_are_shown_gross(tmp_path: Path) -> None:
@@ -109,124 +152,403 @@ def test_each_line_reconciles_to_the_penny(tmp_path: Path) -> None:
     """Proceeds less allowable cost is the gain on every line, give or take a penny."""
     found = disposals(render(tmp_path))
     assert [len(lines) for _, _, lines in found] == [2, 1]
-    for _, heading_proceeds, lines in found:
+    for _, _, lines in found:
         for proceeds, cost, gain in lines:
-            shown = heading_proceeds if proceeds is None else proceeds
-            assert abs(shown - cost - gain) <= PENNY, (shown, cost, gain)
+            assert abs(proceeds - cost - gain) <= PENNY, (proceeds, cost, gain)
 
 
 def test_lines_add_up_to_their_heading_and_the_total(tmp_path: Path) -> None:
     """Each rounded figure may be half a penny out, so sums drift one penny per term."""
-    source = render(tmp_path)
-    found = disposals(source)
+    text = render(tmp_path)
+    found = disposals(text)
     for _, heading_proceeds, lines in found:
-        if len(lines) > 1:
-            parts = [proceeds for proceeds, _, _ in lines if proceeds is not None]
-            assert len(parts) == len(lines)
-            assert abs(sum(parts) - heading_proceeds) <= PENNY * len(parts)
-    total = TOTAL.search(source)
+        parts = [proceeds for proceeds, _, _ in lines]
+        assert abs(sum(parts) - heading_proceeds) <= PENNY * len(parts)
+    total = TOTAL.search(text)
     assert total is not None
     headings = [proceeds for _, proceeds, _ in found]
     assert abs(sum(headings) - money(total[1])) <= PENNY * len(headings)
 
 
 @pytest.mark.parametrize(
-    ("character", "escaped"),
+    "name",
     [
-        ("%", r"\%"),
-        ("&", r"\&"),
-        ("_", r"\_"),
-        ("#", r"\#"),
-        ("$", r"\$"),
-        ("{", r"\{"),
-        ("}", r"\}"),
-        ("^", r"\textasciicircum{}"),
-        ("~", r"\textasciitilde{}"),
-        ("\\", r"\textbackslash{}"),
-        ("<", r"\textless{}"),
-        (">", r"\textgreater{}"),
-        ("|", r"\textbar{}"),
+        "S&P *80%* Fund",
+        "A _B_ C",
+        "A #1 B",
+        "A $B$ C",
+        "A @B",
+        "A <B> C",
+        "A `B` C",
+        "A\\nB",
+        "A\\",
+        "A[B",
+        "A]B",
+        'A "B" C',
+        "A 'B' C",
+        "A // B",
+        "A /* B",
+        "A -- B",
+        "A ... B",
+        "A~B",
     ],
 )
-def test_a_holding_s_name_is_escaped_for_latex(
-    tmp_path: Path, character: str, escaped: str
-) -> None:
-    """A character LaTeX acts on is printed as text, and the line keeps its cost.
+def test_a_name_prints_as_written(tmp_path: Path, name: str) -> None:
+    r"""A name that Typst markup would change prints as written.
 
-    Left as it is, `%` starts a comment that drops the rest of the line, cost
-    included, and most of the others stop pdflatex.
+    Read as markup, `*80%*` and `_B_` would turn bold or italic and lose their
+    marks, `#1` would be code printing 1, `$B$` maths, `@B` a reference to a
+    missing label and `<B>` a label, `` `B` `` code text, a lone `[` or `]`
+    would open or close a block, the quotes would curl, `//` would start a
+    comment that drops the rest of the line, cost included, `/*` an unclosed
+    comment, `--` and `...` a dash and an ellipsis, and `~` a no-break space.
+    `\` and `"` are the two characters here that JSON must escape: unescaped,
+    `\n` would read back as a line break, a final `\` would swallow the closing
+    quote and a `"` would end the string early.
     """
-    name = f"A{character}B"
-    report = get_report(
-        create_calculator(tax_year=2024, balance_check=False),
-        [
-            transaction(POOL_DAY, ActionType.BUY, name, 10, 100, 0, -1000, GBP),
-            transaction(BAR_SALE_DAY, ActionType.SELL, name, 10, 120, 0, 1200, GBP),
-            # A line from the income half of the report, read by the last check.
-            transaction(BAR_SALE_DAY, ActionType.DIVIDEND, name, None, None, 0, 5, GBP),
-        ],
+    text = report_text(name_report(name), tmp_path)
+
+    assert f"units of {name} for £1,000.00" in text
+    assert f"{name} for £5.00" in text
+
+
+@pytest.mark.parametrize(
+    ("name", "printed"),
+    [
+        pytest.param("A\tB", "A B", id="tab"),
+        pytest.param("A\x0cB", "A B", id="form feed"),
+        pytest.param("A\u2028B", "A B", id="line separator"),
+        pytest.param("Ae\u0301B", "A\u00e9B", id="decomposed accent"),
+        pytest.param("A\u2126B", "A\u03a9B", id="ohm sign"),
+        pytest.param("Fund\u2122", "Fund\u2122", id="trade mark"),
+        pytest.param("Αθήνα", "Αθήνα", id="Greek"),
+        pytest.param("Газпром", "Газпром", id="Cyrillic"),
+        pytest.param("Société", "Société", id="Latin-1"),
+    ],
+)
+def test_a_name_prints_on_one_line_and_composed(
+    tmp_path: Path, name: str, printed: str
+) -> None:
+    """Whitespace runs print as one space, as v3.0.0 printed a tab; NFC composes.
+
+    The ohm sign is canonically the Greek capital omega, which NFC gives. The
+    trade mark sign is one of the symbols v3.0.0 printed beyond the verified ranges.
+    """
+    text = report_text(name_report(name), tmp_path)
+
+    assert f"units of {printed} for £1,000.00" in text
+    assert f"{printed} for £5.00" in text
+
+
+@pytest.mark.parametrize(
+    ("name", "codes"),
+    [
+        pytest.param("\u817e\u8baf", "U+817E, U+8BAF", id="CJK"),
+        pytest.param("A\x00B", "U+0000", id="control character"),
+        pytest.param("A\u00adB", "U+00AD", id="soft hyphen"),
+        pytest.param("\u0410\u0483", "U+0483", id="combining mark"),
+        pytest.param("\u0410\u0488", "U+0488", id="enclosing mark"),
+        pytest.param("A\u1f00B", "U+1F00", id="Greek Extended"),
+        pytest.param(
+            "A\u2329B", "U+3008, after Unicode normalisation", id="angle bracket"
+        ),
+    ],
+)
+def test_a_name_outside_the_verified_set_stops_the_pdf(
+    tmp_path: Path, name: str, codes: str
+) -> None:
+    """A character the report's fonts are not checked to show is refused.
+
+    The soft hyphen printed (invisibly) in v3.0.0 and Greek Extended
+    letters may well be in a font, but neither is in the verified set. The
+    Cyrillic titlo U+0483 (a combining mark) and the Cyrillic hundred thousands
+    sign U+0488 (an enclosing mark) sit inside the Cyrillic range, but the set
+    leaves out both kinds of mark. NFC turns U+2329 into the CJK bracket
+    U+3008, which the fonts lack.
+    """
+    report = name_report(name)
+
+    with pytest.raises(CgtError) as raised:
+        render_pdf(report, tmp_path / "report.pdf")
+
+    assert str(raised.value) == (
+        f"Cannot create the PDF report: the name '{name}' contains characters "
+        f"outside the report's verified character set ({codes}). The figures "
+        "printed above are complete. To get a PDF, write this holding's name "
+        "using Latin, Greek or Cyrillic letters, digits and common punctuation "
+        "in your input file, or pass --no-report to skip the PDF."
+    )
+    assert not (tmp_path / "report.pdf").exists()
+
+
+def test_every_verified_character_prints_as_itself(tmp_path: Path) -> None:
+    """Each character in the verified set is drawn and reads back as itself.
+
+    The name holds every one, forty to a word so the heading can wrap, and the
+    check reads pdfplumber's text for each glyph: its line extraction expands
+    the ligature characters and puts spaces after some narrow accents. NFC
+    turns three Greek marks into the Latin characters they equal. With
+    ligatures on, the "ff" of "differ" in the summary shared its glyph with ﬀ,
+    and the Regular copy of ﬀ then read back as "ff".
+
+    The name prints three times, in the purchase and sale headings (SemiBold)
+    and in the dividend line (Regular), and each must read back: a character
+    that one weight draws wrongly would still leave the other copies intact.
+    """
+    characters = [
+        char
+        for char in [
+            chr(code) for low, high in VERIFIED_RANGES for code in range(low, high + 1)
+        ]
+        + [chr(code) for code in VERIFIED_SYMBOLS]
+        if char.isprintable()
+        and char != " "
+        and unicodedata.category(char) not in {"Mn", "Me"}
+    ]
+    name = " ".join(
+        "".join(characters[start : start + 40])
+        for start in range(0, len(characters), 40)
     )
 
-    render_pdf(report, tmp_path / "report.pdf", skip_pdflatex=True)
-    source = (tmp_path / "report.tex").read_text(encoding="utf-8")
+    render_pdf(name_report(name), tmp_path / "report.pdf")
 
-    assert f"units of A{escaped}B for £1,000.00" in source
-    assert f"A{escaped}B for £5.00" in source
-    assert name not in source
+    with pdfplumber.open(tmp_path / "report.pdf") as pdf:
+        glyphs = "".join(char["text"] for page in pdf.pages for char in page.chars)
+    assert "(cid:" not in glyphs
+    expected = unicodedata.normalize("NFC", name).replace(" ", "")
+    assert glyphs.replace(" ", "").count(expected) == 3
 
 
-@pytest.mark.skipif(not os.getenv("ENABLE_PDFLATEX"), reason="needs pdflatex")
-def test_a_name_with_every_escaped_character_compiles(tmp_path: Path) -> None:
-    """The escaped spellings compile with pdflatex, in a heading and in running text.
+def test_the_report_is_set_in_the_bundled_noto_sans(tmp_path: Path) -> None:
+    """Typst found the Noto Sans files the package ships, in all three weights.
 
-    The name starts with an ampersand that stops pdflatex when it is not
-    escaped. Led by a backslash it would compile without the fix: the percent
-    sign would hide the rest.
+    Every character it prints is in Noto Sans, so nothing should fall back: a
+    misnamed family or a missing font path shows up here as New Computer Modern.
     """
-    name = "S&P 80% Fund_A #1 {x} ~ ^ < > | \\ $"
     report = get_report(
-        create_calculator(tax_year=2024, balance_check=False),
-        [
-            transaction(POOL_DAY, ActionType.BUY, name, 10, 100, 0, -1000, GBP),
-            transaction(BAR_SALE_DAY, ActionType.SELL, name, 10, 120, 0, 1200, GBP),
-            transaction(BAR_SALE_DAY, ActionType.DIVIDEND, name, None, None, 0, 5, GBP),
-        ],
+        create_calculator(tax_year=2024, balance_check=False), TRANSACTIONS
     )
 
     render_pdf(report, tmp_path / "report.pdf")
 
-    assert (tmp_path / "report.pdf").stat().st_size > 0
+    with pdfplumber.open(tmp_path / "report.pdf") as pdf:
+        fonts = {
+            char["fontname"].split("+")[-1] for page in pdf.pages for char in page.chars
+        }
+    assert fonts == {"NotoSans-Regular", "NotoSans-SemiBold", "NotoSans-Bold"}
+
+
+def test_the_gain_to_date_is_a_line_of_its_own(tmp_path: Path) -> None:
+    """After a gain, "Capital gain to date" is a line of its own.
+
+    #947 once joined it to the gain sentence. The report spaces paragraphs as
+    it spaces the lines of one paragraph, so a joined total shows only as text
+    sharing its line: the sale's short gain sentence would put both on one
+    line. Gift: 2 of 10 shares bought at £10, given at £30, a £40 gain; sale:
+    2 more sold at £30, another £40, so £80 to date.
+    """
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            transaction(POOL_DAY, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(SPLIT_DAY, ActionType.GIFT, "FOO", 2, 30, 0, None, GBP),
+            transaction(BAR_BUY_DAY, ActionType.SELL, "FOO", 2, 30, 0, 60, GBP),
+        ],
+    )
+    render_pdf(report, tmp_path / "report.pdf")
+
+    with pdfplumber.open(tmp_path / "report.pdf") as pdf:
+        texts = [
+            line["text"] for page in pdf.pages for line in page.extract_text_lines()
+        ]
+    assert [text for text in texts if "Capital gain to date" in text] == [
+        "Capital gain to date is £40.00",
+        "Capital gain to date is £80.00",
+    ]
 
 
 @pytest.mark.parametrize(
-    ("skip_pdflatex", "locked", "output", "named"),
+    ("sold_before", "purchase_fee", "purchase", "pool_after_cost"),
     [
         pytest.param(
-            True,
-            "out/report.tex",
-            "out/report.pdf",
-            "out/report.tex",
-            id="the LaTeX source is read-only",
+            0,
+            0,
+            "for £750.00 (£15.00/unit) Rule Quantity Actual cost "
+            "1. SECTION 104 50 £750.00 Number of units in the pool: 150, "
+            "new pool cost: £1,750.00 (£11.67/unit).",
+            "150, new pool cost: £1,770.00 (£11.80/unit)",
+            id="purchase",
         ),
         pytest.param(
-            False,
+            0,
+            5,
+            "for £755.00 (£15.10/unit), including £5.00 fees "
+            "Rule Quantity Actual cost "
+            "1. SECTION 104 50 £755.00 Number of units in the pool: 150, "
+            "new pool cost: £1,755.00 (£11.70/unit).",
+            "150, new pool cost: £1,775.00 (£11.83/unit)",
+            id="purchase-with-its-own-fee",
+        ),
+        pytest.param(
+            20,
+            0,
+            "for £750.00 (£15.00/unit) Rule Quantity Actual cost "
+            "1. BED AND BREAKFAST 20 £200.00 Number of units in the pool: 100, "
+            "new pool cost: £1,000.00 (£10.00/unit). 2. SECTION 104 30 £450.00 "
+            "Number of units in the pool: 130, new pool cost: £1,450.00 "
+            "(£11.15/unit).",
+            "130, new pool cost: £1,470.00 (£11.31/unit)",
+            id="part-repurchase",
+        ),
+        pytest.param(
+            50,
+            0,
+            "for £750.00 (£15.00/unit) Rule Quantity Actual cost "
+            "1. BED AND BREAKFAST 50 £500.00 Number of units in the pool: 100, "
+            "new pool cost: £1,000.00 (£10.00/unit).",
+            "100, new pool cost: £1,020.00 (£10.20/unit)",
+            id="whole-repurchase",
+        ),
+    ],
+)
+def test_a_cost_added_on_a_purchase_day_is_an_entry_of_its_own(
+    tmp_path: Path,
+    sold_before: int,
+    purchase_fee: int,
+    purchase: str,
+    pool_after_cost: str,
+) -> None:
+    """Cost with no new shares stays apart from a purchase on the same day.
+
+    This is the RAW guide's accumulation income: a £20 FEE on the day 50 FUND
+    are bought for £750. The purchase reads £750.00 (£15.00/unit) with no fees,
+    and "Cost added to FUND with no new shares: £20.00" follows it directly, as
+    it reads on a day with no purchase. The report used to show the purchase as
+    £770.00, "including £20.00 fees", with no cost-added entry. A dealing fee
+    of the purchase's own stays its fee.
+
+    100 FUND bought at £10 the year before are held. Pool figures, before the
+    £20 then after:
+    - purchase: 100 + 50 = 150 units, £1,000 + £750 = £1,750 (£11.67), then
+      £1,770 (£11.80).
+    - purchase-with-its-own-fee: the purchase costs 50 x £15 + £5 = £755
+      (£15.10), so 150 at £1,755 (£11.70), then £1,775 (£11.83).
+    - part-repurchase: 20 sold on 20 June leave 80 at £800. The 30-day rule
+      matches them to 20 of the purchase, which bring their pool cost of
+      20 x £10 = £200 back: 100 at £1,000. The other 30 cost 30 x £15 = £450:
+      130 at £1,450 (£11.15), then £1,470 (£11.31).
+    - whole-repurchase: 50 sold leave 50 at £500, and the purchase brings back
+      £500 with no Section 104 line left: 100 at £1,000, then £1,020 (£10.20).
+    """
+    rows = [
+        transaction(PREVIOUS_YEAR_DAY, ActionType.BUY, "FUND", 100, 10, 0, -1000, GBP),
+        transaction(
+            DISTRIBUTION_DAY,
+            ActionType.BUY,
+            "FUND",
+            50,
+            15,
+            purchase_fee,
+            -750 - purchase_fee,
+            GBP,
+        ),
+        transaction(DISTRIBUTION_DAY, ActionType.FEE, "FUND", None, None, 0, -20, GBP),
+    ]
+    if sold_before:
+        rows.insert(
+            1,
+            transaction(
+                EARLIER_SALE_DAY,
+                ActionType.SELL,
+                "FUND",
+                sold_before,
+                16,
+                0,
+                16 * sold_before,
+                GBP,
+            ),
+        )
+    text = report_text(
+        get_report(create_calculator(tax_year=2024, balance_check=False), rows),
+        tmp_path,
+    )
+
+    assert (
+        f"Acquisition 1: 50 units of FUND {purchase} "
+        "Cost added to FUND with no new shares: £20.00 Rule Quantity Actual cost "
+        f"1. SECTION 104 0 £20.00 Number of units in the pool: {pool_after_cost}."
+    ) in text
+
+
+def test_a_page_break_keeps_each_rule_with_the_row_under_it(tmp_path: Path) -> None:
+    """A table that runs over a page breaks between rules, never inside one.
+
+    A rule's figures and the full-width row under them, with a
+    bed-and-breakfast date and the pool left, belong together. 300 FOO bought
+    on 20 May 2024, 210 sold on 3 June, then 10 bought on each of the 20 days
+    from 4 June: the sale matches 200 against those purchases as 20
+    bed-and-breakfast rules and the last 10 against the pool, one table long
+    enough to run over pages. Each page repeats the table's header, and the
+    line under it must open a numbered rule.
+    """
+    sale_day = dt.date(2024, 6, 3)
+    rows = [
+        transaction(
+            dt.date(2024, 5, 20), ActionType.BUY, "FOO", 300, 10, 0, -3000, GBP
+        ),
+        transaction(sale_day, ActionType.SELL, "FOO", 210, 12, 0, 2520, GBP),
+        *(
+            transaction(
+                sale_day + dt.timedelta(days=day),
+                ActionType.BUY,
+                "FOO",
+                10,
+                11,
+                0,
+                -110,
+                GBP,
+            )
+            for day in range(1, 21)
+        ),
+    ]
+    report = get_report(create_calculator(tax_year=2024, balance_check=False), rows)
+    render_pdf(report, tmp_path / "report.pdf")
+
+    with pdfplumber.open(tmp_path / "report.pdf") as pdf:
+        pages = [
+            [line["text"] for line in page.extract_text_lines()] for page in pdf.pages
+        ]
+    after_header = [
+        lines[index + 1]
+        for lines in pages
+        for index, text in enumerate(lines)
+        if text == "proceeds cost"
+    ]
+    assert len(after_header) > 1, "the table should run over a page"
+    # The line's number, then its rule: "6. BED AND ...", or "17.BED AND ..."
+    # where the text extraction drops the space after two digits.
+    assert all(re.match(r"\d+\.", text) for text in after_header), after_header
+
+
+@pytest.mark.parametrize(
+    ("locked", "output", "named"),
+    [
+        pytest.param(
             "out/report.pdf",
             "out/report.pdf",
             "out/report.pdf",
             id="the PDF is read-only",
         ),
         pytest.param(
-            False,
             "out/report.pdf",
             "out/report",
             "out/report.pdf",
             id="the PDF is read-only and --output does not end in .pdf",
         ),
         pytest.param(
-            True,
             "out",
             "out/new/report.pdf",
-            "out/new/report.tex",
+            "out/new/report.pdf",
             id="the folder cannot be made",
         ),
     ],
@@ -235,7 +557,6 @@ def test_a_report_that_cannot_be_saved_says_why(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     *,
-    skip_pdflatex: bool,
     locked: str,
     output: str,
     named: str,
@@ -243,9 +564,8 @@ def test_a_report_that_cannot_be_saved_says_why(
     """A report that cannot be written stops the run with the reason and what to do.
 
     `locked` is made read-only: a file where the name has a suffix, else a
-    folder. `named` is the file the message gives: the LaTeX source when that is
-    the report, else the PDF, which pdflatex names after the output's stem. A
-    read-only PDF is found before pdflatex is looked for.
+    folder. `named` is the file the message gives: the PDF, named after the
+    output's stem.
     """
     monkeypatch.chdir(tmp_path)
     blocked = Path(locked)
@@ -264,7 +584,7 @@ def test_a_report_that_cannot_be_saved_says_why(
             pytest.skip("this user may write there all the same")
 
         with pytest.raises(CgtError) as raised:
-            render_pdf(report, Path(output), skip_pdflatex=skip_pdflatex)
+            render_pdf(report, Path(output))
     finally:
         blocked.chmod(0o755)
 
@@ -275,51 +595,50 @@ def test_a_report_that_cannot_be_saved_says_why(
     )
 
 
-@pytest.mark.skipif(
-    not os.getenv("ENABLE_PDFLATEX") or sys.platform == "win32",
-    reason="needs pdflatex, and Windows gives another reason for opening a folder",
-)
-def test_a_latex_log_that_cannot_be_opened_is_named(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """When the log of the pdflatex run is the file in the way, the message names it.
-
-    A folder of the log's name stands in for a log that cannot be written. It
-    stops root as well, which the one CI job with pdflatex runs as.
-    """
-    monkeypatch.chdir(tmp_path)
-    log = Path("out/report.latex.log")
-    log.mkdir(parents=True)
-    report = get_report(
-        create_calculator(tax_year=2024, balance_check=False), TRANSACTIONS
+@pytest.mark.parametrize("name", ["report.pdf", "report.txt", "report"])
+def test_the_progress_line_names_the_pdf_written(tmp_path: Path, name: str) -> None:
+    """The PDF takes the output's stem whatever its suffix, and the run says so."""
+    result = run_cli(
+        build_cmd(
+            "--year",
+            "2022",
+            "--raw-file",
+            "tests/raw/data/test_data.csv",
+            "--no-balance-check",
+            "--output",
+            str(tmp_path / name),
+        )
     )
 
-    with pytest.raises(CgtError) as raised:
-        render_pdf(report, Path("out/report.pdf"))
+    written = tmp_path / "report.pdf"
+    assert f"Writing PDF report to {written}..." in result.stderr.splitlines()
+    assert [path.name for path in tmp_path.iterdir()] == ["report.pdf"]
 
-    assert str(raised.value) == (
-        f"Cannot save the report's log to {log}: Is a directory. Close the file if "
-        "another program has it open, and check that it and its folder can be "
-        "written to. To save it somewhere else, pass --output."
+
+def test_the_docs_example_report_is_current(tmp_path: Path) -> None:
+    """docs/assets/example_report.pdf has the text the renderer prints today."""
+    rates = tmp_path / "exchange_rates.csv"
+    shutil.copy(Path("scripts/example_data/exchange_rates.csv"), rates)
+    output = tmp_path / "example_report.pdf"
+
+    run_cli(
+        [
+            sys.executable,
+            "-m",
+            "cgt_calc.main",
+            "--year",
+            "2025",
+            "--schwab-file",
+            "scripts/example_data/schwab_transactions.csv",
+            "--exchange-rates-file",
+            str(rates),
+            "--output",
+            str(output),
+        ]
     )
 
-
-def test_checking_an_earlier_pdf_leaves_it_as_it_was(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Looking whether the PDF can be written does not change it.
-
-    With no pdflatex to be found the run stops after that check, and the
-    report an earlier run saved is still there.
-    """
-    monkeypatch.setenv("PATH", "")
-    earlier = tmp_path / "report.pdf"
-    earlier.write_bytes(b"an earlier report")
-    report = get_report(
-        create_calculator(tax_year=2024, balance_check=False), TRANSACTIONS
+    assert pdf_text(output) == pdf_text(Path("docs/assets/example_report.pdf")), (
+        "The example report in the docs is out of date. Regenerate it with "
+        "scripts/generate_example_report.sh, then its images with "
+        "scripts/generate_example_preview.sh."
     )
-
-    with pytest.raises(MissingExternalToolError, match="pdflatex"):
-        render_pdf(report, earlier)
-
-    assert earlier.read_bytes() == b"an earlier report"

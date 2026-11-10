@@ -83,6 +83,21 @@ Open the local address printed in the terminal. Follow the changed instructions 
 old address you redirected, and check that headings, tables and code blocks are readable on both a
 narrow and a wide screen.
 
+### Where the docs are published
+
+- [cgt-calc.uk](https://cgt-calc.uk/) shows the docs of the latest stable release. They are built
+    from the release’s tag when it is published, so they match the latest stable version on PyPI. If
+    you have an older version installed, they may describe newer behaviour.
+- [next.cgt-calc.uk](https://next.cgt-calc.uk/) shows the docs on `main`, including changes that are
+    not released yet. It is updated after each change to the docs on `main`. A banner on every page
+    says that the version is unreleased, and search engines are asked not to index the site.
+- A pull request that changes the rendered docs gets a preview, built like next.cgt-calc.uk. A
+    comment on the pull request links to it.
+
+A docs change merged to `main` therefore reaches cgt-calc.uk with the next release. Maintainers can
+publish a fix to the released docs sooner, as described in
+[Fix the released docs without a release](releasing.md#fix-the-released-docs-without-a-release).
+
 ## Code layout
 
 The calculation has two passes:
@@ -100,7 +115,7 @@ The calculation has two passes:
 - `cgt_calc/matching.py` runs the second pass, applying the same-day, bed-and-breakfast and Section
     104 matching rules.
 - `cgt_calc/model.py` defines shared values and the report model. `render_text.py` and
-    `render_latex.py` format that report without calculating it.
+    `render_pdf.py` format that report without calculating it.
 - `cgt_calc/main.py` connects the stages behind `CapitalGainsCalculator`, whose `calculate()` runs
     the two passes in order. `cgt_calc/cli.py` handles command-line input and output.
 
@@ -210,8 +225,9 @@ To regenerate the example PDF report used in the docs, run:
 ```
 
 This writes `docs/assets/example_report.pdf`. Commit the updated file if your changes affect report
-generation. The example source transactions and fixed exchange rates live in
-`scripts/example_data/`, so generation is deterministic and does not call the exchange-rate API.
+generation; a test fails while its text differs from a fresh run. The example source transactions
+and fixed exchange rates live in `scripts/example_data/`, so generation is deterministic and does
+not call the exchange-rate API.
 
 After regenerating the PDF, update the images made from it: the teaser the README shows and the
 full-page images the docs show:
@@ -219,3 +235,6 @@ full-page images the docs show:
 ```shell
 ./scripts/generate_example_preview.sh
 ```
+
+The script writes one image per page. `docs/index.md` lists the page images by hand, so update that
+list if the number of pages changes.

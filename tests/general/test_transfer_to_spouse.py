@@ -31,6 +31,7 @@ from cgt_calc.parsers.raw import RawParser
 from cgt_calc.render_text import render_text
 from cgt_calc.share_prices import SharePrices
 from cgt_calc.spin_off_handler import SpinOffHandler
+from tests.utils import report_text
 
 from .calc_test_data import (
     GBP,
@@ -73,7 +74,8 @@ def test_transfer_to_spouse_from_pool_is_no_gain_no_loss() -> None:
     assert calculator.portfolio["FOO"].amount == Decimal(60)
 
     entries = report.calculation_log[transfer_day]["transfer-to-spouse$FOO"]
-    assert all(e.rule_type is RuleType.TRANSFER_TO_SPOUSE for e in entries)
+    # Nothing bought that day or in the next 30, so all of it is from the pool.
+    assert [e.rule_type for e in entries] == [RuleType.SECTION_104]
     assert sum((e.quantity for e in entries), Decimal(0)) == Decimal(4)
     assert sum((e.gain for e in entries), Decimal(0)) == Decimal(0)
     # £40 base cost passes to the recipient (4 units * £10 average).
@@ -399,6 +401,88 @@ def test_transfer_to_spouse_shown_in_report() -> None:
     assert "2024-06-10,TRANSFER_FROM_SPOUSE,FOO,400,10,0.00,GBP" in output
 
 
+def test_the_pdf_names_the_rule_behind_each_part_of_a_transfer(
+    tmp_path: Path,
+) -> None:
+    """Each part of a transfer is listed with its rule, units, cost and the pool left.
+
+    Each holding is bought on 1 May 2024, then (TCGA 1992 s105(1)(a), s106A):
+
+    - FOO: 40 of 100 at £10 go with nothing bought around them, all from the
+      pool: £400, leaving 60 units, £600.
+    - BAR: 10 bought at £25 and passed on the same day are matched to each
+      other: £250, leaving the 50 units at £20, £1,000.
+    - BAZ: 4 passed on 1 August are matched to the 4 bought at £13 on
+      12 August: £52. The pool still gives up 4 at its £10 average, leaving
+      6 units, £60; the 12 August purchase later returns those 4 units and
+      their £40 to the pool.
+    - QUX: 30 passed on 2 September with a £3 fee, the day 10 are bought at
+      £9; 5 more are bought at £11 on 16 September. The fee is part of the
+      base cost (TCGA 1992 s38(2)) and is shared between the parts by units,
+      as a sale's fees are; it does not come out of the pool. 10 match the day's
+      purchase: £90 + 10/30 * £3 = £91, leaving the 100 units at £8, £800.
+      5 match the later purchase: £55 + 5/30 * £3 = £55.50, and take 5 * £8
+      out of the pool, leaving 95 units, £760. The last 15 come from the
+      pool: 15 * £8 + the remaining £1.50 of the fee = £121.50, leaving 80
+      units, £640. £91 + £55.50 + £121.50 = £268 passes to the recipient.
+    """
+    may_1 = dt.date(2024, 5, 1)
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            _gbp_trade(may_1, ActionType.BUY, "FOO", 100, 1000),
+            _gbp_trade(may_1, ActionType.BUY, "BAR", 50, 1000),
+            _gbp_trade(may_1, ActionType.BUY, "BAZ", 10, 100),
+            _gbp_trade(may_1, ActionType.BUY, "QUX", 100, 800),
+            transfer_to_spouse_transaction(dt.date(2024, 6, 3), "FOO", 40),
+            _gbp_trade(dt.date(2024, 7, 1), ActionType.BUY, "BAR", 10, 250),
+            transfer_to_spouse_transaction(dt.date(2024, 7, 1), "BAR", 10),
+            transfer_to_spouse_transaction(dt.date(2024, 8, 1), "BAZ", 4),
+            _gbp_trade(dt.date(2024, 8, 12), ActionType.BUY, "BAZ", 4, 52),
+            _gbp_trade(dt.date(2024, 9, 2), ActionType.BUY, "QUX", 10, 90),
+            transaction(
+                dt.date(2024, 9, 2),
+                ActionType.TRANSFER_TO_SPOUSE,
+                "QUX",
+                30,
+                None,
+                3,
+                -3,
+                CurrencyCode(GBP),
+            ),
+            _gbp_trade(dt.date(2024, 9, 16), ActionType.BUY, "QUX", 5, 55),
+        ],
+    )
+
+    text = report_text(report, tmp_path)
+    header = "Rule Quantity Base cost"
+    left = "Number of units left in the pool:"
+    assert (
+        "Transferred to spouse: 40 units of FOO (no gain/no loss) "
+        f"Base cost of £400.00 passes to the recipient. {header} "
+        f"1. SECTION 104 40 £400.00 {left} 60, new pool cost: £600.00 (£10.00/unit)."
+    ) in text
+    assert (
+        "Transferred to spouse: 10 units of BAR (no gain/no loss) "
+        f"Base cost of £250.00 passes to the recipient. {header} "
+        f"1. SAME DAY 10 £250.00 {left} 50, new pool cost: £1,000.00 (£20.00/unit)."
+    ) in text
+    assert (
+        "Transferred to spouse: 4 units of BAZ (no gain/no loss) "
+        f"Base cost of £52.00 passes to the recipient. {header} "
+        "1. BED AND BREAKFAST 4 £52.00 base cost on 12 Aug 2024 "
+        f"{left} 6, new pool cost: £60.00 (£10.00/unit)."
+    ) in text
+    assert (
+        "Transferred to spouse: 30 units of QUX (no gain/no loss) "
+        f"Base cost of £268.00 passes to the recipient. {header} "
+        f"1. SAME DAY 10 £91.00 {left} 100, new pool cost: £800.00 (£8.00/unit). "
+        "2. BED AND BREAKFAST 5 £55.50 base cost on 16 Sep 2024 "
+        f"{left} 95, new pool cost: £760.00 (£8.00/unit). "
+        f"3. SECTION 104 15 £121.50 {left} 80, new pool cost: £640.00 (£8.00/unit)."
+    ) in text
+
+
 def test_unclassified_gift_is_rejected_with_instructions() -> None:
     """A broker gift with no classification refuses and says how to fix it."""
     buy_day = dt.date(2024, 6, 1)
@@ -422,8 +506,15 @@ def test_unclassified_gift_is_rejected_with_instructions() -> None:
         )
 
     message = str(err.value)
-    # The exact RAW line to paste, so the fix is mechanical.
-    assert "2024-06-10,TRANSFER_TO_SPOUSE,FOO,4,0.00,0.00,GBP" in message
+    # The exact RAW line to paste, so the fix is mechanical. The run reads
+    # no RAW file, so the line goes in a new one, and no row in a RAW file
+    # can have been meant for this gift.
+    assert (
+        "Put this line in a CSV and pass it with --raw-file alongside the file "
+        "you already use, and the gift is then taken as accounted for:\n"
+        "  2024-06-10,TRANSFER_TO_SPOUSE,FOO,4,0.00,0.00,GBP\n"
+    ) in message
+    assert "If your RAW file already has" not in message
     # Both outcomes are named, so a non-spouse gift is not quietly treated as one.
     assert "spouse or civil partner" in message
     assert "disposal at market value" in message
@@ -493,6 +584,164 @@ def test_gift_with_mismatched_transfer_is_rejected(gifts_to_spouse: bool) -> Non
                 transfer_to_spouse_transaction(gift_day, "FOO", 3),
             ],
         )
+
+
+def test_a_gift_refusal_names_only_the_row_no_gift_takes(tmp_path: Path) -> None:
+    """Of the day's RAW rows, the refusal names only the one no gift takes.
+
+    The broker reports gifts of 4 and 5 FOO and the RAW file has rows of 3
+    and 5. The gift of 5 takes the row of 5, so the row of 3 is the only one
+    left over, and its count is the likely mistake for the gift of 4. Naming
+    the row of 5 as well would send the user to correct a row that is right.
+    """
+    gift_day = dt.date(2024, 6, 10)
+    raw_file = tmp_path / "transfers.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2024-06-10,TRANSFER_TO_SPOUSE,FOO,3,0.00,0.00,GBP\n"
+        "2024-06-10,TRANSFER_TO_SPOUSE,FOO,5,0.00,0.00,GBP\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(UnclassifiedGiftError) as err:
+        get_report(
+            create_calculator(tax_year=2024, balance_check=False),
+            [
+                transaction(
+                    dt.date(2024, 6, 1),
+                    ActionType.BUY,
+                    "FOO",
+                    20,
+                    10,
+                    0,
+                    -200,
+                    CurrencyCode(GBP),
+                ),
+                _gift(gift_day, 4),
+                _gift(gift_day, 5),
+                *RawParser().load_from_file(raw_file),
+            ],
+        )
+
+    message = str(err.value)
+    assert "a gift of 4 units of FOO on 2024-06-10" in message
+    assert (
+        "Your RAW file has a TRANSFER_TO_SPOUSE row with quantity 3 for FOO on "
+        "2024-06-10 that no reported gift accounts for."
+    ) in message
+    assert "quantity 5" not in message
+
+
+def test_a_gift_refusal_names_a_row_with_no_quantity(tmp_path: Path) -> None:
+    """A row left with a blank quantity is named too, with both counts offered.
+
+    The gift was printed before a split, so it is 2 or 40 FOO. The day's RAW
+    row leaves the quantity blank, so it matches neither, and the refusal
+    names it as having none and offers both counts the gift could be.
+    """
+    gift_day = dt.date(2024, 6, 10)
+    raw_file = tmp_path / "transfers.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2024-06-10,TRANSFER_TO_SPOUSE,FOO,,0.00,0.00,GBP\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(UnclassifiedGiftError) as err:
+        get_report(
+            create_calculator(tax_year=2024, balance_check=False),
+            [_gift(gift_day, 2, Decimal(40)), *RawParser().load_from_file(raw_file)],
+        )
+
+    assert (
+        "Your RAW file has a TRANSFER_TO_SPOUSE row with no quantity for FOO on "
+        "2024-06-10 that no reported gift accounts for. If that row is meant for "
+        "this gift, correct its quantity to 2 or 40 instead of adding a line, or "
+        "cgt-calc counts both."
+    ) in str(err.value)
+
+
+def test_a_gift_refusal_names_the_first_gift_and_every_row_left_over(
+    tmp_path: Path,
+) -> None:
+    """With two gifts and two rows unmatched, the first gift and both rows are named.
+
+    The broker reports gifts of 4 and then 6 FOO and the RAW file has rows of
+    3 and 5. Neither row matches either gift, so the refusal names the first
+    gift, as it did before it named rows, and both rows, since either could be
+    the one mistyped for the gift of 4.
+    """
+    gift_day = dt.date(2024, 6, 10)
+    raw_file = tmp_path / "transfers.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2024-06-10,TRANSFER_TO_SPOUSE,FOO,3,0.00,0.00,GBP\n"
+        "2024-06-10,TRANSFER_TO_SPOUSE,FOO,5,0.00,0.00,GBP\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(UnclassifiedGiftError) as err:
+        get_report(
+            create_calculator(tax_year=2024, balance_check=False),
+            [
+                transaction(
+                    dt.date(2024, 6, 1),
+                    ActionType.BUY,
+                    "FOO",
+                    20,
+                    10,
+                    0,
+                    -200,
+                    CurrencyCode(GBP),
+                ),
+                _gift(gift_day, 4),
+                _gift(gift_day, 6),
+                *RawParser().load_from_file(raw_file),
+            ],
+        )
+
+    message = str(err.value)
+    assert "a gift of 4 units of FOO on 2024-06-10" in message
+    assert (
+        "Your RAW file has a TRANSFER_TO_SPOUSE row with quantity 3 and a "
+        "TRANSFER_TO_SPOUSE row with quantity 5 for FOO on 2024-06-10 that no "
+        "reported gift accounts for. If one of those rows is meant for this gift, "
+        "correct its quantity to 4 instead of adding a line, or cgt-calc counts "
+        "both."
+    ) in message
+
+
+@pytest.mark.parametrize("gifts_to_spouse", [False, True])
+def test_a_separate_transfer_beside_a_classified_gift_is_kept(
+    gifts_to_spouse: bool,
+) -> None:
+    """A RAW row beside the one that classifies a gift is a transfer of its own.
+
+    The broker reports a gift of 4 FOO and the RAW file has rows of 4 and 3
+    that day. The row of 4 classifies the gift and the row of 3 is a separate
+    transfer, with or without --gifts-to-spouse. 10 units bought for £100
+    cost £10 each, so 4 + 3 = 7 leave with £70 of that cost and 10 - 7 = 3
+    stay, costing £30.
+    """
+    buy_day = dt.date(2024, 6, 1)
+    gift_day = dt.date(2024, 6, 10)
+    calculator = create_calculator(
+        tax_year=2024, balance_check=False, gifts_to_spouse=gifts_to_spouse
+    )
+    report = get_report(
+        calculator,
+        [
+            transaction(
+                buy_day, ActionType.BUY, "FOO", 10, 10, 0, -100, CurrencyCode(GBP)
+            ),
+            _gift(gift_day, 4),
+            transfer_to_spouse_transaction(gift_day, "FOO", 4),
+            transfer_to_spouse_transaction(gift_day, "FOO", 3),
+        ],
+    )
+
+    entries = report.calculation_log[gift_day]["transfer-to-spouse$FOO"]
+    assert sum((e.quantity for e in entries), Decimal(0)) == Decimal(7)
+    assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(70)
+    assert calculator.portfolio["FOO"].quantity == Decimal(3)
+    assert calculator.portfolio["FOO"].amount == Decimal(30)
 
 
 def test_transfer_to_spouse_without_quantity_is_rejected() -> None:
@@ -752,12 +1001,23 @@ def test_either_reading_of_an_ambiguous_gift_settles_it(confirmed: Decimal) -> N
     assert calculator.portfolio["FOO"].quantity == Decimal(100) - confirmed
 
 
-@pytest.mark.parametrize("gifts_to_spouse", [False, True])
-def test_ambiguous_gift_error_offers_both_readings(gifts_to_spouse: bool) -> None:
+@pytest.mark.parametrize(
+    ("gifts_to_spouse", "with_raw_file"),
+    [
+        pytest.param(False, False, id="no RAW file"),
+        pytest.param(True, False, id="no RAW file, --gifts-to-spouse"),
+        pytest.param(False, True, id="RAW file"),
+    ],
+)
+def test_ambiguous_gift_error_offers_both_readings(
+    tmp_path: Path, gifts_to_spouse: bool, with_raw_file: bool
+) -> None:
     """Unresolved, the error shows both rows rather than guessing one.
 
     `--gifts-to-spouse` says who received the shares, not how many left, so
-    it leaves this refusal in place.
+    it leaves this refusal in place. cgt-calc reads one RAW file, so a run
+    that reads one, here for an unrelated purchase, is told to add the line
+    there.
     """
     gift_day = dt.date(2024, 6, 10)
     gift = BrokerTransaction(
@@ -773,13 +1033,36 @@ def test_ambiguous_gift_error_offers_both_readings(gifts_to_spouse: bool) -> Non
         broker="Testing",
         ambiguous_quantity=Decimal(40),
     )
+    history: list[BrokerTransaction] = [gift]
+    raw_file = tmp_path / "purchases.csv"
+    if with_raw_file:
+        raw_file.write_text(
+            "date,action,symbol,quantity,price,fees,currency\n"
+            "2024-06-01,BUY,BAR,1,1.00,0.00,GBP\n",
+            encoding="utf-8",
+        )
+        history += RawParser().load_from_file(raw_file)
     calculator = create_calculator(
         tax_year=2024, balance_check=False, gifts_to_spouse=gifts_to_spouse
     )
     with pytest.raises(UnclassifiedGiftError) as err:
-        get_report(calculator, [gift])
+        get_report(calculator, history)
 
     message = str(err.value)
+    if with_raw_file:
+        assert (
+            f"You record that by adding a line to your RAW file ({raw_file}).\n"
+            in message
+        )
+    else:
+        assert (
+            "You record that by putting a line in a CSV and passing it with "
+            "--raw-file alongside the file you already use.\n"
+        ) in message
+    # Only a RAW file can hold a row mistyped for either count.
+    assert (
+        "If your RAW file already has a row meant for this gift" in message
+    ) == with_raw_file
     assert "2024-06-10,TRANSFER_TO_SPOUSE,FOO,2,0.00,0.00,GBP" in message
     assert "2024-06-10,TRANSFER_TO_SPOUSE,FOO,40,0.00,0.00,GBP" in message
 
@@ -1220,7 +1503,7 @@ def test_acquisition_an_earlier_disposal_took_is_not_contended() -> None:
     # £60 loss bed-and-breakfasted on 5 June, £30 gain from the pool on the 10th.
     assert report.total_gain() == Decimal(-30)
     entries = report.calculation_log[dt.date(2024, 6, 10)]["transfer-to-spouse$FOO"]
-    assert all(e.rule_type is RuleType.TRANSFER_TO_SPOUSE for e in entries)
+    assert [e.rule_type for e in entries] == [RuleType.SECTION_104]
 
 
 def test_same_day_sale_and_transfer_after_a_split_is_allowed() -> None:
@@ -1501,7 +1784,7 @@ def test_transfer_to_spouse_on_the_day_of_a_rename() -> None:
     )
 
     (entry,) = report.calculation_log[rename_day]["transfer-to-spouse$NEW"]
-    assert entry.rule_type is RuleType.TRANSFER_TO_SPOUSE
+    assert entry.rule_type is RuleType.SECTION_104
     assert entry.quantity == Decimal(30)
     assert entry.allowable_cost == Decimal(300)
     assert report.total_gain() == Decimal(0)
@@ -1552,7 +1835,7 @@ def test_transfer_to_spouse_matches_the_day_s_purchase_across_a_rename(
     )
 
     (entry,) = report.calculation_log[rename_day][f"transfer-to-spouse${spelling}"]
-    assert entry.rule_type is RuleType.TRANSFER_TO_SPOUSE
+    assert entry.rule_type is RuleType.SAME_DAY
     assert entry.quantity == Decimal(50)
     # The day's purchase, not a slice of the whole 150-unit pool.
     assert entry.allowable_cost == Decimal(750)
@@ -1983,7 +2266,7 @@ def test_gifts_to_spouse_flag_promotes_unclassified_gift_to_transfer() -> None:
     assert calculator.portfolio["FOO"].amount == Decimal(60)
     # Logged exactly as a transfer to a spouse.
     entries = report.calculation_log[gift_day]["transfer-to-spouse$FOO"]
-    assert all(e.rule_type is RuleType.TRANSFER_TO_SPOUSE for e in entries)
+    assert [e.rule_type for e in entries] == [RuleType.SECTION_104]
     assert sum((e.gain for e in entries), Decimal(0)) == Decimal(0)
     assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(40)
 

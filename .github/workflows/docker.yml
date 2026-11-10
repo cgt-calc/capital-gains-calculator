@@ -29,51 +29,37 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Full history so git describe can compute the edge version.
+          # Full history and tags, from which the image's build takes its
+          # version: a release tag's own, or a post-release of it on main.
           fetch-depth: 0
 
-      - name: Compute version
-        id: version
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = "release" ]; then
-            version="${{ github.event.release.tag_name }}"
-          else
-            # Edge builds are stamped relative to the latest release tag,
-            # e.g. v2.0.0-107-gabc1234 -> 2.0.0.post107+gabc1234
-            describe="$(git describe --tags --match 'v[0-9]*')"
-            version="$(echo "${describe#v}" | sed -E 's/-([0-9]+)-g([0-9a-f]+)$/.post\1+g\2/')"
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE }}
 
       - name: Build and push by digest
         id: build
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           # Publish the runtime stage; the default test stage exists
           # for CI and includes uv.
           target: runtime
           platforms: linux/amd64
-          build-args: |
-            VERSION=${{ steps.version.outputs.version }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
@@ -91,49 +77,35 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Full history so git describe can compute the edge version.
+          # Full history and tags, from which the image's build takes its
+          # version: a release tag's own, or a post-release of it on main.
           fetch-depth: 0
 
-      - name: Compute version
-        id: version
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = "release" ]; then
-            version="${{ github.event.release.tag_name }}"
-          else
-            # Edge builds are stamped relative to the latest release tag,
-            # e.g. v2.0.0-107-gabc1234 -> 2.0.0.post107+gabc1234
-            describe="$(git describe --tags --match 'v[0-9]*')"
-            version="$(echo "${describe#v}" | sed -E 's/-([0-9]+)-g([0-9a-f]+)$/.post\1+g\2/')"
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE }}
 
       - name: Build and push by digest
         id: build
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           target: runtime
           platforms: linux/arm64
-          build-args: |
-            VERSION=${{ steps.version.outputs.version }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
@@ -153,7 +125,7 @@ jobs:
       packages: write
     steps:
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -161,7 +133,7 @@ jobs:
 
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE }}
           tags: |

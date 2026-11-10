@@ -13,6 +13,7 @@ from cgt_calc.parsers.interactive_brokers import InteractiveBrokersParser
 from tests.utils import (
     assert_stdout_matches,
     build_cmd,
+    pdf_text,
     report_path,
     run_cli,
     stderr_alerts,
@@ -94,15 +95,38 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
     def test_header_with_a_trimmed_column_name_shows_the_missing_space(
         self, tmp_path: Path
     ) -> None:
-        """The export names a column "Gross Amount ", with a space at its end."""
+        """The export names a column "Gross Amount ", with a space at its end.
+
+        IBKR may have renamed a column, so the error is marked as one a
+        cgt-calc update may be needed for.
+        """
         csv_file = tmp_path / "transactions.csv"
         csv_file.write_text(self.base_header.replace("Gross Amount ,", "Gross Amount,"))
 
         with pytest.raises(
             ParsingError,
             match=re.escape("Missing: 'Gross Amount '. Extra: 'Gross Amount'."),
-        ):
+        ) as excinfo:
             InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert excinfo.value.needs_update
+
+    def test_an_unknown_type_is_marked_as_needing_an_update(
+        self, tmp_path: Path
+    ) -> None:
+        """A type cgt-calc does not know is refused, marked as needing an update."""
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header
+            + "Transaction History,Data,2025-11-03,U***00000,VT Stock Lending,Stock Lending,VT,-,-,1.0,-,1.0\n"
+        )
+
+        with pytest.raises(
+            ParsingError, match=r"Unknown type: 'Stock Lending'$"
+        ) as excinfo:
+            InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert excinfo.value.needs_update
 
     def test_isin_is_read_from_the_description(self, tmp_path: Path) -> None:
         """Dividend rows name the security as TICKER(ISIN); trades do not."""
@@ -329,7 +353,6 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             str(csv_file),
             "--output",
             str(tmp_path / "out"),
-            keep_tex=True,
         )
         result = run_cli(cmd)
 
@@ -338,7 +361,8 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert "Final balance\n  Interactive Brokers: 1099.88 (GBP)" in result.stdout
         assert re.search(r"Allowable costs:\s+£500\.00\n", result.stdout)
         assert re.search(r"\n  Gain:\s+£100\.00\n", result.stdout)
-        report = (tmp_path / "out.tex").read_text(encoding="utf-8")
+        report = " ".join(pdf_text(tmp_path / "out.pdf").split())
+        assert "Disposal 1: 10 units of ARM" in report
         assert "Cost added to" not in report
 
     def test_withholding_without_a_security_is_reported_as_interest_tax(
@@ -580,12 +604,13 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             str(csv_file),
             "--output",
             str(tmp_path / "out"),
-            keep_tex=True,
         )
         result = run_cli(cmd)
         assert stderr_alerts(result.stderr) == []
         assert "Final balance\n  Interactive Brokers: 999.82 (GBP)" in result.stdout
-        assert "GBP.USD" not in (tmp_path / "out.tex").read_text(encoding="utf-8")
+        report = pdf_text(tmp_path / "out.pdf")
+        assert "Capital Gains Tax Calculations" in report
+        assert "GBP.USD" not in report
 
     @pytest.mark.parametrize(
         ("rows", "balance"),
@@ -700,3 +725,85 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         assert "RHM: 15.00, £2,250.00" in result.stdout
         assert re.search(r"Allowable costs:\s+£750\.00", result.stdout)
         assert re.search(r"Total gain:\s+£750\.00", result.stdout)
+
+    # A US bond fund's NYSE symbol, and the London ticker the bundled list
+    # gives an Irish fund with a report of 0.0040 a share for 31 December 2024.
+    igcb_trades = (
+        "Transaction History,Data,2024-12-01,U***00000,Electronic Fund Transfer,Deposit,-,-,-,30000.0,-,30000.0\n"
+        "Transaction History,Data,2024-12-02,U***00000,TCW CORPORATE BOND ETF,Buy,IGCB,1000.0,20.0,-20000.0,-,-20000.0\n"
+        "Transaction History,Data,2025-02-03,U***00000,TCW CORPORATE BOND ETF,Sell,IGCB,-1000.0,21.0,21000.0,-,21000.0\n"
+    )
+
+    def test_a_dividend_s_isin_outranks_a_london_fund_s_ticker(
+        self, tmp_path: Path
+    ) -> None:
+        """A dividend naming a US ISIN identifies the trades under its ticker.
+
+        Trade rows name no ISIN; the dividend under the same ticker does, and
+        it is a US one. The holding is that security, not the Irish fund the
+        bundled list gives IGCB: the run used to stop on the ticker being the
+        fund's already, and now leaves the fund's income out.
+
+        1,000 shares cost 20,000.00 and sell for 21,000.00: a gain of 1,000.00.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header
+            + self.igcb_trades
+            + "Transaction History,Data,2025-01-06,U***00000,"
+            "IGCB(US0000000010) Cash Dividend GBP 0.01 per Share (Ordinary Dividend),"
+            "Dividend,IGCB,-,-,10.0,-,10.0\n"
+        )
+        cmd = build_cmd(
+            "--year",
+            "2024",
+            "--interactive-brokers-file",
+            str(csv_file),
+            "--no-report",
+        )
+
+        result = run_cli(cmd)
+
+        assert stderr_alerts(result.stderr) == []
+        assert re.search(r"Allowable costs:\s+£20,000\.00\n", result.stdout)
+        assert re.search(r"Total gain:\s+£1,000\.00\n", result.stdout)
+        assert "Excess Reported Income" not in result.stdout
+
+    @pytest.mark.parametrize(
+        ("mapping", "cost", "gain"),
+        [
+            ("IE00BKW9SW28,IGCB", "20,004.00", "996.00"),
+            ("IE00BKW9SW28,", "20,000.00", "1,000.00"),
+        ],
+        ids=["confirmed", "taken away"],
+    )
+    def test_a_mapping_row_settles_a_ticker_matched_alone(
+        self, tmp_path: Path, mapping: str, cost: str, gain: str
+    ) -> None:
+        """Either row the ticker-only warning offers settles the holding quietly.
+
+        Nothing in these trades says whether IGCB is the Irish fund or the US
+        one, which would warn. Confirming the fund keeps its report: 1,000
+        shares at 0.0040 add 4.00 to the cost of 20,000.00, and the sale for
+        21,000.00 gains 996.00. Taking the ticker from the fund leaves the
+        cost at 20,000.00 and the gain at 1,000.00.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(self.base_header + self.igcb_trades)
+        mapping_file = tmp_path / "isin_translation.csv"
+        mapping_file.write_text(f"ISIN,symbol\n{mapping}\n", encoding="utf-8")
+        cmd = build_cmd(
+            "--year",
+            "2024",
+            "--interactive-brokers-file",
+            str(csv_file),
+            "--isin-translation-file",
+            str(mapping_file),
+            "--no-report",
+        )
+
+        result = run_cli(cmd)
+
+        assert stderr_alerts(result.stderr) == []
+        assert re.search(rf"Allowable costs:\s+£{cost}\n", result.stdout)
+        assert re.search(rf"Total gain:\s+£{gain}\n", result.stdout)

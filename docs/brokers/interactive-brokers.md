@@ -110,6 +110,13 @@ securities, and reports it under one ticker, which may not be the one you traded
 example, is reported as `CSP1`. An ISIN in a dividend description can also identify trades under
 that ticker, wherever the dividend appears in your input.
 
+Some London fund tickers are also US symbols, such as `OPEN`, which is an iShares fund in London and
+Opendoor in the US. A dividend's ISIN tells cgt-calc which of the two your trades are. Trades in a
+security that paid no dividend in your export carry no ISIN, so cgt-calc applies the London fund's
+excess reported income and warns. See
+[Tickers that are also US symbols](../extra-data-and-options.md#tickers-that-are-also-us-symbols)
+for the row that settles it.
+
 Without an ISIN or reference mapping, tickers can remain separate without an error. If your report
 shows one security twice, compare the ISINs in its dividend descriptions or IBKR's instrument
 details. If they match, add all its verified tickers to one row in your
@@ -175,7 +182,8 @@ it. If the error remains, open a
 - the CSV header and a sanitised failing row.
 
 Do not upload an unredacted file: the report contains account identifiers, holdings and other
-sensitive financial information.
+sensitive financial information. For guidance on preparing a redacted example, see
+[Reporting problems](../reporting-problems.md).
 
 ### `Unknown type`
 

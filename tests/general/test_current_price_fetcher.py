@@ -5,7 +5,8 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 import sys
-from typing import TYPE_CHECKING
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 
 import pandas as pd
 import pytest
@@ -13,6 +14,7 @@ import pytest
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import MarketDataMissingError
+from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.model import CurrencyCode
 from tests.utils import run_cli
 
@@ -126,6 +128,104 @@ def test_eur_quoted_ticker_uses_eur_rate_not_usd(
     )
     price = _fetcher().get_current_market_price("MC.PA")
     assert price == Decimal("100.0") / Decimal("1.15")
+
+
+def _lookup_fake(
+    monkeypatch: pytest.MonkeyPatch, answers: dict[str, dict[str, float | str] | None]
+) -> list[str]:
+    """Make yf.Ticker answer from a dict, where None is an unknown ISIN."""
+    lookups: list[str] = []
+
+    def ticker(name: str) -> FakeTicker:
+        lookups.append(name)
+        answer = answers.get(name, {})
+        if answer is None:
+            raise ValueError(f"Invalid ISIN number: {name}")
+        return FakeTicker(answer)
+
+    monkeypatch.setattr("yfinance.Ticker", ticker)
+    return lookups
+
+
+PENCE_QUOTE: dict[str, float | str] = {"regularMarketPrice": 900.0, "currency": "GBp"}
+
+
+def test_isin_is_asked_for_first(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A known ISIN answers alone, as the bare symbol can be another security."""
+    lookups = _lookup_fake(monkeypatch, {"IE0005042456": PENCE_QUOTE})
+    price = _fetcher().get_current_market_price("ISF", "IE0005042456")
+    assert price == Decimal(9)
+    assert lookups == ["IE0005042456"]
+
+
+def test_missing_isin_uses_the_symbol(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With no ISIN the symbol answers, and London isn't asked."""
+    lookups = _lookup_fake(
+        monkeypatch, {"AAPL": {"currentPrice": 500.0, "currency": "USD"}}
+    )
+    assert _fetcher().get_current_market_price("AAPL") == Decimal(400)
+    assert lookups == ["AAPL"]
+
+
+@pytest.mark.parametrize("isin_answer", [None, {}], ids=["unknown", "no-price"])
+def test_isin_without_a_price_falls_back_to_the_symbol(
+    monkeypatch: pytest.MonkeyPatch, isin_answer: dict[str, float | str] | None
+) -> None:
+    """An ISIN Yahoo can't price leaves the symbol to try."""
+    lookups = _lookup_fake(
+        monkeypatch, {"IE0005042456": isin_answer, "ISF": PENCE_QUOTE}
+    )
+    price = _fetcher().get_current_market_price("ISF", "IE0005042456")
+    assert price == Decimal(9)
+    assert lookups == ["IE0005042456", "ISF"]
+
+
+def test_symbol_without_a_quote_falls_back_to_london(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """London is the last resort, for a symbol with no quote of its own."""
+    lookups = _lookup_fake(monkeypatch, {"ISF.L": PENCE_QUOTE})
+    assert _fetcher().get_current_market_price("ISF") == Decimal(9)
+    assert lookups == ["ISF", "ISF.L"]
+
+
+def test_nothing_found_anywhere_is_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every name is tried once before giving up."""
+    lookups = _lookup_fake(monkeypatch, {})
+    assert _fetcher().get_current_market_price("ISF", "IE0005042456") is None
+    assert lookups == ["IE0005042456", "ISF", "ISF.L"]
+
+
+def test_symbol_with_an_exchange_suffix_gets_no_london_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A symbol that already names its exchange isn't given a second one."""
+    lookups = _lookup_fake(monkeypatch, {})
+    assert _fetcher().get_current_market_price("MC.PA") is None
+    assert lookups == ["MC.PA"]
+
+
+def test_portfolio_entry_passes_the_transactions_isin() -> None:
+    """The calculator gives the fetcher the ISIN this run knows for the symbol."""
+    asked: list[tuple[str, str | None]] = []
+
+    def price(symbol: str, isin: str | None = None) -> Decimal:
+        asked.append((symbol, isin))
+        return Decimal(9)
+
+    calculator = SimpleNamespace(
+        calc_unrealized_gains=True,
+        price_fetcher=SimpleNamespace(get_current_market_price=price),
+        isin_converter=SimpleNamespace(transaction_isins={"ISF": "IE0005042456"}),
+    )
+    entry = CapitalGainsCalculator.make_portfolio_entry(
+        cast("CapitalGainsCalculator", calculator),
+        "ISF",
+        Decimal(2),
+        Decimal(10),
+    )
+    assert entry.unrealized_gains == Decimal(8)
+    assert asked == [("ISF", "IE0005042456")]
 
 
 class FakeEmptyHistoryTicker:
