@@ -2917,13 +2917,10 @@ ADDED_SPLITS = [
 ]
 
 
-@pytest.mark.parametrize(("symbol", "split_day", "ratio", "isin"), ADDED_SPLITS)
-def test_each_split_added_to_the_table_is_checked(
-    tmp_path: Path, symbol: str, split_day: str, ratio: int, isin: str
-) -> None:
-    """2 bought the week before the split and 1 sold the day after it stop."""
+def _across_the_split(symbol: str, split_day: str, isin: str) -> list[list[str]]:
+    """Buy 2 the week before the split and sell 1 the day after it."""
     day = date.fromisoformat(split_day)
-    rows = _bought_then_sold(
+    return _bought_then_sold(
         ticker=symbol,
         isin=isin,
         deposited=f"{day - timedelta(days=7)} 09:00:00",
@@ -2931,9 +2928,33 @@ def test_each_split_added_to_the_table_is_checked(
         sold=f"{day + timedelta(days=1)} 14:00:00",
     )
 
+
+@pytest.mark.parametrize(("symbol", "split_day", "ratio", "isin"), ADDED_SPLITS)
+def test_each_split_added_to_the_table_is_checked(
+    tmp_path: Path, symbol: str, split_day: str, ratio: int, isin: str
+) -> None:
+    """2 bought the week before the split and 1 sold the day after it stop."""
+    rows = _across_the_split(symbol, split_day, isin)
+
     stderr = _refusal(_known_split_cmd(tmp_path, rows))
 
     assert "ERROR: " + _missing(symbol, split_day, "2", ratio=ratio) + "\n" in stderr
+
+
+@pytest.mark.parametrize(("symbol", "split_day", "ratio", "isin"), ADDED_SPLITS)
+def test_each_split_added_to_the_table_accepts_a_matching_row(
+    tmp_path: Path, symbol: str, split_day: str, ratio: int, isin: str
+) -> None:
+    """The same history runs once a RAW row adds 2 x (ratio - 1) on the split day.
+
+    The 2 become 2 x ratio, and 2 x ratio - 1 remain after the sale of 1.
+    """
+    rows = _across_the_split(symbol, split_day, isin)
+    split_row = f"{split_day},STOCK_SPLIT,{symbol},{2 * (ratio - 1)},0.00,0.00,GBP"
+
+    result = run_cli(_known_split_cmd(tmp_path, rows, raw_rows=(split_row,)))
+
+    assert f"\n  {symbol}: {2 * ratio - 1}.00\n" in result.stdout, result.stdout
 
 
 # NVIDIA split 4-for-1 from 20 July 2021 and 10-for-1 from 10 June 2024: 2
