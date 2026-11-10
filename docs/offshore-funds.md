@@ -107,8 +107,9 @@ cost yourself, or ask a tax adviser:
 1. Find the ERI, in the fund's currency, that your holding's cost took on for the period. It is the
     ERI per unit (from the bundled ERI file or the fund's report) times the units you held at the
     end of the period, plus any units you sold before the end and bought back after it, within 30
-    days of the sale. The PDF report shows each part in pounds: the "Excess Reported Income" entry
-    on the period end, and a "Cost basis increased" line on the repurchase.
+    days of the sale. The PDF reports show each part in pounds: the report for the tax year that
+    includes the period end has its "Excess Reported Income" entry, and the report for the year of
+    the repurchase has its "Cost basis increased" line.
 2. Work out the share of it in the disposal's cost. Only the units the disposal takes from your
     holding carry ERI: the Section 104 line in the PDF report that has the note. Units matched with
     a purchase on the same day or within 30 days do not. Each disposal takes the same fraction of
