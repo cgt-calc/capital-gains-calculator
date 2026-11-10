@@ -853,6 +853,54 @@ def test_a_disposal_flagged_in_an_earlier_tax_year_is_not_flagged_again(
     assert _flagged_disposals(caplog, logging.DEBUG) == ["VWRL on 2024-09-02"]
 
 
+@pytest.mark.parametrize(
+    ("tax_year", "at_info", "at_debug"),
+    [
+        pytest.param(2024, ["VWRL on 2025-03-03"], [], id="the disposal's year"),
+        pytest.param(
+            2025, [], ["VWRL on 2025-03-03"], id="the distribution date's year"
+        ),
+    ],
+)
+def test_a_disposal_is_noted_in_its_own_tax_year_not_its_eris(
+    caplog: pytest.LogCaptureFixture,
+    tax_year: int,
+    at_info: list[str],
+    at_debug: list[str],
+) -> None:
+    """The message follows the disposal's tax year, not the distribution date's.
+
+    The ERI is for the period ending 31 December 2024, so its distribution
+    date is 30 June 2025, in 2025/26. The ten units are sold on 3 March 2025,
+    in 2024/25: that year's run names the sale, and the next year's run logs
+    it for debugging only.
+    """
+    period_end = dt.date(2024, 12, 31)
+    transactions = [
+        transfer_transaction(dt.date(2024, 12, 2), 1000),
+        buy_transaction(dt.date(2024, 12, 2), "VWRL", 10, 100, 0, -1000),
+        sell_transaction(dt.date(2025, 3, 3), "VWRL", 10, 110, 0, 1100),
+        ERITransaction(date=period_end, isin=ERI_ISIN, price=Decimal(2), currency=USD),
+    ]
+    rate_dates = (
+        dt.date(2024, 12, 2),
+        period_end,
+        dt.date(2025, 3, 3),
+        period_end + ERI_TAX_DATE_DELTA,
+    )
+    calculator = _eri_calculator(
+        {date: {USD: Decimal(1)} for date in rate_dates},
+        dt.date(2025, 7, 1),
+        tax_year=tax_year,
+    )
+    caplog.set_level(logging.DEBUG)
+
+    calculator.calculate(transactions)
+
+    assert _flagged_disposals(caplog) == at_info
+    assert _flagged_disposals(caplog, logging.DEBUG) == at_debug
+
+
 def test_an_estimated_eri_passed_to_a_spouse_is_not_called_an_allowable_cost(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
