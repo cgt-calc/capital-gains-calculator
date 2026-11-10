@@ -434,9 +434,15 @@ def _render_excess_reported_income(report: CapitalGainsReport) -> str:
     for item in eris:
         assert item.eris
         assert len(item.eris) == 1
-        dist_type = "interest" if item.eris[0].is_interest else "dividend"
-        out += f"{bul}{item.eris[0].symbol}: {_pounds(item.amount)} "
-        out += f"(included as {dist_type})\n"
+        eri = item.eris[0]
+        dist_type = "interest" if eri.is_interest else "dividend"
+        estimated = (
+            f", estimated at the period-end rate until {eri.distribution_date}"
+            if eri.provisional_rate
+            else ""
+        )
+        out += f"{bul}{eri.symbol}: {_pounds(item.amount)} "
+        out += f"(included as {dist_type}{estimated})\n"
     return out
 
 

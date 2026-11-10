@@ -10,11 +10,17 @@ from fractions import Fraction
 import logging
 from typing import TYPE_CHECKING, NamedTuple
 
-from .const import BED_AND_BREAKFAST_DAYS, ERI_TAX_DATE_DELTA, MAX_CONTENDED_DATES_SHOWN
+from .const import (
+    BED_AND_BREAKFAST_DAYS,
+    ERI_TAX_DATE_DELTA,
+    MAX_CONTENDED_DATES_SHOWN,
+    UK_CURRENCY,
+)
 from .exceptions import CalculationError
 from .model import (
     CalculationEntry,
     CalculationLog,
+    CurrencyCode,
     ExcessReportedIncome,
     ExcessReportedIncomeDistribution,
     HmrcTransactionData,
@@ -186,6 +192,42 @@ class Matcher:
         if warning is not None and eri.symbol not in self.run.ticker_only_eri_warned:
             self.run.ticker_only_eri_warned.add(eri.symbol)
             LOGGER.warning("%s", warning)
+
+    def _warn_provisional_eri(self, eri: ExcessReportedIncome) -> None:
+        """Warn, once, that a report just applied is converted at a stand-in rate.
+
+        A report reaches a holding either at its period end or through a
+        30-day repurchase, and either way the figure is not final.
+        """
+        key = (eri.date, eri.symbol)
+        if not eri.provisional_rate or key in self.run.provisional_eri_warned:
+            return
+        self.run.provisional_eri_warned.add(key)
+        LOGGER.warning(
+            "The excess reported income of %s for the period ending %s is "
+            "converted at the period-end rate for now: its fund "
+            "distribution date, %s, has not come, so its rate is not known "
+            "yet. Run cgt-calc again after that date for the final figure.",
+            eri.symbol,
+            eri.date,
+            eri.distribution_date,
+        )
+
+    def _carry_eri(self, pool: str, eri: ExcessReportedIncome) -> None:
+        """Note that a pool's cost now carries this report, unless it is in pounds.
+
+        A disposal from the pool before the report's distribution date is then
+        flagged (see `_match_section_104`). Sterling needs no rate, so a report
+        in pounds is the same figure whichever date is used. A report reaches a
+        pool partly held at its period end and partly bought back within 30
+        days twice, and is noted once.
+        """
+        pool_eris = self.run.pool_eris[pool]
+        if (
+            self.history.eris[eri.date][eri.symbol].currency != UK_CURRENCY
+            and eri not in pool_eris
+        ):
+            pool_eris.append(eri)
 
     def _disposal_log_prefix(self, date_index: dt.date, symbol: str) -> str:
         """Name the kind of disposal recorded for a symbol on a day.
@@ -367,6 +409,12 @@ class Matcher:
                     eris=bnb_acquisition.eris,
                 )
             )
+        # A pool bought into from nothing no longer carries the ERI it had,
+        # unless a 30-day repurchase brings back the cost a disposal took.
+        if position.quantity == 0 and bnb_acquisition.quantity == 0:
+            self.run.pool_eris.pop(symbol, None)
+        for eri in bnb_acquisition.eris:
+            self._carry_eri(symbol, eri)
         self.run.portfolio[symbol] += Position(
             acquisition.quantity,
             modified_amount,
@@ -788,8 +836,10 @@ class Matcher:
                             price=eri.price,
                             amount=available_quantity * eri.price,
                             quantity=available_quantity,
+                            provisional_rate=eri.provisional_rate,
                         )
                         self._warn_ticker_only_eri(eri)
+                        self._warn_provisional_eri(eri)
                         total_dist_amount += eri_distribution.amount
                         if self.date_in_tax_year(eri.distribution_date):
                             self.run.eris_distribution[eri.distribution_date][
@@ -867,6 +917,31 @@ class Matcher:
             r104_allowable_cost = amount_delta + fees
             r104_gain = r104_proceeds - r104_allowable_cost
             ctx.chargeable_gain += r104_gain
+            # ERI in the pool's cost whose distribution date is still to come.
+            # Reg 99(5) treats it as received just before this disposal, and
+            # the regulations do not settle whether its cost then takes the
+            # disposal date's rate. cgt-calc assumes the income's own figure
+            # (Offshore Funds (Tax) Regulations 2009, reg 99(3)) and says so at
+            # each such disposal.
+            pending = [
+                eri
+                for eri in self.run.pool_eris.get(ctx.identity.pool_name, [])
+                if ctx.date_index < eri.distribution_date
+            ]
+            for eri in pending:
+                LOGGER.warning(
+                    "The cost of the disposal of %s on %s includes the excess "
+                    "reported income for the period ending %s, whose fund "
+                    "distribution date, %s, is later. cgt-calc gives it the same "
+                    "figure as the income. The regulations do not settle whether "
+                    "it should instead be converted at the rate for the disposal "
+                    "date. See https://cgt-calc.uk/offshore-funds/"
+                    "#disposals-before-the-distribution-date",
+                    ctx.symbol,
+                    ctx.date_index,
+                    eri.date,
+                    eri.distribution_date,
+                )
             LOGGER.debug(
                 "SECTION 104, quantity %s, gain %s, proceeds amount %s, "
                 "allowable cost %s",
@@ -891,6 +966,7 @@ class Matcher:
                     fees=fees,
                     new_quantity=ctx.current_quantity,
                     new_pool_cost=ctx.current_amount,
+                    eris=pending,
                 )
             )
 
@@ -898,6 +974,7 @@ class Matcher:
         """Transfer pool from old ticker to new ticker (no disposal)."""
         pos = self.run.portfolio.pop(old, Position())
         self.run.portfolio[new] += pos
+        self.run.pool_eris[new] += self.run.pool_eris.pop(old, [])
         return CalculationEntry(
             rule_type=RuleType.RENAME,
             quantity=pos.quantity,
@@ -1963,17 +2040,7 @@ class Matcher:
         if allowable_cost == 0:
             return None
         self._warn_ticker_only_eri(eri)
-
-        if eri.provisional_rate:
-            LOGGER.warning(
-                "The excess reported income of %s for the period ending %s is "
-                "converted at the period-end rate for now: its fund "
-                "distribution date, %s, has not come, so its rate is not known "
-                "yet. Run cgt-calc again after that date for the final figure.",
-                eri.symbol,
-                eri.date,
-                eri.distribution_date,
-            )
+        self._warn_provisional_eri(eri)
 
         new_amount = amount + allowable_cost
         LOGGER.debug(
@@ -1985,6 +2052,7 @@ class Matcher:
             new_amount,
         )
         self.run.portfolio[eri.symbol].amount = new_amount
+        self._carry_eri(eri.symbol, eri)
 
         if self.date_in_tax_year(eri.distribution_date):
             self.run.eris_distribution[eri.distribution_date][symbol] += (
@@ -1992,6 +2060,7 @@ class Matcher:
                     price=eri.price,
                     amount=allowable_cost,
                     quantity=quantity,
+                    provisional_rate=eri.provisional_rate,
                 )
             )
 
@@ -2271,6 +2340,8 @@ class Matcher:
                                     date=date_index - ERI_TAX_DATE_DELTA,
                                     distribution_date=date_index,
                                     is_interest=is_interest,
+                                    currency=CurrencyCode(UK_CURRENCY),
+                                    provisional_rate=data.provisional_rate,
                                 ),
                             ],
                         )

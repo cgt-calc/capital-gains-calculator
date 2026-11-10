@@ -27,7 +27,7 @@ from .util import round_decimal
 if TYPE_CHECKING:
     import datetime as dt
 
-    from .model import CalculationEntry, CapitalGainsReport
+    from .model import CalculationEntry, CapitalGainsReport, ExcessReportedIncome
     from .stock_splits import StockSplitDetail
 
 
@@ -73,6 +73,17 @@ class EriLineView:
     cost: Decimal
     unit_price: Decimal
     date: dt.date
+    # The fund distribution date, when the figure is estimated until it comes.
+    estimated_until: dt.date | None = None
+
+
+@dataclass(frozen=True)
+class PendingEriView:
+    """Excess reported income in a disposal's cost, before its distribution date."""
+
+    period_end: dt.date
+    distribution_date: dt.date
+    estimated: bool
 
 
 @dataclass(frozen=True)
@@ -92,6 +103,7 @@ class LineView:
     pool_per_unit: Decimal | None = None
     spin_off_source: str | None = None
     eris: tuple[EriLineView, ...] = ()
+    pending_eris: tuple[PendingEriView, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -118,6 +130,7 @@ class EventView:
     gift_loss_to_date: Decimal | None = None
     base_cost_passed: Decimal | None = None
     eri_unit_price: Decimal | None = None
+    eri_estimated_until: dt.date | None = None
     renamed_to: str | None = None
     split: StockSplitDetail | None = None
     spin_off_source: str | None = None
@@ -150,6 +163,7 @@ class IncomeEventView:
     treaty_rate: Decimal | None = None
     treaty_amount: Decimal | None = None
     unit_price: Decimal | None = None
+    estimated_until: dt.date | None = None
 
 
 @dataclass(frozen=True)
@@ -309,12 +323,31 @@ def _build_line(entry: CalculationEntry, kind: EventKind) -> LineView:
                 cost=round_decimal(eri.price * entry.quantity, 2),
                 unit_price=round_decimal(eri.price, 4),
                 date=eri.date,
+                estimated_until=_estimated_until(eri),
             )
             for eri in entry.eris
         )
         if is_acquisition
         else (),
+        # A disposal from the pool names the ERI its cost carries before its
+        # distribution date, whose rate the regulations leave unsettled.
+        # An acquisition's Section 104 entry names none.
+        pending_eris=tuple(
+            PendingEriView(
+                period_end=eri.date,
+                distribution_date=eri.distribution_date,
+                estimated=eri.provisional_rate,
+            )
+            for eri in entry.eris
+        )
+        if entry.rule_type is RuleType.SECTION_104
+        else (),
     )
+
+
+def _estimated_until(eri: ExcessReportedIncome) -> dt.date | None:
+    """Give the date until which an ERI figure is estimated, if it is."""
+    return eri.distribution_date if eri.provisional_rate else None
 
 
 @dataclass
@@ -432,8 +465,12 @@ def _with_kind_fields(
             spin_off_source=spin_off.source,
             spin_off_dest=spin_off.dest,
         )
+    eri = entries[0].eris[0]
     return replace(
-        event, cost=cost, eri_unit_price=round_decimal(entries[0].eris[0].price, 4)
+        event,
+        cost=cost,
+        eri_unit_price=round_decimal(eri.price, 4),
+        eri_estimated_until=_estimated_until(eri),
     )
 
 
@@ -522,6 +559,7 @@ def _build_income_event(
             amount=amount,
             is_interest=eri.is_interest,
             unit_price=round_decimal(eri.price, 4),
+            estimated_until=_estimated_until(eri),
         )
     if kind is IncomeKind.INTEREST:
         totals.interests += 1

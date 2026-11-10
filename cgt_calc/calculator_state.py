@@ -17,6 +17,7 @@ if TYPE_CHECKING:
         CalculationEntry,
         CalculationLog,
         CurrencyCode,
+        ExcessReportedIncome,
         ExcessReportedIncomeDistributionLog,
         ExcessReportedIncomeLog,
         ForeignAmountLog,
@@ -188,6 +189,14 @@ class RunState:
     )
     # Holdings whose ticker-only warning this calculation has printed.
     ticker_only_eri_warned: set[str] = field(default_factory=set)
+    # The reports, by period end and holding, whose provisional-rate warning
+    # this calculation has printed.
+    provisional_eri_warned: set[tuple[dt.date, str]] = field(default_factory=set)
+    # The excess reported income in a foreign currency that each pool's cost
+    # carries, so a disposal before its distribution date can be flagged.
+    pool_eris: dict[str, list[ExcessReportedIncome]] = field(
+        default_factory=lambda: defaultdict(list)
+    )
 
     def reset(self) -> None:
         """Forget what the last calculation built, keeping how far ingestion got.

@@ -1485,11 +1485,18 @@ class TransactionIngester:
         Both use one sterling figure, converted at the rate for the fund
         distribution date, when the income is treated as received (Offshore
         Funds (Tax) Regulations 2009, reg 94(3)). The cost added is the income
-        charged to tax (reg 99(3)), so it is converted at the same rate. Adding
-        it at the period end gives the same pool cost at every later disposal
-        as adding it on the distribution date or just before an earlier
-        disposal (reg 99(4) and (5)). Until the distribution date comes, its
-        rate is not known, and the period-end rate is used provisionally.
+        charged to tax (reg 99(3)), so it is converted at the same rate.
+        Until the distribution date comes, its rate is not known, and the
+        period-end rate is used provisionally.
+
+        A disposal between the period end and the distribution date is not
+        settled. Reg 99(5) treats the income as received just before that
+        disposal, and the regulations do not say whether its cost should then
+        be converted at the rate for the disposal date instead. cgt-calc
+        assumes the income's figure there too, and the matcher flags each such
+        disposal. Given one figure, adding it at the period end gives the same
+        pool cost at every later disposal as adding it on the dates reg 99(4)
+        and (5) give; under the other reading it would not.
 
         Note that ERI also takes into account Bed and Breakfast so you're due
         ERI even if you sell before the reporting day and buy within 30 days.

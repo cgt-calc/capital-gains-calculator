@@ -83,8 +83,23 @@ units ([regulation 99(3)](https://www.legislation.gov.uk/uksi/2009/3001/regulati
 Offshore Funds (Tax) Regulations 2009).
 
 If the distribution date hasn't come yet, its rate isn't known. cgt-calc then uses the rate for the
-end of the reporting period and warns you. Run it again after the distribution date for the final
-figure.
+end of the reporting period, warns you and marks each figure that uses it as estimated in the
+report. Run it again after the distribution date for the final figure.
+
+### Disposals before the distribution date
+
+If you dispose of units after the end of a reporting period and before its distribution date, the
+ERI for those units is treated, for capital gains tax, as received just before the disposal
+([regulation 99(5)](https://www.legislation.gov.uk/uksi/2009/3001/regulation/99)). Neither the
+regulations nor HMRC's guidance say whether the cost added for them should still use the rate for
+the distribution date, or the rate for the disposal date instead.
+
+cgt-calc assumes the distribution date: the cost added is the same pound figure as the income. This
+is cgt-calc's assumption, not HMRC's stated position. cgt-calc warns about each such disposal and
+notes it in the PDF report. The difference between the two readings is the ERI on the units you
+disposed of, converted at the two rates, so it depends on how far the exchange rate moved between
+the disposal and the distribution date. It can make your gain higher or lower. If you take the other
+view, adjust that disposal's allowable cost yourself, or ask a tax adviser.
 
 ## Unsupported functionality
 

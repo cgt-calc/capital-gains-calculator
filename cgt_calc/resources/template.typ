@@ -137,9 +137,10 @@
               [ \ Cost basis calculated based on cost of #line.spin_off_source share pool from which #event.symbol shares were spun off]
             }
             if event.is_acquisition {
-              for eri in line.eris [ \ Cost basis increased by £#eri.cost #box[(£#eri.unit_price/unit)], due to excess reported income on #box[#eri.date]]
+              for eri in line.eris [ \ Cost basis increased by £#eri.cost #box[(£#eri.unit_price/unit)], due to excess reported income on #box[#eri.date]#if eri.estimated_until != none [, estimated at the period-end rate until #box[#eri.estimated_until]]]
             }
           }.
+          #for eri in line.pending_eris [ \ The cost includes excess reported income for the period ending #box[#eri.period_end], before its fund distribution date, #box[#eri.distribution_date]. cgt-calc gives it the same figure as the income#if eri.estimated [, estimated at the period-end rate until then]. The regulations do not settle whether the rate for the disposal date applies instead: see #box[#link("https://cgt-calc.uk/offshore-funds/#disposals-before-the-distribution-date")[cgt-calc.uk/offshore-funds]].]
         ]
       ]],)
       if not last { (table.hline(stroke: 0.4pt + hairline),) }
@@ -241,6 +242,9 @@
 ] else if event.kind == "eri" [
   #if event.has_units [
     #event-heading([Excess Reported Income:], [#event.symbol cost increased by £#event.cost #box[(£#event.eri_unit_price/unit)]])
+    #if event.eri_estimated_until != none [
+      Estimated at the period-end rate until the fund distribution date, #box[#event.eri_estimated_until]. Run cgt-calc again after that date for the final figure.
+    ]
   ]
 ] else if event.kind == "rename" [
   #heading(level: 3)[#event.symbol was renamed to #event.renamed_to#if event.has_units [: #event.quantity units with pool cost £#event.cost transferred]]
@@ -294,7 +298,7 @@
   *Interest tax #event.origin #event.number:* #event.symbol for £#event.amount
 ] else if event.kind == "eri_distribution" [
   *Excess Reported Income Distribution #event.number*: #event.symbol#if event.is_interest [ (interest)] else [ (dividend)] for £#event.amount
-  #box[(£#event.unit_price/unit)]
+  #box[(£#event.unit_price/unit)]#if event.estimated_until != none [, estimated at the period-end rate until #box[#event.estimated_until]]
 ]
 
 ]

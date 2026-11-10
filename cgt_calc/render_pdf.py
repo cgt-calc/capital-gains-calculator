@@ -170,8 +170,17 @@ def _line_data(line: LineView) -> dict[str, object]:
                 "cost": _money(eri.cost),
                 "unit_price": _money(eri.unit_price),
                 "date": _short_date(eri.date),
+                "estimated_until": _short_date(eri.estimated_until),
             }
             for eri in line.eris
+        ],
+        "pending_eris": [
+            {
+                "period_end": _short_date(eri.period_end),
+                "distribution_date": _short_date(eri.distribution_date),
+                "estimated": eri.estimated,
+            }
+            for eri in line.pending_eris
         ],
     }
 
@@ -211,6 +220,7 @@ def _event_data(event: EventView) -> dict[str, object]:
         "gift_loss_to_date": _money(event.gift_loss_to_date),
         "base_cost_passed": _money(event.base_cost_passed),
         "eri_unit_price": _money(event.eri_unit_price),
+        "eri_estimated_until": _short_date(event.eri_estimated_until),
         "split": None
         if split is None
         else {
@@ -250,6 +260,7 @@ def _income_event_data(event: IncomeEventView) -> dict[str, object]:
         "treaty_amount": _money(event.treaty_amount),
         "treaty_rate": None if event.treaty_rate is None else str(event.treaty_rate),
         "unit_price": _money(event.unit_price),
+        "estimated_until": _short_date(event.estimated_until),
     }
 
 
