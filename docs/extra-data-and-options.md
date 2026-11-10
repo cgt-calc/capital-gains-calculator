@@ -265,22 +265,22 @@ own:
     exchange rates file and any custom ERI file. Each needs its own `--output`, or the second run
     replaces the first one's PDF.
 - The exception is a row in your ISIN translation file that gives the shared ticker to one of the
-    two securities. It applies in the other run too, so give that run a copy of the file with
-    `--isin-translation-file`, and in the copy take the ticker off that row. Keep every other row,
-    and leave the ISIN followed by a comma if the row had no other ticker.
+    two securities. It also applies in the run that does not hold that security, so give that run a
+    copy of the file with `--isin-translation-file`, and in the copy take the ticker off that row.
+    Keep every other row, and leave the ISIN followed by a comma if the row had no other ticker.
 
 You can pass whole files when that already keeps every security in one run and the two securities
 apart: for example, the Charles Schwab export alone in one run, and the Vanguard export with all
 your other files in the other, when you hold none of the Schwab shares at another broker.
 
 Otherwise, keep the downloaded files unchanged and make two working copies of each file that holds
-that security and anything else. Delete that security's rows from the first copy, and every other
-row from the second. Pass the second copies to that security's run. That run then has none of the
-deposits that paid for the purchases, so it usually stops with `Reached a negative balance`: add
-`--no-balance-check` to it, which turns the check off for every file in that run. The first copies
-lose the cash of the deleted rows too. If money those rows brought in paid for later purchases, the
-other run stops the same way: use `--no-balance-check` there only once you have checked that the
-shortfall is only that money.
+the security with a run of its own and anything else. Delete that security's rows from the first
+copy, and every other row from the second. Pass the second copies to that security's run. That run
+then has none of the deposits that paid for the purchases, so it usually stops with
+`Reached a negative balance`: add `--no-balance-check` to it, which turns the check off for every
+file in that run. The first copies lose the cash of the deleted rows too. If money those rows
+brought in paid for later purchases, the other run stops the same way: use `--no-balance-check`
+there only once you have checked that the shortfall is only that money.
 
 To combine the reports for a tax year, add up the capital gains figures in their terminal summaries,
 from **Disposals** to **Total gain**. Deduct the annual exempt amount once, from the combined
