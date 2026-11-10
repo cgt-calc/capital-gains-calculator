@@ -261,8 +261,13 @@ own:
 - That run gets the security's transactions from every file that has any, whichever broker it comes
     from.
 - The other run gets everything else.
-- Both runs need the same `--year`, data files and tax settings, and each its own `--output`, or the
-    second run replaces the first one's PDF.
+- Both runs need the same `--year` and tax settings, and the same extra data files, such as your
+    exchange rates file and any custom ERI file. Each needs its own `--output`, or the second run
+    replaces the first one's PDF.
+- The exception is a row in your ISIN translation file that gives the shared ticker to one of the
+    two securities. It applies in the other run too, so give that run a copy of the file with
+    `--isin-translation-file`, and in the copy take the ticker off that row. Keep every other row,
+    and leave the ISIN followed by a comma if the row had no other ticker.
 
 You can pass whole files when that already keeps every security in one run and the two securities
 apart: for example, the Charles Schwab export alone in one run, and the Vanguard export with all
@@ -282,9 +287,16 @@ from **Disposals** to **Total gain**. Deduct the annual exempt amount once, from
 **Total gain**, and work out the tax on the rest, as
 [Tax estimates](tax-estimates.md#tax-at-the-basic-and-higher-rate) explains. Do not add the reports'
 **Taxable gain** or tax figures: each report deducts the whole annual exempt amount and taxes its
-gain as if it were your only one, so adding them counts the allowance twice. Add the dividend
-**Proceeds** and the interest figures as they are, but not the dividends' **Taxable proceeds**: each
-report deducts the whole dividend allowance from them.
+gain as if it were your only one, so adding them counts the allowance twice.
+
+In 2010/11 and 2024/25 the rates changed during the year, so the tax also depends on how much of the
+combined **Gain** was made after the change. To find it, run each of the two again with
+`--no-report` for that part of the year, as
+[Report part of a tax year](usage.md#report-part-of-a-tax-year-advanced) shows, and add up their
+**Gain**.
+
+Add the dividend **Proceeds** and the interest figures as they are, but not the dividends' **Taxable
+proceeds**: each report deducts the whole dividend allowance from them.
 
 ### Temporary cache files
 
