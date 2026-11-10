@@ -9,6 +9,9 @@ grant, which `tests/schwab/test_schwab_options.py` asserts. They are the
 standard for template changes: one that is not a deliberate wording change
 must leave every golden untouched.
 
+The page text does not show the PDF's bookmarks, so
+`test_bookmarks_part_title_and_price` pins those.
+
 The goldens pin words, line breaks and each page's text, not vertical space.
 The running-total regression in `test_report_rendering.py` separately
 requires each "Capital gain to date" total to occupy its own line.
@@ -28,6 +31,7 @@ from pathlib import Path
 import tempfile
 from typing import TYPE_CHECKING
 
+import pdfplumber
 import pytest
 
 from cgt_calc.model import ActionType, Isin
@@ -464,6 +468,27 @@ def test_report_text_matches_golden(name: str, tmp_path: Path) -> None:
         f"{golden} differs from the PDF's text; if the change is intended, "
         f"regenerate with: {REGENERATE}"
     )
+
+
+def test_bookmarks_part_title_and_price(tmp_path: Path) -> None:
+    """Each bookmark reads as its heading, with a space between title and price.
+
+    The page sets an event's price on the line under its title, a break the
+    bookmark does not keep. 100 OLD bought for £1,000 are £10.00 a unit, and
+    the rename carries their £1,000 pool cost across to NEW.
+    """
+    render_pdf(_rename_with_units(), tmp_path / "report.pdf")
+    with pdfplumber.open(tmp_path / "report.pdf") as pdf:
+        outline = [(level, title) for level, title, *_ in pdf.doc.get_outlines()]
+    assert outline == [
+        (1, "Overall - Capital Gains"),
+        (1, "Overall - Dividends and Interests"),
+        (1, "Capital Gains Events"),
+        (2, "01 June 2024"),
+        (3, "Acquisition 1: 100 units of OLD for £1,000.00 (£10.00/unit)"),
+        (2, "10 June 2024"),
+        (3, "OLD was renamed to NEW: 100 units with pool cost £1,000.00 transferred"),
+    ]
 
 
 if __name__ == "__main__":

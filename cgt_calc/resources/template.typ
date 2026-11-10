@@ -49,10 +49,12 @@
 #let total(body) = text(weight: "bold", fill: navy, body)
 #let note(body) = text(fill: muted, body)
 // An event's title on one line and, when it has one, its price on the next,
-// in body text.
+// in body text. The PDF bookmark drops the line break, so a space before it
+// keeps the title and price apart there; the page hides it at the line end.
 #let event-heading(prefix, item, detail: none) = heading(level: 3, {
   [#prefix #item]
   if detail != none {
+    [ ]
     linebreak()
     text(size: 12pt, weight: "regular", fill: black, detail)
   }
@@ -241,8 +243,7 @@
     #event-heading([Excess Reported Income:], [#event.symbol cost increased by £#event.cost #box[(£#event.eri_unit_price/unit)]])
   ]
 ] else if event.kind == "rename" [
-  // The heading opens with a space, which its PDF bookmark has always shown.
-  #heading(level: 3)[ #event.symbol was renamed to #event.renamed_to#if event.has_units [: #event.quantity units with pool cost £#event.cost transferred]]
+  #heading(level: 3)[#event.symbol was renamed to #event.renamed_to#if event.has_units [: #event.quantity units with pool cost £#event.cost transferred]]
 ] else if event.kind == "split" [
   #event-heading([Share reorganisation:], [#event.split.day_open_quantity units of #event.symbol restated as #event.split.scaled_day_open_quantity (ratio #event.split.ratio_description)])
   Neither a disposal nor an acquisition: the new holding is the same asset, held from the same dates, with the same pooled cost (TCGA 1992 s127).
