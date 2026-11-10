@@ -466,6 +466,23 @@ def _build_event(
     return _with_kind_fields(event, entries, totals)
 
 
+def _build_events(
+    key: str, entries: list[CalculationEntry], totals: _Totals
+) -> tuple[EventView, ...]:
+    """Build the views of one symbol's day, stating apart cost with no units.
+
+    The calculation logs cost a day added with no units after the entries for
+    the shares it bought, as an entry with no quantity, so that it reads as an
+    entry of its own rather than as the fees of that purchase.
+    """
+    if key.startswith("buy$") and len(entries) > 1 and entries[-1].quantity == 0:
+        return (
+            _build_event(key, entries[:-1], totals),
+            _build_event(key, entries[-1:], totals),
+        )
+    return (_build_event(key, entries, totals),)
+
+
 def _build_income_event(
     key: str, entries: list[CalculationEntry], totals: _Totals
 ) -> IncomeEventView:
@@ -532,7 +549,9 @@ def build_report_view(report: CapitalGainsReport) -> ReportView:
         DayView(
             date=date,
             events=tuple(
-                _build_event(key, entries, totals) for key, entries in symbols.items()
+                event
+                for key, entries in symbols.items()
+                for event in _build_events(key, entries, totals)
             ),
         )
         for date, symbols in report.calculation_log.items()
