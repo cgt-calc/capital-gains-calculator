@@ -127,13 +127,13 @@ def _all_shown(data: object) -> object:
         return _shown(data)
     if isinstance(data, dict):
         return {key: _all_shown(value) for key, value in data.items()}
-    if isinstance(data, list):
+    if isinstance(data, list | tuple):
         return [_all_shown(item) for item in data]
     return data
 
 
 def _money(value: Decimal | None) -> str | None:
-    """Print pounds, already rounded to the penny, with thousands separators."""
+    """Print pounds as the view rounded them, with thousands separators."""
     return None if value is None else f"{value:,}"
 
 
