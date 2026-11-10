@@ -30,6 +30,8 @@
 ^interactive-brokers\.md:.*ItsContraction
 # "lists under its known limitations" - the page's limitations, a possessive.
 ^trading212\.py:.*ItsContraction
+# "taxes its gain" - the report's gain, a possessive.
+^extra-data-and-options\.md:.*ItsContraction
 # "the rows that preceded it are already in the units it leaves behind"
 # already agrees; PronounInflectionBe reads the wrong subject.
 ^matching\.py:.*PronounInflectionBe

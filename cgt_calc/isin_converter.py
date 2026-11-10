@@ -48,6 +48,10 @@ ISIN_TRANSLATION_HEADER: Final = ["ISIN", "symbol"]
 ISIN_TRANSLATION_COLUMNS_NUM: Final = len(ISIN_TRANSLATION_HEADER)
 # The symbol US over-the-counter markets give a security from outside the US.
 _US_OVER_THE_COUNTER_SYMBOL: Final = re.compile(r"[A-Z]{4}F")
+# One literal, so that the link check reads the whole address.
+_SEPARATE_RUNS_DOCS: Final = (
+    "https://cgt-calc.uk/extra-data-and-options/#two-securities-in-separate-runs"
+)
 LOGGER = logging.getLogger(__name__)
 
 
@@ -232,7 +236,8 @@ class IsinConverter:
                     f"bundled list gives ISIN {set_aside[symbol]}, and a US symbol "
                     "on another row of this run. Two securities under one ticker "
                     "would be pooled and matched as one holding. Calculate them in "
-                    "separate runs.",
+                    "separate runs; to split the files and combine the reports, "
+                    f"see {_SEPARATE_RUNS_DOCS}",
                 )
             if (transaction.symbol, transaction.isin) in set_aside.items():
                 raise InvalidTransactionError(
@@ -240,7 +245,9 @@ class IsinConverter:
                     f"Ticker {transaction.symbol} is a US symbol on another row "
                     f"of this run and the London ticker of ISIN {transaction.isin} "
                     "on this one. Two securities under one ticker would be pooled "
-                    "and matched as one holding. Calculate them in separate runs.",
+                    "and matched as one holding. Calculate them in separate runs; "
+                    "to split the files and combine the reports, see "
+                    f"{_SEPARATE_RUNS_DOCS}",
                 )
         exported: dict[str, set[Isin]] = {}
         for transaction in transactions:
@@ -269,7 +276,8 @@ class IsinConverter:
                     f"bundled list gives ISIN {taken[symbol]}, and another row of "
                     f"this run exports it with ISIN {other}. Two securities under "
                     "one ticker would be pooled and matched as one holding. "
-                    "Calculate them in separate runs.",
+                    "Calculate them in separate runs; to split the files and "
+                    f"combine the reports, see {_SEPARATE_RUNS_DOCS}",
                 )
 
     def ticker_only_rows(
@@ -413,7 +421,8 @@ class IsinConverter:
                     "ticker cannot be told apart, and a row naming no ISIN of "
                     "its own would be pooled with whichever listing the export "
                     "stated first. Check the exports and calculate the two "
-                    "securities in separate runs.",
+                    "securities in separate runs; to split the files and combine "
+                    f"the reports, see {_SEPARATE_RUNS_DOCS}",
                 )
         for transaction in transactions:
             self.add_from_transaction(transaction)
