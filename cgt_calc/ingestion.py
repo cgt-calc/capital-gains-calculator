@@ -313,19 +313,27 @@ class TransactionIngester:
         # The tickers of rows from any input but Vanguard. Set by
         # prepare_history().
         self.non_vanguard_symbols: set[str] = set()
+        # The run's rows by date, which a refused sale reads to find the
+        # purchases written below it. Set by prepare_history().
+        self.days: dict[dt.date, list[BrokerTransaction]] = {}
 
     def _nothing_held(
-        self, action: str, symbol: str, transaction: BrokerTransaction
+        self,
+        action: str,
+        symbol: str,
+        transaction: BrokerTransaction,
+        cover: str = "",
     ) -> str:
         """Say that a disposal found no holding, and the usual cause.
 
         ``action`` places the shares in its verb phrase, as in
         ``"transfer {} to a spouse"``. No count is stated: the check runs
-        before the quantity is validated.
+        before the quantity is validated. ``cover`` is what
+        `_covered_lower_down` says about the sale, if anything.
         """
         return (
             f"Tried to {action.format(symbol)} on {transaction.date}, but no "
-            f"{symbol} is held. {_shortfall_cause(self.raw_file)}"
+            f"{symbol} is held. {cover}{_shortfall_cause(self.raw_file)}"
         )
 
     def _shortfall(
@@ -335,12 +343,67 @@ class TransactionIngester:
         transaction: BrokerTransaction,
         wanted: Decimal,
         held: Decimal,
+        cover: str = "",
     ) -> str:
         """Say what a disposal asked for, what was held, and the usual cause."""
         shares = f"{display_str(wanted)} {symbol}"
         return (
             f"Tried to {action.format(shares)} on {transaction.date}, but the "
-            f"holding is {display_str(held)}. {_shortfall_cause(self.raw_file)}"
+            f"holding is {display_str(held)}. {cover}"
+            f"{_shortfall_cause(self.raw_file)}"
+        )
+
+    def _covered_lower_down(
+        self, symbol: str, transaction: BrokerTransaction, held: Decimal
+    ) -> str:
+        """Point out purchases written below a sale that would cover it.
+
+        A RAW file's rows on one date are the order the trades happened, and
+        the holding is checked after each row, so a sale written above the
+        purchase that covers it is refused, although the same-day rule would
+        match the two (TCGA 1992 s105(1)). The file cannot say whether the
+        order is wrong or the sale really came first, so the user is asked to
+        check rather than told to move the purchase. Only the sale's own file
+        is searched: no other input records the order of a day's rows. On a
+        rename day the sale was checked against everything the day acquires,
+        as `_available_units` says, so the order is not the cause. A split
+        day never gets here: its planning refuses a day that sells more than
+        it has.
+        """
+        source = transaction.source
+        if (
+            source is None
+            or not source.rows_in_time_order
+            or source.index is None
+            or transaction.quantity is None
+            or rename_day_units(self.history, transaction.date, symbol) is not None
+        ):
+            return ""
+        below = [
+            (row.source.row, row.quantity)
+            for row in self.days[transaction.date]
+            if row.action is ActionType.BUY
+            and row.symbol == symbol
+            and row.quantity is not None
+            and row.source is not None
+            and row.source.file == source.file
+            and row.source.index is not None
+            and row.source.index > source.index
+        ]
+        bought = sum((quantity for _, quantity in below), Decimal(0))
+        if not below or not 0 < transaction.quantity <= held + bought:
+            return ""
+        rows = ", ".join(str(row) for row, _ in below)
+        return (
+            f"The same file buys {display_str(bought)} {symbol} lower down the "
+            f"same date (row{'s' if len(below) > 1 else ''} {rows}), enough to "
+            "cover this sale. A RAW file's rows on one date are read in the order "
+            "written, as the order the trades happened, and the holding is "
+            "checked after each row. Check the order these trades really happened "
+            "in. If the purchase came first, write it above the sale. If the sale "
+            "came first, keep that order: unless it was a short sale, of shares "
+            "not yet held, which cgt-calc does not support, the shares it sold "
+            "were already held. "
         )
 
     def add_acquisition(
@@ -884,7 +947,13 @@ class TransactionIngester:
         available = self._available_units(symbol, transaction.date)
         if available is None:
             raise InvalidTransactionError(
-                transaction, self._nothing_held("sell {}", symbol, transaction)
+                transaction,
+                self._nothing_held(
+                    "sell {}",
+                    symbol,
+                    transaction,
+                    self._covered_lower_down(symbol, transaction, Decimal(0)),
+                ),
             )
         if quantity is None or quantity <= 0:
             raise QuantityNotPositiveError(transaction)
@@ -894,7 +963,12 @@ class TransactionIngester:
             raise InvalidTransactionError(
                 transaction,
                 self._shortfall(
-                    "sell {}", symbol, transaction, pooled_quantity, available
+                    "sell {}",
+                    symbol,
+                    transaction,
+                    pooled_quantity,
+                    available,
+                    self._covered_lower_down(symbol, transaction, available),
                 ),
             )
 
@@ -1756,7 +1830,7 @@ class TransactionIngester:
         # day's rows is processed: what a row's count means depends on
         # whether a reorganisation followed it that day, and the pool has to
         # be in the day's closing units before the first of them is pooled.
-        days = self._group_by_date(transactions)
+        days = self.days = self._group_by_date(transactions)
         planned: set[dt.date] = set()
         # A rename moves the pool where its row sits, so a purchase or sale
         # of the same holding written under the name the day is retiring is

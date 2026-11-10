@@ -557,6 +557,18 @@ separate files are each read by their own date without an error. Check the final
 disposal against the broker records rather than adding a made-up purchase to make the calculation
 run.
 
+If the message says the same file buys the shares lower down the same date, the holding runs short
+only because the sale is written above that purchase. cgt-calc reads the rows of one date in the
+order you wrote them, as [the order the trades happened](#the-order-of-rows-on-one-date), and checks
+the holding after each row. This can happen when rows copied from a statement that lists the newest
+first are then sorted by date, which leaves each day's rows reversed. Check your broker's records
+for the order the trades really happened in:
+
+- If the purchase came first, write it above the sale.
+- If the sale came first, keep that order and do not move the purchase above it. Unless it was a
+    short sale, of shares you did not yet hold, the shares it sold were already held, so look for
+    the missing acquisition as described above. cgt-calc does not accept a short sale in a RAW file.
+
 ### `also has units from` on a `STOCK_SPLIT` row
 
 A broker's own split row states the change at that one account, and the holding also has units that

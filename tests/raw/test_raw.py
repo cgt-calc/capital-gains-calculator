@@ -15,11 +15,20 @@ import sys
 import pytest
 
 from cgt_calc.args_validators import STDIN_PATH
-from cgt_calc.exceptions import AmountMissingError, ParsingError
+from cgt_calc.exceptions import (
+    AmountMissingError,
+    InvalidTransactionError,
+    ParsingError,
+)
 from cgt_calc.logging import force_utf8_stdio
-from cgt_calc.model import ActionType
+from cgt_calc.model import (
+    ActionType,
+    BrokerTransaction,
+    CurrencyCode,
+    TransactionSource,
+)
 from cgt_calc.parsers.raw import COLUMNS, RawParser
-from tests.general.test_calc import create_calculator
+from tests.general.test_calc import create_calculator, get_report
 from tests.utils import (
     assert_stdout_matches,
     build_cmd,
@@ -948,3 +957,202 @@ def test_read_raw_transactions_gift(tmp_path: Path) -> None:
     assert transaction.action == ActionType.GIFT
     assert transaction.quantity == Decimal("21.5")
     assert transaction.price == Decimal("480.00")
+
+
+# What a refused sale says about the purchases written below it, before the
+# advice every refused sale ends with.
+_CHECK_THE_ORDER = (
+    "A RAW file's rows on one date are read in the order written, as the order "
+    "the trades happened, and the holding is checked after each row. Check the "
+    "order these trades really happened in. If the purchase came first, write it "
+    "above the sale. If the sale came first, keep that order: unless it was a "
+    "short sale, of shares not yet held, which cgt-calc does not support, the "
+    "shares it sold were already held. "
+)
+
+
+def _usual_advice(raw_file: Path | None) -> str:
+    """Return the advice every refused sale ends with, naming where a RAW row goes."""
+    where = (
+        "a file passed with --raw-file"
+        if raw_file is None
+        else f"your RAW file ({raw_file})"
+    )
+    return (
+        "Check that the history includes the purchase, vest or transfer that "
+        "acquired the shares and any split or rename since, and that no disposal "
+        "appears twice. A purchase, vest or split the exports cannot supply can go "
+        f"in {where}, using an action listed at "
+        "https://cgt-calc.uk/brokers/raw/#actions-to-use; a rename cannot: report "
+        "the old and new tickers so the pair can be added."
+    )
+
+
+def _refusal(transactions: list[BrokerTransaction]) -> str:
+    """Run a 2024/25 calculation that must be refused, and return why."""
+    with pytest.raises(InvalidTransactionError) as error:
+        get_report(create_calculator(tax_year=2024, balance_check=False), transactions)
+    # The rows beneath the message describe the refused transaction.
+    return error.value.message.split("\n")[0]
+
+
+def _raw_rows(tmp_path: Path, rows: list[list[str]]) -> list[BrokerTransaction]:
+    """Write `rows` as a RAW file and read them back as the CLI would."""
+    _write_csv(tmp_path / "raw.csv", [COLUMNS, *rows])
+    return list(RawParser().load_from_file(tmp_path / "raw.csv"))
+
+
+@pytest.mark.parametrize(
+    ("rows", "message"),
+    [
+        pytest.param(
+            [
+                ["2024-05-01", "SELL", "AAA", "10", "5.00", "0", "GBP"],
+                ["2024-05-01", "BUY", "AAA", "10", "4.00", "0", "GBP"],
+            ],
+            "Tried to sell AAA on 2024-05-01, but no AAA is held. The same file "
+            "buys 10 AAA lower down the same date (row 3), enough to cover this "
+            "sale.",
+            id="nothing-held",
+        ),
+        pytest.param(
+            [
+                ["2024-05-01", "BUY", "AAA", "5", "4.00", "0", "GBP"],
+                ["2024-05-02", "SELL", "AAA", "12", "5.00", "0", "GBP"],
+                ["2024-05-02", "BUY", "AAA", "4", "4.00", "0", "GBP"],
+                ["2024-05-02", "BUY", "BBB", "100", "1.00", "0", "GBP"],
+                ["2024-05-02", "BUY", "AAA", "3", "4.00", "0", "GBP"],
+                ["2024-05-03", "BUY", "AAA", "50", "4.00", "0", "GBP"],
+            ],
+            "Tried to sell 12 AAA on 2024-05-02, but the holding is 5. The same "
+            "file buys 7 AAA lower down the same date (rows 4, 6), enough to cover "
+            "this sale.",
+            id="two-purchases-make-up-the-shortfall",
+        ),
+    ],
+)
+def test_a_sale_above_the_purchase_covering_it_names_that_purchase(
+    tmp_path: Path, rows: list[list[str]], message: str
+) -> None:
+    """A RAW sale written above a same-day purchase that covers it says so.
+
+    The first sells 10 with nothing held and 10 bought below. The second
+    holds 5 and sells 12, and the 4 and 3 bought below make up exactly the 7
+    missing; the BBB purchase between them and the AAA bought the next day
+    are not counted.
+    """
+    raw_rows = _raw_rows(tmp_path, rows)
+
+    assert _refusal(raw_rows) == (
+        f"{message} {_CHECK_THE_ORDER}{_usual_advice(tmp_path / 'raw.csv')}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("rows", "headline"),
+    [
+        pytest.param(
+            [
+                ["2024-05-01", "SELL", "AAA", "10", "5.00", "0", "GBP"],
+                ["2024-05-01", "BUY", "AAA", "9", "4.00", "0", "GBP"],
+            ],
+            "Tried to sell AAA on 2024-05-01, but no AAA is held.",
+            id="one-share-short",
+        ),
+        pytest.param(
+            [
+                ["2024-05-01", "SELL", "AAA", "-10", "5.00", "0", "GBP"],
+                ["2024-05-01", "BUY", "AAA", "10", "4.00", "0", "GBP"],
+            ],
+            "Tried to sell AAA on 2024-05-01, but no AAA is held.",
+            id="negative-count-sold",
+        ),
+        pytest.param(
+            [
+                ["2024-05-01", "BUY", "AAA", "5", "4.00", "0", "GBP"],
+                ["2024-05-01", "SELL", "AAA", "10", "5.00", "0", "GBP"],
+            ],
+            "Tried to sell 10 AAA on 2024-05-01, but the holding is 5.",
+            id="purchase-above-already-counted",
+        ),
+        pytest.param(
+            [
+                ["2024-05-01", "SELL", "AAA", "10", "5.00", "0", "GBP"],
+                ["2024-05-01", "SELL", "AAA", "10", "5.00", "0", "GBP"],
+            ],
+            "Tried to sell AAA on 2024-05-01, but no AAA is held.",
+            id="sale-below",
+        ),
+    ],
+)
+def test_a_sale_the_purchases_below_it_would_not_cover_keeps_the_usual_advice(
+    tmp_path: Path, rows: list[list[str]], headline: str
+) -> None:
+    """Purchases below a sale are named only where reordering could help.
+
+    9 bought below a sale of 10 leave it one short. A sale of a negative
+    count is not a sale any purchase covers. The 5 bought above a sale of 10
+    are already in the holding it finds, and nothing is bought below it.
+    A second sale below the first buys nothing.
+    """
+    raw_rows = _raw_rows(tmp_path, rows)
+
+    assert _refusal(raw_rows) == f"{headline} {_usual_advice(tmp_path / 'raw.csv')}"
+
+
+def _export_row(action: ActionType, quantity: int, index: int) -> BrokerTransaction:
+    """Read an AAA trade of 2024-05-01 from a broker export, at GBP 4 a share.
+
+    An export does not say that a day's rows are in the order they happened.
+    """
+    return BrokerTransaction(
+        date=dt.date(2024, 5, 1),
+        action=action,
+        symbol="AAA",
+        description="",
+        quantity=Decimal(quantity),
+        price=Decimal(4),
+        fees=Decimal(0),
+        amount=Decimal(-4 * quantity if action is ActionType.BUY else 4 * quantity),
+        currency=CurrencyCode("GBP"),
+        broker="Export",
+        source=TransactionSource(
+            parser="Export",
+            account="export",
+            file=Path("export.csv"),
+            row=index + 2,
+            index=index,
+        ),
+    )
+
+
+def test_a_broker_export_s_row_order_is_not_pointed_out() -> None:
+    """Only a RAW file records which of a day's rows came first.
+
+    An export listing a sale of 10 above the purchase of 10 it draws on says
+    nothing about which came first, so the usual advice stands.
+    """
+    rows = [_export_row(ActionType.SELL, 10, 0), _export_row(ActionType.BUY, 10, 1)]
+
+    assert _refusal(rows) == (
+        f"Tried to sell AAA on 2024-05-01, but no AAA is held. {_usual_advice(None)}"
+    )
+
+
+def test_a_purchase_from_another_input_is_not_read_as_lower_down(
+    tmp_path: Path,
+) -> None:
+    """Row positions in two files say nothing about each other.
+
+    An export's purchase of 10, its sixth row, is read before the RAW file,
+    so the RAW sale of 15 below it finds 10 held. The export's purchase is
+    already in that count, and its row number is no position in the RAW file.
+    """
+    raw_rows = _raw_rows(
+        tmp_path, [["2024-05-01", "SELL", "AAA", "15", "5.00", "0", "GBP"]]
+    )
+
+    assert _refusal([_export_row(ActionType.BUY, 10, 5), *raw_rows]) == (
+        "Tried to sell 15 AAA on 2024-05-01, but the holding is 10. "
+        f"{_usual_advice(tmp_path / 'raw.csv')}"
+    )
