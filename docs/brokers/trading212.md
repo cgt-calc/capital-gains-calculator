@@ -298,11 +298,12 @@ August 2020 includes shares bought at Trading 212 since it was last empty, and a
 with that ISIN buys or sells it on or after that day, even if you have added a split row. The
 message begins with the ticker and **traded at a new count**, and says that Trading 212 **closed any
 fraction of a share for cash**. A history that bought the share only after the split, or sold all of
-it before, runs as usual. If Trading 212 has added no shares to the holding since it was last empty,
-cgt-calc checks it like the splits in the table above, so it needs a split row dated 31 August 2020.
-Trading 212 shares count even if you sold them before the split, as long as shares at another broker
-kept the holding from emptying, so such a history stops too. Tesla's 3-for-1 split of 25 August 2022
-is checked like the others in the table.
+it before, runs as usual. If the holding going into 31 August 2020 has no shares bought at Trading
+212 since it was last empty, cgt-calc checks it like the splits in the table above, so it needs a
+split row dated 31 August 2020. Trading 212 purchases after the split do not change that. Trading
+212 shares count even if you sold them before the split, as long as shares at another broker kept
+the holding from emptying, so such a history stops too. Tesla's 3-for-1 split of 25 August 2022 is
+checked like the others in the table.
 
 Work the holding out by hand (consider professional advice). To help cgt-calc support these splits,
 open a [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) that says
