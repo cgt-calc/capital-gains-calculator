@@ -391,7 +391,7 @@ class TransactionIngester:
             and row.source.index > source.index
         ]
         bought = sum((quantity for _, quantity in below), Decimal(0))
-        if not below or not 0 < transaction.quantity <= held + bought:
+        if not 0 < transaction.quantity <= held + bought:
             return ""
         rows = ", ".join(str(row) for row, _ in below)
         return (
