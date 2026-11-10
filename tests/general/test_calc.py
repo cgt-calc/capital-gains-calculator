@@ -394,18 +394,21 @@ USD = CurrencyCode("USD")
 
 
 def _eri_calculator(
-    rates: dict[dt.date, dict[CurrencyCode, Decimal]], today: dt.date
+    rates: dict[dt.date, dict[CurrencyCode, Decimal]],
+    today: dt.date,
+    tax_year: int = 2024,
+    interest_fund_tickers: list[str] | None = None,
 ) -> CapitalGainsCalculator:
     """Create a calculator with only `rates`, running on `today`."""
     currency_converter = CurrencyConverter(None, rates)
     calculator = CapitalGainsCalculator(
-        2024,
+        tax_year,
         currency_converter,
         IsinConverter(),
         CurrentPriceFetcher(currency_converter, {}, {}),
         SpinOffHandler(),
         SharePrices(),
-        interest_fund_tickers=[],
+        interest_fund_tickers=interest_fund_tickers or [],
         balance_check=False,
     )
     calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
@@ -442,59 +445,89 @@ def _early_disposal_warning(symbol: str, date: str) -> str:
     return (
         f"The cost of the disposal of {symbol} on {date} includes the excess "
         "reported income for the period ending 2024-06-30, whose fund "
-        "distribution date, 2024-12-30, is later. cgt-calc gives it the same "
-        "figure as the income. The regulations do not settle whether it should "
-        "instead be converted at the rate for the disposal date. See "
+        "distribution date, 2024-12-30, comes after the disposal. cgt-calc adds "
+        "it to the cost at the same pound amount as the income. The regulations "
+        "do not settle whether the cost should instead use the rate for the "
+        "disposal date. See "
         "https://cgt-calc.uk/offshore-funds/#disposals-before-the-distribution-date"
     )
 
 
+# The PDF's note on the disposal in the tests below, before its last words.
+_EARLY_DISPOSAL_NOTE = (
+    "Number of units left in the pool: 0. The cost of this disposal includes "
+    "the excess reported income for the period ending 30 Jun 2024, whose fund "
+    "distribution date, 30 Dec 2024, comes after the disposal. cgt-calc adds it "
+    "at the same pound amount as the income{}. The regulations do not settle "
+    "whether the cost should instead use the rate for the disposal date: see "
+    "cgt-calc.uk/offshore-funds."
+)
+_ESTIMATED_COSTS_TEXT = (
+    "Allowable costs include excess reported income estimated at the period-end "
+    "rate. Run cgt-calc again after its distribution date for the final figures."
+)
+_ESTIMATED_COSTS_PDF = (
+    "The allowable costs include excess reported income estimated at the "
+    "period-end rate, as marked on the disposals below. Run cgt-calc again after "
+    "its distribution date for the final figures."
+)
+
+
 @pytest.mark.parametrize(
-    ("today", "costs", "text_line", "pdf_phrases", "warnings"),
+    ("today", "interest_fund", "costs", "text_lines", "pdf_phrases", "warnings"),
     [
         # The distribution date has come: 10 x USD 2 at its rate, 1.60, is
         # £12.50, and the costs are 800.00 + 12.50.
         pytest.param(
             ERI_DISTRIBUTION_DATE,
+            False,
             "812.50",
-            "VWRL: £12.50 (included as dividend)",
+            ["VWRL: £12.50 (included as dividend)"],
             [
                 "VWRL cost increased by £12.50 (£1.2500/unit) Rule",
-                (
-                    "Number of units left in the pool: 0. The cost includes "
-                    "excess reported income for the period ending 30 Jun 2024, "
-                    "before its fund distribution date, 30 Dec 2024. cgt-calc "
-                    "gives it the same figure as the income. The regulations do "
-                    "not settle whether the rate for the disposal date applies "
-                    "instead: see cgt-calc.uk/offshore-funds."
-                ),
+                _EARLY_DISPOSAL_NOTE.format(""),
                 "Distribution 1: VWRL (dividend) for £12.50 (£1.2500/unit) Page",
+                (
+                    "dividends proceeds £12.50 (including £12.50 from excess "
+                    "reported income distributions) Total"
+                ),
             ],
             [_early_disposal_warning("VWRL", "2024-09-02")],
             id="known",
         ),
         # It has not: the period-end rate, 1.25, stands in, so 10 x USD 2 is
-        # £16.00 for now, and the costs are 800.00 + 16.00.
+        # £16.00 for now, and the costs are 800.00 + 16.00. Every figure that
+        # uses it is marked, and so is every total that includes one.
         pytest.param(
             ERI_DISTRIBUTION_DATE - dt.timedelta(days=1),
+            False,
             "816.00",
-            "VWRL: £16.00 (included as dividend, estimated at the period-end "
-            "rate until 2024-12-30)",
             [
+                _ESTIMATED_COSTS_TEXT,
+                (
+                    "Proceeds include excess reported income estimated at the "
+                    "period-end rate, marked below."
+                ),
+                (
+                    "VWRL: £16.00 (included as dividend, estimated at the "
+                    "period-end rate until 2024-12-30)"
+                ),
+            ],
+            [
+                _ESTIMATED_COSTS_PDF,
+                (
+                    "dividends proceeds £16.00 (including £16.00 from excess "
+                    "reported income distributions, some estimated at the "
+                    "period-end rate)"
+                ),
                 (
                     "VWRL cost increased by £16.00 (£1.6000/unit) Estimated at "
                     "the period-end rate until the fund distribution date, "
                     "30 Dec 2024. Run cgt-calc again after that date for the "
                     "final figure."
                 ),
-                (
-                    "Number of units left in the pool: 0. The cost includes "
-                    "excess reported income for the period ending 30 Jun 2024, "
-                    "before its fund distribution date, 30 Dec 2024. cgt-calc "
-                    "gives it the same figure as the income, estimated at the "
-                    "period-end rate until then. The regulations do not settle "
-                    "whether the rate for the disposal date applies instead: see "
-                    "cgt-calc.uk/offshore-funds."
+                _EARLY_DISPOSAL_NOTE.format(
+                    ", estimated at the period-end rate until then"
                 ),
                 (
                     "Distribution 1: VWRL (dividend) for £16.00 (£1.6000/unit), "
@@ -507,14 +540,58 @@ def _early_disposal_warning(symbol: str, date: str) -> str:
             ],
             id="provisional",
         ),
+        # A bond fund's ERI is interest, and the interest total is marked.
+        pytest.param(
+            ERI_DISTRIBUTION_DATE - dt.timedelta(days=1),
+            True,
+            "816.00",
+            [
+                _ESTIMATED_COSTS_TEXT,
+                (
+                    "Foreign proceeds include excess reported income estimated at "
+                    "the period-end rate, marked below."
+                ),
+                (
+                    "VWRL: £16.00 (included as interest, estimated at the "
+                    "period-end rate until 2024-12-30)"
+                ),
+            ],
+            [
+                _ESTIMATED_COSTS_PDF,
+                (
+                    "foreign interests proceeds £16.00 (including £16.00 from "
+                    "excess reported income distributions, some estimated at the "
+                    "period-end rate)"
+                ),
+                (
+                    "VWRL cost increased by £16.00 (£1.6000/unit) Estimated at "
+                    "the period-end rate until the fund distribution date, "
+                    "30 Dec 2024. Run cgt-calc again after that date for the "
+                    "final figure."
+                ),
+                _EARLY_DISPOSAL_NOTE.format(
+                    ", estimated at the period-end rate until then"
+                ),
+                (
+                    "Distribution 1: VWRL (interest) for £16.00 (£1.6000/unit), "
+                    "estimated at the period-end rate until 30 Dec 2024"
+                ),
+            ],
+            [
+                _provisional_warning("VWRL"),
+                _early_disposal_warning("VWRL", "2024-09-02"),
+            ],
+            id="provisional interest",
+        ),
     ],
 )
 def test_eri_is_converted_at_the_fund_distribution_date_rate(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
     today: dt.date,
+    interest_fund: bool,
     costs: str,
-    text_line: str,
+    text_lines: list[str],
     pdf_phrases: list[str],
     warnings: list[str],
 ) -> None:
@@ -525,8 +602,10 @@ def test_eri_is_converted_at_the_fund_distribution_date_rate(
     bought on 3 June 2024 for USD 1,000 at 1.25 cost £800.00. They are sold on
     2 September for USD 1,100 at 1.10, £1,000.00: before the distribution
     date, so the sale is flagged as resting on cgt-calc's assumption, and the
-    sale date's rate takes no part in the ERI. A run before the distribution
-    date marks every figure from the stand-in rate as estimated.
+    sale date's rate takes no part in the ERI.
+
+    The text report's lines that mention an estimate, and the PDF's phrases
+    about the ERI, are pinned whole: each place says it once, or not at all.
     """
     sale_date = dt.date(2024, 9, 2)
     calculator = _eri_calculator(
@@ -537,6 +616,7 @@ def test_eri_is_converted_at_the_fund_distribution_date_rate(
             ERI_DISTRIBUTION_DATE: {USD: Decimal("1.60")},
         },
         today,
+        interest_fund_tickers=["VWRL"] if interest_fund else None,
     )
     transactions = [
         transfer_transaction(dt.date(2024, 6, 3), 1000),
@@ -548,12 +628,17 @@ def test_eri_is_converted_at_the_fund_distribution_date_rate(
     report = calculator.calculate(transactions)
 
     assert report.allowable_costs == Decimal(costs)
-    assert text_line in [line.strip() for line in render_text(report).splitlines()]
+    text = [line.strip() for line in render_text(report).splitlines()]
+    assert [
+        line for line in text if "stimated" in line or line.startswith("VWRL:")
+    ] == text_lines
     pdf = report_text(report, tmp_path)
     assert [phrase for phrase in pdf_phrases if phrase not in pdf] == []
-    assert pdf.count("The cost includes excess reported income") == 1
-    if today >= ERI_DISTRIBUTION_DATE:
-        assert "stimated" not in pdf
+    # One mark for each phrase that carries one, and the disposal noted once.
+    assert pdf.count("stimated at the period-end rate") == sum(
+        "stimated at the period-end rate" in phrase for phrase in pdf_phrases
+    )
+    assert pdf.count("The cost of this disposal includes") == 1
     assert _warnings(caplog) == warnings
 
 
@@ -722,22 +807,54 @@ def test_a_disposal_is_flagged_while_its_pool_carries_eri_not_yet_distributed(
     figure, which the regulations do not settle. Every rate is 1, so only the
     flags differ.
     """
+    calculator = _eri_calculator(_flat_rates(transactions), ERI_DISTRIBUTION_DATE)
+
+    calculator.calculate(transactions)
+
+    assert _flagged_disposals(caplog) == flagged
+
+
+def test_a_disposal_flagged_in_an_earlier_tax_year_is_not_flagged_again(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A later year's run does not repeat the flag of a disposal outside it.
+
+    Five of ten units are sold on 2 September 2024, before the distribution
+    date, in 2024/25, and five on 2 May 2025, after it, in 2025/26. The
+    2025/26 run has no flagged disposal to report: the first is in a report
+    for an earlier year, and the second comes after the distribution date.
+    """
+    transactions = [
+        *_held_over_the_period_end(
+            sell_transaction(dt.date(2024, 9, 2), "VWRL", 5, 110, 0, 550),
+            sell_transaction(dt.date(2025, 5, 2), "VWRL", 5, 110, 0, 550),
+        ),
+        _usd_eri("2"),
+    ]
     calculator = _eri_calculator(
-        {
-            date: {USD: Decimal(1)}
-            for date in {t.date for t in transactions} | {ERI_DISTRIBUTION_DATE}
-        },
-        ERI_DISTRIBUTION_DATE,
+        _flat_rates(transactions), ERI_DISTRIBUTION_DATE, tax_year=2025
     )
 
     calculator.calculate(transactions)
 
-    found = [
+    assert _flagged_disposals(caplog) == []
+
+
+def _flat_rates(
+    transactions: list[BrokerTransaction],
+) -> dict[dt.date, dict[CurrencyCode, Decimal]]:
+    """Give a dollar rate of 1 for every date the transactions and ERI need."""
+    dates = {t.date for t in transactions} | {ERI_DISTRIBUTION_DATE}
+    return {date: {USD: Decimal(1)} for date in dates}
+
+
+def _flagged_disposals(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """Name each disposal warned about for ERI before its distribution date."""
+    return [
         re.sub(r"^The cost of the disposal of (\S+ on \S+) includes .*", r"\1", warning)
         for warning in _warnings(caplog)
         if warning.startswith("The cost of the disposal of ")
     ]
-    assert found == flagged
 
 
 @pytest.mark.parametrize(

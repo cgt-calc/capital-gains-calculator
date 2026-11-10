@@ -140,7 +140,7 @@
               for eri in line.eris [ \ Cost basis increased by £#eri.cost #box[(£#eri.unit_price/unit)], due to excess reported income on #box[#eri.date]#if eri.estimated_until != none [, estimated at the period-end rate until #box[#eri.estimated_until]]]
             }
           }.
-          #for eri in line.pending_eris [ \ The cost includes excess reported income for the period ending #box[#eri.period_end], before its fund distribution date, #box[#eri.distribution_date]. cgt-calc gives it the same figure as the income#if eri.estimated [, estimated at the period-end rate until then]. The regulations do not settle whether the rate for the disposal date applies instead: see #box[#link("https://cgt-calc.uk/offshore-funds/#disposals-before-the-distribution-date")[cgt-calc.uk/offshore-funds]].]
+          #for eri in line.pending_eris [ \ The cost of this disposal includes the excess reported income for the period ending #box[#eri.period_end], whose fund distribution date, #box[#eri.distribution_date], comes after the disposal. cgt-calc adds it at the same pound amount as the income#if eri.estimated [, estimated at the period-end rate until then]. The regulations do not settle whether the cost should instead use the rate for the disposal date: see #box[#link("https://cgt-calc.uk/offshore-funds/#disposals-before-the-distribution-date")[cgt-calc.uk/offshore-funds]].]
         ]
       ]],)
       if not last { (table.hline(stroke: 0.4pt + hairline),) }
@@ -171,6 +171,9 @@
   total[Total capital gain after loss], total[£#view.summary.net_gain],
 )
 #note[Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.]
+#if view.summary.includes_estimated_eri [
+  #note[The allowable costs include excess reported income estimated at the period-end rate, as marked on the disposals below. Run cgt-calc again after its distribution date for the final figures.]
+]
 
 = Overall - Dividends and Interests
 #summary-table(
@@ -180,7 +183,7 @@
   [Number of excess reported income distributions], [#view.income_summary.eri_count],
   [Total amount of dividends proceeds], [£#view.income_summary.total_dividends],
   ..if view.income_summary.eri_dividends != none {
-    (table.cell(colspan: 2, inset: (left: 1em))[#note[(including £#view.income_summary.eri_dividends from excess reported income distributions)]],)
+    (table.cell(colspan: 2, inset: (left: 1em))[#note[(including £#view.income_summary.eri_dividends from excess reported income distributions#if view.income_summary.eri_dividends_estimated [, some estimated at the period-end rate])]],)
   },
   [Total amount of dividends tax allowance due to double taxation treaties], [£#view.income_summary.treaty_allowance],
   ..if view.income_summary.dividend_allowance != none {
@@ -195,7 +198,7 @@
   [Total amount of UK interests proceeds], [£#view.income_summary.uk_interest],
   [Total amount of foreign interests proceeds], [£#view.income_summary.foreign_interest],
   ..if view.income_summary.eri_interest != none {
-    (table.cell(colspan: 2, inset: (left: 1em))[#note[(including £#view.income_summary.eri_interest from excess reported income distributions)]],)
+    (table.cell(colspan: 2, inset: (left: 1em))[#note[(including £#view.income_summary.eri_interest from excess reported income distributions#if view.income_summary.eri_interest_estimated [, some estimated at the period-end rate])]],)
   },
   [Total amount of interest tax paid], [£#view.income_summary.interest_tax],
 )

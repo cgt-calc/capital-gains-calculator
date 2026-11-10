@@ -188,6 +188,7 @@ class SummaryView:
     net_gain: Decimal
     exempt_disposal_count: int
     exempt_disposal_proceeds: Decimal
+    includes_estimated_eri: bool = False
 
 
 @dataclass(frozen=True)
@@ -208,6 +209,8 @@ class IncomeSummaryView:
     interest_tax: Decimal
     eri_dividends: Decimal | None = None
     eri_interest: Decimal | None = None
+    eri_dividends_estimated: bool = False
+    eri_interest_estimated: bool = False
 
 
 @dataclass(frozen=True)
@@ -619,6 +622,7 @@ def build_report_view(report: CapitalGainsReport) -> ReportView:
             net_gain=totals.total_gain - totals.total_loss,
             exempt_disposal_count=report.exempt_disposal_count,
             exempt_disposal_proceeds=report.exempt_disposal_proceeds,
+            includes_estimated_eri=report.costs_include_estimated_eri(),
         ),
         income_summary=IncomeSummaryView(
             dividend_count=totals.dividends,
@@ -647,5 +651,7 @@ def build_report_view(report: CapitalGainsReport) -> ReportView:
             foreign_interest=report.total_foreign_interest,
             eri_interest=(round_decimal(eri_interest, 2) if eri_interest > 0 else None),
             interest_tax=report.total_interest_tax,
+            eri_dividends_estimated=report.eri_income_is_estimated(is_interest=False),
+            eri_interest_estimated=report.eri_income_is_estimated(is_interest=True),
         ),
     )

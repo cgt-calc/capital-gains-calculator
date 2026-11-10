@@ -83,8 +83,9 @@ units ([regulation 99(3)](https://www.legislation.gov.uk/uksi/2009/3001/regulati
 Offshore Funds (Tax) Regulations 2009).
 
 If the distribution date hasn't come yet, its rate isn't known. cgt-calc then uses the rate for the
-end of the reporting period, warns you and marks each figure that uses it as estimated in the
-report. Run it again after the distribution date for the final figure.
+end of the reporting period and warns you. Both reports mark the ERI figures that use this rate as
+estimated, and say when a total includes one. Run cgt-calc again after the distribution date for the
+final figures.
 
 ### Disposals before the distribution date
 
@@ -96,10 +97,20 @@ the distribution date, or the rate for the disposal date instead.
 
 cgt-calc assumes the distribution date: the cost added is the same pound figure as the income. This
 is cgt-calc's assumption, not HMRC's stated position. cgt-calc warns about each such disposal and
-notes it in the PDF report. The difference between the two readings is the ERI on the units you
-disposed of, converted at the two rates, so it depends on how far the exchange rate moved between
-the disposal and the distribution date. It can make your gain higher or lower. If you take the other
-view, adjust that disposal's allowable cost yourself, or ask a tax adviser.
+notes it in the PDF report. The two readings differ by how far the exchange rate moved between the
+disposal and the distribution date, which can make your gain higher or lower.
+
+If you take the other view, work out the difference for each such disposal and adjust its allowable
+cost yourself, or ask a tax adviser:
+
+1. Find the ERI, in the fund's currency, that the disposal's cost includes. At the end of the
+    reporting period, your holding's cost took on the ERI per unit (from the bundled ERI file or the
+    fund's report) times the units you held. Each disposal takes the same fraction of the ERI still
+    in that cost as it takes of the holding: selling half the holding takes half of it.
+2. Convert that amount at HMRC's rate for the month of the disposal, and again at HMRC's rate for
+    the month of the distribution date.
+3. Add the first pound figure less the second to the disposal's allowable cost. If the first is
+    smaller, this reduces the cost.
 
 ## Unsupported functionality
 

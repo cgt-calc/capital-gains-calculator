@@ -278,6 +278,7 @@ def _summary_data(summary: SummaryView) -> dict[str, object]:
         "exempt_disposal_count": summary.exempt_disposal_count,
         "exempt_disposal_proceeds": _money(summary.exempt_disposal_proceeds),
         "net_gain": _money(summary.net_gain),
+        "includes_estimated_eri": summary.includes_estimated_eri,
     }
 
 
@@ -298,6 +299,8 @@ def _income_summary_data(summary: IncomeSummaryView) -> dict[str, object]:
         "foreign_interest": _money(summary.foreign_interest),
         "eri_interest": _money(summary.eri_interest),
         "interest_tax": _money(summary.interest_tax),
+        "eri_dividends_estimated": summary.eri_dividends_estimated,
+        "eri_interest_estimated": summary.eri_interest_estimated,
     }
 
 

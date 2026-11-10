@@ -922,21 +922,25 @@ class Matcher:
             # the regulations do not settle whether its cost then takes the
             # disposal date's rate. cgt-calc assumes the income's own figure
             # (Offshore Funds (Tax) Regulations 2009, reg 99(3)) and says so at
-            # each such disposal.
+            # each such disposal in the reported period; the rest of the
+            # history walk logs it at DEBUG.
             pending = [
                 eri
                 for eri in self.run.pool_eris.get(ctx.identity.pool_name, [])
                 if ctx.date_index < eri.distribution_date
             ]
             for eri in pending:
-                LOGGER.warning(
+                LOGGER.log(
+                    logging.WARNING
+                    if self.date_in_tax_year(ctx.date_index)
+                    else logging.DEBUG,
                     "The cost of the disposal of %s on %s includes the excess "
                     "reported income for the period ending %s, whose fund "
-                    "distribution date, %s, is later. cgt-calc gives it the same "
-                    "figure as the income. The regulations do not settle whether "
-                    "it should instead be converted at the rate for the disposal "
-                    "date. See https://cgt-calc.uk/offshore-funds/"
-                    "#disposals-before-the-distribution-date",
+                    "distribution date, %s, comes after the disposal. cgt-calc "
+                    "adds it to the cost at the same pound amount as the income. "
+                    "The regulations do not settle whether the cost should "
+                    "instead use the rate for the disposal date. See "
+                    "https://cgt-calc.uk/offshore-funds/#disposals-before-the-distribution-date",
                     ctx.symbol,
                     ctx.date_index,
                     eri.date,

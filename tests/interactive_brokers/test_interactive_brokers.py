@@ -222,11 +222,11 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
             (
                 "WARNING: The cost of the disposal of CNX1 on 2025-08-15 includes "
                 "the excess reported income for the period ending 2025-07-31, "
-                "whose fund distribution date, 2026-01-31, is later. cgt-calc "
-                "gives it the same figure as the income. The regulations do not "
-                "settle whether it should instead be converted at the rate for "
-                "the disposal date. See https://cgt-calc.uk/offshore-funds/"
-                "#disposals-before-the-distribution-date"
+                "whose fund distribution date, 2026-01-31, comes after the "
+                "disposal. cgt-calc adds it to the cost at the same pound amount "
+                "as the income. The regulations do not settle whether the cost "
+                "should instead use the rate for the disposal date. See "
+                "https://cgt-calc.uk/offshore-funds/#disposals-before-the-distribution-date"
             )
         ]
         expected_file = (

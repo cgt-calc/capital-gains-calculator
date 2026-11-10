@@ -905,6 +905,26 @@ class CapitalGainsReport:
                 total += item.amount
         return total
 
+    def eri_income_is_estimated(self, *, is_interest: bool) -> bool:
+        """Say whether that kind of ERI income has a figure at a stand-in rate."""
+        return any(
+            item.eris[0].is_interest == is_interest and item.eris[0].provisional_rate
+            for item in self._filter_calculation_log(
+                self.calculation_log_yields,
+                RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
+            )
+        )
+
+    def costs_include_estimated_eri(self) -> bool:
+        """Say whether a disposal's cost has ERI converted at a stand-in rate."""
+        return any(
+            eri.provisional_rate
+            for entry in self._filter_calculation_log(
+                self.calculation_log, RuleType.SECTION_104
+            )
+            for eri in entry.eris
+        )
+
     def total_dividends_amount(self) -> Decimal:
         """Total dividends amount."""
         total = Decimal(0)
