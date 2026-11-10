@@ -141,11 +141,7 @@ ERI = ExcessReportedIncome(
         ),
         ("rename$OLD", _entry(rule_type=RuleType.RENAME, renamed_to="NEW"), None),
         ("split$FOO", _entry(rule_type=RuleType.STOCK_SPLIT), EventKind.SPLIT),
-        (
-            "transfer-to-spouse$FOO",
-            _entry(rule_type=RuleType.TRANSFER_TO_SPOUSE),
-            EventKind.TRANSFER_TO_SPOUSE,
-        ),
+        ("transfer-to-spouse$FOO", _entry(), EventKind.TRANSFER_TO_SPOUSE),
         ("gift$FOO", _disposal("10"), EventKind.GIFT_CONNECTED),
         ("gift-unconnected$FOO", _disposal("10"), EventKind.GIFT_UNCONNECTED),
         ("exempt$FOO", _disposal("10"), EventKind.EXEMPT),
@@ -284,25 +280,23 @@ def test_an_exempt_disposal_stays_out_of_every_total() -> None:
 
 
 def test_the_events_stated_in_prose_carry_no_lines() -> None:
-    """A rename, a reorganisation and a spouse transfer print no rule list."""
+    """A rename and a reorganisation print no rule list."""
     events = _events(
         {
             "rename$OLD": [_entry(rule_type=RuleType.RENAME, renamed_to="NEW")],
             "split$FOO": [_entry(rule_type=RuleType.STOCK_SPLIT)],
-            "transfer-to-spouse$FOO": [_entry(rule_type=RuleType.TRANSFER_TO_SPOUSE)],
             "sell$FOO": [_disposal("1")],
         }
     )
-    assert [bool(event.lines) for event in events] == [False, False, False, True]
+    assert [bool(event.lines) for event in events] == [False, False, True]
 
 
 def test_a_pool_emptied_by_the_event_has_no_price_per_unit() -> None:
-    """Nothing is divided by a pool of no units."""
-    (event,) = _events(
-        {"transfer-to-spouse$FOO": [_entry(rule_type=RuleType.TRANSFER_TO_SPOUSE)]}
-    )
-    assert event.pool_quantity == 0
-    assert event.pool_per_unit is None
+    """Nothing is divided by a pool of no units, as after a whole holding goes."""
+    (event,) = _events({"transfer-to-spouse$FOO": [_entry()]})
+    (line,) = event.lines
+    assert line.new_quantity == 0
+    assert line.pool_per_unit is None
 
 
 def test_excess_reported_income_prices_a_unit_to_four_places() -> None:

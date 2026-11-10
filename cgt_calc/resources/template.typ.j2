@@ -179,12 +179,6 @@ Units in the pool at this point in the day: {{ strip_zeros(event.pool_quantity) 
 {% elif event.kind == "transfer_to_spouse" %}
 #event-heading([Transferred to spouse:], [{{ strip_zeros(event.quantity) }} units of {{ event.symbol }} (no gain/no loss)])
 Base cost of £{{ event.base_cost_passed|money }} passes to the recipient.
-
-Number of units left in the pool: {{ strip_zeros(event.pool_quantity) }}
-    {%- if event.pool_quantity > 0 %},
-    new pool cost: £{{ event.pool_cost|money }}
-    #box[(£{{ event.pool_per_unit|money }}/unit)]
-    {%- endif %}.
 {% elif event.kind == "exempt" %}
 #event-heading([Exempt disposal:], [{{ strip_zeros(event.quantity) }} units of {{ event.symbol }}], detail: [valued at £{{ event.proceeds|money }} #box[(£{{ event.per_unit|money }}/unit)]{% if event.fees > 0 %}, #box[£{{ event.fees|money }} disposal expenses] included in the illustrative calculation{% endif %}])
 The cost and disposal expenses shown below are used for this illustrative calculation only;
@@ -220,6 +214,8 @@ Loss is £{{ (-event.gain)|money }}; the gain or loss is disregarded (exempt ass
         {% set headers = [["Quantity"], ["Original cost"], ["After spin-off"]] %}
     {% elif event.kind == "eri" %}
         {% set headers = [["Quantity"], ["Original cost"], ["After income", "distribution"]] %}
+    {% elif event.kind == "transfer_to_spouse" %}
+        {% set headers = [["Quantity"], ["Base cost"]] %}
     {% else %}
         {% set headers = [["Quantity"], ["Actual cost"]] %}
     {% endif %}
@@ -258,12 +254,14 @@ Loss is £{{ (-event.gain)|money }}; the gain or loss is disregarded (exempt ass
         {% elif event.kind == "eri" %}
   [#text(fill: muted)[of {{ event.symbol }}] £{{ line.amount|money }}],
   [£{{ line.new_pool_cost|money }}],
+        {% elif event.kind == "transfer_to_spouse" %}
+  [£{{ line.cost|money }}],
         {% else %}
   [£{{ line.amount|money }}],
         {% endif %}
   table.cell(colspan: {% if split %}6{% elif headers|length == 3 %}4{% else %}3{% endif %}, inset: (x: 0.3em, top: 0.35em, bottom: {% if not loop.last %}0.65em{% else %}0.35em{% endif %}), align: left)[#text(fill: muted)[
         {% if line.bnb_date %}
-    #box[{% if event.kind == "exempt" %}calculation{% else %}allowable cost{% endif %} on {{ line.bnb_date.strftime("%d %b %Y") }}] \
+    #box[{% if event.kind == "exempt" %}calculation{% elif event.kind == "transfer_to_spouse" %}base cost{% else %}allowable cost{% endif %} on {{ line.bnb_date.strftime("%d %b %Y") }}] \
         {% endif %}
         {% if event.kind == "option_grant" %}
     The option grant does not change the Section 104 holding of the underlying shares.

@@ -1,6 +1,6 @@
 Capital Gains Tax Calculations for 2024-25
 Overall - Capital Gains
-Number of acquisitions 1
+Number of acquisitions 3
 Number of disposals 0
 Total disposal proceeds £0.00
 Total allowable costs £0.00
@@ -21,7 +21,7 @@ Total amount of taxable dividends proceeds £0.00
 Total amount of UK interests proceeds £0.00
 Total amount of foreign interests proceeds £0.00
 Total amount of interest tax paid £0.00
-Page 1 of 2
+Page 1 of 3
 Capital Gains Tax Calculations for 2024-25
 Capital Gains Events
 01 June 2024
@@ -31,7 +31,27 @@ Rule Quantity Actual cost
 1. SECTION 104 10 £100.00
 Number of units in the pool: 10, new pool cost: £100.00 (£10.00/unit).
 10 June 2024
-Transferred to spouse: 4 units of FOO (no gain/no loss)
-Base cost of £40.00 passes to the recipient.
+Acquisition 2: 2 units of FOO
+for £24.00 (£12.00/unit)
+Rule Quantity Actual cost
+1. SECTION 104 2 £24.00
+Number of units in the pool: 12, new pool cost: £124.00 (£10.33/unit).
+Transferred to spouse: 6 units of FOO (no gain/no loss)
+Base cost of £69.00 passes to the recipient.
+Rule Quantity Base cost
+1. SAME DAY 2 £24.00
+Number of units left in the pool: 10, new pool cost: £100.00 (£10.00/unit).
+2. BED AND BREAKFAST 1 £15.00
+base cost on 03 Jul 2024
+Number of units left in the pool: 9, new pool cost: £90.00 (£10.00/unit).
+3. SECTION 104 3 £30.00
 Number of units left in the pool: 6, new pool cost: £60.00 (£10.00/unit).
-Page 2 of 2
+Page 2 of 3
+Capital Gains Tax Calculations for 2024-25
+03 July 2024
+Acquisition 3: 1 units of FOO
+for £15.00 (£15.00/unit)
+Rule Quantity Actual cost
+1. BED AND BREAKFAST 1 £10.00
+Number of units in the pool: 7, new pool cost: £70.00 (£10.00/unit).
+Page 3 of 3

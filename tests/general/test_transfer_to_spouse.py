@@ -31,6 +31,7 @@ from cgt_calc.parsers.raw import RawParser
 from cgt_calc.render_text import render_text
 from cgt_calc.share_prices import SharePrices
 from cgt_calc.spin_off_handler import SpinOffHandler
+from tests.utils import report_text
 
 from .calc_test_data import (
     GBP,
@@ -73,7 +74,8 @@ def test_transfer_to_spouse_from_pool_is_no_gain_no_loss() -> None:
     assert calculator.portfolio["FOO"].amount == Decimal(60)
 
     entries = report.calculation_log[transfer_day]["transfer-to-spouse$FOO"]
-    assert all(e.rule_type is RuleType.TRANSFER_TO_SPOUSE for e in entries)
+    # Nothing bought that day or in the next 30, so all of it is from the pool.
+    assert [e.rule_type for e in entries] == [RuleType.SECTION_104]
     assert sum((e.quantity for e in entries), Decimal(0)) == Decimal(4)
     assert sum((e.gain for e in entries), Decimal(0)) == Decimal(0)
     # £40 base cost passes to the recipient (4 units * £10 average).
@@ -397,6 +399,88 @@ def test_transfer_to_spouse_shown_in_report() -> None:
     # Quantities are shown as entered, like the PDF, so fractions survive.
     assert f"{transfer_day}: FOO 400 units, base cost £4,000.00" in output
     assert "2024-06-10,TRANSFER_FROM_SPOUSE,FOO,400,10,0.00,GBP" in output
+
+
+def test_the_pdf_names_the_rule_behind_each_part_of_a_transfer(
+    tmp_path: Path,
+) -> None:
+    """Each part of a transfer is listed with its rule, units, cost and the pool left.
+
+    Each holding is bought on 1 May 2024, then (TCGA 1992 s105(1)(a), s106A):
+
+    - FOO: 40 of 100 at £10 go with nothing bought around them, all from the
+      pool: £400, leaving 60 units, £600.
+    - BAR: 10 bought at £25 and passed on the same day are matched to each
+      other: £250, leaving the 50 units at £20, £1,000.
+    - BAZ: 4 passed on 1 August are matched to the 4 bought at £13 on
+      12 August: £52. The pool still gives up 4 at its £10 average, leaving
+      6 units, £60; the 12 August purchase later returns those 4 units and
+      their £40 to the pool.
+    - QUX: 30 passed on 2 September with a £3 fee, the day 10 are bought at
+      £9; 5 more are bought at £11 on 16 September. The fee is part of the
+      base cost (TCGA 1992 s38(2)) and is shared between the parts by units,
+      as a sale's fees are; it does not come out of the pool. 10 match the day's
+      purchase: £90 + 10/30 * £3 = £91, leaving the 100 units at £8, £800.
+      5 match the later purchase: £55 + 5/30 * £3 = £55.50, and take 5 * £8
+      out of the pool, leaving 95 units, £760. The last 15 come from the
+      pool: 15 * £8 + the remaining £1.50 of the fee = £121.50, leaving 80
+      units, £640. £91 + £55.50 + £121.50 = £268 passes to the recipient.
+    """
+    may_1 = dt.date(2024, 5, 1)
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [
+            _gbp_trade(may_1, ActionType.BUY, "FOO", 100, 1000),
+            _gbp_trade(may_1, ActionType.BUY, "BAR", 50, 1000),
+            _gbp_trade(may_1, ActionType.BUY, "BAZ", 10, 100),
+            _gbp_trade(may_1, ActionType.BUY, "QUX", 100, 800),
+            transfer_to_spouse_transaction(dt.date(2024, 6, 3), "FOO", 40),
+            _gbp_trade(dt.date(2024, 7, 1), ActionType.BUY, "BAR", 10, 250),
+            transfer_to_spouse_transaction(dt.date(2024, 7, 1), "BAR", 10),
+            transfer_to_spouse_transaction(dt.date(2024, 8, 1), "BAZ", 4),
+            _gbp_trade(dt.date(2024, 8, 12), ActionType.BUY, "BAZ", 4, 52),
+            _gbp_trade(dt.date(2024, 9, 2), ActionType.BUY, "QUX", 10, 90),
+            transaction(
+                dt.date(2024, 9, 2),
+                ActionType.TRANSFER_TO_SPOUSE,
+                "QUX",
+                30,
+                None,
+                3,
+                -3,
+                CurrencyCode(GBP),
+            ),
+            _gbp_trade(dt.date(2024, 9, 16), ActionType.BUY, "QUX", 5, 55),
+        ],
+    )
+
+    text = report_text(report, tmp_path)
+    header = "Rule Quantity Base cost"
+    left = "Number of units left in the pool:"
+    assert (
+        "Transferred to spouse: 40 units of FOO (no gain/no loss) "
+        f"Base cost of £400.00 passes to the recipient. {header} "
+        f"1. SECTION 104 40 £400.00 {left} 60, new pool cost: £600.00 (£10.00/unit)."
+    ) in text
+    assert (
+        "Transferred to spouse: 10 units of BAR (no gain/no loss) "
+        f"Base cost of £250.00 passes to the recipient. {header} "
+        f"1. SAME DAY 10 £250.00 {left} 50, new pool cost: £1,000.00 (£20.00/unit)."
+    ) in text
+    assert (
+        "Transferred to spouse: 4 units of BAZ (no gain/no loss) "
+        f"Base cost of £52.00 passes to the recipient. {header} "
+        "1. BED AND BREAKFAST 4 £52.00 base cost on 12 Aug 2024 "
+        f"{left} 6, new pool cost: £60.00 (£10.00/unit)."
+    ) in text
+    assert (
+        "Transferred to spouse: 30 units of QUX (no gain/no loss) "
+        f"Base cost of £268.00 passes to the recipient. {header} "
+        f"1. SAME DAY 10 £91.00 {left} 100, new pool cost: £800.00 (£8.00/unit). "
+        "2. BED AND BREAKFAST 5 £55.50 base cost on 16 Sep 2024 "
+        f"{left} 95, new pool cost: £760.00 (£8.00/unit). "
+        f"3. SECTION 104 15 £121.50 {left} 80, new pool cost: £640.00 (£8.00/unit)."
+    ) in text
 
 
 def test_unclassified_gift_is_rejected_with_instructions() -> None:
@@ -1419,7 +1503,7 @@ def test_acquisition_an_earlier_disposal_took_is_not_contended() -> None:
     # £60 loss bed-and-breakfasted on 5 June, £30 gain from the pool on the 10th.
     assert report.total_gain() == Decimal(-30)
     entries = report.calculation_log[dt.date(2024, 6, 10)]["transfer-to-spouse$FOO"]
-    assert all(e.rule_type is RuleType.TRANSFER_TO_SPOUSE for e in entries)
+    assert [e.rule_type for e in entries] == [RuleType.SECTION_104]
 
 
 def test_same_day_sale_and_transfer_after_a_split_is_allowed() -> None:
@@ -1700,7 +1784,7 @@ def test_transfer_to_spouse_on_the_day_of_a_rename() -> None:
     )
 
     (entry,) = report.calculation_log[rename_day]["transfer-to-spouse$NEW"]
-    assert entry.rule_type is RuleType.TRANSFER_TO_SPOUSE
+    assert entry.rule_type is RuleType.SECTION_104
     assert entry.quantity == Decimal(30)
     assert entry.allowable_cost == Decimal(300)
     assert report.total_gain() == Decimal(0)
@@ -1751,7 +1835,7 @@ def test_transfer_to_spouse_matches_the_day_s_purchase_across_a_rename(
     )
 
     (entry,) = report.calculation_log[rename_day][f"transfer-to-spouse${spelling}"]
-    assert entry.rule_type is RuleType.TRANSFER_TO_SPOUSE
+    assert entry.rule_type is RuleType.SAME_DAY
     assert entry.quantity == Decimal(50)
     # The day's purchase, not a slice of the whole 150-unit pool.
     assert entry.allowable_cost == Decimal(750)
@@ -2182,7 +2266,7 @@ def test_gifts_to_spouse_flag_promotes_unclassified_gift_to_transfer() -> None:
     assert calculator.portfolio["FOO"].amount == Decimal(60)
     # Logged exactly as a transfer to a spouse.
     entries = report.calculation_log[gift_day]["transfer-to-spouse$FOO"]
-    assert all(e.rule_type is RuleType.TRANSFER_TO_SPOUSE for e in entries)
+    assert [e.rule_type for e in entries] == [RuleType.SECTION_104]
     assert sum((e.gain for e in entries), Decimal(0)) == Decimal(0)
     assert sum((e.allowable_cost for e in entries), Decimal(0)) == Decimal(40)
 

@@ -556,11 +556,7 @@ class Matcher:
                     )
                 ctx.calculation_entries.append(
                     CalculationEntry(
-                        rule_type=(
-                            RuleType.TRANSFER_TO_SPOUSE
-                            if ctx.no_gain_no_loss
-                            else RuleType.SAME_DAY
-                        ),
+                        rule_type=RuleType.SAME_DAY,
                         quantity=available_quantity,
                         amount=same_day_amount,
                         gain=same_day_gain,
@@ -823,11 +819,7 @@ class Matcher:
                     )
                     ctx.calculation_entries.append(
                         CalculationEntry(
-                            rule_type=(
-                                RuleType.TRANSFER_TO_SPOUSE
-                                if ctx.no_gain_no_loss
-                                else RuleType.BED_AND_BREAKFAST
-                            ),
+                            rule_type=RuleType.BED_AND_BREAKFAST,
                             quantity=available_quantity,
                             amount=bed_and_breakfast_amount,
                             gain=bed_and_breakfast_gain,
@@ -876,11 +868,7 @@ class Matcher:
                 )
             ctx.calculation_entries.append(
                 CalculationEntry(
-                    rule_type=(
-                        RuleType.TRANSFER_TO_SPOUSE
-                        if ctx.no_gain_no_loss
-                        else RuleType.SECTION_104
-                    ),
+                    rule_type=RuleType.SECTION_104,
                     quantity=available_quantity,
                     amount=r104_amount,
                     gain=r104_gain,

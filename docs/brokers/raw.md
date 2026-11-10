@@ -410,7 +410,9 @@ for each: see
 [Gifts that all went to your spouse or civil partner](schwab.md#gifts-that-all-went-to-your-spouse-or-civil-partner).
 
 The report and the PDF show the base cost that passes to the recipient, and the text report prints
-the exact RAW row to give them.
+the exact RAW row to give them. Under each transfer, the PDF lists the matching rules that applied,
+with the shares and base cost each one covers, as it does for a sale: see
+[Labels in the PDF](../usage.md#labels-in-the-pdf).
 
 ### If you received the shares
 
@@ -434,9 +436,10 @@ of your export rather than let it be read as a purchase at nothing.
 
 Buying the same shares within 30 days of a transfer changes the figure. The transfer is matched
 against that purchase in the same way a sale would be, so the recipient inherits the cost of those
-shares rather than your pool average. Selling and transferring the same shares on the same day is
-refused when there is such a purchase, because there is no rule for splitting it between the two;
-the error says what to do instead.
+shares rather than your pool average. The PDF shows that part of the transfer on its own line:
+**SAME DAY** for a purchase that day, or **BED AND BREAKFAST** with the purchase date. Selling and
+transferring the same shares on the same day is refused when there is such a purchase, because there
+is no rule for splitting it between the two; the error says what to do instead.
 
 ## Gifts to anyone else
 
