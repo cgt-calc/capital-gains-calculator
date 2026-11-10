@@ -153,7 +153,7 @@ original cost. Check any unexpected matches against HMRC's
 
 An acquisition is labelled too. Shares matched to a disposal, or to a transfer to a spouse or civil
 partner, in the previous 30 days read **BED AND BREAKFAST**. The rest read **SECTION 104**,
-including shares matched on the same day: only the disposal reads **SAME DAY**.
+including shares matched on the same day: only the disposal or transfer reads **SAME DAY**.
 
 Three other labels are not matching rules:
 
@@ -165,11 +165,12 @@ Three other labels are not matching rules:
 - **OPTION:** the grant of an option you wrote, with its allowable cost and gain or loss. See
     [written equity options](brokers/schwab.md#written-equity-options).
 
-A [transfer to a spouse or civil partner](brokers/raw.md#transfers-to-a-spouse-or-civil-partner) has
-no labelled lines of its own, so its entry in the PDF does not say which matching rule applied. It
-shows the base cost that passes to the recipient instead. The matching rules still apply, so a
-purchase on the same day or in the following 30 days can make that cost differ from the average cost
-of your pooled holding.
+A [transfer to a spouse or civil partner](brokers/raw.md#transfers-to-a-spouse-or-civil-partner) is
+matched in the same way as a disposal, so a purchase on the same day or in the following 30 days can
+make the base cost that passes to the recipient differ from the average cost of your pooled holding.
+Its lines carry the same labels. Each line shows the shares matched under that rule and the base
+cost they pass on. A **BED AND BREAKFAST** line also gives the date the matched shares were bought
+or received. The lines add up to the base cost stated above them, apart from penny rounding.
 
 ## Use the figures
 

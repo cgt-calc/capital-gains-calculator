@@ -229,9 +229,7 @@ _DISPOSAL_KINDS: Final = frozenset(
 )
 _ACQUISITION_KINDS: Final = frozenset({EventKind.ACQUISITION, EventKind.MANAGEMENT_FEE})
 # Events the report states in prose alone, with no list of matching rules.
-_WITHOUT_LINES: Final = frozenset(
-    {EventKind.RENAME, EventKind.SPLIT, EventKind.TRANSFER_TO_SPOUSE}
-)
+_WITHOUT_LINES: Final = frozenset({EventKind.RENAME, EventKind.SPLIT})
 
 _UK_CURRENCY_CODE: Final = "GBP"
 
@@ -403,12 +401,10 @@ def _with_kind_fields(
             replace(event, split=entries[0].stock_split), entries[0]
         )
     if kind is EventKind.TRANSFER_TO_SPOUSE:
-        return _with_pool_after(
-            replace(
-                event,
-                base_cost_passed=round_decimal(_total(entries, "allowable_cost"), 2),
-            ),
-            entries[-1],
+        # Each line states the pool after it, so the event keeps the total alone.
+        return replace(
+            event,
+            base_cost_passed=round_decimal(_total(entries, "allowable_cost"), 2),
         )
     # What is left states the cost the event added to the pool.
     cost = round_decimal(entries[0].allowable_cost, 2)
@@ -456,7 +452,8 @@ def _build_event(
         is_disposal=is_disposal,
         is_acquisition=kind in _ACQUISITION_KINDS,
         is_gift=kind in _GIFT_KINDS,
-        pool_units_left=is_disposal or kind is EventKind.EXEMPT,
+        pool_units_left=is_disposal
+        or kind in {EventKind.EXEMPT, EventKind.TRANSFER_TO_SPOUSE},
         quantity=quantity,
         fees=round_decimal(_total(entries, "fees"), 2),
         lines=()

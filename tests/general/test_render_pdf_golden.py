@@ -231,14 +231,20 @@ def _interest_fund() -> CapitalGainsReport:
 
 
 def _spouse_transfer() -> CapitalGainsReport:
-    """Pass part of a holding to a spouse at no gain and no loss."""
+    """Pass 6 units to a spouse, matched under each rule, at no gain and no loss.
+
+    2 come from the day's purchase (£24), 1 from the purchase 23 days later
+    (£15) and 3 from the pool at £10 (£30): £69 passes to the recipient.
+    """
     return get_report(
         create_calculator(tax_year=2024, balance_check=False),
         [
             transaction(JUNE_1, ActionType.BUY, "FOO", 10, 10, 0, -100, GBP),
+            transaction(JUNE_10, ActionType.BUY, "FOO", 2, 12, 0, -24, GBP),
             transaction(
-                JUNE_10, ActionType.TRANSFER_TO_SPOUSE, "FOO", 4, 25, 0, 0, GBP
+                JUNE_10, ActionType.TRANSFER_TO_SPOUSE, "FOO", 6, 25, 0, 0, GBP
             ),
+            transaction(JULY_3, ActionType.BUY, "FOO", 1, 15, 0, -15, GBP),
         ],
     )
 
@@ -391,7 +397,7 @@ SCENARIOS: dict[str, tuple[Callable[[], CapitalGainsReport], list[str]]] = {
     ),
     "spouse_transfer": (
         _spouse_transfer,
-        ["Transferred to spouse", "passes to the recipient"],
+        ["Transferred to spouse", "passes to the recipient", "base cost on"],
     ),
     "spin_off": (
         _spin_off,
