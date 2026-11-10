@@ -310,8 +310,8 @@ class Matcher:
         bed_and_breakfast_fees = Decimal(0)
         # Cost with no shares behind it on a day that also brought shares is
         # logged as an entry of its own, so the report does not state it as
-        # the fees of those shares. A day of cost alone is logged, as before,
-        # as one Section 104 entry with no units.
+        # the fees of those shares. A day of cost alone is logged as one
+        # Section 104 entry with no units.
         cost_only = (
             record.cost_only if acquisition.quantity > 0 else HmrcTransactionData()
         )
