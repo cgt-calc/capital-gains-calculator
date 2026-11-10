@@ -82,7 +82,7 @@ VERIFIED_RANGES = [
     (0x2030, 0x203A),
     (0x20A0, 0x20C0),
 ]
-# The symbols beyond those ranges that the LaTeX report printed.
+# The symbols beyond those ranges that v3.0.0 printed.
 VERIFIED_SYMBOLS = [
     0x0E3F, 0x203B, 0x203D, 0x2044, 0x204E, 0x2052, 0x2103, 0x2116,
     0x2117, 0x211E, 0x2120, 0x2122, 0x2127, 0x212E, 0x2190, 0x2191,
@@ -229,10 +229,10 @@ def test_a_name_prints_as_written(tmp_path: Path, name: str) -> None:
 def test_a_name_prints_on_one_line_and_composed(
     tmp_path: Path, name: str, printed: str
 ) -> None:
-    """Whitespace runs print as one space, as LaTeX printed a tab; NFC composes.
+    """Whitespace runs print as one space, as v3.0.0 printed a tab; NFC composes.
 
     The ohm sign is canonically the Greek capital omega, which NFC gives. The
-    trade mark sign is one of the symbols beyond the ranges that LaTeX printed.
+    trade mark sign is one of the symbols v3.0.0 printed beyond the verified ranges.
     """
     text = report_text(name_report(name), tmp_path)
 
@@ -259,7 +259,7 @@ def test_a_name_outside_the_verified_set_stops_the_pdf(
 ) -> None:
     """A character the report's fonts are not checked to show is refused.
 
-    The soft hyphen printed (invisibly) in the LaTeX report and Greek Extended
+    The soft hyphen printed (invisibly) in v3.0.0 and Greek Extended
     letters may well be in a font, but neither is in the verified set. The
     Cyrillic titlo U+0483 (a combining mark) and the Cyrillic hundred thousands
     sign U+0488 (an enclosing mark) sit inside the Cyrillic range, but the set
