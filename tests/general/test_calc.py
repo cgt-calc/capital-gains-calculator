@@ -2806,6 +2806,23 @@ def test_one_renamed_holding_cannot_borrow_the_other_s_shares() -> None:
         get_report(calculator, transactions)
 
 
+def test_a_rename_day_sale_above_a_purchase_is_not_blamed_on_the_order() -> None:
+    """On a rename day a sale already counts every purchase that day makes.
+
+    100 OLD held and 50 NEW bought that day give the holding 150 to sell, so
+    a sale of 151 NEW is one short wherever the purchase is written, and
+    moving the purchase above it would change nothing.
+    """
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+
+    with pytest.raises(
+        InvalidTransactionError,
+        match=r"^Tried to sell 151 NEW on 2024-05-10, but the holding is 150\."
+        r" Check that the history includes the purchase",
+    ):
+        get_report(calculator, _rename_day_rows("NEW", ("rename", "sell", "buy"), 151))
+
+
 def test_a_holding_renamed_to_two_names_on_a_trading_day_is_refused() -> None:
     """The holding goes to one name or the other, and the day says neither."""
     calculator = create_calculator(tax_year=2024, balance_check=False)
