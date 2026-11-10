@@ -205,9 +205,9 @@ class Matcher:
         self.run.provisional_eri_warned.add(key)
         LOGGER.warning(
             "The excess reported income of %s for the period ending %s is "
-            "converted at the period-end rate for now: its fund "
-            "distribution date, %s, has not come, so its rate is not known "
-            "yet. Run cgt-calc again after that date for the final figure.",
+            "converted at the period-end rate for now: cgt-calc uses the rate "
+            "for its fund distribution date, %s, once that date has come. Run "
+            "cgt-calc again after that date for the final figure.",
             eri.symbol,
             eri.date,
             eri.distribution_date,

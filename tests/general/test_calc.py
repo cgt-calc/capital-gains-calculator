@@ -87,6 +87,7 @@ from .calc_test_data import (
     sell_transaction,
     split_transaction,
     transaction,
+    transfer_to_spouse_transaction,
     transfer_transaction,
 )
 from .calc_test_data_2 import calc_basic_data_2
@@ -434,9 +435,9 @@ def _provisional_warning(symbol: str) -> str:
     """Give the warning for this module's ERI applied while its rate is unknown."""
     return (
         f"The excess reported income of {symbol} for the period ending "
-        "2024-06-30 is converted at the period-end rate for now: its fund "
-        "distribution date, 2024-12-30, has not come, so its rate is not known "
-        "yet. Run cgt-calc again after that date for the final figure."
+        "2024-06-30 is converted at the period-end rate for now: cgt-calc uses "
+        "the rate for its fund distribution date, 2024-12-30, once that date has "
+        "come. Run cgt-calc again after that date for the final figure."
     )
 
 
@@ -517,8 +518,8 @@ _ESTIMATED_COSTS_PDF = (
                 _ESTIMATED_COSTS_PDF,
                 (
                     "dividends proceeds £16.00 (including £16.00 from excess "
-                    "reported income distributions, some estimated at the "
-                    "period-end rate)"
+                    "reported income distributions, at least partly estimated "
+                    "at the period-end rate)"
                 ),
                 (
                     "VWRL cost increased by £16.00 (£1.6000/unit) Estimated at "
@@ -560,8 +561,8 @@ _ESTIMATED_COSTS_PDF = (
                 _ESTIMATED_COSTS_PDF,
                 (
                     "foreign interests proceeds £16.00 (including £16.00 from "
-                    "excess reported income distributions, some estimated at the "
-                    "period-end rate)"
+                    "excess reported income distributions, at least partly "
+                    "estimated at the period-end rate)"
                 ),
                 (
                     "VWRL cost increased by £16.00 (£1.6000/unit) Estimated at "
@@ -838,6 +839,32 @@ def test_a_disposal_flagged_in_an_earlier_tax_year_is_not_flagged_again(
     calculator.calculate(transactions)
 
     assert _flagged_disposals(caplog) == []
+
+
+def test_an_estimated_eri_passed_to_a_spouse_is_not_called_an_allowable_cost(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A transfer to a spouse passes its base cost on rather than allowing it.
+
+    The ten units go to the spouse on 2 September 2024, before the ERI's
+    distribution date, on a run before that date. The transfer is flagged like
+    any disposal, but the allowable costs, £0.00, hold no estimate to note.
+    """
+    transactions = [
+        *_held_over_the_period_end(
+            transfer_to_spouse_transaction(dt.date(2024, 9, 2), "VWRL", 10)
+        ),
+        _usd_eri("2"),
+    ]
+    calculator = _eri_calculator(
+        _flat_rates(transactions), ERI_DISTRIBUTION_DATE - dt.timedelta(days=1)
+    )
+
+    report = calculator.calculate(transactions)
+
+    assert report.allowable_costs == 0
+    assert _flagged_disposals(caplog) == ["VWRL on 2024-09-02"]
+    assert "Allowable costs include" not in render_text(report)
 
 
 def _flat_rates(

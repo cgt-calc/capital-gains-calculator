@@ -183,7 +183,7 @@
   [Number of excess reported income distributions], [#view.income_summary.eri_count],
   [Total amount of dividends proceeds], [£#view.income_summary.total_dividends],
   ..if view.income_summary.eri_dividends != none {
-    (table.cell(colspan: 2, inset: (left: 1em))[#note[(including £#view.income_summary.eri_dividends from excess reported income distributions#if view.income_summary.eri_dividends_estimated [, some estimated at the period-end rate])]],)
+    (table.cell(colspan: 2, inset: (left: 1em))[#note[(including £#view.income_summary.eri_dividends from excess reported income distributions#if view.income_summary.eri_dividends_estimated [, at least partly estimated at the period-end rate])]],)
   },
   [Total amount of dividends tax allowance due to double taxation treaties], [£#view.income_summary.treaty_allowance],
   ..if view.income_summary.dividend_allowance != none {
@@ -198,7 +198,7 @@
   [Total amount of UK interests proceeds], [£#view.income_summary.uk_interest],
   [Total amount of foreign interests proceeds], [£#view.income_summary.foreign_interest],
   ..if view.income_summary.eri_interest != none {
-    (table.cell(colspan: 2, inset: (left: 1em))[#note[(including £#view.income_summary.eri_interest from excess reported income distributions#if view.income_summary.eri_interest_estimated [, some estimated at the period-end rate])]],)
+    (table.cell(colspan: 2, inset: (left: 1em))[#note[(including £#view.income_summary.eri_interest from excess reported income distributions#if view.income_summary.eri_interest_estimated [, at least partly estimated at the period-end rate])]],)
   },
   [Total amount of interest tax paid], [£#view.income_summary.interest_tax],
 )

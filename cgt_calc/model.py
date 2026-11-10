@@ -916,12 +916,18 @@ class CapitalGainsReport:
         )
 
     def costs_include_estimated_eri(self) -> bool:
-        """Say whether a disposal's cost has ERI converted at a stand-in rate."""
+        """Say whether an allowable cost has ERI converted at a stand-in rate.
+
+        A transfer to a spouse passes its base cost on instead of allowing it,
+        so its cost is not counted here.
+        """
         return any(
             eri.provisional_rate
-            for entry in self._filter_calculation_log(
-                self.calculation_log, RuleType.SECTION_104
-            )
+            for day in self.calculation_log.values()
+            for key, entries in day.items()
+            if not key.startswith("transfer-to-spouse$")
+            for entry in entries
+            if entry.rule_type is RuleType.SECTION_104
             for eri in entry.eris
         )
 

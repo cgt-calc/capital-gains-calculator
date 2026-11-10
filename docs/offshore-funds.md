@@ -82,10 +82,11 @@ ERI counts as income. The same pound figure is reported as income and added to t
 units ([regulation 99(3)](https://www.legislation.gov.uk/uksi/2009/3001/regulation/99) of the
 Offshore Funds (Tax) Regulations 2009).
 
-If the distribution date hasn't come yet, its rate isn't known. cgt-calc then uses the rate for the
-end of the reporting period and warns you. Both reports mark the ERI figures that use this rate as
-estimated, and say when a total includes one. Run cgt-calc again after the distribution date for the
-final figures.
+Until the distribution date comes, cgt-calc uses the rate for the end of the reporting period
+instead, and warns you. It switches to the distribution date's rate on that date, not when HMRC
+publishes the rate for that month, which can be earlier. The PDF report marks each ERI figure that
+uses the period-end rate as estimated. Both reports say when the allowable costs or the dividend or
+interest totals include one. Run cgt-calc again after the distribution date for the final figures.
 
 ### Disposals before the distribution date
 
@@ -103,10 +104,12 @@ disposal and the distribution date, which can make your gain higher or lower.
 If you take the other view, work out the difference for each such disposal and adjust its allowable
 cost yourself, or ask a tax adviser:
 
-1. Find the ERI, in the fund's currency, that the disposal's cost includes. At the end of the
-    reporting period, your holding's cost took on the ERI per unit (from the bundled ERI file or the
-    fund's report) times the units you held. Each disposal takes the same fraction of the ERI still
-    in that cost as it takes of the holding: selling half the holding takes half of it.
+1. Find the ERI, in the fund's currency, that the disposal's cost includes. Only the units it takes
+    from your holding carry ERI: the Section 104 line in the PDF report that has the note. Units
+    matched with a purchase on the same day or within 30 days do not. At the end of the reporting
+    period, your holding's cost took on the ERI per unit (from the bundled ERI file or the fund's
+    report) times the units you held. Each disposal takes the same fraction of the ERI still in that
+    cost as it takes of the holding's units: taking half the units takes half of it.
 2. Convert that amount at HMRC's rate for the month of the disposal, and again at HMRC's rate for
     the month of the distribution date.
 3. Add the first pound figure less the second to the disposal's allowable cost. If the first is

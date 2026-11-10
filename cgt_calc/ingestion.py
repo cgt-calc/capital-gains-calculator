@@ -309,7 +309,7 @@ class TransactionIngester:
         self.non_uk_resident_periods = non_uk_resident_periods or []
         self.date_in_tax_year = date_in_tax_year
         # The day of the run, which decides whether the distribution date of
-        # excess reported income has come and so whether its rate is known.
+        # excess reported income has come and so which rate converts it.
         self.today = dt.datetime.now().date()
         # The RAW file the run reads, named by errors that say where to add a
         # row. Set from the history by prepare_history().
@@ -1486,8 +1486,8 @@ class TransactionIngester:
         distribution date, when the income is treated as received (Offshore
         Funds (Tax) Regulations 2009, reg 94(3)). The cost added is the income
         charged to tax (reg 99(3)), so it is converted at the same rate.
-        Until the distribution date comes, its rate is not known, and the
-        period-end rate is used provisionally.
+        Until the distribution date comes, the period-end rate is used
+        provisionally.
 
         A disposal between the period end and the distribution date is not
         settled. Reg 99(5) treats the income as received just before that
@@ -1663,8 +1663,10 @@ class TransactionIngester:
         """Return the report with its price per unit converted to pounds.
 
         The rate is the one for the fund distribution date, when the ERI is
-        treated as received. Until that date comes, its rate is not known, so
-        the period-end rate is used and the result is marked provisional.
+        treated as received. Until that date comes, the period-end rate is
+        used and the result is marked provisional. The switch is made on the
+        date itself, not when HMRC publishes that month's rate a little
+        earlier, so a run never asks for a rate HMRC may not have published.
         """
         if eri.currency == UK_CURRENCY:
             return eri
