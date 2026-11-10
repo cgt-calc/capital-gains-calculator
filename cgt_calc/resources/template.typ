@@ -1,8 +1,9 @@
 // The calculations report. render_pdf passes the report as JSON in
-// sys.inputs.view, every figure already printed as a string: pounds with
-// thousands separators, unit counts without trailing zeros, dates spelled
-// out. A string inserted with #value prints as text, never as markup, so
-// nothing from a broker file is read as markup.
+// sys.inputs.view, every amount, quantity and date already printed as a
+// string: pounds with thousands separators, unit counts without trailing
+// zeros, dates spelled out. Counts and event numbers stay integers. A string
+// inserted with #value prints as text, never as markup, so nothing from a
+// broker file is read as markup.
 //
 // Directly after #value, Typst reads "." with a letter, "(" or "[" as part
 // of the expression, and takes a ";" as its end: write "\;" for a semicolon
@@ -128,7 +129,15 @@
           The option grant does not change the Section 104 holding of the underlying shares.
         ] else [
           #if event.pool_units_left [Number of units left in the pool:] else [Number of units in the pool:]
-          #line.new_quantity#if line.has_pool_units [, new pool cost: £#line.new_pool_cost #box[(£#line.pool_per_unit/unit)]#if event.is_acquisition and line.spin_off_source != none [ \ Cost basis calculated based on cost of #line.spin_off_source share pool from which #event.symbol shares were spun off]#if event.is_acquisition { for eri in line.eris [ \ Cost basis increased by £#eri.cost #box[(£#eri.unit_price/unit)], due to excess reported income on #box[#eri.date]] }].
+          #line.new_quantity#if line.has_pool_units {
+            [, new pool cost: £#line.new_pool_cost #box[(£#line.pool_per_unit/unit)]]
+            if event.is_acquisition and line.spin_off_source != none {
+              [ \ Cost basis calculated based on cost of #line.spin_off_source share pool from which #event.symbol shares were spun off]
+            }
+            if event.is_acquisition {
+              for eri in line.eris [ \ Cost basis increased by £#eri.cost #box[(£#eri.unit_price/unit)], due to excess reported income on #box[#eri.date]]
+            }
+          }.
         ]
       ]],)
       if not last { (table.hline(stroke: 0.4pt + hairline),) }
