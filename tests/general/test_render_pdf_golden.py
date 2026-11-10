@@ -1,7 +1,7 @@
 """The text of the PDF report is pinned exactly.
 
 `test_run_with_example_files` pins the text of the example run's PDF. The
-small scenarios here render the rest of `template.typ.j2`, and the PDF's text,
+small scenarios here render the rest of `template.typ`, and the PDF's text,
 as pdfplumber extracts it, is compared with a golden file under
 `data/report_text/`. Between them they print every branch of the template
 that prints text, except the singular "contract" of a one-contract option
@@ -264,7 +264,7 @@ def _fee_and_income() -> CapitalGainsReport:
 
     The interest is paid on the dividend's day, so the golden shows that two
     income events on one day stay separate paragraphs: the dividend's line ends
-    in a template tag, whose line break trim_blocks removes.
+    in a conditional clause, and only the blank line after it parts the two.
     """
     return get_report(
         create_calculator(tax_year=2024, balance_check=False),

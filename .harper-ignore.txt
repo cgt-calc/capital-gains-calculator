@@ -113,7 +113,5 @@
 ^(contributing|releasing)\.md:.*SpellCheck.*`uk`
 # "Latin Extended-A and -B" names two Unicode blocks; AnA reads the A as an article.
 ^render_pdf\.py:.*AnA
-# "a file path" as two words is standard; CompoundNouns wants "filepath".
-^render_pdf\.py:.*CompoundNouns.*filepath
 # "`output_path`'s" - Harper splits the possessive after the backticks.
 ^render_pdf\.py:.*SpellCheck.*`s`
