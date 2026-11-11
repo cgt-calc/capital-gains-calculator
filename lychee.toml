@@ -16,6 +16,9 @@ user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 # The UK Government Web Archive answers 405 to requests from GitHub's runners,
 # although the same pages open in a browser and check fine elsewhere.
 exclude = [
+  # SEC rejects automated CI requests to this public filing with 403.
+  # The agreement was verified directly when adding the citation.
+  "^https://www\\.sec\\.gov/Archives/edgar/data/1326801/000162828025036791/meta06302025-ex102\\.htm$",
   "^https://help\\.revolut\\.com/",
   "^https://webarchive\\.nationalarchives\\.gov\\.uk/",
 ]

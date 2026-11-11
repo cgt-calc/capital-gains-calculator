@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from cgt_calc.exceptions import CgtError, ParsingError
+from cgt_calc.model import ActionType
 from cgt_calc.parsers.schwab import AwardPrices, SchwabParser
 from tests.schwab.helpers import load_via_cli
 from tests.utils import (
@@ -118,10 +119,15 @@ def _prices(tmp_path: Path, award_file: str) -> AwardPrices:
 # --- What counts as a price-only export -------------------------------------
 
 
-def test_an_export_of_nothing_but_lapses_prices_vests_and_imports_nothing() -> None:
-    """The whole point: the JSON form now does what its CSV form always did."""
+@pytest.mark.parametrize("date_source", ["vesting", "settlement"])
+def test_an_export_of_nothing_but_lapses_prices_vests_and_imports_nothing(
+    date_source: str,
+) -> None:
+    """Lapse-only JSON supplies prices and the optional award activity dates."""
     transactions = load_via_cli(
-        schwab_file=str(MAIN_HISTORY), schwab_award_file=str(AWARD_JSON)
+        schwab_file=str(MAIN_HISTORY),
+        schwab_award_file=str(AWARD_JSON),
+        schwab_acquisition_date=date_source,
     )
 
     assert transactions
@@ -132,6 +138,12 @@ def test_an_export_of_nothing_but_lapses_prices_vests_and_imports_nothing() -> N
         assert transaction.source.file == MAIN_HISTORY
         assert transaction.source.account is not None
     assert SchwabParser.awards_prices
+    assert [t.date for t in transactions if t.action == ActionType.STOCK_ACTIVITY] == [
+        dt.date(2023, 6, 12 if date_source == "vesting" else 15),
+        dt.date(2023, 9, 13 if date_source == "vesting" else 15),
+        dt.date(2023, 9, 13 if date_source == "vesting" else 15),
+        dt.date(2023, 12, 15),
+    ]
 
 
 def test_a_cash_row_alongside_the_lapses_is_refused_by_name(tmp_path: Path) -> None:

@@ -875,6 +875,7 @@ def test_an_option_given_twice_is_refused(
     # of value has to say here what two of them look like.
     values = {
         "year_type": ("2021", "2022"),
+        "str": ("vesting", "settlement"),
         "date_type": ("2021-04-06", "2022-04-05"),
         "income_type": ("45000", "50000"),
         "existing_file_or_stdin_type": files,

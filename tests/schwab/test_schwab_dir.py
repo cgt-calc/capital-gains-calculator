@@ -84,8 +84,10 @@ def test_split_export_matches_the_whole_file(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize("date_source", ["vesting", "settlement"])
 def test_single_file_directory_matches_the_file_through_the_award_path(
     tmp_path: Path,
+    date_source: str,
 ) -> None:
     """A directory of one file equals that file, awards included.
 
@@ -102,9 +104,15 @@ def test_single_file_directory_matches_the_file_through_the_award_path(
     shutil.copy(fixture / "transactions.csv", directory / "transactions.csv")
     awards = str(fixture / "awards.csv")
 
-    from_dir = load_via_cli(schwab_dir=str(directory), schwab_award_file=awards)
+    from_dir = load_via_cli(
+        schwab_dir=str(directory),
+        schwab_award_file=awards,
+        schwab_acquisition_date=date_source,
+    )
     from_file = load_via_cli(
-        schwab_file=str(fixture / "transactions.csv"), schwab_award_file=awards
+        schwab_file=str(fixture / "transactions.csv"),
+        schwab_award_file=awards,
+        schwab_acquisition_date=date_source,
     )
 
     assert from_dir
@@ -143,15 +151,17 @@ def test_adjacent_exports_are_not_refused(tmp_path: Path) -> None:
     assert len(load_via_cli(schwab_dir=str(directory))) == 3
 
 
-def test_a_vest_dated_inside_the_older_export_is_not_an_overlap(
+@pytest.mark.parametrize("date_source", ["vesting", "settlement"])
+def test_an_earlier_award_price_date_does_not_make_exports_overlap(
     tmp_path: Path,
+    date_source: str,
 ) -> None:
-    """Exports are compared by the dates they state, not by vest dates.
+    """An earlier award-price date does not make two exports overlap.
 
     The older export runs from 2 May to 16 August and the newer one from 18
-    August. The vest in the newer one happened on 15 August, inside the older
-    export's dates, but was posted on 18 August. No row is in both files, so
-    they are combined, and the vest still takes its award date.
+    August. The newer export's acquisition is priced from a 15 August award
+    inside the older export's dates. The source dates still establish
+    whether exports overlap, whichever date is used for the acquisition.
     """
     directory = tmp_path / "schwab"
     directory.mkdir()
@@ -167,9 +177,16 @@ def test_a_vest_dated_inside_the_older_export_is_not_an_overlap(
     )
     awards = str(Path("tests") / "schwab" / "data" / "rsu_settlement" / "awards.csv")
 
-    transactions = load_via_cli(schwab_dir=str(directory), schwab_award_file=awards)
+    transactions = load_via_cli(
+        schwab_dir=str(directory),
+        schwab_award_file=awards,
+        schwab_acquisition_date=date_source,
+    )
 
-    assert [t.date for t in transactions if t.symbol == "BAR"] == [dt.date(2023, 8, 15)]
+    day = 15 if date_source == "vesting" else 18
+    assert [t.date for t in transactions if t.symbol == "BAR"] == [
+        dt.date(2023, 8, day)
+    ]
 
 
 def test_empty_directory_warns(

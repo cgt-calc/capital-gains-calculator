@@ -302,9 +302,8 @@ class SchwabTransaction(BrokerTransaction):
                 f"Invalid date format: {date_str!r}, expected MM/DD/YYYY, "
                 "e.g. '01/15/2023'",
             ) from exc
-        # The date the export states. A vest priced from the award file is
-        # re-dated to its vest, but the file's own date range and its row
-        # order are in these dates.
+        # The brokerage export's date also orders its rows and defines the
+        # source file's date range, independently of any award-price lookup.
         self.posted_on = date
         action_header = RequiredTransactionsColumn.ACTION.value
         self.raw_action = row_dict[action_header]
@@ -364,7 +363,11 @@ class SchwabTransaction(BrokerTransaction):
 
     @staticmethod
     def create(
-        row_dict: OrderedDict[str, str], file: Path, awards_prices: AwardPrices
+        row_dict: OrderedDict[str, str],
+        file: Path,
+        awards_prices: AwardPrices,
+        *,
+        use_award_date: bool = True,
     ) -> SchwabTransaction:
         """Create and post process a SchwabTransaction."""
         transaction = SchwabTransaction(row_dict, file)
@@ -375,14 +378,8 @@ class SchwabTransaction(BrokerTransaction):
             symbol = transaction.symbol
             if symbol is None:
                 raise SymbolMissingError(transaction)
-            # The transaction list dates a vest by when Schwab posted it, a few
-            # days after the vest itself. The shares are acquired at the vest,
-            # when the employee becomes beneficially entitled to them, not when
-            # they are transferred (ERSM20420), and the award file's price is
-            # the market value on that day, so the date is taken from the award
-            # file along with the price.
             try:
-                transaction.date, transaction.price = awards_prices.get(
+                award_date, transaction.price = awards_prices.get(
                     transaction.date, symbol
                 )
             except KeyError as err:
@@ -413,6 +410,11 @@ class SchwabTransaction(BrokerTransaction):
                 raise ParsingError(
                     file, f"Cannot price a vest: {context}, and {reason}"
                 ) from err
+            # Vesting need not confer ownership of the underlying shares.
+            # Use the date source selected for this account's award terms;
+            # posted_on still records the original brokerage date.
+            if use_award_date:
+                transaction.date = award_date
         return transaction
 
 
@@ -1012,6 +1014,7 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
     glob_dir: ClassVar[str] = "*.csv"
 
     awards_prices: AwardPrices = AwardPrices(award_prices={})
+    use_award_date: ClassVar[bool] = True
 
     @classmethod
     @override
@@ -1028,6 +1031,16 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 "prices vests in the main history",
             ),
             shtab.FILE,
+        )
+        arg_group.add_argument(
+            "--schwab-acquisition-date",
+            type=str,
+            choices=("vesting", "settlement"),
+            default=None,
+            help="date source for Stock Plan Activity priced from an award "
+            "file: vesting uses the matching award activity date (default); "
+            "settlement retains the first brokerage transaction date. "
+            "Choose according to your RSU agreement and records",
         )
         arg_group.add_argument(
             "--schwab-award",
@@ -1077,6 +1090,8 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 "--schwab-file and --schwab-dir cannot be used together. Pass "
                 "the directory holding every export, or the single file."
             )
+        # Assign on every load so an earlier run's selection cannot persist.
+        cls.use_award_date = args.schwab_acquisition_date != "settlement"
         award_transactions = cls._load_award_file(args)
         if args.schwab_dir:
             main_transactions = list(cls.load_from_dir(args.schwab_dir))
@@ -1363,6 +1378,7 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                     OrderedDict(zip(header, row, strict=True)),
                     file_path,
                     cls.awards_prices,
+                    use_award_date=cls.use_award_date,
                 )
             except ParsingError as err:
                 err.add_row_context(index)
