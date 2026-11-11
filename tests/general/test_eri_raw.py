@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
 
 from cgt_calc.args_parser import create_parser
+from cgt_calc.const import ERI_TAX_DATE_DELTA
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.parsers.eri.raw import ERIRawParser
-from tests.utils import build_cmd, report_path, run_cli
+from tests.utils import build_cmd, report_path, run_cli, stderr_alerts
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -55,32 +57,33 @@ def test_eri_raw_file_option_adds_its_rows_to_the_bundled_ones(tmp_path: Path) -
             ("Gain:", "£266.42"),
             id="2021-22-pounds",
         ),
-        # Held at 31/10/2023 only: 10 x 34.5541 EUR at HMRC's October 2023
-        # rate of 1.1555 is £299.04, paid on 30/04/2024, in 2024/25.
+        # Held at 31/10/2023 only: 10 x 34.5541 EUR at HMRC's rate of 1.1707
+        # for 30/04/2024, its distribution date, in 2024/25, is £295.16.
         pytest.param(
             "2023-10-02",
             "2024-06-03",
             "2024",
-            ["CSH2: £299.04 (included as dividend)"],
-            "£12,109.04",
-            ("Loss:", "£9.04"),
+            ["CSH2: £295.16 (included as dividend)"],
+            "£12,105.16",
+            ("Loss:", "£5.16"),
             id="2024-25",
         ),
         # Held at 31/10/2024, 07/03/2025 and 30/09/2025, all paid in 2025/26:
-        # 10 x 60.7270 / 1.1876 = £511.34, 10 x 25.0609 / 1.2073 = £207.58
-        # and 10 x 32.5745 / 1.1573 = £281.47, at HMRC's rates for October
-        # 2024, March 2025 and September 2025; £1,000.39 in all.
+        # 10 x 60.7270 / 1.1897 = £510.44, 10 x 25.0609 / 1.1573 = £216.55
+        # and 10 x 32.5745 / 1.1469 = £284.02, at HMRC's rates for their
+        # distribution dates, 30/04/2025, 07/09/2025 and 30/03/2026; £1,011.01
+        # in all.
         pytest.param(
             "2024-10-01",
             "2025-11-03",
             "2025",
             [
-                "CSH2: £511.34 (included as dividend)",
-                "CSH2: £207.58 (included as dividend)",
-                "CSH2: £281.47 (included as dividend)",
+                "CSH2: £510.44 (included as dividend)",
+                "CSH2: £216.55 (included as dividend)",
+                "CSH2: £284.02 (included as dividend)",
             ],
-            "£12,810.39",
-            ("Loss:", "£710.39"),
+            "£12,821.01",
+            ("Loss:", "£721.01"),
             id="2025-26",
         ),
     ],
@@ -102,7 +105,7 @@ def test_bundled_csh2_eri_is_read_in_the_currency_kpmg_states(
     31 October 2022 (#1332). Ten units are bought at 1,180.00 and sold at
     1,210.00, each with a 5.00 fee, so the costs are 11,810.00 plus the ERI,
     against proceeds of 12,100.00. Read as pounds, the four euro amounts
-    would be between 16% and 21% higher; read as euros, the pound amounts
+    would be between 15% and 19% higher; read as euros, the pound amounts
     would be lower.
     """
     raw = tmp_path / "raw.csv"
@@ -373,3 +376,68 @@ def test_read_eri_raw_refuses_a_wrong_header(
         ERIRawParser.load_from_file(file_path)
 
     assert excinfo.value.row_index == 1
+
+
+def test_no_pdf_is_written_while_eri_uses_the_period_end_rate(tmp_path: Path) -> None:
+    """The PDF waits until every ERI in it can use its distribution date's rate.
+
+    The PDF is the record to file with a return, and a figure at the stand-in
+    rate is not final. The dates are set from today so the ERI's distribution
+    date, six months after its period end, is always still to come. Ten units
+    are held over the period end, and its USD ERI is converted at the invented
+    period-end rate in the run's own rates file. The terminal report is still
+    printed, and the output says when the PDF can be had.
+    """
+    period_end = dt.datetime.now().date() - dt.timedelta(days=30)
+    distribution = period_end + ERI_TAX_DATE_DELTA
+    bought = period_end - dt.timedelta(days=20)
+    year = period_end.year - (period_end < dt.date(period_end.year, 4, 6))
+    raw = tmp_path / "raw.csv"
+    raw.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        f"{bought},TRANSFER,,1,1005.00,0.00,GBP\n"
+        f"{bought},BUY,EXAMPLE,10,100.00,5.00,GBP\n",
+        encoding="utf-8",
+    )
+    eri = tmp_path / "eri.csv"
+    eri.write_text(
+        HEADER + f"XS0123456781,{period_end:%d/%m/%Y},USD,2.00\n", encoding="utf-8"
+    )
+    isins = tmp_path / "isins.csv"
+    isins.write_text("ISIN,symbol\nXS0123456781,EXAMPLE\n", encoding="utf-8")
+    rates = tmp_path / "rates.csv"
+    rates.write_text(f"month,currency,rate\n{period_end},USD,1.25\n", encoding="utf-8")
+    output = tmp_path / "report.pdf"
+
+    result = run_cli(
+        [
+            sys.executable,
+            "-m",
+            "cgt_calc.main",
+            "--year",
+            str(year),
+            "--raw-file",
+            str(raw),
+            "--eri-raw-file",
+            str(eri),
+            "--isin-translation-file",
+            str(isins),
+            "--exchange-rates-file",
+            str(rates),
+            "--output",
+            str(output),
+        ]
+    )
+
+    assert not output.exists()
+    assert "Tax summary for" in result.stdout
+    assert stderr_alerts(result.stderr)[-1] == (
+        "WARNING: The PDF report was not written: the excess reported income in "
+        "these figures is converted at the period-end rate until its fund "
+        "distribution date, so the figures are not final. Run cgt-calc again on "
+        f"or after {distribution}, when every rate they need is final, and the "
+        "PDF report will be written."
+    )
+    assert result.stderr.splitlines()[-1] == (
+        "Done! Calculations complete (PDF report not written)."
+    )

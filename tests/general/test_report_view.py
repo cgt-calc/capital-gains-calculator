@@ -12,10 +12,12 @@ from decimal import Decimal
 
 import pytest
 
+from cgt_calc.const import UK_CURRENCY
 from cgt_calc.exceptions import CalculationError
 from cgt_calc.model import (
     CalculationEntry,
     CapitalGainsReport,
+    CurrencyCode,
     Dividend,
     ExcessReportedIncome,
     RuleType,
@@ -115,6 +117,7 @@ ERI = ExcessReportedIncome(
     date=DAY,
     distribution_date=OTHER_DAY,
     is_interest=False,
+    currency=CurrencyCode(UK_CURRENCY),
 )
 
 
@@ -472,6 +475,7 @@ def test_the_income_summary_splits_excess_reported_income_by_fund() -> None:
         date=DAY,
         distribution_date=OTHER_DAY,
         is_interest=True,
+        currency=CurrencyCode(UK_CURRENCY),
     )
     view = build_report_view(
         _report(

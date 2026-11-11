@@ -18,8 +18,8 @@ Interest
 Portfolio at the end of 2020/2021 tax year
   GOOG: 172.00, £12,516.55
   NVDA: 1.00, £401.01
-  VNRG: 1.00, £8.98
-  VUAG: 30.50, £645.19
+  VNRG: 1.00, £8.91
+  VUAG: 30.50, £643.46
 
 Tax summary for 2020/2021
 
@@ -41,7 +41,7 @@ To get a single figure, add --income with your income for 2020/2021 before the P
 The tax is an estimate: it leaves out gains that are not in the files you supplied, losses brought forward and reliefs. See https://cgt-calc.uk/tax-estimates/#what-the-estimates-leave-out
 
 Dividends
-  Proceeds:               £23.29
+  Proceeds:               £21.49
   Tax-free allowance:  £2,000.00
   Taxable proceeds:        £0.00
 
@@ -51,5 +51,5 @@ Interest
   Tax paid:                £0.00
 
 Excess Reported Income
-  VUAG: £22.26 (included as dividend)
-  VNRG: £0.91 (included as dividend)
+  VUAG: £20.54 (included as dividend)
+  VNRG: £0.84 (included as dividend)

@@ -140,6 +140,7 @@
               for eri in line.eris [ \ Cost basis increased by £#eri.cost #box[(£#eri.unit_price/unit)], due to excess reported income on #box[#eri.date]]
             }
           }.
+          #for eri in line.pending_eris [ \ The cost of this disposal includes the excess reported income for the period ending #box[#eri.period_end], whose fund distribution date, #box[#eri.distribution_date], comes after the disposal. This calculation adds it to the cost at the same pound amount as the income, converted at the rate for its fund distribution date (Offshore Funds (Tax) Regulations 2009, regulation 99). The regulations do not say whether the rate for the disposal date should be used instead.]
         ]
       ]],)
       if not last { (table.hline(stroke: 0.4pt + hairline),) }
@@ -189,7 +190,7 @@
     (total[Total amount of taxable dividends proceeds], total[£#view.income_summary.taxable_dividends])
   },
   ..if view.income_summary.explains_dividend_tax_credit {
-    (table.cell(colspan: 2)[#note[Most dividends before 6 April 2016 carried a tax credit, so cgt-calc does not work out the taxable amount. Use your dividend vouchers and HMRC's guidance on tax credits.]],)
+    (table.cell(colspan: 2)[#note[Most dividends before 6 April 2016 carried a tax credit, so this report does not work out the taxable amount. Use your dividend vouchers and HMRC's guidance on tax credits.]],)
   },
   [Total amount of UK interests proceeds], [£#view.income_summary.uk_interest],
   [Total amount of foreign interests proceeds], [£#view.income_summary.foreign_interest],

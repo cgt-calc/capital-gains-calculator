@@ -131,6 +131,7 @@ class CapitalGainsCalculator:
             interest_fund_tickers,
             self.date_in_tax_year,
             self.is_cgt_exempt,
+            self.ingester.eri_in_pounds,
         )
 
     @property
@@ -259,6 +260,7 @@ class CapitalGainsCalculator:
             exempt_disposal_count=walked.exempt_disposal_count,
             exempt_disposal_proceeds=round_decimal(walked.exempt_disposal_proceeds, 2),
             dividends_carry_tax_credit=self.tax_year < FIRST_DIVIDEND_ALLOWANCE_YEAR,
+            eri_estimated_until=max(self.run.provisional_eris.values(), default=None),
         )
 
     def make_portfolio_entry(

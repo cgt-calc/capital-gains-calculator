@@ -76,6 +76,14 @@ class EriLineView:
 
 
 @dataclass(frozen=True)
+class PendingEriView:
+    """Excess reported income in a disposal's cost, before its distribution date."""
+
+    period_end: dt.date
+    distribution_date: dt.date
+
+
+@dataclass(frozen=True)
 class LineView:
     """One matching rule applied within an event."""
 
@@ -92,6 +100,7 @@ class LineView:
     pool_per_unit: Decimal | None = None
     spin_off_source: str | None = None
     eris: tuple[EriLineView, ...] = ()
+    pending_eris: tuple[PendingEriView, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -313,6 +322,18 @@ def _build_line(entry: CalculationEntry, kind: EventKind) -> LineView:
             for eri in entry.eris
         )
         if is_acquisition
+        else (),
+        # A disposal from the pool names the ERI its cost carries before its
+        # distribution date, whose rate the regulations leave unsettled.
+        # An acquisition's Section 104 entry names none.
+        pending_eris=tuple(
+            PendingEriView(
+                period_end=eri.date,
+                distribution_date=eri.distribution_date,
+            )
+            for eri in entry.eris
+        )
+        if entry.rule_type is RuleType.SECTION_104
         else (),
     )
 

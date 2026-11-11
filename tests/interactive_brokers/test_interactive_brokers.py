@@ -216,6 +216,18 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
         )
         result = run_cli(cmd)
         assert stderr_alerts(result.stderr) == []
+        # Four CNX1 are held over 31 July 2025, when the bundled iShares data
+        # reports ERI in dollars, and two are sold on 15 August, before its
+        # distribution date six months on: the one disposal to note.
+        assert (
+            "The cost of the disposal of CNX1 on 2025-08-15 includes the excess "
+            "reported income for the period ending 2025-07-31, whose fund "
+            "distribution date, 2026-01-31, comes after the disposal. cgt-calc "
+            "adds it to the cost at the same pound amount as the income. The "
+            "regulations do not settle whether the cost should instead use the "
+            "rate for the disposal date. See "
+            "https://cgt-calc.uk/offshore-funds/#disposals-before-the-distribution-date"
+        ) in result.stderr.splitlines()
         expected_file = (
             Path("tests") / "interactive_brokers" / "data" / "expected_output.txt"
         )

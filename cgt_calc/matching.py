@@ -10,11 +10,17 @@ from fractions import Fraction
 import logging
 from typing import TYPE_CHECKING, NamedTuple
 
-from .const import BED_AND_BREAKFAST_DAYS, ERI_TAX_DATE_DELTA, MAX_CONTENDED_DATES_SHOWN
+from .const import (
+    BED_AND_BREAKFAST_DAYS,
+    ERI_TAX_DATE_DELTA,
+    MAX_CONTENDED_DATES_SHOWN,
+    UK_CURRENCY,
+)
 from .exceptions import CalculationError
 from .model import (
     CalculationEntry,
     CalculationLog,
+    CurrencyCode,
     ExcessReportedIncome,
     ExcessReportedIncomeDistribution,
     HmrcTransactionData,
@@ -143,6 +149,7 @@ class Matcher:
         interest_fund_tickers: list[str],
         date_in_tax_year: Callable[[dt.date], bool],
         is_cgt_exempt: Callable[[str], bool],
+        eri_in_pounds: Callable[[ExcessReportedIncome], ExcessReportedIncome],
     ):
         """Create matcher object."""
         self.history = state.history
@@ -152,14 +159,28 @@ class Matcher:
         self.interest_fund_tickers = interest_fund_tickers
         self.date_in_tax_year = date_in_tax_year
         self.is_cgt_exempt = is_cgt_exempt
+        self.eri_in_pounds = eri_in_pounds
+        # Each report converted to pounds, kept here because the prepared
+        # history is read-only to the matcher.
+        self._eris_in_pounds: dict[tuple[dt.date, str], ExcessReportedIncome] = {}
         # What each name holds as the day being walked opens, before any of
         # the day's rows. Only the days that record a rename need it, and only
         # to tell a holding of a name's own from what the day put there.
         self._day_open_pools: dict[str, Position] = {}
 
     def get_eri(self, symbol: str, date: dt.date) -> ExcessReportedIncome | None:
-        """Return Excess Reported Income at specific date for the input symbol."""
-        return self.history.eris.get(date, {}).get(symbol)
+        """Return Excess Reported Income at specific date for the input symbol.
+
+        The report is converted to pounds the first time it is asked for, and
+        the converted one is kept for the rest of the run.
+        """
+        key = (date, symbol)
+        if key not in self._eris_in_pounds:
+            eri = self.history.eris.get(date, {}).get(symbol)
+            if eri is None:
+                return None
+            self._eris_in_pounds[key] = self.eri_in_pounds(eri)
+        return self._eris_in_pounds[key]
 
     def _warn_ticker_only_eri(self, eri: ExcessReportedIncome) -> None:
         """Warn, once, that a report just added to a holding's cost may not be its.
@@ -171,6 +192,84 @@ class Matcher:
         if warning is not None and eri.symbol not in self.run.ticker_only_eri_warned:
             self.run.ticker_only_eri_warned.add(eri.symbol)
             LOGGER.warning("%s", warning)
+
+    def _note_estimated_eri(
+        self, eri: ExcessReportedIncome, *, in_pdf: bool = True
+    ) -> None:
+        """Warn once, and record for the PDF, that a figure uses a stand-in rate.
+
+        Called only where the report prints a figure that may include it: an
+        entry within the report's window for a pool carrying it, or its income
+        distributed within the window, which record it for the PDF; or a
+        holding's cost in the terminal portfolio (`in_pdf` false), which the
+        PDF does not show. For a whole tax year a PDF figure does include it.
+        A shortened window can end between a disposal and its
+        30-day repurchase, so the disposal's entry may print no ERI; it still
+        counts, which holds the PDF back rather than risk a stand-in figure in
+        it. The CLI writes no PDF until the latest recorded distribution date.
+        """
+        key = (eri.date, eri.symbol)
+        if not eri.provisional_rate:
+            return
+        if in_pdf:
+            self.run.provisional_eris[key] = eri.distribution_date
+        if key in self.run.provisional_eri_warned:
+            return
+        self.run.provisional_eri_warned.add(key)
+        LOGGER.warning(
+            "The excess reported income of %s for the period ending %s is "
+            "converted at the period-end rate for now: cgt-calc uses the rate "
+            "for its fund distribution date, %s, once that date has come. Run "
+            "cgt-calc again on or after that date for the final figure.",
+            eri.symbol,
+            eri.date,
+            eri.distribution_date,
+        )
+
+    def _note_eri_in_printed_pools(
+        self, date_index: dt.date, entries: dict[str, list[CalculationEntry]]
+    ) -> None:
+        """Note the ERI each pool printed on this day carries in its cost.
+
+        `entries` is the day's calculation log, keyed `kind$pool`, which holds
+        only days within the report's window. A renamed pool's ERI has moved
+        to its new name. An entry may print no figure that includes the ERI,
+        such as a disposal matched only with a 30-day repurchase after a
+        shortened window, and it still holds the PDF back.
+        """
+        renamed = self.history.rename_list.get(date_index, {})
+        for key in entries:
+            pool = key.partition("$")[2]
+            for eri in self.run.pool_eris.get(renamed.get(pool, pool), []):
+                self._note_estimated_eri(eri)
+
+    def _note_eri_in_held_pools(self) -> None:
+        """Warn about the ERI in each holding's cost the terminal prints.
+
+        Called once the walk reaches the report's end. The terminal portfolio
+        shows every holding still held then, with its cost; the PDF does not,
+        so this ERI does not hold the PDF back.
+        """
+        for symbol, position in self.run.portfolio.items():
+            if position.quantity > 0:
+                for eri in self.run.pool_eris.get(symbol, []):
+                    self._note_estimated_eri(eri, in_pdf=False)
+
+    def _carry_eri(self, pool: str, eri: ExcessReportedIncome) -> None:
+        """Note that a pool's cost now carries this report, unless it is in pounds.
+
+        A disposal from the pool before the report's distribution date is then
+        flagged (see `_match_section_104`). Sterling needs no rate, so a report
+        in pounds is the same figure whichever date is used. When part of a
+        pool was held at the period end and part bought back within 30 days,
+        the report reaches the pool twice and is noted once.
+        """
+        pool_eris = self.run.pool_eris[pool]
+        if (
+            self.history.eris[eri.date][eri.symbol].currency != UK_CURRENCY
+            and eri not in pool_eris
+        ):
+            pool_eris.append(eri)
 
     def _disposal_log_prefix(self, date_index: dt.date, symbol: str) -> str:
         """Name the kind of disposal recorded for a symbol on a day.
@@ -352,6 +451,12 @@ class Matcher:
                     eris=bnb_acquisition.eris,
                 )
             )
+        # A pool bought into from nothing no longer carries the ERI it had,
+        # unless a 30-day repurchase brings back the cost a disposal took.
+        if position.quantity == 0 and bnb_acquisition.quantity == 0:
+            self.run.pool_eris.pop(symbol, None)
+        for eri in bnb_acquisition.eris:
+            self._carry_eri(symbol, eri)
         self.run.portfolio[symbol] += Position(
             acquisition.quantity,
             modified_amount,
@@ -773,10 +878,12 @@ class Matcher:
                             price=eri.price,
                             amount=available_quantity * eri.price,
                             quantity=available_quantity,
+                            provisional_rate=eri.provisional_rate,
                         )
                         self._warn_ticker_only_eri(eri)
                         total_dist_amount += eri_distribution.amount
                         if self.date_in_tax_year(eri.distribution_date):
+                            self._note_estimated_eri(eri)
                             self.run.eris_distribution[eri.distribution_date][
                                 ctx.symbol
                             ] += eri_distribution
@@ -852,6 +959,35 @@ class Matcher:
             r104_allowable_cost = amount_delta + fees
             r104_gain = r104_proceeds - r104_allowable_cost
             ctx.chargeable_gain += r104_gain
+            # ERI in the pool's cost whose distribution date is still to come.
+            # Reg 99(5) treats it as received just before this disposal, and
+            # the regulations do not settle whether its cost then takes the
+            # disposal date's rate. cgt-calc assumes the income's own figure
+            # (Offshore Funds (Tax) Regulations 2009, reg 99(3)) and says so at
+            # each such disposal in the reported period; the rest of the
+            # history walk logs it at DEBUG.
+            pending = [
+                eri
+                for eri in self.run.pool_eris.get(ctx.identity.pool_name, [])
+                if ctx.date_index < eri.distribution_date
+            ]
+            for eri in pending:
+                LOGGER.log(
+                    logging.INFO
+                    if self.date_in_tax_year(ctx.date_index)
+                    else logging.DEBUG,
+                    "The cost of the disposal of %s on %s includes the excess "
+                    "reported income for the period ending %s, whose fund "
+                    "distribution date, %s, comes after the disposal. cgt-calc "
+                    "adds it to the cost at the same pound amount as the income. "
+                    "The regulations do not settle whether the cost should "
+                    "instead use the rate for the disposal date. See "
+                    "https://cgt-calc.uk/offshore-funds/#disposals-before-the-distribution-date",
+                    ctx.symbol,
+                    ctx.date_index,
+                    eri.date,
+                    eri.distribution_date,
+                )
             LOGGER.debug(
                 "SECTION 104, quantity %s, gain %s, proceeds amount %s, "
                 "allowable cost %s",
@@ -876,6 +1012,7 @@ class Matcher:
                     fees=fees,
                     new_quantity=ctx.current_quantity,
                     new_pool_cost=ctx.current_amount,
+                    eris=pending,
                 )
             )
 
@@ -883,6 +1020,7 @@ class Matcher:
         """Transfer pool from old ticker to new ticker (no disposal)."""
         pos = self.run.portfolio.pop(old, Position())
         self.run.portfolio[new] += pos
+        self.run.pool_eris[new] += self.run.pool_eris.pop(old, [])
         return CalculationEntry(
             rule_type=RuleType.RENAME,
             quantity=pos.quantity,
@@ -1959,13 +2097,16 @@ class Matcher:
             new_amount,
         )
         self.run.portfolio[eri.symbol].amount = new_amount
+        self._carry_eri(eri.symbol, eri)
 
         if self.date_in_tax_year(eri.distribution_date):
+            self._note_estimated_eri(eri)
             self.run.eris_distribution[eri.distribution_date][symbol] += (
                 ExcessReportedIncomeDistribution(
                     price=eri.price,
                     amount=allowable_cost,
                     quantity=quantity,
+                    provisional_rate=eri.provisional_rate,
                 )
             )
 
@@ -2219,6 +2360,10 @@ class Matcher:
                             f"excess-reported-income${symbol}"
                         ] = [maybe_entry]
 
+            self._note_eri_in_printed_pools(
+                date_index, calculation_log.get(date_index, {})
+            )
+
             # Lastly all the ERI distribution events
             if date_index in self.run.eris_distribution:
                 for symbol in self.run.eris_distribution[date_index]:
@@ -2245,10 +2390,13 @@ class Matcher:
                                     date=date_index - ERI_TAX_DATE_DELTA,
                                     distribution_date=date_index,
                                     is_interest=is_interest,
+                                    currency=CurrencyCode(UK_CURRENCY),
+                                    provisional_rate=data.provisional_rate,
                                 ),
                             ],
                         )
                     ]
+        self._note_eri_in_held_pools()
         return WalkResult(
             disposal_count,
             disposal_proceeds,

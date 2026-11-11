@@ -19,6 +19,7 @@ import sys
 import time
 from typing import TYPE_CHECKING
 
+import pdfplumber
 import pytest
 import typst
 
@@ -29,6 +30,7 @@ from cgt_calc.const import (
     CAPITAL_GAIN_ALLOWANCES,
     CAPITAL_GAINS_TAX_RATES,
     DIVIDEND_ALLOWANCES,
+    ERI_TAX_DATE_DELTA,
     PERSONAL_ALLOWANCES,
     PRE_POOLING_REFUSED_ACTIONS,
     RENAME_DESCRIPTION_PREFIX,
@@ -68,7 +70,14 @@ from cgt_calc.stock_splits import (
     SplitTransformation,
 )
 from cgt_calc.util import round_decimal
-from tests.utils import assert_stdout_matches, build_cmd, pdf_text, report_path, run_cli
+from tests.utils import (
+    assert_stdout_matches,
+    build_cmd,
+    pdf_text,
+    report_path,
+    report_text,
+    run_cli,
+)
 
 from .calc_test_data import (
     GBP,
@@ -79,6 +88,7 @@ from .calc_test_data import (
     sell_transaction,
     split_transaction,
     transaction,
+    transfer_to_spouse_transaction,
     transfer_transaction,
 )
 from .calc_test_data_2 import calc_basic_data_2
@@ -362,6 +372,893 @@ def test_eri_conflicting_report_raises_invalid_transaction_error() -> None:
         calculator.prepare_history(transactions)
 
 
+def _rename_transaction(date: dt.date, old: str, new: str) -> BrokerTransaction:
+    """Build a RENAME BrokerTransaction that moves the pool from old to new."""
+    return BrokerTransaction(
+        date=date,
+        action=ActionType.RENAME,
+        symbol=new,
+        description=f"{RENAME_DESCRIPTION_PREFIX}{old}",
+        quantity=Decimal(0),
+        price=None,
+        fees=Decimal(0),
+        amount=Decimal(0),
+        currency=CurrencyCode("GBP"),
+        broker="Test",
+    )
+
+
+# An ERI in dollars for the period ending 30 June 2024, distributed on
+# 30 December 2024, at different rates on those two dates.
+ERI_PERIOD_END = dt.date(2024, 6, 30)
+ERI_DISTRIBUTION_DATE = ERI_PERIOD_END + ERI_TAX_DATE_DELTA
+USD = CurrencyCode("USD")
+
+
+def _eri_calculator(
+    rates: dict[dt.date, dict[CurrencyCode, Decimal]],
+    today: dt.date,
+    tax_year: int = 2024,
+    interest_fund_tickers: list[str] | None = None,
+    period: tuple[dt.date, dt.date] | None = None,
+) -> CapitalGainsCalculator:
+    """Create a calculator with only `rates`, running on `today`."""
+    currency_converter = CurrencyConverter(None, rates)
+    calculator = CapitalGainsCalculator(
+        tax_year,
+        currency_converter,
+        IsinConverter(),
+        CurrentPriceFetcher(currency_converter, {}, {}),
+        SpinOffHandler(),
+        SharePrices(),
+        interest_fund_tickers=interest_fund_tickers or [],
+        balance_check=False,
+        period_start=period[0] if period else None,
+        period_end=period[1] if period else None,
+    )
+    calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
+    calculator.ingester.today = today
+    return calculator
+
+
+def _usd_eri(price: str) -> ERITransaction:
+    return ERITransaction(
+        date=ERI_PERIOD_END, isin=ERI_ISIN, price=Decimal(price), currency=USD
+    )
+
+
+def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == logging.WARNING
+    ]
+
+
+def _provisional_warning(symbol: str) -> str:
+    """Give the warning for this module's ERI applied while its rate is unknown."""
+    return (
+        f"The excess reported income of {symbol} for the period ending "
+        "2024-06-30 is converted at the period-end rate for now: cgt-calc uses "
+        "the rate for its fund distribution date, 2024-12-30, once that date has "
+        "come. Run cgt-calc again on or after that date for the final figure."
+    )
+
+
+def _early_disposal_message(symbol: str, date: str) -> str:
+    """Give the message for a disposal whose cost carries this module's ERI."""
+    return (
+        f"The cost of the disposal of {symbol} on {date} includes the excess "
+        "reported income for the period ending 2024-06-30, whose fund "
+        "distribution date, 2024-12-30, comes after the disposal. cgt-calc adds "
+        "it to the cost at the same pound amount as the income. The regulations "
+        "do not settle whether the cost should instead use the rate for the "
+        "disposal date. See "
+        "https://cgt-calc.uk/offshore-funds/#disposals-before-the-distribution-date"
+    )
+
+
+# The PDF's note on the disposal in the tests below, before its last words.
+_EARLY_DISPOSAL_NOTE = (
+    "Number of units left in the pool: 0. The cost of this disposal includes "
+    "the excess reported income for the period ending 30 Jun 2024, whose fund "
+    "distribution date, 30 Dec 2024, comes after the disposal. This calculation "
+    "adds it to the cost at the same pound amount as the income, converted at the "
+    "rate for its fund distribution date (Offshore Funds (Tax) Regulations 2009, "
+    "regulation 99). The regulations do not say whether the rate for the disposal "
+    "date should be used instead."
+)
+_ESTIMATED_COSTS_TEXT = (
+    "Allowable costs include excess reported income estimated at the period-end "
+    "rate. Run cgt-calc again on or after its distribution date for the final "
+    "figures."
+)
+
+
+@pytest.mark.parametrize(
+    (
+        "today",
+        "interest_fund",
+        "costs",
+        "estimated_until",
+        "text_lines",
+        "pdf_phrases",
+        "warnings",
+    ),
+    [
+        # The distribution date has come: 10 x USD 2 at its rate, 1.60, is
+        # £12.50, and the costs are 800.00 + 12.50.
+        pytest.param(
+            ERI_DISTRIBUTION_DATE,
+            False,
+            "812.50",
+            None,
+            ["VWRL: £12.50 (included as dividend)"],
+            [
+                "VWRL cost increased by £12.50 (£1.2500/unit) Rule",
+                _EARLY_DISPOSAL_NOTE,
+                "Distribution 1: VWRL (dividend) for £12.50 (£1.2500/unit) Page",
+                (
+                    "dividends proceeds £12.50 (including £12.50 from excess "
+                    "reported income distributions) Total"
+                ),
+            ],
+            [],
+            id="known",
+        ),
+        # It has not: the period-end rate, 1.25, stands in, so 10 x USD 2 is
+        # £16.00 for now, and the costs are 800.00 + 16.00. The terminal output
+        # marks every such figure and total, and the CLI writes no PDF until the
+        # distribution date; the template prints no estimate wording at all.
+        pytest.param(
+            ERI_DISTRIBUTION_DATE - dt.timedelta(days=1),
+            False,
+            "816.00",
+            ERI_DISTRIBUTION_DATE,
+            [
+                _ESTIMATED_COSTS_TEXT,
+                (
+                    "Proceeds include excess reported income estimated at the "
+                    "period-end rate, marked below."
+                ),
+                (
+                    "VWRL: £16.00 (included as dividend, estimated at the "
+                    "period-end rate until 2024-12-30)"
+                ),
+            ],
+            [
+                (
+                    "dividends proceeds £16.00 (including £16.00 from excess "
+                    "reported income distributions) Total"
+                ),
+                "VWRL cost increased by £16.00 (£1.6000/unit) Rule",
+                _EARLY_DISPOSAL_NOTE,
+                "Distribution 1: VWRL (dividend) for £16.00 (£1.6000/unit) Page",
+            ],
+            [_provisional_warning("VWRL")],
+            id="provisional",
+        ),
+        # A bond fund's ERI is interest, and the interest total is marked.
+        pytest.param(
+            ERI_DISTRIBUTION_DATE - dt.timedelta(days=1),
+            True,
+            "816.00",
+            ERI_DISTRIBUTION_DATE,
+            [
+                _ESTIMATED_COSTS_TEXT,
+                (
+                    "Foreign proceeds include excess reported income estimated at "
+                    "the period-end rate, marked below."
+                ),
+                (
+                    "VWRL: £16.00 (included as interest, estimated at the "
+                    "period-end rate until 2024-12-30)"
+                ),
+            ],
+            [
+                (
+                    "foreign interests proceeds £16.00 (including £16.00 from "
+                    "excess reported income distributions) Total"
+                ),
+                "VWRL cost increased by £16.00 (£1.6000/unit) Rule",
+                _EARLY_DISPOSAL_NOTE,
+                "Distribution 1: VWRL (interest) for £16.00 (£1.6000/unit) Page",
+            ],
+            [_provisional_warning("VWRL")],
+            id="provisional interest",
+        ),
+    ],
+)
+def test_eri_is_converted_at_the_fund_distribution_date_rate(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    today: dt.date,
+    interest_fund: bool,
+    costs: str,
+    estimated_until: dt.date | None,
+    text_lines: list[str],
+    pdf_phrases: list[str],
+    warnings: list[str],
+) -> None:
+    """ERI is income on its distribution date, so it is converted at that rate.
+
+    The cost added to the pool is the income charged to tax (Offshore Funds
+    (Tax) Regulations 2009, reg 99(3)), so it uses the same figure. Ten units
+    bought on 3 June 2024 for USD 1,000 at 1.25 cost £800.00. They are sold on
+    2 September for USD 1,100 at 1.10, £1,000.00: before the distribution
+    date, so the sale is flagged as resting on cgt-calc's assumption, and the
+    sale date's rate takes no part in the ERI.
+
+    The text report's lines that mention an estimate, and the PDF's phrases
+    about the ERI, are pinned whole: each place says it once, or not at all.
+    """
+    sale_date = dt.date(2024, 9, 2)
+    calculator = _eri_calculator(
+        {
+            dt.date(2024, 6, 3): {USD: Decimal("1.25")},
+            ERI_PERIOD_END: {USD: Decimal("1.25")},
+            sale_date: {USD: Decimal("1.10")},
+            ERI_DISTRIBUTION_DATE: {USD: Decimal("1.60")},
+        },
+        today,
+        interest_fund_tickers=["VWRL"] if interest_fund else None,
+    )
+    transactions = [
+        transfer_transaction(dt.date(2024, 6, 3), 1000),
+        buy_transaction(dt.date(2024, 6, 3), "VWRL", 10, 100, 0, -1000),
+        _usd_eri("2"),
+        sell_transaction(sale_date, "VWRL", 10, 110, 0, 1100),
+    ]
+    caplog.set_level(logging.INFO)
+
+    report = calculator.calculate(transactions)
+
+    assert report.allowable_costs == Decimal(costs)
+    # The CLI writes no PDF until this date (see the CLI test in test_eri_raw).
+    assert report.eri_estimated_until == estimated_until
+    assert _early_disposals(caplog) == [_early_disposal_message("VWRL", "2024-09-02")]
+    text = [line.strip() for line in render_text(report).splitlines()]
+    assert [
+        line for line in text if "stimated" in line or line.startswith("VWRL:")
+    ] == text_lines
+    pdf = report_text(report, tmp_path)
+    assert [phrase for phrase in pdf_phrases if phrase not in pdf] == []
+    # One mark for each phrase that carries one, and the disposal noted once.
+    assert pdf.count("stimated at the period-end rate") == sum(
+        "stimated at the period-end rate" in phrase for phrase in pdf_phrases
+    )
+    assert pdf.count("The cost of this disposal includes") == 1
+    # The PDF is the user's own report: it does not name the tool, even split
+    # across a line break, and has no links or other annotations.
+    assert re.search(r"cgt-?\s*calc", pdf, re.IGNORECASE) is None
+    with pdfplumber.open(tmp_path / "report.pdf") as document:
+        assert [note for page in document.pages for note in page.annots] == []
+    assert _warnings(caplog) == warnings
+
+
+def test_the_same_eri_in_two_currencies_is_a_duplicate(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Reports in two currencies are compared in pounds, at the ERI's rate.
+
+    USD 2 at the distribution date rate of 1.60 is the £1.25 the other report
+    gives, so the second is skipped as the same report arriving twice.
+    """
+    calculator = _eri_calculator(
+        {ERI_DISTRIBUTION_DATE: {USD: Decimal("1.60")}}, ERI_DISTRIBUTION_DATE
+    )
+    pounds = ERITransaction(
+        date=ERI_PERIOD_END, isin=ERI_ISIN, price=Decimal("1.25"), currency=GBP
+    )
+
+    calculator.prepare_history([pounds, _usd_eri("2")])
+
+    assert "Skipping duplicated ERI transaction" in caplog.text
+
+
+def test_an_eri_that_is_never_used_needs_no_exchange_rate() -> None:
+    """A report is converted when first used, so an unused one needs no rate.
+
+    The bundled data reports on many funds a user never held. This report is
+    for a period HMRC has published no rate for, and the calculator has no
+    rates at all, so looking one up would fail the run.
+    """
+    calculator = _eri_calculator({}, ERI_DISTRIBUTION_DATE)
+    unused = ERITransaction(
+        date=dt.date(2099, 6, 30), isin=ERI_ISIN, price=Decimal(2), currency=USD
+    )
+
+    report = calculator.calculate([unused])
+
+    assert "Excess Reported Income" not in render_text(report)
+
+
+def _held_over_the_period_end(*trades: BrokerTransaction) -> list[BrokerTransaction]:
+    """Ten units bought before this module's ERI period end, then `trades`."""
+    return [
+        transfer_transaction(dt.date(2024, 6, 3), 1000),
+        buy_transaction(dt.date(2024, 6, 3), "VWRL", 10, 100, 0, -1000),
+        *trades,
+    ]
+
+
+@pytest.mark.parametrize(
+    ("transactions", "flagged"),
+    [
+        # The last day before the distribution date is still before it.
+        pytest.param(
+            [
+                *_held_over_the_period_end(
+                    sell_transaction(dt.date(2024, 12, 29), "VWRL", 10, 110, 0, 1100)
+                ),
+                _usd_eri("2"),
+            ],
+            ["VWRL on 2024-12-29"],
+            id="the day before the distribution date",
+        ),
+        # On the distribution date the income has been received.
+        pytest.param(
+            [
+                *_held_over_the_period_end(
+                    sell_transaction(ERI_DISTRIBUTION_DATE, "VWRL", 10, 110, 0, 1100)
+                ),
+                _usd_eri("2"),
+            ],
+            [],
+            id="on the distribution date",
+        ),
+        # In pounds there is no rate to choose.
+        pytest.param(
+            [
+                *_held_over_the_period_end(
+                    sell_transaction(dt.date(2024, 9, 2), "VWRL", 10, 110, 0, 1100)
+                ),
+                ERITransaction(
+                    date=ERI_PERIOD_END, isin=ERI_ISIN, price=Decimal(2), currency=GBP
+                ),
+            ],
+            [],
+            id="sterling",
+        ),
+        # Sold in full, then bought again more than 30 days later: the new
+        # pool never had the ERI.
+        pytest.param(
+            [
+                *_held_over_the_period_end(
+                    sell_transaction(dt.date(2024, 7, 15), "VWRL", 10, 110, 0, 1100),
+                    buy_transaction(dt.date(2024, 9, 16), "VWRL", 10, 100, 0, -1000),
+                    sell_transaction(dt.date(2024, 10, 15), "VWRL", 10, 110, 0, 1100),
+                ),
+                _usd_eri("2"),
+            ],
+            ["VWRL on 2024-07-15"],
+            id="sold in full and bought again",
+        ),
+        # Topped up while still holding: the pool keeps the ERI it had.
+        pytest.param(
+            [
+                *_held_over_the_period_end(
+                    buy_transaction(dt.date(2024, 8, 1), "VWRL", 5, 100, 0, -500),
+                    sell_transaction(dt.date(2024, 9, 2), "VWRL", 15, 110, 0, 1650),
+                ),
+                _usd_eri("2"),
+            ],
+            ["VWRL on 2024-09-02"],
+            id="topped up after the period end",
+        ),
+        # Sold in full and bought back within 30 days: that sale is matched
+        # with the repurchase, which takes on the pool's cost, ERI included.
+        pytest.param(
+            [
+                *_held_over_the_period_end(
+                    sell_transaction(dt.date(2024, 7, 15), "VWRL", 10, 110, 0, 1100),
+                    buy_transaction(dt.date(2024, 7, 20), "VWRL", 10, 100, 0, -1000),
+                    sell_transaction(dt.date(2024, 9, 2), "VWRL", 10, 110, 0, 1100),
+                ),
+                _usd_eri("2"),
+            ],
+            ["VWRL on 2024-09-02"],
+            id="bought back within 30 days",
+        ),
+        # Sold before the period end and bought back after it, within 30
+        # days: the ERI reaches the pool through the repurchase.
+        pytest.param(
+            [
+                *_held_over_the_period_end(
+                    sell_transaction(dt.date(2024, 6, 25), "VWRL", 10, 110, 0, 1100),
+                    buy_transaction(dt.date(2024, 7, 2), "VWRL", 10, 100, 0, -1000),
+                    sell_transaction(dt.date(2024, 9, 2), "VWRL", 10, 110, 0, 1100),
+                ),
+                _usd_eri("2"),
+            ],
+            ["VWRL on 2024-09-02"],
+            id="bought back across the period end",
+        ),
+        # Half held at the period end and half bought back: the ERI reaches
+        # the pool both ways, and the sale is flagged once.
+        pytest.param(
+            [
+                *_held_over_the_period_end(
+                    sell_transaction(dt.date(2024, 6, 25), "VWRL", 5, 110, 0, 550),
+                    buy_transaction(dt.date(2024, 7, 2), "VWRL", 5, 100, 0, -500),
+                    sell_transaction(dt.date(2024, 9, 2), "VWRL", 10, 110, 0, 1100),
+                ),
+                _usd_eri("2"),
+            ],
+            ["VWRL on 2024-09-02"],
+            id="half bought back across the period end",
+        ),
+        # A rename takes the pool and the ERI in its cost to the new name.
+        pytest.param(
+            [
+                *_held_over_the_period_end(
+                    _rename_transaction(dt.date(2024, 7, 10), "VWRL", "NEW"),
+                    sell_transaction(dt.date(2024, 9, 2), "NEW", 10, 110, 0, 1100),
+                ),
+                _usd_eri("2"),
+            ],
+            ["NEW on 2024-09-02"],
+            id="renamed",
+        ),
+    ],
+)
+def test_a_disposal_is_flagged_while_its_pool_carries_eri_not_yet_distributed(
+    caplog: pytest.LogCaptureFixture,
+    transactions: list[BrokerTransaction],
+    flagged: list[str],
+) -> None:
+    """Only a disposal from a pool whose cost has foreign ERI still to come.
+
+    For such a disposal cgt-calc assumes the ERI's cost is the income's
+    figure, which the regulations do not settle. Every rate is 1, so only the
+    flags differ.
+    """
+    calculator = _eri_calculator(_flat_rates(transactions), ERI_DISTRIBUTION_DATE)
+    caplog.set_level(logging.INFO)
+
+    calculator.calculate(transactions)
+
+    assert _flagged_disposals(caplog) == flagged
+
+
+def test_a_disposal_flagged_in_an_earlier_tax_year_is_not_flagged_again(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A later year's run names a disposal outside it only at debug level.
+
+    Five of ten units are sold on 2 September 2024, before the distribution
+    date, in 2024/25, and five on 2 May 2025, after it, in 2025/26. The
+    2025/26 run has no flagged disposal to report: the first is in a report
+    for an earlier year, so it is logged for debugging only, and the second
+    comes after the distribution date.
+    """
+    transactions = [
+        *_held_over_the_period_end(
+            sell_transaction(dt.date(2024, 9, 2), "VWRL", 5, 110, 0, 550),
+            sell_transaction(dt.date(2025, 5, 2), "VWRL", 5, 110, 0, 550),
+        ),
+        _usd_eri("2"),
+    ]
+    calculator = _eri_calculator(
+        _flat_rates(transactions), ERI_DISTRIBUTION_DATE, tax_year=2025
+    )
+    caplog.set_level(logging.DEBUG)
+
+    calculator.calculate(transactions)
+
+    assert _flagged_disposals(caplog) == []
+    assert _flagged_disposals(caplog, logging.DEBUG) == ["VWRL on 2024-09-02"]
+
+
+@pytest.mark.parametrize(
+    ("tax_year", "at_info", "at_debug"),
+    [
+        pytest.param(2024, ["VWRL on 2025-03-03"], [], id="the disposal's year"),
+        pytest.param(
+            2025, [], ["VWRL on 2025-03-03"], id="the distribution date's year"
+        ),
+    ],
+)
+def test_a_disposal_is_noted_in_its_own_tax_year_not_its_eris(
+    caplog: pytest.LogCaptureFixture,
+    tax_year: int,
+    at_info: list[str],
+    at_debug: list[str],
+) -> None:
+    """The message follows the disposal's tax year, not the distribution date's.
+
+    The ERI is for the period ending 31 December 2024, so its distribution
+    date is 30 June 2025, in 2025/26. The ten units are sold on 3 March 2025,
+    in 2024/25: that year's run names the sale, and the next year's run logs
+    it for debugging only.
+    """
+    period_end = dt.date(2024, 12, 31)
+    transactions = [
+        transfer_transaction(dt.date(2024, 12, 2), 1000),
+        buy_transaction(dt.date(2024, 12, 2), "VWRL", 10, 100, 0, -1000),
+        sell_transaction(dt.date(2025, 3, 3), "VWRL", 10, 110, 0, 1100),
+        ERITransaction(date=period_end, isin=ERI_ISIN, price=Decimal(2), currency=USD),
+    ]
+    rate_dates = (
+        dt.date(2024, 12, 2),
+        period_end,
+        dt.date(2025, 3, 3),
+        period_end + ERI_TAX_DATE_DELTA,
+    )
+    calculator = _eri_calculator(
+        {date: {USD: Decimal(1)} for date in rate_dates},
+        dt.date(2025, 7, 1),
+        tax_year=tax_year,
+    )
+    caplog.set_level(logging.DEBUG)
+
+    calculator.calculate(transactions)
+
+    assert _flagged_disposals(caplog) == at_info
+    assert _flagged_disposals(caplog, logging.DEBUG) == at_debug
+
+
+def test_an_estimated_eri_passed_to_a_spouse_is_not_called_an_allowable_cost(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A transfer to a spouse passes its base cost on rather than allowing it.
+
+    The ten units go to the spouse on 2 September 2024, before the ERI's
+    distribution date, on a run before that date. The transfer is flagged like
+    any disposal, but the allowable costs, £0.00, hold no estimate to note.
+    """
+    transactions = [
+        *_held_over_the_period_end(
+            transfer_to_spouse_transaction(dt.date(2024, 9, 2), "VWRL", 10)
+        ),
+        _usd_eri("2"),
+    ]
+    calculator = _eri_calculator(
+        _flat_rates(transactions), ERI_DISTRIBUTION_DATE - dt.timedelta(days=1)
+    )
+    caplog.set_level(logging.INFO)
+
+    report = calculator.calculate(transactions)
+
+    assert report.allowable_costs == 0
+    assert _flagged_disposals(caplog) == ["VWRL on 2024-09-02"]
+    assert "Allowable costs include" not in render_text(report)
+
+
+@pytest.mark.parametrize(
+    ("tax_year", "period", "estimated_until"),
+    [
+        pytest.param(2023, None, None, id="the sale's year"),
+        pytest.param(2024, None, dt.date(2024, 10, 15), id="the repurchase's year"),
+        # Only the ERI's income, distributed on 15 October, is in October.
+        pytest.param(
+            2024,
+            (dt.date(2024, 10, 1), dt.date(2024, 10, 31)),
+            dt.date(2024, 10, 15),
+            id="its income's month",
+        ),
+    ],
+)
+def test_the_pdf_waits_only_for_eri_in_its_own_figures(
+    caplog: pytest.LogCaptureFixture,
+    tax_year: int,
+    period: tuple[dt.date, dt.date] | None,
+    estimated_until: dt.date | None,
+) -> None:
+    """A 30-day repurchase across the year end carries its ERI into the next year.
+
+    Ten units bought on 1 March 2024 are sold on 28 March, in 2023/24, and
+    bought back on 20 April, in 2024/25. The fund's period ends on 15 April,
+    between the two, so the repurchase takes on its ERI, whose distribution
+    date is 15 April + 6 months = 15 October 2024. On a run dated 1 June 2024
+    that rate is not known yet: the 2024/25 PDF waits for it, the 2023/24 one,
+    whose figures do not include it, does not.
+    """
+    transactions = [
+        transfer_transaction(dt.date(2024, 3, 1), 1000),
+        buy_transaction(dt.date(2024, 3, 1), "VWRL", 10, 100, 0, -1000),
+        sell_transaction(dt.date(2024, 3, 28), "VWRL", 10, 110, 0, 1100),
+        buy_transaction(dt.date(2024, 4, 20), "VWRL", 10, 100, 0, -1000),
+        ERITransaction(
+            date=dt.date(2024, 4, 15), isin=ERI_ISIN, price=Decimal(2), currency=USD
+        ),
+    ]
+    calculator = _eri_calculator(
+        _flat_rates(transactions), dt.date(2024, 6, 1), tax_year=tax_year, period=period
+    )
+
+    report = calculator.calculate(transactions)
+
+    assert report.eri_estimated_until == estimated_until
+    # The warning comes with the hold: only the year the ERI enters is told.
+    assert _warnings(caplog) == (
+        [
+            (
+                "The excess reported income of VWRL for the period ending 2024-04-15 "
+                "is converted at the period-end rate for now: cgt-calc uses the rate "
+                "for its fund distribution date, 2024-10-15, once that date has come. "
+                "Run cgt-calc again on or after that date for the final figure."
+            )
+        ]
+        if estimated_until
+        else []
+    )
+
+
+@pytest.mark.parametrize(
+    ("period", "estimated_until"),
+    [
+        # October holds only OTHER, so the June ERI reaches no figure.
+        pytest.param(
+            (dt.date(2024, 10, 1), dt.date(2024, 10, 31)), None, id="no ERI figure"
+        ),
+        # The 2 September sale's cost carries the June ERI.
+        pytest.param(
+            (dt.date(2024, 9, 1), dt.date(2024, 9, 30)),
+            ERI_DISTRIBUTION_DATE,
+            id="a disposal carries it",
+        ),
+        # The ERI's income is distributed on 30 December.
+        pytest.param(
+            (dt.date(2024, 12, 1), dt.date(2024, 12, 31)),
+            ERI_DISTRIBUTION_DATE,
+            id="its income is in the period",
+        ),
+    ],
+)
+def test_a_shortened_period_waits_only_for_eri_in_its_figures(
+    caplog: pytest.LogCaptureFixture,
+    period: tuple[dt.date, dt.date],
+    estimated_until: dt.date | None,
+) -> None:
+    """A report for part of the year is held back only by ERI it prints.
+
+    Ten VWRL bought on 3 June are held over the 30 June period end (USD 2 of
+    ERI a unit, distributed 30 December 2024) and sold on 2 September; ten
+    OTHER are bought on 1 October and sold on 15 October. On a run dated 1
+    November 2024 the ERI's rate is not known yet.
+    """
+    transactions = [
+        *_held_over_the_period_end(
+            sell_transaction(dt.date(2024, 9, 2), "VWRL", 10, 110, 0, 1100),
+            buy_transaction(dt.date(2024, 10, 1), "OTHER", 10, 100, 0, -1000),
+            sell_transaction(dt.date(2024, 10, 15), "OTHER", 10, 110, 0, 1100),
+        ),
+        _usd_eri("2"),
+    ]
+    calculator = _eri_calculator(
+        _flat_rates(transactions), dt.date(2024, 11, 1), period=period
+    )
+
+    report = calculator.calculate(transactions)
+
+    assert report.eri_estimated_until == estimated_until
+    # The warning comes with the hold: a report without the ERI is not told.
+    assert _warnings(caplog) == (
+        [_provisional_warning("VWRL")] if estimated_until else []
+    )
+
+
+def test_a_holding_the_terminal_shows_warns_without_holding_the_pdf(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A holding's cost in the terminal carries ERI that the PDF does not show.
+
+    Ten VWRL bought on 3 June for GBP 1,000 are still held at the end of
+    October, so the October report's terminal portfolio shows their cost:
+    1,000 + the June ERI of 10 x USD 2 at the period-end rate of 1 = GBP
+    1,020. On a run dated 1 November 2024 that rate is not final, so the
+    warning gives its distribution date, 30 December 2024. No October entry
+    includes the ERI, so the PDF is written.
+    """
+    transactions = [*_held_over_the_period_end(), _usd_eri("2")]
+    calculator = _eri_calculator(
+        _flat_rates(transactions),
+        dt.date(2024, 11, 1),
+        period=(dt.date(2024, 10, 1), dt.date(2024, 10, 31)),
+    )
+
+    report = calculator.calculate(transactions)
+
+    assert report.eri_estimated_until is None
+    assert _warnings(caplog) == [_provisional_warning("VWRL")]
+    assert "VWRL: 10.00, £1,020.00" in render_text(report).splitlines()[1]
+
+
+def test_a_renamed_holding_keeps_its_eri_for_the_pdf() -> None:
+    """A rename prints the pool's cost, which carries the June ERI.
+
+    Ten VWRL held over the 30 June period end are renamed VWRP on 7 October.
+    The October report's rename line transfers the pool cost, which includes
+    the ERI at the period-end rate, so on a run dated 1 November 2024 the PDF
+    waits for its distribution date, 30 December 2024.
+    """
+    transactions = [
+        *_held_over_the_period_end(
+            _rename_transaction(dt.date(2024, 10, 7), "VWRL", "VWRP")
+        ),
+        _usd_eri("2"),
+    ]
+    calculator = _eri_calculator(
+        _flat_rates(transactions),
+        dt.date(2024, 11, 1),
+        period=(dt.date(2024, 10, 1), dt.date(2024, 10, 31)),
+    )
+
+    report = calculator.calculate(transactions)
+
+    assert report.eri_estimated_until == ERI_DISTRIBUTION_DATE
+
+
+def test_the_pdf_waits_for_eri_whose_income_is_in_the_next_year() -> None:
+    """The ERI's cost enters the year, though its income falls in the next.
+
+    Ten units are held over a 31 December 2024 period end, so the ERI is
+    added to the 2024/25 pool. Its distribution date, 31 December 2024 + 6
+    months = 30 June 2025, is in 2025/26. On a run dated 1 May 2025 the 2024/25
+    PDF waits until then.
+    """
+    transactions = [
+        *_held_over_the_period_end(),
+        ERITransaction(
+            date=dt.date(2024, 12, 31), isin=ERI_ISIN, price=Decimal(2), currency=USD
+        ),
+    ]
+    calculator = _eri_calculator(_flat_rates(transactions), dt.date(2025, 5, 1))
+
+    report = calculator.calculate(transactions)
+
+    assert report.eri_estimated_until == dt.date(2025, 6, 30)
+
+
+def test_the_pdf_waits_for_the_latest_distribution_date() -> None:
+    """With two ERIs at stand-in rates, the PDF waits for the later date.
+
+    Ten units are held over two period ends, 30 June and 30 September 2024,
+    with ERI of USD 2 a unit each; their distribution dates are 30 December
+    2024 and 30 March 2025. On a run dated 1 December 2024 neither rate is
+    known, so the PDF can be written from 30 March 2025.
+    """
+    transactions = [
+        *_held_over_the_period_end(),
+        _usd_eri("2"),
+        ERITransaction(
+            date=dt.date(2024, 9, 30), isin=ERI_ISIN, price=Decimal(2), currency=USD
+        ),
+    ]
+    calculator = _eri_calculator(_flat_rates(transactions), dt.date(2024, 12, 1))
+
+    report = calculator.calculate(transactions)
+
+    assert report.eri_estimated_until == dt.date(2025, 3, 30)
+
+
+def _flat_rates(
+    transactions: list[BrokerTransaction],
+) -> dict[dt.date, dict[CurrencyCode, Decimal]]:
+    """Give a dollar rate of 1 for every date the transactions and ERI need."""
+    dates = {t.date for t in transactions} | {ERI_DISTRIBUTION_DATE}
+    return {date: {USD: Decimal(1)} for date in dates}
+
+
+def _early_disposals(
+    caplog: pytest.LogCaptureFixture, level: int = logging.INFO
+) -> list[str]:
+    """Give each message, logged at `level`, about a disposal's pending ERI."""
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == level
+        and record.getMessage().startswith("The cost of the disposal of ")
+    ]
+
+
+def _flagged_disposals(
+    caplog: pytest.LogCaptureFixture, level: int = logging.INFO
+) -> list[str]:
+    """Name each disposal noted at `level` for ERI before its distribution date."""
+    return [
+        re.sub(r"^The cost of the disposal of (\S+ on \S+) includes .*", r"\1", message)
+        for message in _early_disposals(caplog, level)
+    ]
+
+
+# The text report's lines for ten units held at the end, costing £800.00
+# plus an estimated ERI of £16.00, which is also the dividend. No allowable
+# cost carries the ERI: the only disposal is matched with the repurchase,
+# whose own cost it takes.
+_ESTIMATED_30_DAY_TEXT = [
+    "VWRL: 10.00, £816.00",
+    (
+        "Proceeds include excess reported income estimated at the period-end "
+        "rate, marked below."
+    ),
+    (
+        "VWRL: £16.00 (included as dividend, estimated at the period-end rate "
+        "until 2024-12-30)"
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("today", "sold", "pdf_line", "text_lines", "warnings"),
+    [
+        # 10 x USD 2 at the distribution date rate, 1.60, is £12.50.
+        pytest.param(
+            ERI_DISTRIBUTION_DATE,
+            10,
+            "Cost basis increased by £12.50 (£1.2500/unit), due to excess "
+            "reported income on 30 Jun 2024.",
+            ["VWRL: 10.00, £812.50", "VWRL: £12.50 (included as dividend)"],
+            [],
+            id="known",
+        ),
+        # At the period-end rate, 1.25, it is £16.00 for now.
+        pytest.param(
+            ERI_DISTRIBUTION_DATE - dt.timedelta(days=1),
+            10,
+            "Cost basis increased by £16.00 (£1.6000/unit), due to excess "
+            "reported income on 30 Jun 2024.",
+            _ESTIMATED_30_DAY_TEXT,
+            [_provisional_warning("VWRL")],
+            id="provisional",
+        ),
+        # Five held and five bought back: 5 x USD 2 / 1.25 = £8.00 each way,
+        # £16.00 of income in all, and the one report is warned about once.
+        pytest.param(
+            ERI_DISTRIBUTION_DATE - dt.timedelta(days=1),
+            5,
+            "Cost basis increased by £8.00 (£1.6000/unit), due to excess "
+            "reported income on 30 Jun 2024.",
+            _ESTIMATED_30_DAY_TEXT,
+            [_provisional_warning("VWRL")],
+            id="half bought back, provisional",
+        ),
+    ],
+)
+def test_eri_reached_by_a_30_day_repurchase_is_marked_while_estimated(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    today: dt.date,
+    sold: int,
+    pdf_line: str,
+    text_lines: list[str],
+    warnings: list[str],
+) -> None:
+    """Units sold before the period end and bought back after it.
+
+    The repurchase within 30 days is treated as if the units were held at the
+    period end, so the ERI reaches its cost by the 30-day rule. With all ten
+    sold, nothing is held on the day the ERI would otherwise be applied.
+    """
+    calculator = _eri_calculator(
+        {
+            dt.date(2024, 6, 3): {USD: Decimal("1.25")},
+            dt.date(2024, 6, 25): {USD: Decimal("1.25")},
+            ERI_PERIOD_END: {USD: Decimal("1.25")},
+            dt.date(2024, 7, 2): {USD: Decimal("1.25")},
+            ERI_DISTRIBUTION_DATE: {USD: Decimal("1.60")},
+        },
+        today,
+    )
+    transactions = _held_over_the_period_end(
+        sell_transaction(dt.date(2024, 6, 25), "VWRL", sold, 110, 0, 110 * sold),
+        buy_transaction(dt.date(2024, 7, 2), "VWRL", sold, 100, 0, -100 * sold),
+        _usd_eri("2"),
+    )
+
+    report = calculator.calculate(transactions)
+
+    # Only the provisional cases warn, and only they hold the PDF back.
+    assert report.eri_estimated_until == (ERI_DISTRIBUTION_DATE if warnings else None)
+    assert pdf_line in report_text(report, tmp_path)
+    text = [line.strip() for line in render_text(report).splitlines()]
+    assert [
+        line for line in text if "stimated" in line or line.startswith("VWRL:")
+    ] == text_lines
+    assert _warnings(caplog) == warnings
+
+
 @pytest.mark.parametrize(
     ("isin", "price", "error"),
     [
@@ -557,9 +1454,14 @@ def test_basic(
 ) -> None:
     """Generate basic tests for test data."""
     if gbp_prices is None:
-        gbp_prices = {
-            t.date: {CurrencyCode("USD"): Decimal(1)} for t in broker_transactions
+        # ERI is converted on its fund distribution date, so that date gets
+        # the flat rate as well.
+        dates = {t.date for t in broker_transactions} | {
+            t.date + ERI_TAX_DATE_DELTA
+            for t in broker_transactions
+            if t.action is ActionType.EXCESS_REPORTED_INCOME
         }
+        gbp_prices = {date: {CurrencyCode("USD"): Decimal(1)} for date in dates}
     currency_converter = CurrencyConverter(None, gbp_prices)
     isin_converter = IsinConverter()
     historical_prices = {
@@ -934,22 +1836,6 @@ def test_same_day_rule_all_shares_disposed_no_rounding_error() -> None:
     assert calculator.portfolio[symbol].amount == Decimal(0), (
         f"Pool amount should be exactly zero after disposing all shares on same day, "
         f"got {calculator.portfolio[symbol].amount}"
-    )
-
-
-def _rename_transaction(date: dt.date, old: str, new: str) -> BrokerTransaction:
-    """Build a RENAME BrokerTransaction that moves the pool from old to new."""
-    return BrokerTransaction(
-        date=date,
-        action=ActionType.RENAME,
-        symbol=new,
-        description=f"{RENAME_DESCRIPTION_PREFIX}{old}",
-        quantity=Decimal(0),
-        price=None,
-        fees=Decimal(0),
-        amount=Decimal(0),
-        currency=CurrencyCode("GBP"),
-        broker="Test",
     )
 
 

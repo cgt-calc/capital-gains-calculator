@@ -14,8 +14,8 @@ Number of dividend distributions 1
 Number of interest transactions 1
 Number of interest tax transactions 0
 Number of excess reported income distributions 2
-Total amount of dividends proceeds £23.29
-(including £23.17 from excess reported income distributions)
+Total amount of dividends proceeds £21.49
+(including £21.37 from excess reported income distributions)
 Total amount of dividends tax allowance due to double taxation treaties £0.02
 Total amount of dividends tax yearly allowance £2,000.00
 Total amount of taxable dividends proceeds £0.00
@@ -73,21 +73,21 @@ Rule Quantity Actual cost
 1. SECTION 104 1 £8.07
 Number of units in the pool: 1, new pool cost: £8.07 (£8.07/unit).
 30 June 2020
-Excess Reported Income: VNRG cost increased by £0.91
-(£0.9061/unit)
+Excess Reported Income: VNRG cost increased by £0.84
+(£0.8358/unit)
 Rule Quantity Original cost After income
 distribution
-1. EXCESS REPORTED INCOME 1 of VNRG £8.07 £8.98
-Number of units in the pool: 1, new pool cost: £8.98 (£8.98/unit).
+1. EXCESS REPORTED INCOME 1 of VNRG £8.07 £8.91
+Number of units in the pool: 1, new pool cost: £8.91 (£8.91/unit).
 Page 3 of 6
 Capital Gains Tax Calculations for 2020-21
 02 July 2020
 Acquisition 5: 30.5 units of VUAG
 for £737.72 (£24.19/unit), including £3.19 fees
 Rule Quantity Actual cost
-1. BED AND BREAKFAST 30.5 £645.19
-Number of units in the pool: 30.5, new pool cost: £645.19 (£21.15/unit)
-Cost basis increased by £22.26 (£0.7300/unit), due to excess reported income
+1. BED AND BREAKFAST 30.5 £643.46
+Number of units in the pool: 30.5, new pool cost: £643.46 (£21.10/unit)
+Cost basis increased by £20.54 (£0.6733/unit), due to excess reported income
 on 30 Jun 2020.
 25 November 2020
 Acquisition 6: 100 units of GME
@@ -135,10 +135,10 @@ proceeds cost
 Number of units left in the pool: 172, new pool cost: £12,516.55 (£72.77/unit).
 Interest and Dividends Events
 30 December 2020
-Excess Reported Income Distribution 1: VUAG (dividend) for £22.26 (£0.7300/unit)
+Excess Reported Income Distribution 1: VUAG (dividend) for £20.54 (£0.6733/unit)
 Page 5 of 6
 Capital Gains Tax Calculations for 2020-21
-Excess Reported Income Distribution 2: VNRG (dividend) for £0.91 (£0.9061/unit)
+Excess Reported Income Distribution 2: VNRG (dividend) for £0.84 (£0.8358/unit)
 03 February 2021
 Interest Foreign 1: USD for £1.03
 02 April 2021

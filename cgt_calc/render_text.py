@@ -134,6 +134,12 @@ def _summary_rows(
             "estimate are left out. Update cgt-calc, or take the amount from "
             "GOV.UK and work out the taxable gain yourself."
         )
+    if report.costs_include_estimated_eri():
+        capital_notes.append(
+            "Allowable costs include excess reported income estimated at the "
+            "period-end rate. Run cgt-calc again on or after its distribution date "
+            "for the final figures."
+        )
     if report.show_unrealized_gains:
         capital.append(("Unrealized gains", _pounds(report.total_unrealized_gains())))
         if any(h.unrealized_gains is None for h in report.portfolio):
@@ -158,18 +164,31 @@ def _summary_rows(
             "does not work out the taxable amount. Use your dividend vouchers and "
             "HMRC's guidance on tax credits."
         )
+    if report.eri_income_is_estimated(is_interest=False):
+        dividend_notes.append(_ESTIMATED_ERI_INCOME.format("Proceeds"))
 
     interest: list[tuple[str, str]] = [
         ("UK proceeds", _pounds(report.total_uk_interest)),
         ("Foreign proceeds", _pounds(report.total_foreign_interest)),
         ("Tax paid", _pounds(report.total_interest_tax)),
     ]
+    interest_notes: list[str] = (
+        [_ESTIMATED_ERI_INCOME.format("Foreign proceeds")]
+        if report.eri_income_is_estimated(is_interest=True)
+        else []
+    )
 
     return [
         ("Capital gains", capital, capital_notes),
         ("Dividends", dividends, dividend_notes),
-        ("Interest", interest, []),
+        ("Interest", interest, interest_notes),
     ]
+
+
+# A note under a total that includes ERI income at a stand-in rate.
+_ESTIMATED_ERI_INCOME = (
+    "{} include excess reported income estimated at the period-end rate, marked below."
+)
 
 
 def _rates_on(date: dt.date) -> tuple[int, int]:
@@ -434,9 +453,15 @@ def _render_excess_reported_income(report: CapitalGainsReport) -> str:
     for item in eris:
         assert item.eris
         assert len(item.eris) == 1
-        dist_type = "interest" if item.eris[0].is_interest else "dividend"
-        out += f"{bul}{item.eris[0].symbol}: {_pounds(item.amount)} "
-        out += f"(included as {dist_type})\n"
+        eri = item.eris[0]
+        dist_type = "interest" if eri.is_interest else "dividend"
+        estimated = (
+            f", estimated at the period-end rate until {eri.distribution_date}"
+            if eri.provisional_rate
+            else ""
+        )
+        out += f"{bul}{eri.symbol}: {_pounds(item.amount)} "
+        out += f"(included as {dist_type}{estimated})\n"
     return out
 
 

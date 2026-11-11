@@ -141,6 +141,12 @@ class ExcessReportedIncome:
     date: dt.date
     distribution_date: dt.date
     is_interest: bool
+    # The currency of `price`: the fund's own until the ERI is first used,
+    # when it is converted to pounds.
+    currency: CurrencyCode
+    # Converted at the period-end rate because the distribution date, whose
+    # rate is the one to use, had not come when cgt-calc ran.
+    provisional_rate: bool = False
 
 
 @dataclass
@@ -153,6 +159,9 @@ class ExcessReportedIncomeDistribution:
     price: Decimal = Decimal(0)
     amount: Decimal = Decimal(0)
     quantity: Decimal = Decimal(0)
+    # Converted at the period-end rate, because the distribution date had not
+    # come when cgt-calc ran.
+    provisional_rate: bool = False
 
     def __add__(
         self, transaction: ExcessReportedIncomeDistribution
@@ -162,6 +171,7 @@ class ExcessReportedIncomeDistribution:
             price=transaction.price,
             amount=self.amount + transaction.amount,
             quantity=self.quantity + transaction.quantity,
+            provisional_rate=transaction.provisional_rate,
         )
 
 
@@ -828,6 +838,10 @@ class CapitalGainsReport:
     # Before the dividend allowance began in 2016/17, most dividends carried a
     # tax credit, so the amount received is not the amount taxed.
     dividends_carry_tax_credit: bool = False
+    # The latest fund distribution date of an ERI the calculation converted at
+    # the period-end rate because that date had not come; None when every ERI
+    # used its final rate. No PDF is written until this date.
+    eri_estimated_until: dt.date | None = None
 
     def period_label(self) -> str | None:
         """Label for a custom reporting period, None for a full tax year."""
@@ -894,6 +908,32 @@ class CapitalGainsReport:
             if item.eris[0].is_interest == is_interest:
                 total += item.amount
         return total
+
+    def eri_income_is_estimated(self, *, is_interest: bool) -> bool:
+        """Say whether that kind of ERI income has a figure at a stand-in rate."""
+        return any(
+            item.eris[0].is_interest == is_interest and item.eris[0].provisional_rate
+            for item in self._filter_calculation_log(
+                self.calculation_log_yields,
+                RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
+            )
+        )
+
+    def costs_include_estimated_eri(self) -> bool:
+        """Say whether an allowable cost has ERI converted at a stand-in rate.
+
+        A transfer to a spouse passes its base cost on instead of allowing it,
+        so its cost is not counted here.
+        """
+        return any(
+            eri.provisional_rate
+            for day in self.calculation_log.values()
+            for key, entries in day.items()
+            if not key.startswith("transfer-to-spouse$")
+            for entry in entries
+            if entry.rule_type is RuleType.SECTION_104
+            for eri in entry.eris
+        )
 
     def total_dividends_amount(self) -> Decimal:
         """Total dividends amount."""

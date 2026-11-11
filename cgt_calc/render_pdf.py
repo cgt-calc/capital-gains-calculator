@@ -173,6 +173,13 @@ def _line_data(line: LineView) -> dict[str, object]:
             }
             for eri in line.eris
         ],
+        "pending_eris": [
+            {
+                "period_end": _short_date(eri.period_end),
+                "distribution_date": _short_date(eri.distribution_date),
+            }
+            for eri in line.pending_eris
+        ],
     }
 
 

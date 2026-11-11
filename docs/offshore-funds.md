@@ -75,6 +75,57 @@ mapping does that for very few funds: a US fund it lists under its US symbol, su
 fund based outside the US whose over-the-counter symbol it lists. For any other fund, add the row;
 see [Funds based outside the US](brokers/schwab.md#funds-based-outside-the-us).
 
+## Exchange rate
+
+cgt-calc converts ERI in a foreign currency at HMRC's rate for the fund distribution date, when the
+ERI counts as income. The same pound figure is reported as income and added to the cost of your
+units ([regulation 99(3)](https://www.legislation.gov.uk/uksi/2009/3001/regulation/99) of the
+Offshore Funds (Tax) Regulations 2009).
+
+Until the distribution date comes, cgt-calc uses the rate for the end of the reporting period
+instead, and warns you. It switches to the distribution date's rate on that date, not when HMRC
+publishes the rate for that month, which can be earlier. Until then the figures are not final, so
+cgt-calc writes no PDF report. Its terminal output still shows the figures, marks the estimated ERI
+income and the totals that include an estimate, and says the date from which to run it again. Run
+cgt-calc again on or after that date and it writes the PDF report with the final figures.
+
+You never need to file with estimated ERI figures. The latest distribution date that can affect a
+tax year is 5 October after it ends, before the filing deadlines. HMRC expects a return to include a
+provisional figure only when the final figure will not be available before the filing date
+([HMRC's guidance on provisional figures](https://www.gov.uk/hmrc-internal-manuals/self-assessment-legal-framework/salf206)).
+
+### Disposals before the distribution date
+
+If you dispose of units after the end of a reporting period and before its distribution date, the
+ERI for those units is treated, for capital gains tax, as received just before the disposal
+([regulation 99(5)](https://www.legislation.gov.uk/uksi/2009/3001/regulation/99)). Neither the
+regulations nor HMRC's guidance say whether the cost added for them should still use the rate for
+the distribution date, or the rate for the disposal date instead.
+
+cgt-calc assumes the distribution date: the cost added is the same pound figure as the income. This
+is cgt-calc's assumption, not HMRC's stated position. cgt-calc notes each such disposal in its
+output and in the PDF report. The two readings differ by how far the exchange rate moved between the
+disposal and the distribution date, which can make your gain higher or lower.
+
+If you take the other view, work out the difference for each such disposal and adjust its allowable
+cost yourself, or ask a tax adviser:
+
+1. Find the ERI, in the fund's currency, that your holding's cost took on for the period. It is the
+    ERI per unit (from the bundled ERI file or the fund's report) times the units you held at the
+    end of the period, plus any units you sold before the end and bought back after it, within 30
+    days of the sale. The PDF reports show each part in pounds: the report for the tax year that
+    includes the period end has its "Excess Reported Income" entry, and the report for the year of
+    the repurchase has its "Cost basis increased" line.
+2. Work out the share of it in the disposal's cost. Only the units the disposal takes from your
+    holding carry ERI: the Section 104 line in the PDF report that has the note. Units matched with
+    a purchase on the same day or within 30 days do not. Each disposal takes the same fraction of
+    the ERI still in the holding's cost as it takes of the holding's units: taking half the units
+    takes half of it.
+3. Convert that share at HMRC's rate for the month of the disposal, and again at HMRC's rate for the
+    month of the distribution date.
+4. Add the first pound figure less the second to the disposal's allowable cost. If the first is
+    smaller, this reduces the cost.
+
 ## Unsupported functionality
 
 cgt-calc does not support:
