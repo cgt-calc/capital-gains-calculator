@@ -1260,6 +1260,75 @@ def test_eri_reached_by_a_30_day_repurchase_is_marked_while_estimated(
 
 
 @pytest.mark.parametrize(
+    ("trades", "allowable_costs"),
+    [
+        # Sold on 25 March 2025, before the period end, for £200, and bought
+        # back on 1 April, after it, for £100: both in 2024/25, so the 2025/26
+        # report has no disposal. The repurchase is matched with the sale, so
+        # its units count as held at the period end: it takes on the £100 the
+        # sold units cost, plus their ERI, 10 x £2 = £20, which is income in
+        # 2025/26.
+        pytest.param(
+            [
+                sell_transaction(dt.date(2025, 3, 25), "VWRL", 10, 20, 0, 200),
+                buy_transaction(dt.date(2025, 4, 1), "VWRL", 10, 10, 0, -100),
+            ],
+            "0",
+            id="period end between the sale and the repurchase",
+        ),
+        # Held over the period end, so the pool is £100 + £20 = £120. One unit
+        # is sold on 1 June for £20 and bought back on 10 June for £10: the
+        # sale's cost is the repurchase's £10, and the repurchase takes over
+        # the sold unit's £12 share of the pool, which keeps ten units and
+        # £120. No period end falls between the two, so the match adds no
+        # ERI: the income stays £20, not £22.
+        pytest.param(
+            [
+                sell_transaction(dt.date(2025, 6, 1), "VWRL", 1, 20, 0, 20),
+                buy_transaction(dt.date(2025, 6, 10), "VWRL", 1, 10, 0, -10),
+            ],
+            "10",
+            id="sale and repurchase after the period end",
+        ),
+    ],
+)
+def test_a_30_day_match_adds_eri_only_for_a_period_end_between_its_trades(
+    trades: list[BrokerTransaction], allowable_costs: str
+) -> None:
+    """A 30-day match adds ERI only for a period end between its sale and repurchase.
+
+    Ten units bought on 1 January 2025 for USD 100, at a rate of 1, cost £100.
+    The fund reports ERI of USD 10 a unit for the period ending 31 March 2025,
+    distributed on 30 September 2025, in 2025/26. At the rate for that date,
+    5, that is £2 a unit, both the income and the cost added (Offshore Funds
+    (Tax) Regulations 2009, regs 94(3) and 99(3)); at the period-end rate, 2,
+    it would be £5. Each case below ends with 10 x £2 = £20 of income in the
+    2025/26 report, and ten units in the pool costing £100 + £20 = £120.
+    """
+    period_end = dt.date(2025, 3, 31)
+    distribution_date = period_end + ERI_TAX_DATE_DELTA
+    transactions = [
+        buy_transaction(dt.date(2025, 1, 1), "VWRL", 10, 10, 0, -100),
+        ERITransaction(date=period_end, isin=ERI_ISIN, price=Decimal(10), currency=USD),
+        *trades,
+    ]
+    rates = _flat_rates(transactions) | {
+        period_end: {USD: Decimal(2)},
+        distribution_date: {USD: Decimal(5)},
+    }
+    # Run on the distribution date, so its rate is the final one.
+    calculator = _eri_calculator(rates, distribution_date, tax_year=2025)
+
+    report = calculator.calculate(transactions)
+
+    assert report.total_eri_amount(is_interest=False) == Decimal(20)
+    assert report.allowable_costs == Decimal(allowable_costs)
+    assert [(p.symbol, p.quantity, p.amount) for p in report.portfolio] == [
+        ("VWRL", Decimal(10), Decimal(120))
+    ]
+
+
+@pytest.mark.parametrize(
     ("isin", "price", "error"),
     [
         (None, Decimal(1), IsinMissingError),
