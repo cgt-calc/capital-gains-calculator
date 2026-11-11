@@ -196,10 +196,13 @@ class Matcher:
     def _note_estimated_eri(self, eri: ExcessReportedIncome) -> None:
         """Record, and warn once, that a figure in the report uses a stand-in rate.
 
-        Called only where the report prints a figure that includes it: an
+        Called only where the report prints a figure that may include it: an
         entry within the report's window for a pool carrying it, or its income
-        distributed within the window. The CLI writes no PDF until the latest
-        recorded distribution date.
+        distributed within the window. For a whole tax year that figure does
+        include it. A shortened window can end between a disposal and its
+        30-day repurchase, so the disposal's entry may print no ERI; it still
+        counts, which holds the PDF back rather than risk a stand-in figure in
+        it. The CLI writes no PDF until the latest recorded distribution date.
         """
         key = (eri.date, eri.symbol)
         if not eri.provisional_rate or key in self.run.provisional_eris:
@@ -222,7 +225,9 @@ class Matcher:
 
         `entries` is the day's calculation log, keyed `kind$pool`, which holds
         only days within the report's window. A renamed pool's ERI has moved
-        to its new name.
+        to its new name. An entry may print no figure that includes the ERI,
+        such as a disposal matched only with a 30-day repurchase after a
+        shortened window, and it still holds the PDF back.
         """
         renamed = self.history.rename_list.get(date_index, {})
         for key in entries:

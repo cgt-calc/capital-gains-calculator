@@ -1007,7 +1007,9 @@ def test_the_pdf_waits_only_for_eri_in_its_own_figures(
     ],
 )
 def test_a_shortened_period_waits_only_for_eri_in_its_figures(
-    period: tuple[dt.date, dt.date], estimated_until: dt.date | None
+    caplog: pytest.LogCaptureFixture,
+    period: tuple[dt.date, dt.date],
+    estimated_until: dt.date | None,
 ) -> None:
     """A report for part of the year is held back only by ERI it prints.
 
@@ -1031,6 +1033,10 @@ def test_a_shortened_period_waits_only_for_eri_in_its_figures(
     report = calculator.calculate(transactions)
 
     assert report.eri_estimated_until == estimated_until
+    # The warning comes with the hold: a report without the ERI is not told.
+    assert _warnings(caplog) == (
+        [_provisional_warning("VWRL")] if estimated_until else []
+    )
 
 
 def test_a_renamed_holding_keeps_its_eri_for_the_pdf() -> None:

@@ -84,9 +84,9 @@ source. If your broker is not listed, you can convert its transactions to the ge
 cgt-calc prints a summary to the terminal and, by default, writes the detailed PDF report to
 `out/calculations.pdf`.
 
-If the report includes excess reported income from an offshore fund whose distribution date hasn't
-come yet, its figures are not final and cgt-calc writes no PDF. The terminal shows the estimated
-figures and the date from which to run cgt-calc again; see
+If the report includes excess reported income in a foreign currency from an offshore fund whose
+distribution date hasn't come yet, its figures are not final and cgt-calc writes no PDF. The
+terminal shows the estimated figures and the date from which to run cgt-calc again; see
 [Exchange rate](offshore-funds.md#exchange-rate).
 
 The PDF opens with the **Overall** summaries, then has a **Capital Gains Events** section and an
