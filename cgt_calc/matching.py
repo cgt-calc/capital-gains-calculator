@@ -193,16 +193,18 @@ class Matcher:
             self.run.ticker_only_eri_warned.add(eri.symbol)
             LOGGER.warning("%s", warning)
 
-    def _warn_provisional_eri(self, eri: ExcessReportedIncome) -> None:
-        """Warn, once, that a report just applied is converted at a stand-in rate.
+    def _note_estimated_eri(self, eri: ExcessReportedIncome) -> None:
+        """Record, and warn once, that a figure in the report uses a stand-in rate.
 
-        A report reaches a holding either at its period end or through a
-        30-day repurchase, and either way the figure is not final.
+        Called only where the report prints a figure that includes it: an
+        entry within the report's window for a pool carrying it, or its income
+        distributed within the window. The CLI writes no PDF until the latest
+        recorded distribution date.
         """
         key = (eri.date, eri.symbol)
-        if not eri.provisional_rate or key in self.run.provisional_eri_warned:
+        if not eri.provisional_rate or key in self.run.provisional_eris:
             return
-        self.run.provisional_eri_warned.add(key)
+        self.run.provisional_eris[key] = eri.distribution_date
         LOGGER.warning(
             "The excess reported income of %s for the period ending %s is "
             "converted at the period-end rate for now: cgt-calc uses the rate "
@@ -213,16 +215,20 @@ class Matcher:
             eri.distribution_date,
         )
 
-    def _note_estimated_eri(self, eri: ExcessReportedIncome) -> None:
-        """Record that a report at a stand-in rate entered the walked figures.
+    def _note_eri_in_printed_pools(
+        self, date_index: dt.date, entries: dict[str, list[CalculationEntry]]
+    ) -> None:
+        """Note the ERI each pool printed on this day carries in its cost.
 
-        Called where the ERI reaches a pool within the walk: at its period end,
-        or with the 30-day repurchase that carries it. A repurchase after the
-        walk's end belongs to a later year's figures, so it holds back only
-        that year's PDF (see the CLI), not this one.
+        `entries` is the day's calculation log, keyed `kind$pool`, which holds
+        only days within the report's window. A renamed pool's ERI has moved
+        to its new name.
         """
-        if eri.provisional_rate:
-            self.run.provisional_eris[eri.date, eri.symbol] = eri.distribution_date
+        renamed = self.history.rename_list.get(date_index, {})
+        for key in entries:
+            pool = key.partition("$")[2]
+            for eri in self.run.pool_eris.get(renamed.get(pool, pool), []):
+                self._note_estimated_eri(eri)
 
     def _carry_eri(self, pool: str, eri: ExcessReportedIncome) -> None:
         """Note that a pool's cost now carries this report, unless it is in pounds.
@@ -426,7 +432,6 @@ class Matcher:
             self.run.pool_eris.pop(symbol, None)
         for eri in bnb_acquisition.eris:
             self._carry_eri(symbol, eri)
-            self._note_estimated_eri(eri)
         self.run.portfolio[symbol] += Position(
             acquisition.quantity,
             modified_amount,
@@ -851,9 +856,9 @@ class Matcher:
                             provisional_rate=eri.provisional_rate,
                         )
                         self._warn_ticker_only_eri(eri)
-                        self._warn_provisional_eri(eri)
                         total_dist_amount += eri_distribution.amount
                         if self.date_in_tax_year(eri.distribution_date):
+                            self._note_estimated_eri(eri)
                             self.run.eris_distribution[eri.distribution_date][
                                 ctx.symbol
                             ] += eri_distribution
@@ -2056,8 +2061,6 @@ class Matcher:
         if allowable_cost == 0:
             return None
         self._warn_ticker_only_eri(eri)
-        self._warn_provisional_eri(eri)
-        self._note_estimated_eri(eri)
 
         new_amount = amount + allowable_cost
         LOGGER.debug(
@@ -2072,6 +2075,7 @@ class Matcher:
         self._carry_eri(eri.symbol, eri)
 
         if self.date_in_tax_year(eri.distribution_date):
+            self._note_estimated_eri(eri)
             self.run.eris_distribution[eri.distribution_date][symbol] += (
                 ExcessReportedIncomeDistribution(
                     price=eri.price,
@@ -2330,6 +2334,10 @@ class Matcher:
                         calculation_log[date_index][
                             f"excess-reported-income${symbol}"
                         ] = [maybe_entry]
+
+            self._note_eri_in_printed_pools(
+                date_index, calculation_log.get(date_index, {})
+            )
 
             # Lastly all the ERI distribution events
             if date_index in self.run.eris_distribution:

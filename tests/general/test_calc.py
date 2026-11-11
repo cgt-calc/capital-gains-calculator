@@ -400,6 +400,7 @@ def _eri_calculator(
     today: dt.date,
     tax_year: int = 2024,
     interest_fund_tickers: list[str] | None = None,
+    period: tuple[dt.date, dt.date] | None = None,
 ) -> CapitalGainsCalculator:
     """Create a calculator with only `rates`, running on `today`."""
     currency_converter = CurrencyConverter(None, rates)
@@ -412,6 +413,8 @@ def _eri_calculator(
         SharePrices(),
         interest_fund_tickers=interest_fund_tickers or [],
         balance_check=False,
+        period_start=period[0] if period else None,
+        period_end=period[1] if period else None,
     )
     calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
     calculator.ingester.today = today
@@ -923,14 +926,24 @@ def test_an_estimated_eri_passed_to_a_spouse_is_not_called_an_allowable_cost(
 
 
 @pytest.mark.parametrize(
-    ("tax_year", "estimated_until"),
+    ("tax_year", "period", "estimated_until"),
     [
-        pytest.param(2023, None, id="the sale's year"),
-        pytest.param(2024, dt.date(2024, 10, 15), id="the repurchase's year"),
+        pytest.param(2023, None, None, id="the sale's year"),
+        pytest.param(2024, None, dt.date(2024, 10, 15), id="the repurchase's year"),
+        # Only the ERI's income, distributed on 15 October, is in October.
+        pytest.param(
+            2024,
+            (dt.date(2024, 10, 1), dt.date(2024, 10, 31)),
+            dt.date(2024, 10, 15),
+            id="its income's month",
+        ),
     ],
 )
 def test_the_pdf_waits_only_for_eri_in_its_own_figures(
-    tax_year: int, estimated_until: dt.date | None
+    caplog: pytest.LogCaptureFixture,
+    tax_year: int,
+    period: tuple[dt.date, dt.date] | None,
+    estimated_until: dt.date | None,
 ) -> None:
     """A 30-day repurchase across the year end carries its ERI into the next year.
 
@@ -951,12 +964,119 @@ def test_the_pdf_waits_only_for_eri_in_its_own_figures(
         ),
     ]
     calculator = _eri_calculator(
-        _flat_rates(transactions), dt.date(2024, 6, 1), tax_year=tax_year
+        _flat_rates(transactions), dt.date(2024, 6, 1), tax_year=tax_year, period=period
     )
 
     report = calculator.calculate(transactions)
 
     assert report.eri_estimated_until == estimated_until
+    # The warning comes with the hold: only the year the ERI enters is told.
+    assert _warnings(caplog) == (
+        [
+            (
+                "The excess reported income of VWRL for the period ending 2024-04-15 "
+                "is converted at the period-end rate for now: cgt-calc uses the rate "
+                "for its fund distribution date, 2024-10-15, once that date has come. "
+                "Run cgt-calc again on or after that date for the final figure."
+            )
+        ]
+        if estimated_until
+        else []
+    )
+
+
+@pytest.mark.parametrize(
+    ("period", "estimated_until"),
+    [
+        # October holds only OTHER, so the June ERI reaches no figure.
+        pytest.param(
+            (dt.date(2024, 10, 1), dt.date(2024, 10, 31)), None, id="no ERI figure"
+        ),
+        # The 2 September sale's cost carries the June ERI.
+        pytest.param(
+            (dt.date(2024, 9, 1), dt.date(2024, 9, 30)),
+            ERI_DISTRIBUTION_DATE,
+            id="a disposal carries it",
+        ),
+        # The ERI's income is distributed on 30 December.
+        pytest.param(
+            (dt.date(2024, 12, 1), dt.date(2024, 12, 31)),
+            ERI_DISTRIBUTION_DATE,
+            id="its income is in the period",
+        ),
+    ],
+)
+def test_a_shortened_period_waits_only_for_eri_in_its_figures(
+    period: tuple[dt.date, dt.date], estimated_until: dt.date | None
+) -> None:
+    """A report for part of the year is held back only by ERI it prints.
+
+    Ten VWRL bought on 3 June are held over the 30 June period end (USD 2 of
+    ERI a unit, distributed 30 December 2024) and sold on 2 September; ten
+    OTHER are bought on 1 October and sold on 15 October. On a run dated 1
+    November 2024 the ERI's rate is not known yet.
+    """
+    transactions = [
+        *_held_over_the_period_end(
+            sell_transaction(dt.date(2024, 9, 2), "VWRL", 10, 110, 0, 1100),
+            buy_transaction(dt.date(2024, 10, 1), "OTHER", 10, 100, 0, -1000),
+            sell_transaction(dt.date(2024, 10, 15), "OTHER", 10, 110, 0, 1100),
+        ),
+        _usd_eri("2"),
+    ]
+    calculator = _eri_calculator(
+        _flat_rates(transactions), dt.date(2024, 11, 1), period=period
+    )
+
+    report = calculator.calculate(transactions)
+
+    assert report.eri_estimated_until == estimated_until
+
+
+def test_a_renamed_holding_keeps_its_eri_for_the_pdf() -> None:
+    """A rename prints the pool's cost, which carries the June ERI.
+
+    Ten VWRL held over the 30 June period end are renamed VWRP on 7 October.
+    The October report's rename line transfers the pool cost, which includes
+    the ERI at the period-end rate, so on a run dated 1 November 2024 the PDF
+    waits for its distribution date, 30 December 2024.
+    """
+    transactions = [
+        *_held_over_the_period_end(
+            _rename_transaction(dt.date(2024, 10, 7), "VWRL", "VWRP")
+        ),
+        _usd_eri("2"),
+    ]
+    calculator = _eri_calculator(
+        _flat_rates(transactions),
+        dt.date(2024, 11, 1),
+        period=(dt.date(2024, 10, 1), dt.date(2024, 10, 31)),
+    )
+
+    report = calculator.calculate(transactions)
+
+    assert report.eri_estimated_until == ERI_DISTRIBUTION_DATE
+
+
+def test_the_pdf_waits_for_eri_whose_income_is_in_the_next_year() -> None:
+    """The ERI's cost enters the year, though its income falls in the next.
+
+    Ten units are held over a 31 December 2024 period end, so the ERI is
+    added to the 2024/25 pool. Its distribution date, 31 December 2024 + 6
+    months = 30 June 2025, is in 2025/26. On a run dated 1 May 2025 the 2024/25
+    PDF waits until then.
+    """
+    transactions = [
+        *_held_over_the_period_end(),
+        ERITransaction(
+            date=dt.date(2024, 12, 31), isin=ERI_ISIN, price=Decimal(2), currency=USD
+        ),
+    ]
+    calculator = _eri_calculator(_flat_rates(transactions), dt.date(2025, 5, 1))
+
+    report = calculator.calculate(transactions)
+
+    assert report.eri_estimated_until == dt.date(2025, 6, 30)
 
 
 def test_the_pdf_waits_for_the_latest_distribution_date() -> None:
