@@ -137,8 +137,8 @@ def _summary_rows(
     if report.costs_include_estimated_eri():
         capital_notes.append(
             "Allowable costs include excess reported income estimated at the "
-            "period-end rate. Run cgt-calc again after its distribution date for "
-            "the final figures."
+            "period-end rate. Run cgt-calc again on or after its distribution date "
+            "for the final figures."
         )
     if report.show_unrealized_gains:
         capital.append(("Unrealized gains", _pounds(report.total_unrealized_gains())))

@@ -27,7 +27,7 @@ from .util import round_decimal
 if TYPE_CHECKING:
     import datetime as dt
 
-    from .model import CalculationEntry, CapitalGainsReport, ExcessReportedIncome
+    from .model import CalculationEntry, CapitalGainsReport
     from .stock_splits import StockSplitDetail
 
 
@@ -73,8 +73,6 @@ class EriLineView:
     cost: Decimal
     unit_price: Decimal
     date: dt.date
-    # The fund distribution date, when the figure is estimated until it comes.
-    estimated_until: dt.date | None = None
 
 
 @dataclass(frozen=True)
@@ -83,7 +81,6 @@ class PendingEriView:
 
     period_end: dt.date
     distribution_date: dt.date
-    estimated: bool
 
 
 @dataclass(frozen=True)
@@ -130,7 +127,6 @@ class EventView:
     gift_loss_to_date: Decimal | None = None
     base_cost_passed: Decimal | None = None
     eri_unit_price: Decimal | None = None
-    eri_estimated_until: dt.date | None = None
     renamed_to: str | None = None
     split: StockSplitDetail | None = None
     spin_off_source: str | None = None
@@ -163,7 +159,6 @@ class IncomeEventView:
     treaty_rate: Decimal | None = None
     treaty_amount: Decimal | None = None
     unit_price: Decimal | None = None
-    estimated_until: dt.date | None = None
 
 
 @dataclass(frozen=True)
@@ -188,7 +183,6 @@ class SummaryView:
     net_gain: Decimal
     exempt_disposal_count: int
     exempt_disposal_proceeds: Decimal
-    includes_estimated_eri: bool = False
 
 
 @dataclass(frozen=True)
@@ -209,8 +203,6 @@ class IncomeSummaryView:
     interest_tax: Decimal
     eri_dividends: Decimal | None = None
     eri_interest: Decimal | None = None
-    eri_dividends_estimated: bool = False
-    eri_interest_estimated: bool = False
 
 
 @dataclass(frozen=True)
@@ -326,7 +318,6 @@ def _build_line(entry: CalculationEntry, kind: EventKind) -> LineView:
                 cost=round_decimal(eri.price * entry.quantity, 2),
                 unit_price=round_decimal(eri.price, 4),
                 date=eri.date,
-                estimated_until=_estimated_until(eri),
             )
             for eri in entry.eris
         )
@@ -339,18 +330,12 @@ def _build_line(entry: CalculationEntry, kind: EventKind) -> LineView:
             PendingEriView(
                 period_end=eri.date,
                 distribution_date=eri.distribution_date,
-                estimated=eri.provisional_rate,
             )
             for eri in entry.eris
         )
         if entry.rule_type is RuleType.SECTION_104
         else (),
     )
-
-
-def _estimated_until(eri: ExcessReportedIncome) -> dt.date | None:
-    """Give the date until which an ERI figure is estimated, if it is."""
-    return eri.distribution_date if eri.provisional_rate else None
 
 
 @dataclass
@@ -468,12 +453,8 @@ def _with_kind_fields(
             spin_off_source=spin_off.source,
             spin_off_dest=spin_off.dest,
         )
-    eri = entries[0].eris[0]
     return replace(
-        event,
-        cost=cost,
-        eri_unit_price=round_decimal(eri.price, 4),
-        eri_estimated_until=_estimated_until(eri),
+        event, cost=cost, eri_unit_price=round_decimal(entries[0].eris[0].price, 4)
     )
 
 
@@ -562,7 +543,6 @@ def _build_income_event(
             amount=amount,
             is_interest=eri.is_interest,
             unit_price=round_decimal(eri.price, 4),
-            estimated_until=_estimated_until(eri),
         )
     if kind is IncomeKind.INTEREST:
         totals.interests += 1
@@ -622,7 +602,6 @@ def build_report_view(report: CapitalGainsReport) -> ReportView:
             net_gain=totals.total_gain - totals.total_loss,
             exempt_disposal_count=report.exempt_disposal_count,
             exempt_disposal_proceeds=report.exempt_disposal_proceeds,
-            includes_estimated_eri=report.costs_include_estimated_eri(),
         ),
         income_summary=IncomeSummaryView(
             dividend_count=totals.dividends,
@@ -651,7 +630,5 @@ def build_report_view(report: CapitalGainsReport) -> ReportView:
             foreign_interest=report.total_foreign_interest,
             eri_interest=(round_decimal(eri_interest, 2) if eri_interest > 0 else None),
             interest_tax=report.total_interest_tax,
-            eri_dividends_estimated=report.eri_income_is_estimated(is_interest=False),
-            eri_interest_estimated=report.eri_income_is_estimated(is_interest=True),
         ),
     )

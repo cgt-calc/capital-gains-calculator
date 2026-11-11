@@ -200,14 +200,14 @@ class Matcher:
         30-day repurchase, and either way the figure is not final.
         """
         key = (eri.date, eri.symbol)
-        if not eri.provisional_rate or key in self.run.provisional_eri_warned:
+        if not eri.provisional_rate or key in self.run.provisional_eris:
             return
-        self.run.provisional_eri_warned.add(key)
+        self.run.provisional_eris[key] = eri.distribution_date
         LOGGER.warning(
             "The excess reported income of %s for the period ending %s is "
             "converted at the period-end rate for now: cgt-calc uses the rate "
             "for its fund distribution date, %s, once that date has come. Run "
-            "cgt-calc again after that date for the final figure.",
+            "cgt-calc again on or after that date for the final figure.",
             eri.symbol,
             eri.date,
             eri.distribution_date,

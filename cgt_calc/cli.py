@@ -170,14 +170,23 @@ def calculate_cgt(args: argparse.Namespace) -> None:
     # blank line so piped output stays stable under newline normalisation.
     print(render_text(report, args.income), end="")
 
-    # Generate PDF report.
-    if not args.no_report:
+    # Generate PDF report. The PDF is the record to file with a return, so it
+    # is not written while any figure uses a stand-in exchange rate.
+    if args.no_report:
+        done_msg = "Done! Calculations complete (PDF generation skipped)."
+    elif report.eri_estimated_until is not None:
+        LOGGER.warning(
+            "The PDF report was not written: the excess reported income in "
+            "these figures is converted at the period-end rate until its fund "
+            "distribution date, so the figures are not final. Run cgt-calc "
+            "again on or after %s, when every rate they need is final, and the "
+            "PDF report will be written.",
+            report.eri_estimated_until,
+        )
+        done_msg = "Done! Calculations complete (PDF report not written)."
+    else:
         render_pdf(report, output_path=args.output)
-    done_msg = (
-        "Done! Calculations complete (PDF generation skipped)."
-        if args.no_report
-        else "Done! Report generated successfully."
-    )
+        done_msg = "Done! Report generated successfully."
     LOGGER.info(style_text(done_msg, colour=Fore.GREEN, emoji="🎉", stream=sys.stderr))
 
 

@@ -438,7 +438,7 @@ def _provisional_warning(symbol: str) -> str:
         f"The excess reported income of {symbol} for the period ending "
         "2024-06-30 is converted at the period-end rate for now: cgt-calc uses "
         "the rate for its fund distribution date, 2024-12-30, once that date has "
-        "come. Run cgt-calc again after that date for the final figure."
+        "come. Run cgt-calc again on or after that date for the final figure."
     )
 
 
@@ -459,25 +459,29 @@ def _early_disposal_message(symbol: str, date: str) -> str:
 _EARLY_DISPOSAL_NOTE = (
     "Number of units left in the pool: 0. The cost of this disposal includes "
     "the excess reported income for the period ending 30 Jun 2024, whose fund "
-    "distribution date, 30 Dec 2024, comes after the disposal. It is added to the "
-    "cost at the same pound amount as the income{}. The regulations do not settle "
-    "whether the cost should instead use the rate for the disposal date: see the "
-    "section on disposals before the distribution date in the documentation on "
-    "offshore funds."
+    "distribution date, 30 Dec 2024, comes after the disposal. This calculation "
+    "adds it to the cost at the same pound amount as the income, converted at the "
+    "rate for its fund distribution date (Offshore Funds (Tax) Regulations 2009, "
+    "regulation 99). The regulations do not say whether the rate for the disposal "
+    "date should be used instead."
 )
 _ESTIMATED_COSTS_TEXT = (
     "Allowable costs include excess reported income estimated at the period-end "
-    "rate. Run cgt-calc again after its distribution date for the final figures."
-)
-_ESTIMATED_COSTS_PDF = (
-    "The allowable costs include excess reported income estimated at the "
-    "period-end rate, as marked on the disposals below. Run the calculation again "
-    "after its distribution date for the final figures."
+    "rate. Run cgt-calc again on or after its distribution date for the final "
+    "figures."
 )
 
 
 @pytest.mark.parametrize(
-    ("today", "interest_fund", "costs", "text_lines", "pdf_phrases", "warnings"),
+    (
+        "today",
+        "interest_fund",
+        "costs",
+        "estimated_until",
+        "text_lines",
+        "pdf_phrases",
+        "warnings",
+    ),
     [
         # The distribution date has come: 10 x USD 2 at its rate, 1.60, is
         # £12.50, and the costs are 800.00 + 12.50.
@@ -485,10 +489,11 @@ _ESTIMATED_COSTS_PDF = (
             ERI_DISTRIBUTION_DATE,
             False,
             "812.50",
+            None,
             ["VWRL: £12.50 (included as dividend)"],
             [
                 "VWRL cost increased by £12.50 (£1.2500/unit) Rule",
-                _EARLY_DISPOSAL_NOTE.format(""),
+                _EARLY_DISPOSAL_NOTE,
                 "Distribution 1: VWRL (dividend) for £12.50 (£1.2500/unit) Page",
                 (
                     "dividends proceeds £12.50 (including £12.50 from excess "
@@ -499,12 +504,14 @@ _ESTIMATED_COSTS_PDF = (
             id="known",
         ),
         # It has not: the period-end rate, 1.25, stands in, so 10 x USD 2 is
-        # £16.00 for now, and the costs are 800.00 + 16.00. Every figure that
-        # uses it is marked, and so is every total that includes one.
+        # £16.00 for now, and the costs are 800.00 + 16.00. The terminal output
+        # marks every such figure and total, and the CLI writes no PDF until the
+        # distribution date; the template prints no estimate wording at all.
         pytest.param(
             ERI_DISTRIBUTION_DATE - dt.timedelta(days=1),
             False,
             "816.00",
+            ERI_DISTRIBUTION_DATE,
             [
                 _ESTIMATED_COSTS_TEXT,
                 (
@@ -517,25 +524,13 @@ _ESTIMATED_COSTS_PDF = (
                 ),
             ],
             [
-                _ESTIMATED_COSTS_PDF,
                 (
                     "dividends proceeds £16.00 (including £16.00 from excess "
-                    "reported income distributions, at least partly estimated "
-                    "at the period-end rate)"
+                    "reported income distributions) Total"
                 ),
-                (
-                    "VWRL cost increased by £16.00 (£1.6000/unit) Estimated at "
-                    "the period-end rate until the fund distribution date, "
-                    "30 Dec 2024. Run the calculation again after that date for "
-                    "the final figure."
-                ),
-                _EARLY_DISPOSAL_NOTE.format(
-                    ", estimated at the period-end rate until then"
-                ),
-                (
-                    "Distribution 1: VWRL (dividend) for £16.00 (£1.6000/unit), "
-                    "estimated at the period-end rate until 30 Dec 2024"
-                ),
+                "VWRL cost increased by £16.00 (£1.6000/unit) Rule",
+                _EARLY_DISPOSAL_NOTE,
+                "Distribution 1: VWRL (dividend) for £16.00 (£1.6000/unit) Page",
             ],
             [_provisional_warning("VWRL")],
             id="provisional",
@@ -545,6 +540,7 @@ _ESTIMATED_COSTS_PDF = (
             ERI_DISTRIBUTION_DATE - dt.timedelta(days=1),
             True,
             "816.00",
+            ERI_DISTRIBUTION_DATE,
             [
                 _ESTIMATED_COSTS_TEXT,
                 (
@@ -557,25 +553,13 @@ _ESTIMATED_COSTS_PDF = (
                 ),
             ],
             [
-                _ESTIMATED_COSTS_PDF,
                 (
                     "foreign interests proceeds £16.00 (including £16.00 from "
-                    "excess reported income distributions, at least partly "
-                    "estimated at the period-end rate)"
+                    "excess reported income distributions) Total"
                 ),
-                (
-                    "VWRL cost increased by £16.00 (£1.6000/unit) Estimated at "
-                    "the period-end rate until the fund distribution date, "
-                    "30 Dec 2024. Run the calculation again after that date for "
-                    "the final figure."
-                ),
-                _EARLY_DISPOSAL_NOTE.format(
-                    ", estimated at the period-end rate until then"
-                ),
-                (
-                    "Distribution 1: VWRL (interest) for £16.00 (£1.6000/unit), "
-                    "estimated at the period-end rate until 30 Dec 2024"
-                ),
+                "VWRL cost increased by £16.00 (£1.6000/unit) Rule",
+                _EARLY_DISPOSAL_NOTE,
+                "Distribution 1: VWRL (interest) for £16.00 (£1.6000/unit) Page",
             ],
             [_provisional_warning("VWRL")],
             id="provisional interest",
@@ -588,6 +572,7 @@ def test_eri_is_converted_at_the_fund_distribution_date_rate(
     today: dt.date,
     interest_fund: bool,
     costs: str,
+    estimated_until: dt.date | None,
     text_lines: list[str],
     pdf_phrases: list[str],
     warnings: list[str],
@@ -626,6 +611,8 @@ def test_eri_is_converted_at_the_fund_distribution_date_rate(
     report = calculator.calculate(transactions)
 
     assert report.allowable_costs == Decimal(costs)
+    # The CLI writes no PDF until this date (see the CLI test in test_eri_raw).
+    assert report.eri_estimated_until == estimated_until
     assert _early_disposals(caplog) == [_early_disposal_message("VWRL", "2024-09-02")]
     text = [line.strip() for line in render_text(report).splitlines()]
     assert [
@@ -1000,8 +987,7 @@ _ESTIMATED_30_DAY_TEXT = [
             ERI_DISTRIBUTION_DATE - dt.timedelta(days=1),
             10,
             "Cost basis increased by £16.00 (£1.6000/unit), due to excess "
-            "reported income on 30 Jun 2024, estimated at the period-end rate "
-            "until 30 Dec 2024.",
+            "reported income on 30 Jun 2024.",
             _ESTIMATED_30_DAY_TEXT,
             [_provisional_warning("VWRL")],
             id="provisional",
@@ -1012,8 +998,7 @@ _ESTIMATED_30_DAY_TEXT = [
             ERI_DISTRIBUTION_DATE - dt.timedelta(days=1),
             5,
             "Cost basis increased by £8.00 (£1.6000/unit), due to excess "
-            "reported income on 30 Jun 2024, estimated at the period-end rate "
-            "until 30 Dec 2024.",
+            "reported income on 30 Jun 2024.",
             _ESTIMATED_30_DAY_TEXT,
             [_provisional_warning("VWRL")],
             id="half bought back, provisional",
@@ -1053,6 +1038,8 @@ def test_eri_reached_by_a_30_day_repurchase_is_marked_while_estimated(
 
     report = calculator.calculate(transactions)
 
+    # Only the provisional cases warn, and only they hold the PDF back.
+    assert report.eri_estimated_until == (ERI_DISTRIBUTION_DATE if warnings else None)
     assert pdf_line in report_text(report, tmp_path)
     text = [line.strip() for line in render_text(report).splitlines()]
     assert [

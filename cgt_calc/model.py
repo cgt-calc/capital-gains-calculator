@@ -838,6 +838,10 @@ class CapitalGainsReport:
     # Before the dividend allowance began in 2016/17, most dividends carried a
     # tax credit, so the amount received is not the amount taxed.
     dividends_carry_tax_credit: bool = False
+    # The latest fund distribution date of an ERI the calculation converted at
+    # the period-end rate because that date had not come; None when every ERI
+    # used its final rate. No PDF is written until this date.
+    eri_estimated_until: dt.date | None = None
 
     def period_label(self) -> str | None:
         """Label for a custom reporting period, None for a full tax year."""

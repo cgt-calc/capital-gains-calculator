@@ -463,6 +463,9 @@ def test_report_text_matches_golden(name: str, tmp_path: Path) -> None:
     flat = " ".join(text.split())
     for phrase in phrases:
         assert phrase in flat, f"{name} no longer reaches the branch saying {phrase!r}"
+    # The report has no links or other annotations, in any branch.
+    with pdfplumber.open(tmp_path / "report.pdf") as document:
+        assert [note for page in document.pages for note in page.annots] == []
     golden = GOLDEN_DIR / f"{name}.txt"
     assert text == golden.read_text(encoding="utf-8"), (
         f"{golden} differs from the PDF's text; if the change is intended, "

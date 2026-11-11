@@ -137,10 +137,10 @@
               [ \ Cost basis calculated based on cost of #line.spin_off_source share pool from which #event.symbol shares were spun off]
             }
             if event.is_acquisition {
-              for eri in line.eris [ \ Cost basis increased by £#eri.cost #box[(£#eri.unit_price/unit)], due to excess reported income on #box[#eri.date]#if eri.estimated_until != none [, estimated at the period-end rate until #box[#eri.estimated_until]]]
+              for eri in line.eris [ \ Cost basis increased by £#eri.cost #box[(£#eri.unit_price/unit)], due to excess reported income on #box[#eri.date]]
             }
           }.
-          #for eri in line.pending_eris [ \ The cost of this disposal includes the excess reported income for the period ending #box[#eri.period_end], whose fund distribution date, #box[#eri.distribution_date], comes after the disposal. It is added to the cost at the same pound amount as the income#if eri.estimated [, estimated at the period-end rate until then]. The regulations do not settle whether the cost should instead use the rate for the disposal date: see the section on disposals before the distribution date in the documentation on offshore funds.]
+          #for eri in line.pending_eris [ \ The cost of this disposal includes the excess reported income for the period ending #box[#eri.period_end], whose fund distribution date, #box[#eri.distribution_date], comes after the disposal. This calculation adds it to the cost at the same pound amount as the income, converted at the rate for its fund distribution date (Offshore Funds (Tax) Regulations 2009, regulation 99). The regulations do not say whether the rate for the disposal date should be used instead.]
         ]
       ]],)
       if not last { (table.hline(stroke: 0.4pt + hairline),) }
@@ -171,9 +171,6 @@
   total[Total capital gain after loss], total[£#view.summary.net_gain],
 )
 #note[Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.]
-#if view.summary.includes_estimated_eri [
-  #note[The allowable costs include excess reported income estimated at the period-end rate, as marked on the disposals below. Run the calculation again after its distribution date for the final figures.]
-]
 
 = Overall - Dividends and Interests
 #summary-table(
@@ -183,7 +180,7 @@
   [Number of excess reported income distributions], [#view.income_summary.eri_count],
   [Total amount of dividends proceeds], [£#view.income_summary.total_dividends],
   ..if view.income_summary.eri_dividends != none {
-    (table.cell(colspan: 2, inset: (left: 1em))[#note[(including £#view.income_summary.eri_dividends from excess reported income distributions#if view.income_summary.eri_dividends_estimated [, at least partly estimated at the period-end rate])]],)
+    (table.cell(colspan: 2, inset: (left: 1em))[#note[(including £#view.income_summary.eri_dividends from excess reported income distributions)]],)
   },
   [Total amount of dividends tax allowance due to double taxation treaties], [£#view.income_summary.treaty_allowance],
   ..if view.income_summary.dividend_allowance != none {
@@ -198,7 +195,7 @@
   [Total amount of UK interests proceeds], [£#view.income_summary.uk_interest],
   [Total amount of foreign interests proceeds], [£#view.income_summary.foreign_interest],
   ..if view.income_summary.eri_interest != none {
-    (table.cell(colspan: 2, inset: (left: 1em))[#note[(including £#view.income_summary.eri_interest from excess reported income distributions#if view.income_summary.eri_interest_estimated [, at least partly estimated at the period-end rate])]],)
+    (table.cell(colspan: 2, inset: (left: 1em))[#note[(including £#view.income_summary.eri_interest from excess reported income distributions)]],)
   },
   [Total amount of interest tax paid], [£#view.income_summary.interest_tax],
 )
@@ -245,9 +242,6 @@
 ] else if event.kind == "eri" [
   #if event.has_units [
     #event-heading([Excess Reported Income:], [#event.symbol cost increased by £#event.cost #box[(£#event.eri_unit_price/unit)]])
-    #if event.eri_estimated_until != none [
-      Estimated at the period-end rate until the fund distribution date, #box[#event.eri_estimated_until]. Run the calculation again after that date for the final figure.
-    ]
   ]
 ] else if event.kind == "rename" [
   #heading(level: 3)[#event.symbol was renamed to #event.renamed_to#if event.has_units [: #event.quantity units with pool cost £#event.cost transferred]]
@@ -301,7 +295,7 @@
   *Interest tax #event.origin #event.number:* #event.symbol for £#event.amount
 ] else if event.kind == "eri_distribution" [
   *Excess Reported Income Distribution #event.number*: #event.symbol#if event.is_interest [ (interest)] else [ (dividend)] for £#event.amount
-  #box[(£#event.unit_price/unit)]#if event.estimated_until != none [, estimated at the period-end rate until #box[#event.estimated_until]]
+  #box[(£#event.unit_price/unit)]
 ]
 
 ]
