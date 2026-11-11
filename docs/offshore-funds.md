@@ -85,9 +85,9 @@ Offshore Funds (Tax) Regulations 2009).
 Until the distribution date comes, cgt-calc uses the rate for the end of the reporting period
 instead, and warns you. It switches to the distribution date's rate on that date, not when HMRC
 publishes the rate for that month, which can be earlier. Until then the figures are not final, so
-cgt-calc writes no PDF report. Its terminal output still shows the figures, marks the estimated ones
-and says the date from which to run it again. Run cgt-calc again on or after that date and it writes
-the PDF report with the final figures.
+cgt-calc writes no PDF report. Its terminal output still shows the figures, marks the estimated ERI
+income and the totals that include an estimate, and says the date from which to run it again. Run
+cgt-calc again on or after that date and it writes the PDF report with the final figures.
 
 You never need to file with estimated ERI figures. The latest distribution date that can affect a
 tax year is 5 October after it ends, before the filing deadlines. HMRC expects a return to include a

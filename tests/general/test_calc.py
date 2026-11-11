@@ -922,6 +922,65 @@ def test_an_estimated_eri_passed_to_a_spouse_is_not_called_an_allowable_cost(
     assert "Allowable costs include" not in render_text(report)
 
 
+@pytest.mark.parametrize(
+    ("tax_year", "estimated_until"),
+    [
+        pytest.param(2023, None, id="the sale's year"),
+        pytest.param(2024, dt.date(2024, 10, 15), id="the repurchase's year"),
+    ],
+)
+def test_the_pdf_waits_only_for_eri_in_its_own_figures(
+    tax_year: int, estimated_until: dt.date | None
+) -> None:
+    """A 30-day repurchase across the year end carries its ERI into the next year.
+
+    Ten units bought on 1 March 2024 are sold on 28 March, in 2023/24, and
+    bought back on 20 April, in 2024/25. The fund's period ends on 15 April,
+    between the two, so the repurchase takes on its ERI, whose distribution
+    date is 15 April + 6 months = 15 October 2024. On a run dated 1 June 2024
+    that rate is not known yet: the 2024/25 PDF waits for it, the 2023/24 one,
+    whose figures do not include it, does not.
+    """
+    transactions = [
+        transfer_transaction(dt.date(2024, 3, 1), 1000),
+        buy_transaction(dt.date(2024, 3, 1), "VWRL", 10, 100, 0, -1000),
+        sell_transaction(dt.date(2024, 3, 28), "VWRL", 10, 110, 0, 1100),
+        buy_transaction(dt.date(2024, 4, 20), "VWRL", 10, 100, 0, -1000),
+        ERITransaction(
+            date=dt.date(2024, 4, 15), isin=ERI_ISIN, price=Decimal(2), currency=USD
+        ),
+    ]
+    calculator = _eri_calculator(
+        _flat_rates(transactions), dt.date(2024, 6, 1), tax_year=tax_year
+    )
+
+    report = calculator.calculate(transactions)
+
+    assert report.eri_estimated_until == estimated_until
+
+
+def test_the_pdf_waits_for_the_latest_distribution_date() -> None:
+    """With two ERIs at stand-in rates, the PDF waits for the later date.
+
+    Ten units are held over two period ends, 30 June and 30 September 2024,
+    with ERI of USD 2 a unit each; their distribution dates are 30 December
+    2024 and 30 March 2025. On a run dated 1 December 2024 neither rate is
+    known, so the PDF can be written from 30 March 2025.
+    """
+    transactions = [
+        *_held_over_the_period_end(),
+        _usd_eri("2"),
+        ERITransaction(
+            date=dt.date(2024, 9, 30), isin=ERI_ISIN, price=Decimal(2), currency=USD
+        ),
+    ]
+    calculator = _eri_calculator(_flat_rates(transactions), dt.date(2024, 12, 1))
+
+    report = calculator.calculate(transactions)
+
+    assert report.eri_estimated_until == dt.date(2025, 3, 30)
+
+
 def _flat_rates(
     transactions: list[BrokerTransaction],
 ) -> dict[dt.date, dict[CurrencyCode, Decimal]]:

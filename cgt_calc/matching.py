@@ -200,9 +200,9 @@ class Matcher:
         30-day repurchase, and either way the figure is not final.
         """
         key = (eri.date, eri.symbol)
-        if not eri.provisional_rate or key in self.run.provisional_eris:
+        if not eri.provisional_rate or key in self.run.provisional_eri_warned:
             return
-        self.run.provisional_eris[key] = eri.distribution_date
+        self.run.provisional_eri_warned.add(key)
         LOGGER.warning(
             "The excess reported income of %s for the period ending %s is "
             "converted at the period-end rate for now: cgt-calc uses the rate "
@@ -212,6 +212,17 @@ class Matcher:
             eri.date,
             eri.distribution_date,
         )
+
+    def _note_estimated_eri(self, eri: ExcessReportedIncome) -> None:
+        """Record that a report at a stand-in rate entered the walked figures.
+
+        Called where the ERI reaches a pool within the walk: at its period end,
+        or with the 30-day repurchase that carries it. A repurchase after the
+        walk's end belongs to a later year's figures, so it holds back only
+        that year's PDF (see the CLI), not this one.
+        """
+        if eri.provisional_rate:
+            self.run.provisional_eris[eri.date, eri.symbol] = eri.distribution_date
 
     def _carry_eri(self, pool: str, eri: ExcessReportedIncome) -> None:
         """Note that a pool's cost now carries this report, unless it is in pounds.
@@ -415,6 +426,7 @@ class Matcher:
             self.run.pool_eris.pop(symbol, None)
         for eri in bnb_acquisition.eris:
             self._carry_eri(symbol, eri)
+            self._note_estimated_eri(eri)
         self.run.portfolio[symbol] += Position(
             acquisition.quantity,
             modified_amount,
@@ -2045,6 +2057,7 @@ class Matcher:
             return None
         self._warn_ticker_only_eri(eri)
         self._warn_provisional_eri(eri)
+        self._note_estimated_eri(eri)
 
         new_amount = amount + allowable_cost
         LOGGER.debug(
