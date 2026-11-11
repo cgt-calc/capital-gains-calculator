@@ -140,7 +140,7 @@
               for eri in line.eris [ \ Cost basis increased by £#eri.cost #box[(£#eri.unit_price/unit)], due to excess reported income on #box[#eri.date]#if eri.estimated_until != none [, estimated at the period-end rate until #box[#eri.estimated_until]]]
             }
           }.
-          #for eri in line.pending_eris [ \ The cost of this disposal includes the excess reported income for the period ending #box[#eri.period_end], whose fund distribution date, #box[#eri.distribution_date], comes after the disposal. The cost takes the same pound amount as the income#if eri.estimated [, estimated at the period-end rate until then]. The regulations do not settle whether the cost should instead use the rate for the disposal date: see #link("https://cgt-calc.uk/offshore-funds/#disposals-before-the-distribution-date")[Disposals before the distribution date] in the documentation on offshore funds.]
+          #for eri in line.pending_eris [ \ The cost of this disposal includes the excess reported income for the period ending #box[#eri.period_end], whose fund distribution date, #box[#eri.distribution_date], comes after the disposal. The cost takes the same pound amount as the income#if eri.estimated [, estimated at the period-end rate until then]. The regulations do not settle whether the cost should instead use the rate for the disposal date: see the section on disposals before the distribution date in the documentation on offshore funds.]
         ]
       ]],)
       if not last { (table.hline(stroke: 0.4pt + hairline),) }

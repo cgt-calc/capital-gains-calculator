@@ -19,6 +19,7 @@ import sys
 import time
 from typing import TYPE_CHECKING
 
+import pdfplumber
 import pytest
 import typst
 
@@ -460,8 +461,8 @@ _EARLY_DISPOSAL_NOTE = (
     "the excess reported income for the period ending 30 Jun 2024, whose fund "
     "distribution date, 30 Dec 2024, comes after the disposal. The cost takes the "
     "same pound amount as the income{}. The regulations do not settle whether the "
-    "cost should instead use the rate for the disposal date: see Disposals before "
-    "the distribution date in the documentation on offshore funds."
+    "cost should instead use the rate for the disposal date: see the section on "
+    "disposals before the distribution date in the documentation on offshore funds."
 )
 _ESTIMATED_COSTS_TEXT = (
     "Allowable costs include excess reported income estimated at the period-end "
@@ -636,9 +637,11 @@ def test_eri_is_converted_at_the_fund_distribution_date_rate(
         "stimated at the period-end rate" in phrase for phrase in pdf_phrases
     )
     assert pdf.count("The cost of this disposal includes") == 1
-    # The PDF is the user's own report and does not name the tool, even split
-    # across a line break.
+    # The PDF is the user's own report: it does not name the tool, even split
+    # across a line break, and has no links or other annotations.
     assert re.search(r"cgt-?\s*calc", pdf, re.IGNORECASE) is None
+    with pdfplumber.open(tmp_path / "report.pdf") as document:
+        assert [note for page in document.pages for note in page.annots] == []
     assert _warnings(caplog) == warnings
 
 
