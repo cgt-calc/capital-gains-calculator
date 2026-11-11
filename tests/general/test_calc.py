@@ -1039,6 +1039,32 @@ def test_a_shortened_period_waits_only_for_eri_in_its_figures(
     )
 
 
+def test_a_holding_the_terminal_shows_warns_without_holding_the_pdf(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A holding's cost in the terminal carries ERI that the PDF does not show.
+
+    Ten VWRL bought on 3 June for GBP 1,000 are still held at the end of
+    October, so the October report's terminal portfolio shows their cost:
+    1,000 + the June ERI of 10 x USD 2 at the period-end rate of 1 = GBP
+    1,020. On a run dated 1 November 2024 that rate is not final, so the
+    warning gives its distribution date, 30 December 2024. No October entry
+    includes the ERI, so the PDF is written.
+    """
+    transactions = [*_held_over_the_period_end(), _usd_eri("2")]
+    calculator = _eri_calculator(
+        _flat_rates(transactions),
+        dt.date(2024, 11, 1),
+        period=(dt.date(2024, 10, 1), dt.date(2024, 10, 31)),
+    )
+
+    report = calculator.calculate(transactions)
+
+    assert report.eri_estimated_until is None
+    assert _warnings(caplog) == [_provisional_warning("VWRL")]
+    assert "VWRL: 10.00, £1,020.00" in render_text(report).splitlines()[1]
+
+
 def test_a_renamed_holding_keeps_its_eri_for_the_pdf() -> None:
     """A rename prints the pool's cost, which carries the June ERI.
 

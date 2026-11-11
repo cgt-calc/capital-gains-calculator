@@ -190,9 +190,11 @@ class RunState:
     # Holdings whose ticker-only warning this calculation has printed.
     ticker_only_eri_warned: set[str] = field(default_factory=set)
     # The reports, by period end and holding, whose figure at the period-end
-    # rate reaches the report, with their distribution date; each is warned
-    # about once.
+    # rate may reach the PDF report, with their distribution date.
     provisional_eris: dict[tuple[dt.date, str], dt.date] = field(default_factory=dict)
+    # The reports whose provisional-rate warning this calculation has printed:
+    # those above, and those only a holding's cost in the terminal shows.
+    provisional_eri_warned: set[tuple[dt.date, str]] = field(default_factory=set)
     # The excess reported income in a foreign currency that each pool's cost
     # carries, so a disposal before its distribution date can be flagged.
     pool_eris: dict[str, list[ExcessReportedIncome]] = field(

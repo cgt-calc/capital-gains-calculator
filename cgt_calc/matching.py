@@ -193,21 +193,28 @@ class Matcher:
             self.run.ticker_only_eri_warned.add(eri.symbol)
             LOGGER.warning("%s", warning)
 
-    def _note_estimated_eri(self, eri: ExcessReportedIncome) -> None:
-        """Record, and warn once, that a figure in the report uses a stand-in rate.
+    def _note_estimated_eri(
+        self, eri: ExcessReportedIncome, *, in_pdf: bool = True
+    ) -> None:
+        """Warn once, and record for the PDF, that a figure uses a stand-in rate.
 
         Called only where the report prints a figure that may include it: an
         entry within the report's window for a pool carrying it, or its income
-        distributed within the window. For a whole tax year that figure does
-        include it. A shortened window can end between a disposal and its
+        distributed within the window, which record it for the PDF; or a
+        holding's cost in the terminal portfolio (`in_pdf` false), which the
+        PDF does not show. For a whole tax year a PDF figure does include it. A shortened window can end between a disposal and its
         30-day repurchase, so the disposal's entry may print no ERI; it still
         counts, which holds the PDF back rather than risk a stand-in figure in
         it. The CLI writes no PDF until the latest recorded distribution date.
         """
         key = (eri.date, eri.symbol)
-        if not eri.provisional_rate or key in self.run.provisional_eris:
+        if not eri.provisional_rate:
             return
-        self.run.provisional_eris[key] = eri.distribution_date
+        if in_pdf:
+            self.run.provisional_eris[key] = eri.distribution_date
+        if key in self.run.provisional_eri_warned:
+            return
+        self.run.provisional_eri_warned.add(key)
         LOGGER.warning(
             "The excess reported income of %s for the period ending %s is "
             "converted at the period-end rate for now: cgt-calc uses the rate "
@@ -234,6 +241,18 @@ class Matcher:
             pool = key.partition("$")[2]
             for eri in self.run.pool_eris.get(renamed.get(pool, pool), []):
                 self._note_estimated_eri(eri)
+
+    def _note_eri_in_held_pools(self) -> None:
+        """Warn about the ERI in each holding's cost the terminal prints.
+
+        Called once the walk reaches the report's end. The terminal portfolio
+        shows every holding still held then, with its cost; the PDF does not,
+        so this ERI does not hold the PDF back.
+        """
+        for symbol, position in self.run.portfolio.items():
+            if position.quantity > 0:
+                for eri in self.run.pool_eris.get(symbol, []):
+                    self._note_estimated_eri(eri, in_pdf=False)
 
     def _carry_eri(self, pool: str, eri: ExcessReportedIncome) -> None:
         """Note that a pool's cost now carries this report, unless it is in pounds.
@@ -2376,6 +2395,7 @@ class Matcher:
                             ],
                         )
                     ]
+        self._note_eri_in_held_pools()
         return WalkResult(
             disposal_count,
             disposal_proceeds,
