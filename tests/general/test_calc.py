@@ -459,10 +459,11 @@ def _early_disposal_message(symbol: str, date: str) -> str:
 _EARLY_DISPOSAL_NOTE = (
     "Number of units left in the pool: 0. The cost of this disposal includes "
     "the excess reported income for the period ending 30 Jun 2024, whose fund "
-    "distribution date, 30 Dec 2024, comes after the disposal. The cost takes the "
-    "same pound amount as the income{}. The regulations do not settle whether the "
-    "cost should instead use the rate for the disposal date: see the section on "
-    "disposals before the distribution date in the documentation on offshore funds."
+    "distribution date, 30 Dec 2024, comes after the disposal. It is added to the "
+    "cost at the same pound amount as the income{}. The regulations do not settle "
+    "whether the cost should instead use the rate for the disposal date: see the "
+    "section on disposals before the distribution date in the documentation on "
+    "offshore funds."
 )
 _ESTIMATED_COSTS_TEXT = (
     "Allowable costs include excess reported income estimated at the period-end "
