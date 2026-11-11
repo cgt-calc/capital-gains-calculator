@@ -202,7 +202,8 @@ class Matcher:
         entry within the report's window for a pool carrying it, or its income
         distributed within the window, which record it for the PDF; or a
         holding's cost in the terminal portfolio (`in_pdf` false), which the
-        PDF does not show. For a whole tax year a PDF figure does include it. A shortened window can end between a disposal and its
+        PDF does not show. For a whole tax year a PDF figure does include it.
+        A shortened window can end between a disposal and its
         30-day repurchase, so the disposal's entry may print no ERI; it still
         counts, which holds the PDF back rather than risk a stand-in figure in
         it. The CLI writes no PDF until the latest recorded distribution date.
