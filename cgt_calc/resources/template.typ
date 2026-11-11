@@ -140,7 +140,7 @@
               for eri in line.eris [ \ Cost basis increased by £#eri.cost #box[(£#eri.unit_price/unit)], due to excess reported income on #box[#eri.date]#if eri.estimated_until != none [, estimated at the period-end rate until #box[#eri.estimated_until]]]
             }
           }.
-          #for eri in line.pending_eris [ \ The cost of this disposal includes the excess reported income for the period ending #box[#eri.period_end], whose fund distribution date, #box[#eri.distribution_date], comes after the disposal. cgt-calc adds it at the same pound amount as the income#if eri.estimated [, estimated at the period-end rate until then]. The regulations do not settle whether the cost should instead use the rate for the disposal date: see #box[#link("https://cgt-calc.uk/offshore-funds/#disposals-before-the-distribution-date")[cgt-calc.uk/offshore-funds]].]
+          #for eri in line.pending_eris [ \ The cost of this disposal includes the excess reported income for the period ending #box[#eri.period_end], whose fund distribution date, #box[#eri.distribution_date], comes after the disposal. The cost takes the same pound amount as the income#if eri.estimated [, estimated at the period-end rate until then]. The regulations do not settle whether the cost should instead use the rate for the disposal date: see #link("https://cgt-calc.uk/offshore-funds/#disposals-before-the-distribution-date")[Disposals before the distribution date] in the documentation on offshore funds.]
         ]
       ]],)
       if not last { (table.hline(stroke: 0.4pt + hairline),) }
@@ -172,7 +172,7 @@
 )
 #note[Amounts are rounded to the nearest penny individually, so a line may differ from its components by a penny.]
 #if view.summary.includes_estimated_eri [
-  #note[The allowable costs include excess reported income estimated at the period-end rate, as marked on the disposals below. Run cgt-calc again after its distribution date for the final figures.]
+  #note[The allowable costs include excess reported income estimated at the period-end rate, as marked on the disposals below. Run the calculation again after its distribution date for the final figures.]
 ]
 
 = Overall - Dividends and Interests
@@ -193,7 +193,7 @@
     (total[Total amount of taxable dividends proceeds], total[£#view.income_summary.taxable_dividends])
   },
   ..if view.income_summary.explains_dividend_tax_credit {
-    (table.cell(colspan: 2)[#note[Most dividends before 6 April 2016 carried a tax credit, so cgt-calc does not work out the taxable amount. Use your dividend vouchers and HMRC's guidance on tax credits.]],)
+    (table.cell(colspan: 2)[#note[Most dividends before 6 April 2016 carried a tax credit, so this report does not work out the taxable amount. Use your dividend vouchers and HMRC's guidance on tax credits.]],)
   },
   [Total amount of UK interests proceeds], [£#view.income_summary.uk_interest],
   [Total amount of foreign interests proceeds], [£#view.income_summary.foreign_interest],
@@ -246,7 +246,7 @@
   #if event.has_units [
     #event-heading([Excess Reported Income:], [#event.symbol cost increased by £#event.cost #box[(£#event.eri_unit_price/unit)]])
     #if event.eri_estimated_until != none [
-      Estimated at the period-end rate until the fund distribution date, #box[#event.eri_estimated_until]. Run cgt-calc again after that date for the final figure.
+      Estimated at the period-end rate until the fund distribution date, #box[#event.eri_estimated_until]. Run the calculation again after that date for the final figure.
     ]
   ]
 ] else if event.kind == "rename" [

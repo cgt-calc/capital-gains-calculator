@@ -458,10 +458,10 @@ def _early_disposal_message(symbol: str, date: str) -> str:
 _EARLY_DISPOSAL_NOTE = (
     "Number of units left in the pool: 0. The cost of this disposal includes "
     "the excess reported income for the period ending 30 Jun 2024, whose fund "
-    "distribution date, 30 Dec 2024, comes after the disposal. cgt-calc adds it "
-    "at the same pound amount as the income{}. The regulations do not settle "
-    "whether the cost should instead use the rate for the disposal date: see "
-    "cgt-calc.uk/offshore-funds."
+    "distribution date, 30 Dec 2024, comes after the disposal. The cost takes the "
+    "same pound amount as the income{}. The regulations do not settle whether the "
+    "cost should instead use the rate for the disposal date: see Disposals before "
+    "the distribution date in the documentation on offshore funds."
 )
 _ESTIMATED_COSTS_TEXT = (
     "Allowable costs include excess reported income estimated at the period-end "
@@ -469,8 +469,8 @@ _ESTIMATED_COSTS_TEXT = (
 )
 _ESTIMATED_COSTS_PDF = (
     "The allowable costs include excess reported income estimated at the "
-    "period-end rate, as marked on the disposals below. Run cgt-calc again after "
-    "its distribution date for the final figures."
+    "period-end rate, as marked on the disposals below. Run the calculation again "
+    "after its distribution date for the final figures."
 )
 
 
@@ -524,8 +524,8 @@ _ESTIMATED_COSTS_PDF = (
                 (
                     "VWRL cost increased by £16.00 (£1.6000/unit) Estimated at "
                     "the period-end rate until the fund distribution date, "
-                    "30 Dec 2024. Run cgt-calc again after that date for the "
-                    "final figure."
+                    "30 Dec 2024. Run the calculation again after that date for "
+                    "the final figure."
                 ),
                 _EARLY_DISPOSAL_NOTE.format(
                     ", estimated at the period-end rate until then"
@@ -564,8 +564,8 @@ _ESTIMATED_COSTS_PDF = (
                 (
                     "VWRL cost increased by £16.00 (£1.6000/unit) Estimated at "
                     "the period-end rate until the fund distribution date, "
-                    "30 Dec 2024. Run cgt-calc again after that date for the "
-                    "final figure."
+                    "30 Dec 2024. Run the calculation again after that date for "
+                    "the final figure."
                 ),
                 _EARLY_DISPOSAL_NOTE.format(
                     ", estimated at the period-end rate until then"
@@ -636,6 +636,9 @@ def test_eri_is_converted_at_the_fund_distribution_date_rate(
         "stimated at the period-end rate" in phrase for phrase in pdf_phrases
     )
     assert pdf.count("The cost of this disposal includes") == 1
+    # The PDF is the user's own report and does not name the tool, even split
+    # across a line break.
+    assert re.search(r"cgt-?\s*calc", pdf, re.IGNORECASE) is None
     assert _warnings(caplog) == warnings
 
 

@@ -16,8 +16,9 @@ Number of interest tax transactions 0
 Number of excess reported income distributions 0
 Total amount of dividends proceeds £100.00
 Total amount of dividends tax allowance due to double taxation treaties £15.00
-Most dividends before 6 April 2016 carried a tax credit, so cgt-calc does not work out
-the taxable amount. Use your dividend vouchers and HMRC’s guidance on tax credits.
+Most dividends before 6 April 2016 carried a tax credit, so this report does not work
+out the taxable amount. Use your dividend vouchers and HMRC’s guidance on tax
+credits.
 Total amount of UK interests proceeds £0.00
 Total amount of foreign interests proceeds £0.00
 Total amount of interest tax paid £0.00
