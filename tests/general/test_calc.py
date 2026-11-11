@@ -1278,9 +1278,10 @@ def test_eri_reached_by_a_30_day_repurchase_is_marked_while_estimated(
         ),
         # Sold on 31 March 2025, the period end itself, and bought back on
         # 1 April for £100. The units are no longer held at the end of that
-        # day, but a sale in one period matched with a repurchase in the next
-        # counts as held at its end (reg 94(3A)). So as in the first case the
-        # repurchase takes on the sold units' £100 and their £20 of ERI.
+        # day, but units sold in one period and matched with a repurchase in
+        # the next count as held at the end of the earlier one (reg 94(3A)).
+        # So as in the first case the repurchase takes on the sold units'
+        # £100 and their £20 of ERI.
         pytest.param(
             [
                 sell_transaction(dt.date(2025, 3, 31), "VWRL", 10, 20, 0, 200),
