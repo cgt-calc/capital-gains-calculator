@@ -99,9 +99,10 @@ def _restated_split(target: BrokerTransaction, row: RawTransaction) -> str | Non
     )
     return (
         f"Cannot replace the {symbol} vest of {row.quantity} dated "
-        f"{target.date} in the Schwab Equity Awards export: that export states "
-        f"it in units after the {symbol} split of {effective}, while a RAW row "
-        "is read in the units in force on its own date. Edit the vest's date "
+        f"{target.date} in the Schwab Equity Awards export: cgt-calc reads it "
+        f"from that export in units after the {symbol} split of {effective}, "
+        "while a RAW row is read in the units in force on its own date. Edit "
+        "the vest's date "
         "and price in a working copy of the Equity Awards export instead, "
         f"keeping its quantity. See {DOCS}"
     )
@@ -157,8 +158,13 @@ def resolve_raw_brokers(
     if not named:
         return transactions
     exported = [row for row in transactions if not isinstance(row, RawTransaction)]
-    # A RAW row cannot vouch for its own broker: only another input can.
-    canonical = {_name_key(row.broker): row.broker for row in exported}
+    # A RAW row cannot vouch for its own broker: only another input can. Fund
+    # reports are no broker's, though they come with a placeholder name.
+    canonical = {
+        _name_key(row.broker): row.broker
+        for row in exported
+        if row.action is not ActionType.EXCESS_REPORTED_INCOME
+    }
     booked: dict[int, RawTransaction] = {}
     for row in named:
         name = canonical.get(_name_key(row.broker))
@@ -231,8 +237,11 @@ def resolve_raw_brokers(
             assert row.source is not None
             assert target.source is not None
             # The shares are in the export's account, so a later split from
-            # it still counts them; the ISIN and market name the security.
+            # it still counts them.
             row.source = dataclasses.replace(row.source, account=target.source.account)
+            # The ISIN and market name the security. The run reads them from
+            # every row, the replaced one included, before this step; carrying
+            # them keeps the row the same security should that ever move.
             row.isin = target.isin
             row.market = target.market
             place = (

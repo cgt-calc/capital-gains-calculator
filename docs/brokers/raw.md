@@ -279,7 +279,9 @@ replaced:
     statement shows.
 - **A vest** (`STOCK_ACTIVITY`). The row keeps the export row's quantity and can change its date and
     its price. Use it when your employer taxed the shares on another day than the one cgt-calc uses:
-    see [Dates containing `as of`](schwab.md#dates-containing-as-of) in the Schwab guide.
+    see [Dates containing `as of`](schwab.md#dates-containing-as-of) in the Schwab guide. If the
+    shares were split or consolidated between the two dates, the quantity is in the wrong units for
+    the new date and cgt-calc cannot tell: edit the vest in a working copy of the export instead.
 
 Say Schwab withheld a further 5 dollars of tax on 27 June 2024 that belongs to the dividend of 3
 June. Schwab's row is replaced by one dated on the dividend:
@@ -322,12 +324,13 @@ The error names the RAW row:
     cannot tell which you mean. Edit the row in a working copy of the export instead.
 - **`A ... row cannot replace a row of a broker export`**: only dividend tax and vests can be
     replaced. Edit a working copy of the export for anything else.
-- **`Cannot replace the ... vest ... in units after the ... split`**: a Schwab Equity Awards export
-    restates each vest for the later splits of NVIDIA and Alphabet shares, so a vest of `NVDA`
-    before 10 June 2024, or of `GOOG` or `GOOGL` before 16 July 2022, is stated in units that did
-    not exist on its date. A RAW row on that date would count the wrong number of shares. Edit the
-    vest's date and price in a working copy of the Equity Awards export instead, keeping its
-    quantity, and give the price per share in the units the export uses.
+- **`Cannot replace the ... vest ... in units after the ... split`**: cgt-calc reads each vest in a
+    Schwab Equity Awards export in units after the later splits of NVIDIA and Alphabet shares. A
+    vest of `NVDA` before 10 June 2024, or of `GOOG` or `GOOGL` before 16 July 2022, is therefore in
+    units that did not exist on its date, and so is a RAW row that would move a later vest to before
+    the split. A RAW row on that date would count the wrong number of shares. Edit the vest's date
+    and price in a working copy of the Equity Awards export instead, keeping its quantity, and give
+    the price per share in the units the export uses.
 - **`The broker '...' is not the broker of any other input`**: correct the name, or leave it blank.
 - **`A row that replaces a row of a broker export names that broker`**: fill in `broker`.
 
@@ -629,8 +632,11 @@ and put the full amount in `price`: positive for money received and negative for
 ### A header or column-count error
 
 Use the seven columns from [Create the CSV](#create-the-csv), in that order, and keep every comma,
-including the empty `symbol` field in a cash row. Save the file as UTF-8 CSV rather than converting
-a PDF or pasting a formatted currency value such as `£1,000` into one field.
+including the empty `symbol` field in a cash row. With the optional
+[`broker` and `replaces` columns](#correct-a-row-in-a-broker-export), the header names them after
+the seven, and every row has as many cells as the header, blank where a row does not use them. Save
+the file as UTF-8 CSV rather than converting a PDF or pasting a formatted currency value such as
+`£1,000` into one field.
 
 ### `Reached a negative balance` for broker `Unknown`
 

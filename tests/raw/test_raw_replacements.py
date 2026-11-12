@@ -22,7 +22,7 @@ from cgt_calc.model import (
 )
 from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.parsers.raw import RawParser
-from tests.general.test_calc import create_calculator, get_report
+from tests.general.test_calc import SHYG_FUND, _eri, create_calculator, get_report
 from tests.trading212.test_trading212_splits import _award_export, _award_vest
 from tests.utils import build_cmd, run_cli, stderr_alerts
 
@@ -294,15 +294,18 @@ def test_an_equity_awards_vest_restated_for_a_split_is_not_replaced(
 
     assert (
         f"ERROR: While parsing {raw}, row 2: {message} in the Schwab Equity Awards "
-        "export: that export states it in units after the NVDA split of "
-        "2024-06-10, while a RAW row is read in the units in force on its own "
-        "date. Edit the vest's date and price in a working copy of the Equity "
-        f"Awards export instead, keeping its quantity. See {DOCS}\n"
+        "export: cgt-calc reads it from that export in units after the NVDA "
+        "split of 2024-06-10, while a RAW row is read in the units in force on "
+        "its own date. Edit the vest's date and price in a working copy of the "
+        f"Equity Awards export instead, keeping its quantity. See {DOCS}\n"
     ) in stderr
 
 
 def test_an_equity_awards_vest_after_the_split_is_replaced(tmp_path: Path) -> None:
-    """Both dates after the split leave nothing restated, so the vest is replaced."""
+    """Both dates after the split leave nothing restated, so the vest is replaced.
+
+    The 30 shares are held once: the export's vest is gone, not added to.
+    """
     awards = _award_export(
         tmp_path, [_award_vest("06/15/2024", "NVDA", "30", "$115.00")]
     )
@@ -328,6 +331,7 @@ def test_an_equity_awards_vest_after_the_split_is_replaced(tmp_path: Path) -> No
         "Using RAW row 2 (STOCK_ACTIVITY NVDA on 2024-06-21) in place of the Charles "
         f"Schwab row dated 2024-06-15 ({awards})\n"
     ) in result.stderr
+    assert "Final portfolio\n  NVDA: 30.00\n" in result.stdout
 
 
 @pytest.mark.parametrize(
@@ -535,15 +539,20 @@ def test_competing_rows_that_differ_are_refused(
 def test_a_replacing_vest_is_from_the_market_of_the_row_it_replaces(
     tmp_path: Path,
 ) -> None:
-    """The vest replaced came from a US market, so IGCB is the US security.
+    """The vest replaced came from a US market, so IGCB stays the US security.
 
     IGCB is a US symbol and, in cgt-calc's bundled list, the London ticker of
-    a fund, IE00BKW9SW28, whose report for 2024 is 0.004 pounds a share. Every
-    Schwab row is from a US market, which settles it; with no such row, the
-    report would add 1,000 x 0.004 = 4.00 to the cost of the 1,000 shares,
-    with a warning. The replacing row carries the market of the row it
-    replaces, so the holding costs only 1,000 x 10.50 = 10,500 dollars, at
-    the June 2024 rate of 1.2709 dollars to the pound 8,261.86.
+    a fund, IE00BKW9SW28, whose report for 2024 is 0.004 pounds a share. A
+    row from a US market settles it; with none, the report would add 1,000 x
+    0.004 = 4.00 to the cost of the 1,000 shares, with a warning. The holding
+    costs only 1,000 x 10.50 = 10,500 dollars, at the June 2024 rate of
+    1.2709 dollars to the pound 8,261.86.
+
+    The run settles this from every row, the replaced one included, before
+    the replacement, so today the Schwab row's market decides it. The
+    replacing row also carries that market, which keeps the answer if the
+    ticker check ever runs after replacement: moving it there and dropping
+    the market from the replacing row makes this test fail.
     """
     schwab = _write(
         tmp_path / "schwab.csv",
@@ -583,6 +592,12 @@ def test_a_replacing_tax_row_keeps_the_isin_of_the_row_it_replaces(
     with Canada on file, so it says so. Read by its currency instead, as a
     row with no ISIN is, it would be American, and 15 of 100 is the 15% US
     rate, which passes without a word.
+
+    The run maps FOO to its ISIN from every row, the replaced one included,
+    before the replacement, so today the export row decides it. The
+    replacing row also carries the ISIN, which keeps the answer if that
+    mapping ever runs after replacement: moving it there and dropping the
+    ISIN from the replacing row makes this test fail.
     """
     transactions = [
         _export_row(ActionType.DIVIDEND, dt.date(2024, 6, 3), Decimal(100)),
@@ -703,18 +718,20 @@ def test_a_broker_no_other_input_is_from_is_refused(
 ) -> None:
     """A typo would open a ledger of its own, and a RAW row cannot vouch for itself.
 
-    The second RAW row names the same broker, which is still refused.
+    The second RAW row names the same broker, which is still refused. A
+    fund's report of excess income comes with the placeholder broker `N/A`,
+    which is no broker's, so it is not offered either.
     """
     raw_rows = _raw_rows(
         tmp_path,
         "2024-06-03,TRANSFER,,1,5.00,0.00,USD,Charles Schwabb,",
         "2024-06-03,TRANSFER,,1,5.00,0.00,USD,Charles Schwabb,",
     )
-    exported_rows = (
-        [_export_row(ActionType.DIVIDEND, dt.date(2024, 6, 3), Decimal(100))]
-        if exported
-        else []
-    )
+    exported_rows = [_eri(dt.date(2024, 6, 30), SHYG_FUND, 1)]
+    if exported:
+        exported_rows.append(
+            _export_row(ActionType.DIVIDEND, dt.date(2024, 6, 3), Decimal(100))
+        )
 
     with pytest.raises(ParsingError) as error:
         get_report(
