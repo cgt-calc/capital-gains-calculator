@@ -65,6 +65,7 @@ CG52002
 CG52742
 CG55536
 CG55545
+CG56321
 CG57707
 CG57800
 CG57835
@@ -114,6 +115,7 @@ DT14005
 DWS
 env
 ERI
+ERSM20192
 ERSM20420
 ESPP
 etc
@@ -159,6 +161,7 @@ InvalidTransactionError
 Invesco
 InvestmentName
 ITA
+ITEPA
 IsADirectoryError
 iShares
 ISIN
@@ -287,6 +290,8 @@ s286
 s3
 s34
 s38
+s477
+s479
 s4B
 s58
 s8
