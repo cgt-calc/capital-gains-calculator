@@ -76,9 +76,13 @@ def _dump(transactions: list[BrokerTransaction]) -> list[dict[str, str]]:
 
 
 def _lines(caplog: pytest.LogCaptureFixture) -> list[str]:
-    """Return the line printed for each plain INPUT."""
+    """Return the line printed for each plain INPUT.
+
+    Those lines write a path with forward slashes on every system, as the
+    progress lines do.
+    """
     return [
-        message.replace(str(TESTS.parent) + "/", "")
+        message.replace(f"{TESTS.parent.as_posix()}/", "")
         for message in caplog.messages
         if message.startswith(("Recognised", "Skipped"))
     ]
@@ -112,7 +116,7 @@ def _cli(
         monkeypatch.setattr(sys, "stdin", io.StringIO(stdin))
     with localcontext():
         status = main()
-    return status, capsys.readouterr().err.replace(str(TESTS.parent) + "/", "")
+    return status, capsys.readouterr().err.replace(f"{TESTS.parent.as_posix()}/", "")
 
 
 def _hl_folder(folder: Path) -> Path:
@@ -341,7 +345,7 @@ def test_hl_csv_and_its_contract_notes_given_as_inputs(
         files = sorted(folder.iterdir())
         assert _dump(_load(*files)) == expected
 
-    shown = str(folder).replace(str(TESTS.parent) + "/", "")
+    shown = folder.as_posix()
     assert _lines(caplog) == [
         (
             f"Recognised {shown}/B302087054_BOUGHT_Vanguard.pdf as a Hargreaves "
@@ -370,7 +374,8 @@ def test_a_folder_gives_its_json_exports_too(
         assert _dump(_load(tmp_path)) == expected
 
     assert _lines(caplog) == [
-        f"Recognised {tmp_path}/awards.json as a Charles Schwab Equity Awards export"
+        f"Recognised {tmp_path.as_posix()}/awards.json as a Charles Schwab Equity "
+        "Awards export"
     ]
 
 
@@ -816,7 +821,8 @@ def test_two_morgan_stanley_reports_of_one_kind_are_refused(
 
     assert status == 1
     assert (
-        f"  tests/morgan_stanley/data/Releases Report.csv and {copy} are each a "
+        f"  tests/morgan_stanley/data/Releases Report.csv and {copy.as_posix()} are "
+        "each a "
         "Morgan Stanley Releases Report, and cgt-calc reads one per run."
     ) in err
 
@@ -1193,7 +1199,7 @@ def test_one_check_decides_a_file_for_its_option_and_as_input(
 
     status, err = _cli(monkeypatch, capsys, path)
     assert status == 1
-    assert f"\n  {path} is not recognised.\n" in err
+    assert f"\n  {path.as_posix()} is not recognised.\n" in err
 
 
 def test_income_report_sections_decide_the_report_by_either_route(
@@ -1216,7 +1222,7 @@ def test_income_report_sections_decide_the_report_by_either_route(
     assert _load("--sharesight-dir", folder) == []
     status, err = _cli(monkeypatch, capsys, path)
     assert status == 1
-    assert f"\n  {path} is not recognised.\n" in err
+    assert f"\n  {path.as_posix()} is not recognised.\n" in err
 
 
 def _write(path: Path, text: str) -> None:
