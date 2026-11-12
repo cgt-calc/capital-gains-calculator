@@ -100,11 +100,12 @@ cgt-calc adds ERI to the cost of your units at the end of the reporting period. 
 the tax year that includes the period end shows the "Excess Reported Income" entry, and your
 holding's cost includes the ERI from the end of that day. The regulations date the cost to the fund
 distribution date, or to just before an earlier disposal
-([regulation 99(4) and (5)](https://www.legislation.gov.uk/uksi/2009/3001/regulation/99)).
-cgt-calc's earlier date does not change a gain or allowable cost when you buy or sell units or
-transfer them to a spouse, because cgt-calc adds the same pound figure. A disposal from your Section
-104 holding takes the same share of the ERI either way. A disposal matched with a purchase on the
-same day or in the following 30 days takes that purchase's cost and none of the ERI either way.
+([regulation 99(4) and (5)](https://www.legislation.gov.uk/uksi/2009/3001/regulation/99)). Adding
+the cost at the period end instead does not change a gain or allowable cost when you buy or sell
+units or transfer them to a spouse or civil partner, because cgt-calc adds the same pound figure. A
+disposal from your Section 104 holding takes the same share of the ERI either way. A disposal
+matched with a purchase on the same day or in the following 30 days takes that purchase's cost and
+none of the ERI either way.
 
 A spin-off of new shares out of the fund between the two dates is outside this comparison: cgt-calc
 has not established the correct treatment or identified a real example. If it happens to you, work
