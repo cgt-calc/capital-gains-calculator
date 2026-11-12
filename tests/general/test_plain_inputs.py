@@ -374,8 +374,10 @@ def test_a_folder_gives_its_json_exports_too(
         assert _dump(_load(tmp_path)) == expected
 
     assert _lines(caplog) == [
-        f"Recognised {tmp_path.as_posix()}/awards.json as a Charles Schwab Equity "
-        "Awards export"
+        (
+            f"Recognised {tmp_path.as_posix()}/awards.json as a Charles Schwab "
+            "Equity Awards export"
+        )
     ]
 
 
