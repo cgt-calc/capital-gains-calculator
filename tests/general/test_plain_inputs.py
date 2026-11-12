@@ -942,6 +942,27 @@ def test_two_morgan_stanley_reports_of_one_kind_are_refused(
     ) in err
 
 
+def test_a_morgan_stanley_report_beside_its_folder_option_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """One report of each kind is read per run, so other folder options' advice is wrong.
+
+    The folder reads each report only under its own name, and passing every
+    one as INPUT would only meet the refusal of two reports of one kind.
+    """
+    copy = tmp_path / "Releases Report.csv"
+    shutil.copy(MSSB / "Releases Report.csv", copy)
+
+    status, err = _cli(monkeypatch, capsys, "--mssb-dir", MSSB, copy)
+
+    assert status == 1
+    assert (
+        f"  {copy.as_posix()} is a Morgan Stanley Releases Report, but --mssb-dir "
+        "already gives that input. cgt-calc reads one per run: pass the export that "
+        "holds the whole history, with the option or as INPUT.\n"
+    ) in err
+
+
 def test_standard_input_beside_another_file_of_its_kind_is_refused(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
