@@ -167,8 +167,8 @@ one event: the acquisition taxed as employment income. That acquisition happens 
 beneficial interest in the shares, not when they are transferred to your brokerage account
 ([ITEPA 2003 s477](https://www.legislation.gov.uk/ukpga/2003/1/section/477)). For capital gains it
 counts as exercising an option
-([CG56321](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg56321)), so it is also
-the day you acquire the shares, and their cost includes the amount taxed as income
+([CG56321](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg56321)), which fixes both
+the day you acquire the shares and a cost that includes the amount taxed as income
 ([HS287](https://www.gov.uk/government/publications/employee-share-and-security-schemes-and-capital-gains-tax-hs287-self-assessment-helpsheet)).
 If you paid nothing for the shares, that amount is their market value on the day
 ([ITEPA 2003 s479](https://www.legislation.gov.uk/ukpga/2003/1/section/479)). For a typical award
