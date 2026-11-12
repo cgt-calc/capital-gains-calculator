@@ -113,8 +113,8 @@ out the cost of both holdings yourself or ask a tax adviser.
 Adding the cost at the period end can delay a PDF report. If the ERI is in a foreign currency, the
 period ends in one tax year and the distribution date falls in the next, a report for the first year
 run before the distribution date would show the cost entry at the period-end rate, so cgt-calc
-writes no PDF for that year yet, even if you sold nothing. The totals in the terminal output are
-final unless a note under them says they include an estimate.
+writes no PDF for that year yet, even if you sold nothing. Apart from "Unrealized gains", the totals
+in the terminal output are final unless a note under them says they include an estimate.
 
 ### Disposals before the distribution date
 
