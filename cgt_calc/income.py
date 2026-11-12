@@ -180,8 +180,10 @@ class IncomeProcessor:
             LOGGER.warning(
                 "Dividend tax of %s %s for %s on %s could have been taken "
                 "from the dividend on %s, so it is left out of the report! "
-                "Date it in the export on the one it belongs to to have it "
-                "counted.",
+                "Date it on the one it belongs to to have it counted. A RAW "
+                "row can replace a row of a broker export with the right "
+                "date: see https://cgt-calc.uk/brokers/raw/"
+                "#correct-a-row-in-a-broker-export",
                 amount,
                 tax.currency,
                 symbol,

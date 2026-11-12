@@ -49,6 +49,7 @@ from .model import (
 )
 from .parsers.raw import raw_file_of
 from .parsers.vanguard import VanguardTransaction
+from .raw_replacements import resolve_raw_brokers
 from .rename_planning import (
     connected_names,
     end_name,
@@ -1870,6 +1871,9 @@ class TransactionIngester:
             if transaction.symbol and not isinstance(transaction, VanguardTransaction)
         }
 
+        # After add_from_transactions, so RAW rows match symbols as the rest
+        # of the calculation reads them.
+        transactions = resolve_raw_brokers(transactions)
         transactions = self._resolve_gifts(transactions)
         # After add_from_transactions, so that a row exported under an alias
         # such as NVD is read under the ticker the pool and RAW rows use.
@@ -2013,7 +2017,7 @@ class TransactionIngester:
             }:
                 # Shares leave for no money, so the balance is left alone. A fee
                 # on the row is real money, but these rows are written by hand
-                # in a RAW file, which is its own unfunded "Unknown" ledger, so
+                # in a RAW file, usually its own unfunded "Unknown" ledger, so
                 # charging the fee there only ever drives that balance negative.
                 # The fee still counts as a cost; it is the cash check it cannot
                 # take part in.

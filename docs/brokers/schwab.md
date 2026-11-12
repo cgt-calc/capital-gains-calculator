@@ -188,11 +188,12 @@ employer may have taxed the shares at their market value on another day, such as
 issued. cgt-calc cannot tell this from Schwab's files. Your award statement or payslip, or your
 payroll team, can tell you which day's market value your employer taxed as income. If that day is
 not the `Date` of the vest's `Lapse` row in your award file, use that day and its market value for
-both the date and the cost: remove the `Stock Plan Activity` row from a working copy of the main
-CSV, and add a [`STOCK_ACTIVITY` row](raw.md#actions-to-use) to your
-[RAW file](raw.md#combining-raw-with-a-broker-export) with that date, the same quantity as the row
-you removed, and the market value of one share on that day. If you are unsure which day applies, ask
-a tax adviser.
+both the date and the cost: add a [`STOCK_ACTIVITY` row](raw.md#actions-to-use) to your RAW file
+that [replaces the vest](raw.md#replace-a-row-of-the-export). Give it that date, the quantity of the
+vest's `Stock Plan Activity` row in the main CSV, the market value of one share on that day,
+`Charles Schwab` as its `broker`, and the `Lapse` row's `Date` in `replaces`, written `YYYY-MM-DD`
+like the other dates in the RAW file. The main CSV stays as you downloaded it. If you are unsure
+which day applies, ask a tax adviser.
 
 For other rows, the date affects the tax year, the exchange rate and the same-day and 30-day
 matching rules. Check any such row carefully when the two dates cross 5 April or another purchase or

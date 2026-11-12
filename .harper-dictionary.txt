@@ -339,6 +339,7 @@ tablefinder
 TCGA
 TL0
 toml
+Trading212
 Trading212Column
 tranche's
 TransactionDetails
