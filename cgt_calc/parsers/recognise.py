@@ -72,39 +72,39 @@ def _is_exchange_rates(text: str) -> bool:
 
 
 # Files cgt-calc reads with another option, or writes: each is named, with the
-# way to use it, rather than left "not recognised". Each check is the one its
-# reader makes, reading the first row as that reader does.
-OTHER_FILES: tuple[tuple[str, str, Callable[[str, Path], bool]], ...] = (
+# option that reads it, rather than left "not recognised". Each check is the
+# one its reader makes, reading the first row as that reader does.
+OTHER_FILES: tuple[tuple[str, str | None, Callable[[str, Path], bool]], ...] = (
     (
         "ERI data",
-        "pass it with --eri-raw-file",
+        "--eri-raw-file",
         lambda text, path: bool(ERIRawParser.recognise(text, path)),
     ),
     (
         "an ISIN translation file",
-        "pass it with --isin-translation-file",
+        "--isin-translation-file",
         lambda text, _: is_isin_translation_header(
             _first_row(text, skipinitialspace=True)
         ),
     ),
     (
         "a share prices file",
-        "pass it with --prices-file",
+        "--prices-file",
         lambda text, _: is_share_prices_header(_first_row(text)),
     ),
     (
         "an exchange rates cache",
-        "pass it with --exchange-rates-file",
+        "--exchange-rates-file",
         lambda text, _: _is_exchange_rates(text),
     ),
     (
         "a spin-offs file",
-        "pass it with --spin-offs-file",
+        "--spin-offs-file",
         lambda text, _: is_spin_offs_header(_first_row(text)),
     ),
     (
         "the --dump-transactions output of cgt-calc",
-        "it is not read back: pass the exports it was written from",
+        None,
         lambda text, _: tuple(_first_row(text)) == DUMP_FIELDS,
     ),
 )
@@ -163,10 +163,17 @@ class _Recogniser:
         self.pdfs: list[tuple[Path, int]] = []
         # Each file an option or an INPUT reaches, and the argument that did.
         self.seen: dict[tuple[int, int], str] = {}
-        for broker in brokers:
-            for option, path in broker.given_options(args):
-                if path != STDIN_PATH and path.is_file():
-                    self.seen.setdefault(_identity(path), option)
+        given: list[tuple[str, Path | None]] = [
+            pair for broker in brokers for pair in broker.given_options(args)
+        ]
+        given += [
+            (option, getattr(args, option[2:].replace("-", "_"), None))
+            for _, option, _ in OTHER_FILES
+            if option
+        ]
+        for option, path in given:
+            if path and path != STDIN_PATH and path.is_file():
+                self.seen.setdefault(_identity(path), option)
 
     def add(self, argument: Path) -> None:
         """Recognise the files one INPUT stands for."""
@@ -180,7 +187,7 @@ class _Recogniser:
                     )
                     continue
                 self.seen[identity] = shown(argument)
-            self._recognise(file)
+            self._recognise(file, argument)
 
     def _read(self, file: Path) -> tuple[str, Sequence[type[BaseParser]]] | None:
         """Read the file as its readers would, and say which of them can read it."""
@@ -209,10 +216,12 @@ class _Recogniser:
                 text = data.decode(HargreavesLansdownParser.encoding)
             except UnicodeDecodeError:
                 raise not_text_in(ENCODING, file) from None
-        # The readers' own refusal of UTF-16 text without a byte-order mark.
-        return read_text(io.StringIO(text), file, ENCODING), readers
+        # The readers' own refusal of UTF-16 text without a byte-order mark, on
+        # text whose line ends read as their text files give them: a lone
+        # carriage return, or one before a newline, ends a line as "\n" does.
+        return read_text(io.StringIO(text, newline=None), file, ENCODING), readers
 
-    def _recognise(self, file: Path) -> None:
+    def _recognise(self, file: Path, argument: Path) -> None:
         try:
             read = self._read(file)
         except ParsingError as err:
@@ -235,10 +244,10 @@ class _Recogniser:
                 matches += [(broker, kind) for kind in broker.recognise(text, file)]
         others = []
         # Every other file is read as UTF-8 only.
-        for name, use, check in OTHER_FILES if readers is self.brokers else ():
+        for name, option, check in OTHER_FILES if readers is self.brokers else ():
             with contextlib.suppress(csv.Error):
                 if check(text, file):
-                    others.append((name, use))
+                    others.append((name, option))
         names = [kind for _, kind in matches] + [name for name, _ in others]
         if len(names) > 1:
             self.several = True
@@ -246,7 +255,16 @@ class _Recogniser:
                 f"{shown(file)} matches more than one format: {', '.join(names)}."
             )
         elif others:
-            name, use = others[0]
+            name, option = others[0]
+            use = (
+                f"pass it with {option}"
+                if option
+                else "pass the exports it was written from, as cgt-calc does "
+                "not read it back"
+            )
+            if file != argument:
+                # Given with its option too, it would then be given twice.
+                use = f"move it out of {shown(argument)} and {use}"
             self.problems.append(
                 f"{shown(file)} is {name}, not a broker export: {use}."
             )
@@ -273,12 +291,25 @@ class _Recogniser:
                 "files: save it to a file and pass that."
             )
             return
-        for option, _ in broker.given_options(self.args):
+        for option, path in broker.given_options(self.args):
             if broker.option_fills(option, kind):
+                if not broker.takes_several(kind):
+                    advice = (
+                        "cgt-calc reads one per run: pass the export that holds "
+                        "the whole history, with the option or as INPUT."
+                    )
+                elif path.is_dir():
+                    advice = (
+                        "Give it one way: every such file with the option, or "
+                        "every one as INPUT."
+                    )
+                else:
+                    advice = (
+                        "That option reads one file: pass every such file as INPUT."
+                    )
                 self.problems.append(
                     f"{shown(file)} is {kind}, but {option} already gives that "
-                    "input. Give it one way: every such file with the option, "
-                    "or every one as INPUT."
+                    f"input. {advice}"
                 )
                 return
         self.lines.append(f"Recognised {shown(file)} as {kind}")
@@ -309,9 +340,12 @@ class _Recogniser:
         }
         for pdf, place in self.pdfs:
             if pdf.parent in hl_folders:
+                # Nothing in the PDF is checked: the summary's reader opens it
+                # only if a row names it.
                 self.lines[place] = (
-                    f"Recognised {shown(pdf)} as a Hargreaves Lansdown contract "
-                    "note, read with the Transaction Summary in its folder"
+                    f"Accepted {shown(pdf)}, in the folder of a Hargreaves "
+                    "Lansdown Transaction Summary: read as a contract note if a "
+                    "row of the summary names it"
                 )
             else:
                 self.problems.append(

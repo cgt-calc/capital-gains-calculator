@@ -84,7 +84,7 @@ def _lines(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [
         message.replace(f"{TESTS.parent.as_posix()}/", "")
         for message in caplog.messages
-        if message.startswith(("Recognised", "Skipped"))
+        if message.startswith(("Recognised", "Skipped", "Accepted"))
     ]
 
 
@@ -202,6 +202,29 @@ def _hl_folder(folder: Path) -> Path:
                 ),
             ],
             id="Schwab folder with award-price CSV",
+        ),
+        pytest.param(
+            [
+                "--schwab-file",
+                SCHWAB / "lapse_pricing/transactions.csv",
+                "--schwab-award-file",
+                SCHWAB / "lapse_pricing/awards.json",
+            ],
+            [
+                SCHWAB / "lapse_pricing/transactions.csv",
+                SCHWAB / "lapse_pricing/awards.json",
+            ],
+            [
+                (
+                    "Recognised tests/schwab/data/lapse_pricing/transactions.csv as "
+                    "Charles Schwab transaction history"
+                ),
+                (
+                    "Recognised tests/schwab/data/lapse_pricing/awards.json as a "
+                    "Charles Schwab Equity Awards export"
+                ),
+            ],
+            id="Schwab history with Lapse-only award JSON",
         ),
         pytest.param(
             ["--freetrade-file", TESTS / "freetrade/data/transactions.csv"],
@@ -333,7 +356,7 @@ def test_an_export_given_as_input_is_read_as_its_option_reads_it(
 def test_hl_csv_and_its_contract_notes_given_as_inputs(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The CSV is read as `--hl-dir` reads it, and each PDF is said to go with it.
+    """The CSV is read as `--hl-dir` reads it, and each PDF is accepted beside it.
 
     The summary is the Windows-1252 file HL writes, so this is also the one
     export recognised when it is not UTF-8.
@@ -342,18 +365,26 @@ def test_hl_csv_and_its_contract_notes_given_as_inputs(
 
     with caplog.at_level(logging.INFO):
         expected = _dump(_load("--hl-dir", folder))
-        files = sorted(folder.iterdir())
+        # In the order given: sorting would differ by system, as Windows
+        # orders paths without regard to letter case.
+        files = [
+            folder / "B302087054_BOUGHT_Vanguard.pdf",
+            folder / "S302087055_SOLD_Vanguard.pdf",
+            folder / "hl-transaction-summary.csv",
+        ]
         assert _dump(_load(*files)) == expected
 
     shown = folder.as_posix()
     assert _lines(caplog) == [
         (
-            f"Recognised {shown}/B302087054_BOUGHT_Vanguard.pdf as a Hargreaves "
-            "Lansdown contract note, read with the Transaction Summary in its folder"
+            f"Accepted {shown}/B302087054_BOUGHT_Vanguard.pdf, in the folder of a "
+            "Hargreaves Lansdown Transaction Summary: read as a contract note if a "
+            "row of the summary names it"
         ),
         (
-            f"Recognised {shown}/S302087055_SOLD_Vanguard.pdf as a Hargreaves "
-            "Lansdown contract note, read with the Transaction Summary in its folder"
+            f"Accepted {shown}/S302087055_SOLD_Vanguard.pdf, in the folder of a "
+            "Hargreaves Lansdown Transaction Summary: read as a contract note if a "
+            "row of the summary names it"
         ),
         (
             f"Recognised {shown}/hl-transaction-summary.csv as a Hargreaves Lansdown "
@@ -561,6 +592,19 @@ def test_a_raw_heading_in_quotes_after_spaces_is_recognised(tmp_path: Path) -> N
     assert len(_load(spaced)) == 16
 
 
+def test_lines_ended_by_a_carriage_return_alone_are_read_as_the_option_reads_them(
+    tmp_path: Path,
+) -> None:
+    """Recognition reads line ends as the readers' text files do."""
+    lines = RAW.read_text(encoding="utf-8").split("\n")
+    file = tmp_path / "cr.csv"
+    file.write_bytes("\r".join(lines).encode())
+    expected = _dump(_load("--raw-file", file))
+
+    assert len(expected) == 16
+    assert _dump(_load(file)) == expected
+
+
 @pytest.mark.parametrize(
     ("make", "problem"),
     [
@@ -643,8 +687,15 @@ def test_a_raw_heading_in_quotes_after_spaces_is_recognised(tmp_path: Path) -> N
         pytest.param(
             lambda folder: _write(folder / "a.csv", ",".join(DUMP_FIELDS) + "\n"),
             "a.csv is the --dump-transactions output of cgt-calc, not a broker "
-            "export: it is not read back: pass the exports it was written from.",
+            "export: pass the exports it was written from, as cgt-calc does not "
+            "read it back.",
             id="transaction dump",
+        ),
+        pytest.param(
+            lambda folder: _write(folder / "exports/a.csv", "src,dst\nOLD,NEW\n"),
+            "exports/a.csv is a spin-offs file, not a broker export: move it out of "
+            "exports and pass it with --spin-offs-file.",
+            id="configuration file in a folder",
         ),
         pytest.param(
             lambda folder: (folder / "a.xlsx").write_bytes(b"PK\x03\x04rest"),
@@ -726,9 +777,20 @@ def test_an_input_cgt_calc_cannot_read_as_an_export_stops_the_run(
         pytest.param(
             ["--raw-file", RAW, TESTS / "raw/data/test_data_2.csv"],
             "tests/raw/data/test_data_2.csv is a RAW format file, but --raw-file "
-            "already gives that input. Give it one way: every such file with the "
-            "option, or every one as INPUT.",
+            "already gives that input. cgt-calc reads one per run: pass the export "
+            "that holds the whole history, with the option or as INPUT.",
             id="file option and an input for it",
+        ),
+        pytest.param(
+            [
+                "--schwab-file",
+                SCHWAB / "schwab_transactions.csv",
+                SCHWAB / "2023/transactions.csv",
+            ],
+            "tests/schwab/data/2023/transactions.csv is Charles Schwab transaction "
+            "history, but --schwab-file already gives that input. That option reads "
+            "one file: pass every such file as INPUT.",
+            id="file option and an input for it, several read as INPUT",
         ),
         pytest.param(
             [
@@ -749,8 +811,8 @@ def test_an_input_cgt_calc_cannot_read_as_an_export_stops_the_run(
             ],
             "tests/schwab/data/equity_award/schwab_equity_award_v2.json is a "
             "Charles Schwab Equity Awards export, but --schwab-award-file already "
-            "gives that input. Give it one way: every such file with the option, "
-            "or every one as INPUT.",
+            "gives that input. cgt-calc reads one per run: pass the export that "
+            "holds the whole history, with the option or as INPUT.",
             id="award option and an award input",
         ),
         pytest.param(
@@ -785,6 +847,57 @@ def test_inputs_that_conflict_stop_the_run(
 
     assert status == 1
     assert f"ERROR: cgt-calc cannot use every INPUT:\n  {problem}\n" in err
+
+
+@pytest.mark.parametrize(
+    ("option", "make"),
+    [
+        pytest.param("--eri-raw-file", lambda path: _copy(ERI, path), id="ERI"),
+        pytest.param(
+            "--isin-translation-file",
+            lambda path: _copy(
+                TESTS / "general/data/example_isin_translation.csv", path
+            ),
+            id="ISIN translation",
+        ),
+        pytest.param(
+            "--prices-file",
+            lambda path: _copy(
+                TESTS.parent / "cgt_calc/resources/share_prices.csv", path
+            ),
+            id="share prices",
+        ),
+        pytest.param(
+            "--exchange-rates-file",
+            lambda path: _copy(TESTS / "exchange_rates_data.csv", path),
+            id="exchange rates",
+        ),
+        pytest.param(
+            "--spin-offs-file",
+            lambda path: _write(path, "src,dst\nOLD,NEW\n"),
+            id="spin-offs",
+        ),
+    ],
+)
+def test_a_folder_holding_a_file_given_with_its_option_stops_the_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    option: str,
+    make: Callable[[Path], object],
+) -> None:
+    """The folder gives the file a second time, as it would a broker's export."""
+    monkeypatch.chdir(tmp_path)
+    Path("exports").mkdir()
+    make(Path("exports/a.csv"))
+
+    status, err = _cli(monkeypatch, capsys, option, "exports/a.csv", "exports")
+
+    assert status == 1
+    assert (
+        "ERROR: cgt-calc cannot use every INPUT:\n  exports/a.csv is given twice, "
+        f"by {option} and by exports. Give each file once.\n"
+    ) in err
 
 
 def test_an_award_input_goes_with_the_main_history_option(
@@ -1228,6 +1341,7 @@ def test_income_report_sections_decide_the_report_by_either_route(
 
 
 def _write(path: Path, text: str) -> None:
+    path.parent.mkdir(exist_ok=True)
     path.write_text(text, encoding="utf-8")
 
 

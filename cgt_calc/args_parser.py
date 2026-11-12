@@ -106,7 +106,7 @@ Documentation: https://cgt-calc.uk/
         # broken here at the width it gives the option help.
         description="Pass each broker export, or a directory of exports, as INPUT: cgt-calc\n"
         "recognises the broker from each file's contents and says what it found.\n"
-        "The options below read their file as that broker without checking. INPUT or\n"
+        "The options below hand their file straight to that broker's reader. INPUT or\n"
         "PATH can be '-' to read the file from standard input (only one '-' per run)",
     )
     set_completer(
@@ -341,9 +341,9 @@ def parse_arguments(
 def reject_duplicate_stdin(
     parser: argparse.ArgumentParser, args: argparse.Namespace
 ) -> None:
-    """Reject the stdin marker passed to more than one option.
+    """Reject the stdin marker given more than once, to options or as INPUT.
 
-    Only one option can consume stdin. Whichever parser runs second sees an
+    Only one input can consume stdin. Whichever parser runs second sees an
     exhausted stream and fails with an error naming the wrong file, or reports
     no transactions at all.
     """

@@ -106,6 +106,11 @@ transactions apply as they do with that option. Freetrade, Interactive Brokers, 
 and RAW files are read one per run, as their options read one file, and so are the Charles Schwab
 Equity Awards export and each of the two Morgan Stanley reports.
 
+A complete Charles Schwab Equity Awards transaction export is read as an account of its own, as with
+`--schwab-award-file`. cgt-calc does not check it against the Charles Schwab transaction history, so
+a transaction recorded in both files is counted twice. The run warns when you pass both; see
+[Combining a main history with a complete export](brokers/schwab.md#combining-a-main-history-with-a-complete-export).
+
 cgt-calc stops before reading any transaction, and lists every problem, when an input:
 
 - **is not recognised.** The file is from a report or broker cgt-calc does not read, its column
@@ -115,13 +120,21 @@ cgt-calc stops before reading any transaction, and lists every problem, when an 
     file, or pass the file with the option for the broker it came from.
 - **is a file cgt-calc reads with another option**: ERI data, an ISIN translation file, a share
     prices file, the exchange rates cache or a spin-offs file. The message names the option to use.
-    A transaction file written by `--dump-transactions` is named too: cgt-calc does not read it
-    back.
-- **is empty, a spreadsheet workbook, not UTF-8 text, or a PDF** that is not a Hargreaves Lansdown
-    contract note in the folder of a Transaction Summary you passed.
+    If the file is in a folder you pass, move it out of that folder, even when you also give it with
+    its option. A transaction file written by `--dump-transactions` is named too: cgt-calc does not
+    read it back.
+- **is empty, a spreadsheet workbook, or text in an encoding cgt-calc does not read.** Exports must
+    be UTF-8 text, except a Hargreaves Lansdown Transaction Summary, which can also be in the
+    Windows-1252 encoding HL uses.
+- **is a PDF that is not in the folder of a Hargreaves Lansdown Transaction Summary you passed.** A
+    PDF in that folder is accepted without cgt-calc looking inside it, and read as a contract note
+    if a row of the summary names it.
 - **repeats a file** that another argument already gives, such as a folder and a file in it.
 - **gives an input that an option already gives**, such as a Trading 212 export next to
-    `--trading212-dir`. Pass every file for that input with the option, or every one without it.
+    `--trading212-dir`. Pass every file for that input with the option, or every one without it. If
+    cgt-calc reads one such file per run, as with RAW files, pass only the export that holds the
+    whole history, with the option or without it. Several Charles Schwab transaction histories go
+    without `--schwab-file`, which reads one file.
 
 A file passed with an option is read as that broker's without being recognised. You can combine
 options and plain inputs for different brokers, or for the two Charles Schwab inputs:
