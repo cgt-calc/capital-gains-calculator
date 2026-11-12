@@ -143,8 +143,9 @@ To put the tax into the report:
     2025-12-18,DIVIDEND_TAX,QCOM,1,-6.67,0,USD
     ```
 
-    Both rows are needed, because cgt-calc matches a RAW `DIVIDEND_TAX` only to a RAW `DIVIDEND`,
-    not to the dividend in the Revolut CSV.
+    Both rows are needed: the `DIVIDEND` row adds the tax back to the income, and cgt-calc matches a
+    RAW `DIVIDEND_TAX` with no `broker` only to a RAW `DIVIDEND`, not to the dividend in the Revolut
+    CSV.
 
 3. Pass the export and your RAW file:
 

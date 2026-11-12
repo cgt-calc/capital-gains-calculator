@@ -20,8 +20,8 @@ from cgt_calc.model import (
     Isin,
     TransactionSource,
 )
-from cgt_calc.parsers.broker_registry import _transaction_sort_key
 from cgt_calc.parsers.raw import RawParser
+from cgt_calc.raw_replacements import resolve_raw_brokers
 from tests.general.test_calc import SHYG_FUND, _eri, create_calculator, get_report
 from tests.trading212.test_trading212_splits import _award_export, _award_vest
 from tests.utils import build_cmd, run_cli, stderr_alerts
@@ -334,6 +334,102 @@ def test_an_equity_awards_vest_after_the_split_is_replaced(tmp_path: Path) -> No
     assert "Final portfolio\n  NVDA: 30.00\n" in result.stdout
 
 
+def _award_cash(date: str, action: str, amount: str) -> dict[str, object]:
+    """Build an NVDA dividend or withholding, as the Equity Awards export states one."""
+    return {
+        "Date": date,
+        "Action": action,
+        "Symbol": "NVDA",
+        "Quantity": None,
+        "Description": "Debit" if amount.startswith("-") else "Credit",
+        "FeesAndCommissions": None,
+        "DisbursementElection": None,
+        "Amount": amount,
+        "TransactionDetails": [],
+    }
+
+
+def test_an_equity_awards_tax_row_before_the_split_is_replaced(tmp_path: Path) -> None:
+    """Only a vest has a count to restate, so tax before the split is replaced.
+
+    The export pays an NVDA dividend of 100 dollars on 3 June 2024 and withholds
+    15 on 5 June, both before the split of 10 June. Moved onto the payment, the
+    tax is 15% of 100, the US treaty rate, so no warning; the balance is
+    100 - 15 = 85.
+    """
+    awards = _award_export(
+        tmp_path,
+        [
+            _award_cash("06/05/2024", "Tax Withholding", "-$15.00"),
+            _award_cash("06/03/2024", "Dividend", "$100.00"),
+        ],
+    )
+    raw = _raw(
+        tmp_path,
+        "2024-06-03,DIVIDEND_TAX,NVDA,1,-15.00,0.00,USD,Charles Schwab,2024-06-05",
+    )
+
+    result = run_cli(
+        build_cmd(
+            "--year",
+            "2024",
+            "--schwab-award-file",
+            awards,
+            "--raw-file",
+            str(raw),
+            "--no-report",
+        )
+    )
+
+    assert stderr_alerts(result.stderr) == []
+    assert (
+        "Using RAW row 2 (DIVIDEND_TAX NVDA on 2024-06-03) in place of the Charles "
+        f"Schwab row dated 2024-06-05 ({awards})\n"
+    ) in result.stderr
+    assert "\n  Charles Schwab: 85.00 (USD)\n" in result.stdout
+    assert "\n  NVDA: 100.00, excluding 15.00 taxed at source (USD)\n" in result.stdout
+
+
+def test_a_main_history_vest_before_the_split_is_replaced(tmp_path: Path) -> None:
+    """Only the Equity Awards export restates vests, so this one is replaced.
+
+    The main history's vest of 10 NVDA on 3 May 2024 is before the split of 10
+    June, and is in the units of its own date, as the RAW row is. Re-dated to
+    2 May at 880 dollars, it costs 8,800 at the May 2024 rate of 1.2457
+    dollars to the pound, 7,064.30.
+    """
+    schwab = _write(
+        tmp_path / "schwab.csv",
+        [
+            SCHWAB_HEADER,
+            '"05/03/2024","Stock Plan Activity","NVDA","NVIDIA CORP","10","$900.00","",""',
+        ],
+    )
+    raw = _raw(
+        tmp_path,
+        "2024-05-02,STOCK_ACTIVITY,NVDA,10,880.00,0.00,USD,Charles Schwab,2024-05-03",
+    )
+
+    result = run_cli(
+        build_cmd(
+            "--year",
+            "2024",
+            "--schwab-file",
+            str(schwab),
+            "--raw-file",
+            str(raw),
+            "--no-report",
+        )
+    )
+
+    assert stderr_alerts(result.stderr) == []
+    assert (
+        "Using RAW row 2 (STOCK_ACTIVITY NVDA on 2024-05-02) in place of the Charles "
+        f"Schwab row dated 2024-05-03 (row 2 of {schwab})\n"
+    ) in result.stderr
+    assert "\n  NVDA: 10.00, £7,064.30\n" in result.stdout
+
+
 @pytest.mark.parametrize(
     ("raw_rows", "message"),
     [
@@ -536,100 +632,32 @@ def test_competing_rows_that_differ_are_refused(
     assert message.count("read from row") == 2
 
 
-def test_a_replacing_vest_is_from_the_market_of_the_row_it_replaces(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    ("target", "raw_row"),
+    [
+        pytest.param(_tax(isin=CANADIAN_ISIN), TAX_RAW, id="tax row with an ISIN"),
+        pytest.param(_vest(market=US_MARKET), VEST_RAW, id="vest from a US market"),
+    ],
+)
+def test_a_replacing_row_carries_the_security_of_the_row_it_replaces(
+    tmp_path: Path, target: BrokerTransaction, raw_row: str
 ) -> None:
-    """The vest replaced came from a US market, so IGCB stays the US security.
+    """The row in the replaced row's place keeps the ISIN and market it had.
 
-    IGCB is a US symbol and, in cgt-calc's bundled list, the London ticker of
-    a fund, IE00BKW9SW28, whose report for 2024 is 0.004 pounds a share. A
-    row from a US market settles it; with none, the report would add 1,000 x
-    0.004 = 4.00 to the cost of the 1,000 shares, with a warning. The holding
-    costs only 1,000 x 10.50 = 10,500 dollars, at the June 2024 rate of
-    1.2709 dollars to the pound 8,261.86.
-
-    The run settles this from every row, the replaced one included, before
-    the replacement, so today the Schwab row's market decides it. The
-    replacing row also carries that market, which keeps the answer if the
-    ticker check ever runs after replacement: moving it there and dropping
-    the market from the replacing row makes this test fail.
+    They say what the security is: an ISIN gives a dividend's source country,
+    and a US market keeps a US symbol from being read as a London fund's
+    ticker. The run reads both from every row before the replacement, so no
+    report can show them change; this checks the row the replacement hands
+    on, so that they hold whatever runs after it.
     """
-    schwab = _write(
-        tmp_path / "schwab.csv",
-        [
-            SCHWAB_HEADER,
-            '"06/03/2024","Stock Plan Activity","IGCB","IGCB INC","1000","$10.00","",""',
-        ],
-    )
-    raw = _raw(
-        tmp_path,
-        "2024-06-15,STOCK_ACTIVITY,IGCB,1000,10.50,0.00,USD,Charles Schwab,2024-06-03",
-    )
+    raw_rows = _raw_rows(tmp_path, raw_row)
 
-    result = run_cli(
-        build_cmd(
-            "--year",
-            "2024",
-            "--schwab-file",
-            str(schwab),
-            "--raw-file",
-            str(raw),
-            "--no-report",
-        )
-    )
+    resolved = resolve_raw_brokers([target, *raw_rows])
 
-    assert stderr_alerts(result.stderr) == []
-    assert "\n  IGCB: 1,000.00, £8,261.86\n" in result.stdout
-
-
-def test_a_replacing_tax_row_keeps_the_isin_of_the_row_it_replaces(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """The ISIN of the tax row replaced still says where the dividend is from.
-
-    FOO's only ISIN is on the tax row: CA1234567891, a Canadian one. Moved
-    onto the 3 June dividend, the tax is Canadian, and cgt-calc has no treaty
-    with Canada on file, so it says so. Read by its currency instead, as a
-    row with no ISIN is, it would be American, and 15 of 100 is the 15% US
-    rate, which passes without a word.
-
-    The run maps FOO to its ISIN from every row, the replaced one included,
-    before the replacement, so today the export row decides it. The
-    replacing row also carries the ISIN, which keeps the answer if that
-    mapping ever runs after replacement: moving it there and dropping the
-    ISIN from the replacing row makes this test fail.
-    """
-    transactions = [
-        _export_row(ActionType.DIVIDEND, dt.date(2024, 6, 3), Decimal(100)),
-        _export_row(
-            ActionType.DIVIDEND_TAX,
-            dt.date(2024, 6, 27),
-            Decimal(-15),
-            row=3,
-            isin=CANADIAN_ISIN,
-        ),
-        *_raw_rows(
-            tmp_path,
-            "2024-06-03,DIVIDEND_TAX,FOO,1,-15.00,0.00,USD,Charles Schwab,2024-06-27",
-        ),
-    ]
-    transactions.sort(key=_transaction_sort_key)
-
-    get_report(create_calculator(tax_year=2024, balance_check=False), transactions)
-
-    assert [
-        record.getMessage()
-        for record in caplog.records
-        if record.levelno >= logging.WARNING
-    ] == [
-        (
-            "cgt-calc has no double taxation treaty on file for country code CA, "
-            "so the report gives no treaty relief for the tax withheld from the "
-            "FOO dividend on 2024-06-03. Check where the paying company is "
-            "resident and work out any relief under the UK's treaty with that "
-            "country outside cgt-calc."
-        )
-    ]
+    assert len(resolved) == 1
+    (replacing,) = resolved
+    assert replacing.date == raw_rows[0].date
+    assert (replacing.isin, replacing.market) == (target.isin, target.market)
 
 
 def test_a_vest_of_another_quantity_is_not_the_row_replaced(tmp_path: Path) -> None:

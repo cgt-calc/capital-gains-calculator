@@ -229,11 +229,12 @@ Irish one, see [Offshore Funds (ERI)](../offshore-funds.md).
 ## Combining RAW with a broker export
 
 A RAW row is assigned to a separate broker called `Unknown` unless its `broker` column names
-another. A complete history converted to RAW can therefore reconcile its own cash. Its cash balance
-and interest stay separate from a named broker export passed with another flag. In particular, a RAW
-`DIVIDEND_TAX` is not attached to that broker's dividend, and a RAW deposit does not fund a purchase
-in that broker's balance. Dividends themselves are pooled by ticker and date across every broker, so
-a payment entered here that is already in the export is added to it rather than listed separately.
+another. A complete history converted to RAW can therefore reconcile its own cash. With the broker
+left blank, its cash balance and interest stay separate from a named broker export passed with
+another flag. In particular, such a RAW `DIVIDEND_TAX` is not attached to that broker's dividend,
+and such a RAW deposit does not fund a purchase in that broker's balance. Dividends themselves are
+pooled by ticker and date across every broker, so a payment entered here that is already in the
+export is added to it rather than listed separately.
 
 To add a row to a broker's own balance and dividends, or to replace a row that the broker's export
 got wrong, see [Correct a row in a broker export](#correct-a-row-in-a-broker-export).
@@ -320,8 +321,10 @@ The error names the RAW row:
 - **`Cannot find a ... row left`**: two RAW rows replace the same export row. Remove the repeated
     one.
 - **`Several ... rows match this replacement and they differ`**: the export has more than one
-    matching row, and they differ in price, fees, currency, ISIN, market or account, so cgt-calc
-    cannot tell which you mean. Edit the row in a working copy of the export instead.
+    matching row, and they differ in ISIN or market or, for a vest, in price, fees, currency or
+    account, so cgt-calc cannot tell which you mean. Edit the row in a working copy of the export
+    instead. Matching tax rows that differ only in account are interchangeable, and one of them is
+    replaced.
 - **`A ... row cannot replace a row of a broker export`**: only dividend tax and vests can be
     replaced. Edit a working copy of the export for anything else.
 - **`Cannot replace the ... vest ... in units after the ... split`**: cgt-calc reads each vest in a
@@ -642,8 +645,8 @@ the file as UTF-8 CSV rather than converting a PDF or pasting a formatted curren
 
 Check the sign of every cash row and include the deposits, sales and income that funded later
 purchases or withdrawals. If this RAW file supplements a named broker export, remember that their
-balances are separate; see
-[Combining RAW with a broker export](#combining-raw-with-a-broker-export).
+balances are separate unless a row names that broker in its `broker` column; see
+[Correct a row in a broker export](#correct-a-row-in-a-broker-export).
 
 ### `Tried to sell`
 

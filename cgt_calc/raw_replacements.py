@@ -86,9 +86,14 @@ def _restated_split(target: BrokerTransaction, row: RawTransaction) -> str | Non
     The Equity Awards export states a vest in units after the later splits
     in its parser's table, while a RAW row is read in the units in force on
     its own date, and the pool's exemption from a known split finds the vest
-    by its class. Either date before such a split is refused.
+    by its class. Either date before such a split is refused. A tax row has
+    no count to restate, so it is never refused for this.
     """
-    if not isinstance(target, SchwabAwardTransaction) or target.symbol is None:
+    if (
+        target.action is not ActionType.STOCK_ACTIVITY
+        or not isinstance(target, SchwabAwardTransaction)
+        or target.symbol is None
+    ):
         return None
     symbol = target.symbol
     earlier = min(target.date, row.date)
