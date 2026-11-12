@@ -426,6 +426,181 @@ def test_read_raw_transactions_invalid_header(tmp_path: Path) -> None:
     assert "Expected column 3" in str(exc.value)
 
 
+def test_read_raw_transactions_with_broker_and_replaces_columns(
+    tmp_path: Path,
+) -> None:
+    """A header may go on with `broker`, then `replaces`, read like the seven.
+
+    A blank broker is the RAW file's own ledger, `Unknown`, as every row was
+    before the column; a blank `replaces` adds the row rather than replacing.
+    """
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(
+        raw_file,
+        [
+            [*COLUMNS, " Broker ", "REPLACES"],
+            [
+                "2024-06-03",
+                "DIVIDEND_TAX",
+                "FOO",
+                "1",
+                "-5.00",
+                "0",
+                "USD",
+                "Charles Schwab",
+                "2024-06-27",
+            ],
+            ["2024-06-04", "DIVIDEND", "FOO", "1", "1.00", "0", "USD", "Freetrade", ""],
+            ["2024-06-05", "TRANSFER", "", "1", "2.00", "0", "USD", "", ""],
+        ],
+    )
+
+    transactions = RawParser().load_from_file(raw_file)
+
+    assert [(row.broker, row.replaces) for row in transactions] == [
+        ("Charles Schwab", dt.date(2024, 6, 27)),
+        ("Freetrade", None),
+        ("Unknown", None),
+    ]
+
+
+def test_read_raw_transactions_with_a_broker_column_alone(tmp_path: Path) -> None:
+    """`broker` can end the header: `replaces` is optional after it."""
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(
+        raw_file,
+        [
+            [*COLUMNS, "broker"],
+            ["2024-06-04", "DIVIDEND", "FOO", "1", "1.00", "0", "USD", "Freetrade"],
+        ],
+    )
+
+    transactions = RawParser().load_from_file(raw_file)
+
+    assert [(row.broker, row.replaces) for row in transactions] == [("Freetrade", None)]
+
+
+_TAX_ROW = ["2024-06-03", "DIVIDEND_TAX", "FOO", "1", "-5.00", "0", "USD"]
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        pytest.param(_TAX_ROW, id="seven columns"),
+        pytest.param([*_TAX_ROW, "Charles Schwab", "2024-06-27"], id="nine columns"),
+    ],
+)
+def test_a_first_row_of_data_is_not_a_raw_header(
+    tmp_path: Path, row: list[str]
+) -> None:
+    """The header check refuses a row of data, whatever its width.
+
+    It is the one check that tells a RAW header from a first row of data, so
+    a file without a header is never taken for one that has it, with or
+    without the optional columns.
+    """
+    with pytest.raises(
+        ParsingError, match="Expected column 1 to be 'date' but found '2024-06-03'"
+    ):
+        RawParser._validate_header(row, tmp_path / "raw.csv")  # noqa: SLF001
+
+
+@pytest.mark.parametrize(
+    ("rows", "message"),
+    [
+        pytest.param(
+            [[*_TAX_ROW, "Charles Schwab"]],
+            "row 1: This row has 8 columns, not 7",
+            id="no header, eight columns",
+        ),
+        pytest.param(
+            [[*COLUMNS, "account"]],
+            "row 1: Expected column 8 to be 'broker' but found 'account'",
+            id="eighth column misnamed",
+        ),
+        pytest.param(
+            [COLUMNS[:6]],
+            "row 1: This row has 6 columns, not 7",
+            id="header of six columns",
+        ),
+        pytest.param(
+            [[*COLUMNS, "broker", "replaces", "note"]],
+            "row 1: This row has 10 columns, not 9",
+            id="header of ten columns",
+        ),
+        pytest.param(
+            [[*COLUMNS, "replaces", "broker"]],
+            "row 1: Expected column 8 to be 'broker' but found 'replaces'",
+            id="optional columns out of order",
+        ),
+        pytest.param(
+            [[*COLUMNS, "broker", "replaces"], [*_TAX_ROW, "Charles Schwab"]],
+            "row 2: This row has 8 columns, not 9",
+            id="row narrower than its header",
+        ),
+        pytest.param(
+            [[*COLUMNS, "broker", "replaces"], [*_TAX_ROW, "", "2024-06-27"]],
+            "row 2: A row that replaces a row of a broker export names that "
+            "broker in the 'broker' column.",
+            id="replaces without a broker",
+        ),
+        pytest.param(
+            [
+                [*COLUMNS, "broker", "replaces"],
+                [
+                    "2024-06-03",
+                    "BUY",
+                    "FOO",
+                    "1",
+                    "5.00",
+                    "0",
+                    "USD",
+                    "Charles Schwab",
+                    "2024-06-27",
+                ],
+            ],
+            "row 2: A BUY row cannot replace a row of a broker export: only "
+            "DIVIDEND_TAX and STOCK_ACTIVITY rows can. Edit a working copy of "
+            "the export instead.",
+            id="replaces on a purchase",
+        ),
+        pytest.param(
+            [
+                [*COLUMNS, "broker", "replaces"],
+                [*_TAX_ROW, "Charles Schwab", "2024-02-30"],
+            ],
+            "row 2: Invalid replaces date: '2024-02-30', expected YYYY-MM-DD, "
+            "e.g. '2023-08-15'",
+            id="replaces not a date",
+        ),
+        pytest.param(
+            [
+                [*COLUMNS, "broker", "replaces"],
+                [*_TAX_ROW[:4], "5.00", "0", "USD", "Charles Schwab", ""],
+            ],
+            "row 2: DIVIDEND_TAX cannot be positive.",
+            id="positive tax added to a named broker",
+        ),
+    ],
+)
+def test_read_raw_transactions_refuses_a_bad_broker_or_replaces_column(
+    tmp_path: Path, rows: list[list[str]], message: str
+) -> None:
+    """Each optional-column rule refuses the row or header that breaks it.
+
+    Only a header names the optional columns, so a file without one keeps
+    to the seven. Naming a broker does not lift the refusal of positive tax:
+    only a row replacing an export row with that same amount may be positive.
+    """
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(raw_file, rows)
+
+    with pytest.raises(ParsingError) as exc:
+        RawParser().load_from_file(raw_file)
+
+    assert f"While parsing {raw_file}, {message}" in str(exc.value)
+
+
 def test_read_raw_transactions_invalid_decimal(tmp_path: Path) -> None:
     """Raise ParsingError when decimal conversion fails."""
 

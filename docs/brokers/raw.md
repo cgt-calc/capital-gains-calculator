@@ -27,6 +27,10 @@ The columns are:
 The header is required. cgt-calc can infer it from a file without a header for compatibility, but
 warns because it then has to assume that the columns are in the order above.
 
+Two optional columns, `broker` and then `replaces`, can follow the seven when a row has to join a
+broker export or correct one of its rows. See
+[Correct a row in a broker export](#correct-a-row-in-a-broker-export).
+
 A space before or after a value is ignored, so you can leave one after each comma.
 
 Here is a complete small example:
@@ -69,7 +73,8 @@ received and negative for money paid. A £250 deposit and a £40 withdrawal look
 
 A positive amount on a `DIVIDEND_TAX` or `INTEREST_TAX` row is refused; enter tax still withheld as
 a negative `price`. If part of the tax for that payment was refunded, enter only the amount still
-withheld.
+withheld. The one exception is a row that [replaces](#replace-a-row-of-the-export) a refund in a
+broker export: it states the refund as the export does.
 
 Do not leave `quantity` or `price` blank. On a row that moves cash, such as a trade, dividend,
 deposit or withdrawal, cgt-calc then has no amount to apply and stops with `Amount missing`.
@@ -223,20 +228,108 @@ Irish one, see [Offshore Funds (ERI)](../offshore-funds.md).
 
 ## Combining RAW with a broker export
 
-Every RAW row is assigned to a separate broker called `Unknown`. A complete history converted to RAW
-can therefore reconcile its own cash. Its cash balance and interest stay separate from a named
-broker export passed with another flag. In particular, a RAW `DIVIDEND_TAX` cannot be attached to
-that broker's dividend, and a RAW deposit cannot fund a purchase in that broker's balance. Dividends
-themselves are pooled by ticker and date across every broker, so a payment entered here that is
-already in the export is added to it rather than listed separately.
+A RAW row is assigned to a separate broker called `Unknown` unless its `broker` column names
+another. A complete history converted to RAW can therefore reconcile its own cash. Its cash balance
+and interest stay separate from a named broker export passed with another flag. In particular, a RAW
+`DIVIDEND_TAX` is not attached to that broker's dividend, and a RAW deposit does not fund a purchase
+in that broker's balance. Dividends themselves are pooled by ticker and date across every broker, so
+a payment entered here that is already in the export is added to it rather than listed separately.
+
+To add a row to a broker's own balance and dividends, or to replace a row that the broker's export
+got wrong, see [Correct a row in a broker export](#correct-a-row-in-a-broker-export).
 
 Non-cash rows such as a spouse transfer can be supplied alongside a broker export as described
-below. For any replacement or correction, make sure the original activity is not also imported, and
-check both the final holdings and each broker balance. Keep the downloaded export unchanged for your
-records; make changes only in a working copy.
+below. For a correction that section does not cover, make it in a working copy of the export, make
+sure the original activity is not also imported, and check both the final holdings and each broker
+balance. Keep the downloaded export unchanged for your records.
 
 cgt-calc reads one RAW file in a run. Keep every row you write yourself in that file: a second
 `--raw-file` stops the run.
+
+## Correct a row in a broker export
+
+Two optional columns let a RAW row correct a broker export without editing it. Add them after the
+seven, in this order:
+
+```csv
+date,action,symbol,quantity,price,fees,currency,broker,replaces
+```
+
+You can stop after `broker` if no row replaces another. A file that uses either column needs the
+header. Leave both cells blank on a row that does not use them.
+
+### Add a row to a broker's records
+
+Put the broker's name in `broker`, as the terminal lists it under **Final balance**: for example
+`Charles Schwab`, `Interactive Brokers` or `Trading212`. Letter case and spaces do not matter, so
+`trading 212` works too. The row then joins that broker's cash balance, and a `DIVIDEND_TAX` row is
+matched to that broker's dividends. The name has to be that of another input in the same run: any
+other name stops the run and lists the names you can use. A blank `broker` keeps the row in the RAW
+file's own `Unknown` balance, as before.
+
+### Replace a row of the export
+
+When a row of the export is wrong, a RAW row can take its place. Name the broker and put the date of
+the export row in `replaces`; the other columns hold the corrected row. Two kinds of row can be
+replaced:
+
+- **Dividend tax** (`DIVIDEND_TAX`). The row keeps the export row's amount and currency and moves it
+    to another date. Use it when cgt-calc warns that tax “could have been taken from the dividend
+    on” either of two dates, and date the tax on the dividend it belongs to, as your broker's
+    statement shows.
+- **A vest** (`STOCK_ACTIVITY`). The row keeps the export row's quantity and can change its date and
+    its price. Use it when your employer taxed the shares on another day than the one cgt-calc uses:
+    see [Dates containing `as of`](schwab.md#dates-containing-as-of) in the Schwab guide.
+
+Say Schwab withheld a further 5 dollars of tax on 27 June 2024 that belongs to the dividend of 3
+June. Schwab's row is replaced by one dated on the dividend:
+
+```csv
+2024-06-03,DIVIDEND_TAX,FOO,1,-5.00,0.00,USD,Charles Schwab,2024-06-27
+```
+
+A refund is positive in the export, and is positive here too. For a vest of 60 shares that cgt-calc
+dates 12 June 2023 but your employer taxed on 15 June at 22 dollars a share:
+
+```csv
+2023-06-15,STOCK_ACTIVITY,ZQX,60,22.00,0.00,USD,Charles Schwab,2023-06-12
+```
+
+cgt-calc replaces the export row with the same broker, action and symbol, dated on the `replaces`
+date and with the same quantity (a vest) or the same amount and currency (tax). The date is the one
+cgt-calc uses for the row, which is not always the date in the file: for a Schwab vest priced from
+your award file it is the `Date` of the vest's `Lapse` row. To see every row with the date cgt-calc
+uses, run with [`--dump-transactions`](../usage.md#inspect-parsed-transactions).
+
+The run names each replacement:
+
+```text
+Using RAW row 2 (DIVIDEND_TAX FOO on 2024-06-03) in place of the Charles Schwab row dated 2024-06-27 (row 4 of schwab.csv)
+```
+
+#### When cgt-calc refuses a replacement
+
+A replacement that cgt-calc cannot place stops the run, rather than adding the row a second time.
+The error names the RAW row:
+
+- **`Cannot find the ... row this ... row replaces`**: no export row matches. The error lists that
+    broker's rows nearest the date, with the dates cgt-calc uses. Check the `replaces` date and the
+    quantity or amount.
+- **`Cannot find a ... row left`**: two RAW rows replace the same export row. Remove the repeated
+    one.
+- **`Several ... rows match this replacement and they differ`**: the export has more than one
+    matching row, and they differ in price, fees, currency, ISIN, market or account, so cgt-calc
+    cannot tell which you mean. Edit the row in a working copy of the export instead.
+- **`A ... row cannot replace a row of a broker export`**: only dividend tax and vests can be
+    replaced. Edit a working copy of the export for anything else.
+- **`Cannot replace the ... vest ... in units after the ... split`**: a Schwab Equity Awards export
+    restates each vest for the later splits of NVIDIA and Alphabet shares, so a vest of `NVDA`
+    before 10 June 2024, or of `GOOG` or `GOOGL` before 16 July 2022, is stated in units that did
+    not exist on its date. A RAW row on that date would count the wrong number of shares. Edit the
+    vest's date and price in a working copy of the Equity Awards export instead, keeping its
+    quantity, and give the price per share in the units the export uses.
+- **`The broker '...' is not the broker of any other input`**: correct the name, or leave it blank.
+- **`A row that replaces a row of a broker export names that broker`**: fill in `broker`.
 
 ## Generate the report
 

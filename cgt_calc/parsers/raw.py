@@ -34,11 +34,36 @@ class RawColumn(StrEnum):
     PRICE = "price"
     FEES = "fees"
     CURRENCY = "currency"
+    # Optional, in this order after the seven, and read only when the header
+    # names them: a file without a header has the seven alone.
+    BROKER = "broker"
+    REPLACES = "replaces"
 
 
-COLUMNS: Final[list[str]] = [column.value for column in RawColumn]
-CSV_COLUMNS_NUM: Final = len(COLUMNS)
+ALL_COLUMNS: Final[list[str]] = [column.value for column in RawColumn]
+CSV_COLUMNS_NUM: Final = 7
+COLUMNS: Final[list[str]] = ALL_COLUMNS[:CSV_COLUMNS_NUM]
+# The ledger of a row that names no broker.
+UNKNOWN_BROKER: Final = "Unknown"
+# The rows that can stand in for one in a broker export: nothing their export
+# rows carry is beyond the RAW columns, and replacing one moves no more money.
+REPLACEABLE_ACTIONS: Final = frozenset(
+    {ActionType.DIVIDEND_TAX, ActionType.STOCK_ACTIVITY}
+)
 LOGGER = logging.getLogger(__name__)
+
+
+def _parse_date(value: str, column: RawColumn, file: Path) -> dt.date:
+    """Read a `YYYY-MM-DD` date, naming the column when it is not `date`."""
+    try:
+        return dt.datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as err:
+        # "date", not "date format": a typed 2023-06-31 has the right form.
+        name = "date" if column is RawColumn.DATE else f"{column.value} date"
+        raise ParsingError(
+            file,
+            f"Invalid {name}: {value!r}, expected YYYY-MM-DD, e.g. '2023-08-15'",
+        ) from err
 
 
 def _action_from_str(label: str, file: Path) -> ActionType:
@@ -97,32 +122,46 @@ class RawTransaction(BrokerTransaction):
     See tests/raw/data/test_data.csv for a sample file showing the expected format.
     """
 
+    # The date cgt-calc reads for the export row this one takes the place of.
+    replaces: dt.date | None
+
     def __init__(
         self,
         row: list[str],
         file: Path,
+        width: int = CSV_COLUMNS_NUM,
     ):
-        """Create transaction from CSV row."""
-        if len(row) != CSV_COLUMNS_NUM:
-            raise UnexpectedColumnCountError(row, CSV_COLUMNS_NUM, file)
+        """Create transaction from CSV row, `width` columns wide as its header."""
+        if len(row) != width:
+            raise UnexpectedColumnCountError(row, width, file)
 
         # A space typed beside a comma is not part of the value: kept on a
         # symbol, it would make a holding of its own.
         row_values: dict[RawColumn, str] = {
-            column: row[i].strip() for i, column in enumerate(RawColumn)
+            column: value.strip() for column, value in zip(RawColumn, row, strict=False)
         }
 
-        date_str = row_values[RawColumn.DATE]
-        try:
-            date = dt.datetime.strptime(date_str, "%Y-%m-%d").date()
-        except ValueError as err:
-            # "date", not "date format": a typed 2023-06-31 has the right form.
-            raise ParsingError(
-                file,
-                f"Invalid date: {date_str!r}, expected YYYY-MM-DD, e.g. '2023-08-15'",
-            ) from err
-
+        date = _parse_date(row_values[RawColumn.DATE], RawColumn.DATE, file)
         action = _action_from_str(row_values[RawColumn.ACTION], file)
+        broker = row_values.get(RawColumn.BROKER) or UNKNOWN_BROKER
+        replaces_str = row_values.get(RawColumn.REPLACES)
+        self.replaces = (
+            _parse_date(replaces_str, RawColumn.REPLACES, file)
+            if replaces_str
+            else None
+        )
+        if self.replaces is not None:
+            if broker == UNKNOWN_BROKER:
+                raise ValueError(
+                    "A row that replaces a row of a broker export names that "
+                    "broker in the 'broker' column."
+                )
+            if action not in REPLACEABLE_ACTIONS:
+                raise ValueError(
+                    f"A {action.name} row cannot replace a row of a broker "
+                    "export: only DIVIDEND_TAX and STOCK_ACTIVITY rows can. "
+                    "Edit a working copy of the export instead."
+                )
         symbol = row_values[RawColumn.SYMBOL] or None
         quantity = _parse_decimal(row_values, RawColumn.QUANTITY)
         price = _parse_decimal(row_values, RawColumn.PRICE)
@@ -148,11 +187,14 @@ class RawTransaction(BrokerTransaction):
         # as negative tax paid. A broker export can hold one, reversing an
         # earlier deduction, so like the fees above this is checked only where
         # a person types the value. The amount is checked rather than the
-        # price, as a negative quantity reverses the sign of the price.
+        # price, as a negative quantity reverses the sign of the price. A row
+        # replacing an export row has that row's amount, so its sign is the
+        # broker's: one that differs matches nothing and is refused there.
         if (
             action in {ActionType.DIVIDEND_TAX, ActionType.INTEREST_TAX}
             and amount is not None
             and amount > 0
+            and self.replaces is None
         ):
             raise ValueError(
                 f"{action.name} cannot be positive. Enter the tax deducted as a "
@@ -161,7 +203,6 @@ class RawTransaction(BrokerTransaction):
             )
 
         currency = CurrencyCode(row_values[RawColumn.CURRENCY])
-        broker = "Unknown"
         super().__init__(
             date,
             action,
@@ -210,14 +251,20 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
 
     @staticmethod
     def _validate_header(header: list[str], file: Path) -> None:
-        """Validate optional header row."""
+        """Validate optional header row.
 
-        if len(header) != CSV_COLUMNS_NUM:
-            raise UnexpectedColumnCountError(header, CSV_COLUMNS_NUM, file, row_index=1)
+        The seven columns, optionally followed by `broker`, or by `broker`
+        and `replaces`.
+        """
+
+        if not CSV_COLUMNS_NUM <= len(header) <= len(ALL_COLUMNS):
+            # Name the nearest width a header can have.
+            nearest = min(max(len(header), CSV_COLUMNS_NUM), len(ALL_COLUMNS))
+            raise UnexpectedColumnCountError(header, nearest, file, row_index=1)
 
         normalized = [value.strip().lower() for value in header]
         for index, (exp, act) in enumerate(
-            zip(COLUMNS, normalized, strict=True), start=1
+            zip(ALL_COLUMNS, normalized, strict=False), start=1
         ):
             if exp != act:
                 raise ParsingError(
@@ -250,10 +297,12 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
 
         data_rows = lines
         start_index = 1
+        width = CSV_COLUMNS_NUM
         if cls._has_header(lines[0]):
             cls._validate_header(lines[0], file_path)
             data_rows = lines[1:]
             start_index = 2
+            width = len(lines[0])
         else:
             LOGGER.warning(
                 "RAW CSV file %s is missing header row. The header is required but will be inferred for now.",
@@ -271,7 +320,7 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
             if is_blank_row(row):
                 continue
             try:
-                transaction = RawTransaction(row, file_path)
+                transaction = RawTransaction(row, file_path, width)
             except ParsingError as err:
                 err.add_row_context(index)
                 raise

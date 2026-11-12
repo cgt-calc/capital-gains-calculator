@@ -335,7 +335,11 @@ def test_tax_two_payments_could_claim_is_left_out(
 
     assert len(warnings) == 1
     assert "the dividend on 2024-06-03 or 2024-07-03" in warnings[0]
-    assert "Date it in the export on the one it belongs to" in warnings[0]
+    assert warnings[0].endswith(
+        "Date it on the one it belongs to to have it counted. A RAW row can "
+        "replace a row of a broker export with the right date: see "
+        "https://cgt-calc.uk/brokers/raw/#correct-a-row-in-a-broker-export"
+    )
 
 
 def test_further_withholding_two_payments_could_claim_is_left_out(
