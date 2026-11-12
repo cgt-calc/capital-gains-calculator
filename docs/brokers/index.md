@@ -6,8 +6,8 @@ calculating. Earlier purchases or employer-share awards can establish the cost o
 
 Pass each export, or the folder that holds a broker's exports, straight to cgt-calc: it recognises
 the broker from the file's contents, as described in
-[How cgt-calc recognises each input](../usage.md#how-cgt-calc-recognises-each-input). The option in
-the table reads the file as that broker's without recognising it first.
+[Generate the report](../usage.md#generate-the-report). The option in the table reads the file as
+that broker's without recognising it first.
 
 If your shares came from an employer, check the broker guide carefully. Schwab supports only the
 award-export formats described in its guide, Morgan Stanley support is limited to Alphabet's GSU

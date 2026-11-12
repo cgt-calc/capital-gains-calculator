@@ -58,7 +58,8 @@ vouchers and HMRC's guidance on the tax credits on
 ## Generate the report
 
 Pass your broker's export, or the folder that holds its exports. cgt-calc recognises the broker from
-each file's contents and prints what it found. For example, with a Charles Schwab export:
+each file's contents, not its name, and prints what it found. For example, with a Charles Schwab
+export:
 
 ```shell
 cgt-calc --year 2024 schwab_transactions.csv
@@ -74,80 +75,22 @@ You can combine exports from different brokers in one calculation:
 cgt-calc --year 2024 schwab_transactions.csv trading212/ morgan_stanley/
 ```
 
+A folder stands for the `.csv` and `.json` files directly inside it, not those in folders below it.
+Hargreaves Lansdown contract notes in the folder are still read with the Transaction Summary. If
+cgt-calc cannot use a file, it stops before reading any transaction and says why.
+
+If you pass both a Charles Schwab transaction history and a complete Equity Awards export, a
+transaction recorded in both is counted twice. See
+[Combining a main history with a complete export](brokers/schwab.md#combining-a-main-history-with-a-complete-export).
+
 Each broker also has an option that reads its export without recognising it first, such as
-`--schwab-file schwab_transactions.csv`. Scripts that use these options keep working. An option that
-takes a value can be given only once. cgt-calc stops if you repeat one, because the option holds a
-single value and the first would otherwise go unread.
+`--schwab-file schwab_transactions.csv`. An option that takes a value can be given only once.
+cgt-calc stops if you repeat one, because the option holds a single value and the first would
+otherwise go unread.
 
 See the [broker instructions](brokers/index.md) for the export format and option for each source. If
 your broker is not listed, you can convert its transactions to the generic
 [RAW format](brokers/raw.md).
-
-## How cgt-calc recognises each input
-
-cgt-calc reads the column headings of each file you pass, or the top-level field of a JSON file. It
-never goes by the filename, so a renamed export or a second download saved as
-`Withdrawals Report (1).csv` is still recognised.
-
-A folder stands for the `.csv` and `.json` files directly inside it. Folders inside it are not
-searched, and other files, such as PDFs and spreadsheets, are not inputs. Hargreaves Lansdown
-contract notes are still read: the Transaction Summary finds each one in its own folder.
-
-cgt-calc prints one line for each file before reading any transaction, for example:
-
-```text
-Recognised trading212/from_2024-04-06_to_2025-04-05.csv as a Trading 212 export
-Skipped morgan_stanley/Withdrawal Wire Report.csv: a Morgan Stanley report cgt-calc does not read
-```
-
-All the files recognised as exports of one broker are read together, as one account, in the same way
-as the broker's folder option reads them. Its checks for overlapping exports and repeated
-transactions apply as they do with that option. Freetrade, Interactive Brokers, Revolut, Vanguard
-and RAW files are read one per run, as their options read one file, and so are the Charles Schwab
-Equity Awards export and each of the two Morgan Stanley reports.
-
-A complete Charles Schwab Equity Awards transaction export is read as an account of its own, as with
-`--schwab-award-file`. cgt-calc does not check it against the Charles Schwab transaction history, so
-a transaction recorded in both files is counted twice. The run warns when you pass both; see
-[Combining a main history with a complete export](brokers/schwab.md#combining-a-main-history-with-a-complete-export).
-
-cgt-calc stops before reading any transaction, and lists every problem, when an input:
-
-- **is not recognised.** The file is from a report or broker cgt-calc does not read, its column
-    headings were changed, or it has no heading row. To see which headings the reader expected, pass
-    the file with its broker's option.
-- **matches more than one format**, such as two exports pasted into one file. Keep one export per
-    file, or pass the file with the option for the broker it came from.
-- **is a file cgt-calc reads with another option**: ERI data, an ISIN translation file, a share
-    prices file, the exchange rates cache or a spin-offs file. The message names the option to use.
-    If the file is in a folder you pass, move it out of that folder, even when you also give it with
-    its option. A transaction file written by `--dump-transactions` is named too: cgt-calc does not
-    read it back.
-- **is empty, a spreadsheet workbook, or text in an encoding cgt-calc does not read.** Exports must
-    be UTF-8 text, except a Hargreaves Lansdown Transaction Summary, which can also be in the
-    Windows-1252 encoding HL uses.
-- **is a PDF that is not in the folder of a Hargreaves Lansdown Transaction Summary you passed.** A
-    PDF in that folder is accepted without cgt-calc looking inside it, and read as a contract note
-    if a row of the summary names it.
-- **repeats a file** that another argument already gives, such as a folder and a file in it.
-- **gives an input that an option already gives**, such as a Trading 212 export next to
-    `--trading212-dir`. Pass every file for that input with the option, or every one without it. If
-    cgt-calc reads one such file per run, as with RAW files, pass only the export that holds the
-    whole history, with the option or without it. Several Charles Schwab transaction histories go
-    without `--schwab-file`, which reads one file.
-
-A file passed with an option is read as that broker's without being recognised. You can combine
-options and plain inputs for different brokers, or for the two Charles Schwab inputs:
-
-```shell
-cgt-calc --year 2024 --schwab-file schwab_transactions.csv equity_awards.json
-```
-
-A filename that starts with `-` needs `--` before it, as everything after `--` is read as a file:
-
-```shell
-cgt-calc --year 2024 -- -my-export.csv
-```
 
 ## Find the results
 
