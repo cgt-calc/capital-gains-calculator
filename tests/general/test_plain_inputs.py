@@ -10,6 +10,7 @@ files together that no existing test reads together, the rows are written out.
 from __future__ import annotations
 
 import csv
+import datetime as dt
 from decimal import Decimal, localcontext
 import io
 import logging
@@ -28,6 +29,7 @@ from cgt_calc.cli import main
 from cgt_calc.isin_converter import IsinConverter
 from cgt_calc.model import ActionType, BrokerTransaction
 from cgt_calc.parsers.broker_registry import BrokerRegistry
+from cgt_calc.parsers.raw import RawTransaction
 from cgt_calc.transaction_dumper import DUMP_FIELDS, dump_transactions
 from tests.hl.test_hl import _create_buy_pdf, _create_sell_pdf
 
@@ -606,6 +608,50 @@ def test_lines_ended_by_a_carriage_return_alone_are_read_as_the_option_reads_the
 
 
 @pytest.mark.parametrize(
+    ("columns", "values", "replaces"),
+    [
+        pytest.param("broker", "Charles Schwab", None, id="broker"),
+        pytest.param(
+            "broker,replaces",
+            "Charles Schwab,2024-06-27",
+            dt.date(2024, 6, 27),
+            id="broker and replaces",
+        ),
+    ],
+)
+def test_a_raw_heading_with_its_optional_columns_is_recognised(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    columns: str,
+    values: str,
+    replaces: dt.date | None,
+) -> None:
+    """The RAW heading can end with `broker`, or with `broker,replaces`.
+
+    The one row is tax of 5.00 on FOO dated 2024-06-03. It names its broker,
+    and in the second file the date of the export row it takes the place of.
+    """
+    file = tmp_path / "raw.csv"
+    _write(
+        file,
+        f"date,action,symbol,quantity,price,fees,currency,{columns}\n"
+        f"2024-06-03,DIVIDEND_TAX,FOO,1,-5.00,0.00,USD,{values}\n",
+    )
+
+    with caplog.at_level(logging.INFO):
+        expected = _dump(_load("--raw-file", file))
+        transactions = _load(file)
+
+    assert _lines(caplog) == [
+        f"Recognised {tmp_path.as_posix()}/raw.csv as a RAW format file"
+    ]
+    assert _dump(transactions) == expected
+    (row,) = transactions
+    assert isinstance(row, RawTransaction)
+    assert (row.broker, row.replaces) == ("Charles Schwab", replaces)
+
+
+@pytest.mark.parametrize(
     ("make", "problem"),
     [
         pytest.param(
@@ -623,6 +669,24 @@ def test_lines_ended_by_a_carriage_return_alone_are_read_as_the_option_reads_the
             ),
             f"a.csv is not recognised.\n  {NOT_RECOGNISED}",
             id="without its header row",
+        ),
+        pytest.param(
+            # So is RAW's, which once had no heading row.
+            lambda folder: _write(
+                folder / "a.csv", RAW.read_text(encoding="utf-8").split("\n", 1)[1]
+            ),
+            f"a.csv is not recognised.\n  {NOT_RECOGNISED}",
+            id="RAW without its header row",
+        ),
+        pytest.param(
+            # As wide as a RAW heading with both optional columns.
+            lambda folder: _write(
+                folder / "a.csv",
+                "2024-06-03,DIVIDEND_TAX,FOO,1,-5.00,0.00,USD,Charles Schwab,"
+                "2024-06-27\n",
+            ),
+            f"a.csv is not recognised.\n  {NOT_RECOGNISED}",
+            id="RAW row of nine columns without its header row",
         ),
         pytest.param(
             # Longer than the csv module lets a cell be.
