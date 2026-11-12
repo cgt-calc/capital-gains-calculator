@@ -47,6 +47,7 @@ from cgt_calc.parsers.schwab_equity_award_json import (
     lapse_award_prices,
     lapse_only_rows,
     price_only_alone_message,
+    read_json_transactions,
 )
 from cgt_calc.parsers.schwab_options import (
     parse_option_contract,
@@ -57,6 +58,7 @@ from cgt_calc.util import is_blank_row, parse_decimal
 
 from .base_parsers import (
     BaseSingleFileParser,
+    missing_columns,
     next_account_token,
     read_csv_rows,
     read_input,
@@ -66,6 +68,8 @@ from .base_parsers import (
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from .base_parsers import PlainInput
 
 OLD_COLUMNS_NUM: Final = 9
 NEW_COLUMNS_NUM: Final = 8
@@ -88,6 +92,11 @@ class RequiredTransactionsColumn(StrEnum):
     QUANTITY = "Quantity"
     FEES_AND_COMM = "Fees & Comm"
     AMOUNT = "Amount"
+
+
+MAIN_COLUMNS: Final = frozenset(column.value for column in RequiredTransactionsColumn)
+MAIN_HISTORY: Final = "Charles Schwab transaction history"
+AWARD_EXPORT: Final = "a Charles Schwab Equity Awards export"
 
 
 class RequiredAwardColumn(StrEnum):
@@ -120,6 +129,9 @@ class AwardPrices:
     with that, not with the claim that no award file was given; and a run
     that also loads a main history warns that nothing reconciles the two.
     """
+
+    given: str = "with --schwab-award-file"
+    """How the award file was given, for a message that names it."""
 
     def __bool__(self) -> bool:
         """Return True if not empty."""
@@ -392,7 +404,7 @@ class SchwabTransaction(BrokerTransaction):
                 )
                 if awards_prices.from_complete_export:
                     reason = (
-                        "the file given with --schwab-award-file is a complete "
+                        f"the file given {awards_prices.given} is a complete "
                         "Equity Awards export, which prices no vest in a main "
                         "history. Pass the award-price CSV with "
                         "--schwab-award-file instead, or import the complete "
@@ -972,6 +984,25 @@ def _reject_split_of_a_lapse_priced_symbol(
         raise ParsingError(source.file, message, row_index=source.row)
 
 
+def _award_content(text: str) -> str:
+    """Drop the leading noise the award readers tolerate before classifying.
+
+    A complete export already tolerated it, and a price CSV led by a
+    byte-order mark or a blank line is read too.
+    """
+    return text.lstrip("\ufeff \t\r\n")
+
+
+def _is_award_export(content: str, file_path: Path) -> bool:
+    """Say whether the award readers take this text for an export of theirs."""
+    try:
+        if _is_complete_award_export(content, file_path) and content.startswith("{"):
+            read_json_transactions(content, file_path)
+    except ParsingError:
+        return False
+    return True
+
+
 def _is_complete_award_export(content: str, file_path: Path) -> bool:
     """Say which Equity Awards export the award input holds.
 
@@ -1012,6 +1043,55 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
     glob_dir: ClassVar[str] = "*.csv"
 
     awards_prices: AwardPrices = AwardPrices(award_prices={})
+
+    @classmethod
+    @override
+    def recognise(cls, text: str, file_path: Path) -> list[str]:
+        """Name each Schwab input the text is, by the checks its readers make."""
+        kinds = []
+        header = next(csv.reader(io.StringIO(text)), [])
+        if not missing_columns(MAIN_COLUMNS, header):
+            kinds.append(MAIN_HISTORY)
+        if _is_award_export(_award_content(text), file_path):
+            kinds.append(AWARD_EXPORT)
+        return kinds
+
+    @classmethod
+    @override
+    def given_options(cls, args: argparse.Namespace) -> list[tuple[str, Path]]:
+        """List each Schwab option the run gives, with its path."""
+        options = (
+            ("--schwab-file", args.schwab_file),
+            ("--schwab-dir", args.schwab_dir),
+            ("--schwab-award-file", args.schwab_award_file),
+            ("--schwab-equity-award-json", args.schwab_equity_award_json),
+        )
+        return [(option, path) for option, path in options if path]
+
+    @classmethod
+    @override
+    def option_fills(cls, option: str, kind: str) -> bool:
+        """Say whether `option` gives the input a `kind` file would fill."""
+        award_options = {"--schwab-award-file", "--schwab-equity-award-json"}
+        return (option in award_options) == (kind == AWARD_EXPORT)
+
+    @classmethod
+    @override
+    def takes_several(cls, kind: str) -> bool:
+        """Read several main-history exports together, as `--schwab-dir` does."""
+        return kind == MAIN_HISTORY
+
+    @classmethod
+    def _plain_of(cls, args: argparse.Namespace, kind: str) -> list[PlainInput]:
+        """Return the plain INPUTs recognised as `kind`."""
+        return [plain for plain in cls.plain_inputs(args) if plain.kind == kind]
+
+    @classmethod
+    def _main_history_given(cls, args: argparse.Namespace) -> bool:
+        """Say whether the run gives a main transaction history."""
+        return bool(
+            args.schwab_file or args.schwab_dir or cls._plain_of(args, MAIN_HISTORY)
+        )
 
     @classmethod
     @override
@@ -1078,25 +1158,39 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 "the directory holding every export, or the single file."
             )
         award_transactions = cls._load_award_file(args)
+        # Recognition refuses plain main-history files next to an option.
+        plain_main = cls._plain_of(args, MAIN_HISTORY)
+        main_transactions: list[BrokerTransaction] = []
         if args.schwab_dir:
-            main_transactions = list(cls.load_from_dir(args.schwab_dir))
-        else:
-            main_transactions = super().load_from_args(args)
+            main_transactions += cls.load_from_dir(args.schwab_dir)
+        elif args.schwab_file:
+            main_transactions += cls.load_from_file(args.schwab_file)
+        elif len(plain_main) == 1:
+            main_transactions += cls.load_plain(plain_main[0])
+        elif plain_main:
+            # Several exports of one account, read as the directory is read.
+            main_transactions += cls.load_from_files(
+                [plain.path for plain in plain_main],
+                ", ".join(str(plain.path) for plain in plain_main),
+            )
         # Nothing reconciles a complete export with a main history, so the
         # combination is accepted with a warning rather than refused. Only
         # once the main history has loaded: a run that stops on it produces no
         # report to check.
-        if cls.awards_prices.from_complete_export and (
-            args.schwab_file or args.schwab_dir
-        ):
-            award_path = args.schwab_award_file or args.schwab_equity_award_json
+        if cls.awards_prices.from_complete_export and cls._main_history_given(args):
+            award_path = (
+                args.schwab_award_file
+                or args.schwab_equity_award_json
+                or cls._plain_of(args, AWARD_EXPORT)[0].path
+            )
             LOGGER.warning(
-                "%s was imported with --schwab-award-file alongside the main "
+                "%s was imported %s alongside the main "
                 "Schwab history. cgt-calc does not check one against the "
                 "other, so a vest, sale, dividend or cash movement recorded "
                 "in both files is counted twice. Check that none appears in "
                 "both before relying on this report.",
                 "stdin" if award_path == STDIN_PATH else award_path,
+                cls.awards_prices.given,
             )
         # The registry reports both under this parser's name, "Charles
         # Schwab". Only that progress line: each transaction still records
@@ -1134,16 +1228,19 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 "#combining-a-main-history-with-a-complete-export"
             )
         award_path = args.schwab_award_file or args.schwab_equity_award_json
+        text = None
+        given = AwardPrices.given
+        # Recognition refuses an award INPUT next to the option, and a second.
+        for plain in cls._plain_of(args, AWARD_EXPORT):
+            award_path, text, given = plain.path, plain.text, "as INPUT"
         if award_path is None:
             return []
         # Read once and classify the text: stdin cannot be reopened, and the
         # reader that owns the layout is handed this same content.
         parsing_msg("stdin" if award_path == STDIN_PATH else award_path)
-        content = read_input(award_path, cls.encoding)
-        # The same leading noise a complete export already tolerates. It is
-        # applied before classification, so a price CSV led by a byte-order
-        # mark or a blank line is now read too.
-        content = content.lstrip("\ufeff \t\r\n")
+        if text is None:
+            text = read_input(award_path, cls.encoding)
+        content = _award_content(text)
         if not _is_complete_award_export(content, award_path):
             cls.awards_prices = _award_prices_from_lines(
                 list(csv.reader(io.StringIO(content))), award_path
@@ -1160,7 +1257,7 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         # its rows cgt-calc declines to use.
         price_only = lapse_only_rows(content, award_path)
         if price_only is not None:
-            if not (args.schwab_file or args.schwab_dir):
+            if not cls._main_history_given(args):
                 raise CgtError(price_only_alone_message())
             rows, names = price_only
             lapse_prices = lapse_award_prices(rows, award_path, names)
@@ -1172,7 +1269,9 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 award_prices=lapse_prices, lapse_priced_from=first_priced
             )
             return []
-        cls.awards_prices = AwardPrices(award_prices={}, from_complete_export=True)
+        cls.awards_prices = AwardPrices(
+            award_prices={}, from_complete_export=True, given=given
+        )
         transactions: list[BrokerTransaction] = list(
             SchwabEquityAwardsParser.load_from_stream(
                 io.StringIO(content), award_path, show_parsing_msg=False
@@ -1225,13 +1324,28 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         reverses is up to CANCEL_BUY_SEARCH_DAYS away, so it routinely sits in
         the neighbouring file and can only be found once everything is merged.
         """
+        files = sorted(dir_path.glob(cls.glob_dir, case_sensitive=False))
+        return cls.load_from_files(
+            [file_path for file_path in files if cls.file_path_filter(file_path)],
+            f"directory {dir_path}",
+            from_directory=True,
+        )
+
+    @classmethod
+    def load_from_files(
+        cls, files: list[Path], where: str, *, from_directory: bool = False
+    ) -> list[BrokerTransaction]:
+        """Read the files as one export, as `load_from_dir` describes.
+
+        A directory and several plain INPUTs both come here, so the refusal
+        of overlapping exports applies to both. `where` names the files in the
+        warning that none holds a transaction.
+        """
         # One directory is one declared account boundary, as it is for the
         # other directory brokers, so every file in it shares a token.
         account = next_account_token(cls.pretty_name)
         exports: list[_Export] = []
-        for file_path in sorted(dir_path.glob(cls.glob_dir, case_sensitive=False)):
-            if not cls.file_path_filter(file_path):
-                continue
+        for file_path in files:
             try:
                 with (
                     reading_as(cls.encoding, file_path),
@@ -1240,22 +1354,24 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                     parsing_msg(file_path)
                     text = read_text(file, file_path, cls.encoding)
                     rows = cls._read_rows(
-                        io.StringIO(text), file_path, from_directory=True
+                        io.StringIO(text), file_path, from_directory=from_directory
                     )
             except OSError as exc:
+                advice = (
+                    " Remove or move it out of the Schwab directory."
+                    if from_directory
+                    else ""
+                )
                 # Branch on what the path is, not on the exception type:
                 # opening a directory raises IsADirectoryError on POSIX but
-                # PermissionError on Windows.
+                # PermissionError on Windows. A plain INPUT is never one.
                 if file_path.is_dir():
                     raise ParsingError(
-                        file_path,
-                        "is not a regular file. Remove or move it out of the "
-                        "Schwab directory.",
+                        file_path, f"is not a regular file.{advice}"
                     ) from exc
                 raise ParsingError(
                     file_path,
-                    f"could not be read ({exc.strerror or exc}). Remove or move "
-                    "it out of the Schwab directory.",
+                    f"could not be read ({exc.strerror or exc}).{advice}",
                 ) from exc
             if rows:
                 exports.append(_Export(rows=rows, file_path=file_path))
@@ -1288,7 +1404,12 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         exports.sort(key=lambda export: export.newest, reverse=True)
 
         transactions = [row for export in exports for row in export.rows]
-        transactions = _filter_cancelled_buy_transactions(transactions, dir_path)
+        if exports:
+            # Every row is stamped with its own file, which an error names;
+            # the file given here is only the fallback for a row without one.
+            transactions = _filter_cancelled_buy_transactions(
+                transactions, exports[0].file_path
+            )
         transactions.reverse()
 
         # Checked after filtering, not before: a directory whose only rows are
@@ -1296,8 +1417,8 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         # warn like any other empty result.
         if not transactions:
             LOGGER.warning(
-                "No transactions detected in directory %s for broker %s",
-                dir_path,
+                "No transactions detected in %s for broker %s",
+                where,
                 cls.pretty_name,
             )
         # A directory is one account boundary and does not go through
@@ -1332,18 +1453,16 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
             raise ParsingError(file_path, message)
         header = lines[0]
 
-        required_headers = {column.value for column in RequiredTransactionsColumn}
-        if not required_headers.issubset(header):
+        if missing := missing_columns(MAIN_COLUMNS, header):
             directory_help = ""
             if from_directory:
                 directory_help = cls._directory_help(file_path)
                 award_headers = {column.value for column in RequiredAwardColumn}
                 if award_headers.issubset(header):
                     directory_help += " Pass it with --schwab-award-file instead."
-            missing = ", ".join(sorted(required_headers.difference(header)))
             raise ParsingError(
                 file_path,
-                f"Missing columns in Schwab transaction file: {missing}."
+                f"Missing columns in Schwab transaction file: {', '.join(sorted(missing))}."
                 f"{directory_help}",
                 row_index=1,
             )

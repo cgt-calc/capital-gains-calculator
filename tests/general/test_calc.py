@@ -4153,7 +4153,8 @@ def test_an_unexpected_error_prints_its_traceback_then_how_to_report_it(
     ("export", "message"),
     [
         pytest.param(
-            "Action,Time\nADR Fee,2024-12-02 12:00:00\n",
+            "Action,Time,Ticker,Name,Currency (Price / share)\n"
+            "ADR Fee,2024-12-02 12:00:00,,,\n",
             "row 2: Unknown action: ADR Fee",
             id="unknown action",
         ),
@@ -4172,8 +4173,8 @@ def test_a_broker_export_cgt_calc_does_not_know_ends_with_how_to_report_it(
     """A broker may add an action or change its columns after a release.
 
     The error keeps its file and row, and the advice on reporting it follows
-    once, after the blank line that closes every error. Trading 212 accepts a
-    header with only some of its columns, which keeps the export small.
+    once, after the blank line that closes every error. Trading 212 needs only
+    the columns every row is read from, which keeps the export small.
     """
     (tmp_path / "export.csv").write_text(export, encoding="utf-8")
 

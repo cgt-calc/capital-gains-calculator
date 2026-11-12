@@ -344,14 +344,33 @@ def _make_transaction_from_investment(
     )
 
 
-def _detect_delimiter(text: str) -> str:
-    """Detect whether the file uses comma or tab as delimiter."""
+def _table_type(row: list[str]) -> TableType | None:
+    """Say which table this row is the header of, if it is one."""
+    stripped = {cell.strip() for cell in row}
+    if stripped >= CASH_COLUMNS:
+        return TableType.CASH
+    if stripped >= INVESTMENT_COLUMNS:
+        return TableType.INVESTMENT
+    return None
+
+
+def _table_delimiter(text: str) -> str | None:
+    """Return the delimiter a table header is found with, if one is found.
+
+    Finding one is what makes a file a Vanguard report, for a plain INPUT and
+    for a file given with `--vanguard-file` alike.
+    """
     for delimiter in (",", "\t"):
         rows = csv.reader(io.StringIO(text), delimiter=delimiter)
-        for row in rows:
-            stripped = {cell.strip() for cell in row}
-            if stripped >= CASH_COLUMNS or stripped >= INVESTMENT_COLUMNS:
-                return delimiter
+        if any(_table_type(row) is not None for row in rows):
+            return delimiter
+    return None
+
+
+def _detect_delimiter(text: str) -> str:
+    """Detect whether the file uses comma or tab as delimiter."""
+    if (delimiter := _table_delimiter(text)) is not None:
+        return delimiter
 
     # Header validation still produces the useful column error when the file
     # does not contain an exported header.
@@ -490,13 +509,10 @@ class _TableSplitter:
         return self.tables.get(TableType.CASH), self.tables.get(TableType.INVESTMENT)
 
     def _read_row(self, row: list[str], position: int, row_index: int) -> None:
-        stripped = {cell.strip() for cell in row}
         first = row[0].strip() if row else ""
         section_type = _SECTION_TYPES.get(first)
-        if stripped >= CASH_COLUMNS:
-            self._start_table(TableType.CASH, row, row_index)
-        elif stripped >= INVESTMENT_COLUMNS:
-            self._start_table(TableType.INVESTMENT, row, row_index)
+        if (table_type := _table_type(row)) is not None:
+            self._start_table(table_type, row, row_index)
         elif section_type is not None:
             self._start_section(section_type, row_index)
         elif is_blank_row(row):
@@ -647,6 +663,12 @@ class VanguardParser(BaseSingleFileParser[VanguardTransaction]):
     pretty_name = "Vanguard"
     format_name = "CSV"
     deprecated_flags: ClassVar[list[str]] = ["--vanguard"]
+
+    @classmethod
+    @override
+    def recognise(cls, text: str, file_path: Path) -> list[str]:
+        """Name the report when the reader would find one of its tables."""
+        return [] if _table_delimiter(text) is None else ["a Vanguard report"]
 
     @classmethod
     @override

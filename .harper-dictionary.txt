@@ -196,6 +196,7 @@ mille
 MMM
 mojibake
 msg
+mssb
 MXN
 MXV
 mypy
@@ -222,6 +223,7 @@ OCC's
 OCI
 off's
 OpenFIGI
+OLE2
 OPRA
 OptionType
 OSError
@@ -340,6 +342,7 @@ TCGA
 TL0
 toml
 Trading212
+trading212
 Trading212Column
 tranche's
 TransactionDetails
@@ -393,6 +396,7 @@ WCLD
 worktree
 XCD
 Xetra
+xlsx
 XOF
 XPF
 xtrackers

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import csv
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
+import io
 import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
@@ -23,7 +25,7 @@ from cgt_calc.model import (
 )
 from cgt_calc.util import is_blank_row, parse_decimal
 
-from .base_parsers import BaseSingleFileParser, read_csv_rows
+from .base_parsers import BaseSingleFileParser, missing_columns, read_csv_rows
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -74,6 +76,14 @@ COLUMN_ALIASES: Final[dict[str, str]] = {
     "Total Amount in Account Currency": FreetradeColumn.TOTAL_AMOUNT.value,
     "Total Amount in Instrument Currency": FreetradeColumn.TOTAL_SHARES_AMOUNT.value,
 }
+
+KIND: Final = "a Freetrade export"
+
+
+def _current_names(header: list[str]) -> list[str]:
+    """Give each column of the header its current name."""
+    return [COLUMN_ALIASES.get(column, column) for column in header]
+
 
 # Newer exports add a block of stock split columns. They are tolerated so that
 # the header validates, their values are not read yet: a stock split row still
@@ -262,7 +272,7 @@ class FreetradeParser(BaseSingleFileParser[BrokerTransaction]):
         lines = read_csv_rows(file, file_path)
         if not lines:
             raise ParsingError(file_path, "Freetrade CSV file is empty")
-        header = [COLUMN_ALIASES.get(column, column) for column in lines[0]]
+        header = _current_names(lines[0])
         cls._validate_header(header, file_path)
         lines = lines[1:]
         indexed_rows = list(enumerate(lines, start=2))
@@ -309,16 +319,22 @@ class FreetradeParser(BaseSingleFileParser[BrokerTransaction]):
                 raise ParsingError(file_path, str(err), row_index=index) from err
         return transactions
 
+    @classmethod
+    @override
+    def recognise(cls, text: str, file_path: Path) -> list[str]:
+        """Name the export when its header has every column the reader needs."""
+        header = _current_names(next(csv.reader(io.StringIO(text)), []))
+        return [] if missing_columns(REQUIRED_COLUMNS, header) else [KIND]
+
     @staticmethod
     def _validate_header(header: list[str], file: Path) -> None:
         """Check if header is valid."""
         provided = set(header)
-        missing = REQUIRED_COLUMNS - provided
+        missing = missing_columns(REQUIRED_COLUMNS, header)
         if missing:
-            missing_columns = ", ".join(sorted(missing))
             raise ParsingError(
                 file,
-                f"Missing columns: {missing_columns}",
+                f"Missing columns: {', '.join(sorted(missing))}",
                 row_index=1,
                 needs_update=True,
             )

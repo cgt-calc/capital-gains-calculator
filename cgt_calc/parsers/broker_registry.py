@@ -17,6 +17,7 @@ from cgt_calc.parsers.hl import HargreavesLansdownParser
 from cgt_calc.parsers.interactive_brokers import InteractiveBrokersParser
 from cgt_calc.parsers.mssb import MSSBParser
 from cgt_calc.parsers.raw import RawParser
+from cgt_calc.parsers.recognise import recognise_inputs
 from cgt_calc.parsers.revolut import RevolutParser
 from cgt_calc.parsers.schwab import SchwabParser
 from cgt_calc.parsers.sharesight import SharesightParser
@@ -152,6 +153,9 @@ class BrokerRegistry:
         args: argparse.Namespace, isin_converter: IsinConverter
     ) -> list[BrokerTransaction]:
         """Load transactions from all brokers."""
+        # Before any file is read, so a problem with one INPUT stops the run
+        # with every problem named and nothing loaded.
+        args.plain_inputs = recognise_inputs(args, BrokerRegistry._BROKERS)
         all_transactions: list[BrokerTransaction] = []
         for broker_class in BrokerRegistry._BROKERS:
             transactions = broker_class.load_from_args(args)

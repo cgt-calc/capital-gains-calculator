@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 from enum import StrEnum
+import io
 from itertools import chain
 import re
 from typing import TYPE_CHECKING, ClassVar, Final, override
@@ -230,6 +231,7 @@ class InteractiveBrokersParser(StandardCSVParser[InteractiveBrokersTransaction])
     arg_name = "interactive-brokers"
     pretty_name = "Interactive Brokers"
     format_name = "CSV"
+    kind: ClassVar[str] = "an Interactive Brokers Transaction History"
     header_mismatch_needs_update: ClassVar[bool] = True
     optional_columns: ClassVar[set[str]] = _IBKR_OPTIONAL_COLUMNS
     columns: ClassVar[set[str]] = {
@@ -245,6 +247,17 @@ class InteractiveBrokersParser(StandardCSVParser[InteractiveBrokersTransaction])
     ) -> InteractiveBrokersTransaction | None:
         """Read a single transaction from a row in the CSV."""
         return InteractiveBrokersTransaction(row, file_path)
+
+    @staticmethod
+    def _starts_table(line: str) -> bool:
+        """Say whether the Transaction History table starts on this line."""
+        return line.startswith("Transaction History")
+
+    @classmethod
+    @override
+    def header_line(cls, text: str) -> str | None:
+        """Return the line the Transaction History table starts on."""
+        return next(filter(cls._starts_table, io.StringIO(text)), None)
 
     @classmethod
     @override
@@ -264,7 +277,7 @@ class InteractiveBrokersParser(StandardCSVParser[InteractiveBrokersTransaction])
                         file_path,
                         f"Unexpected base currency: '{rows[3]}', only GBP is supported",
                     )
-            if line.startswith("Transaction History"):
+            if cls._starts_table(line):
                 return chain([line], file), row
         raise ParsingError(
             file_path,

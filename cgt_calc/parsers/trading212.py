@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import csv
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
+import io
 from itertools import combinations
 import logging
 import math
@@ -96,7 +98,29 @@ class Trading212Column(StrEnum):
 
 
 COLUMN_SET: Final[set[str]] = {column.value for column in Trading212Column}
+# Every row is read from these, so an export without one is not one cgt-calc
+# can read. Older exports call the time column "Time", newer ones "Time (UTC)".
+REQUIRED_COLUMNS: Final = (
+    Trading212Column.ACTION,
+    Trading212Column.TICKER,
+    Trading212Column.NAME,
+    Trading212Column.CURRENCY_PRICE_PER_SHARE,
+)
+TIME_COLUMNS: Final = (Trading212Column.TIME, Trading212Column.TIME_UTC)
 LOGGER = logging.getLogger(__name__)
+
+
+def _missing_columns(header: list[str]) -> list[str]:
+    """Name the columns every row is read from that the header lacks.
+
+    None missing is what makes a file a Trading 212 export, for a plain INPUT
+    and for a file in the `--trading212-dir` directory alike.
+    """
+    missing = [column.value for column in REQUIRED_COLUMNS if column not in header]
+    if not any(column in header for column in TIME_COLUMNS):
+        missing.append(" or ".join(TIME_COLUMNS))
+    return missing
+
 
 # A share reorganisation is exported as two rows: the position before it and
 # the position after it, in either order. These are values in the Action
@@ -1204,6 +1228,7 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
     format_name = "CSV"
     glob_dir = "*.csv"
     deprecated_flags: ClassVar[list[str]] = ["--trading212"]
+    kind: ClassVar[str] = "a Trading 212 export"
     # Exports are requested by date range and routinely overlap, so
     # `_deduplicate` merges what two of them both report.
     refuses_transaction_in_two_files: ClassVar[bool] = False
@@ -1239,6 +1264,13 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
             transactions.append(transaction)
         return transactions
 
+    @classmethod
+    @override
+    def recognise(cls, text: str, file_path: Path) -> list[str]:
+        """Name the export when its header has every column rows are read from."""
+        header = next(csv.reader(io.StringIO(text)), [])
+        return [] if _missing_columns(header) else [cls.kind]
+
     @staticmethod
     def _validate_header(header: list[str], file: Path) -> None:
         """Check if header is valid. Not all columns exist in every export."""
@@ -1247,6 +1279,14 @@ class Trading212Parser(BaseDirParser[BrokerTransaction]):
             raise ParsingError(
                 file,
                 f"Unknown column(s) {', '.join(sorted(unknown))}",
+                row_index=1,
+                needs_update=True,
+            )
+        missing = _missing_columns(header)
+        if missing:
+            raise ParsingError(
+                file,
+                f"Missing column(s) {', '.join(missing)}",
                 row_index=1,
                 needs_update=True,
             )

@@ -16,6 +16,7 @@ from .args_validators import (
     date_type,
     existing_file_or_stdin_type,
     existing_file_type,
+    existing_input_type,
     income_type,
     optional_cache_file_type,
     output_path_type,
@@ -101,8 +102,23 @@ Documentation: https://cgt-calc.uk/
     # Broker Inputs
     broker_group = parser.add_argument_group(
         "Broker inputs",
-        description="PATH can be '-' to read the file from standard input "
-        "(only one '-' per run)",
+        # The formatter keeps descriptions as written, so the lines are
+        # broken here at the width it gives the option help.
+        description="Pass each broker export, or a directory of exports, as INPUT: cgt-calc\n"
+        "recognises the broker from each file's contents and says what it found.\n"
+        "The options below read their file as that broker without checking. INPUT or\n"
+        "PATH can be '-' to read the file from standard input (only one '-' per run)",
+    )
+    set_completer(
+        broker_group.add_argument(
+            "inputs",
+            nargs="*",
+            type=existing_input_type,
+            metavar="INPUT",
+            help="broker export file, or a directory whose CSV and JSON files "
+            "are broker exports",
+        ),
+        shtab.FILE,
     )
     BrokerRegistry.register_all_arguments(broker_group)
 
@@ -300,6 +316,28 @@ Documentation: https://cgt-calc.uk/
     return parser
 
 
+def parse_arguments(
+    parser: argparse.ArgumentParser, argv: list[str]
+) -> argparse.Namespace:
+    """Parse options and INPUTs in any order.
+
+    Every word after a first `--` is an INPUT, even one that looks like an
+    option. Those words never reach argparse: on Python 3.12 its intermixed
+    parsing still reads an option after `--`, or the help request `--help`.
+    """
+    after: list[str] = []
+    if "--" in argv:
+        cut = argv.index("--")
+        argv, after = argv[:cut], argv[cut + 1 :]
+    args = parser.parse_intermixed_args(argv)
+    for value in after:
+        try:
+            args.inputs.append(existing_input_type(value))
+        except argparse.ArgumentTypeError as err:
+            parser.error(f"argument INPUT: {err}")
+    return args
+
+
 def reject_duplicate_stdin(
     parser: argparse.ArgumentParser, args: argparse.Namespace
 ) -> None:
@@ -319,11 +357,16 @@ def reject_duplicate_stdin(
             continue
         # Deprecated aliases share a dest, so keep the canonical flag only.
         options.setdefault(action.dest, action.option_strings[0])
-    if len(options) > 1:
-        named = ", ".join(sorted(options.values()))
+    given = sorted(options.values()) + ["INPUT"] * args.inputs.count(STDIN_PATH)
+    if len(given) > 1 and len(options) == len(given):
         parser.error(
             "'-' reads from stdin and can only be given to one option, "
-            f"but was given to {named}"
+            f"but was given to {', '.join(given)}"
+        )
+    if len(given) > 1:
+        parser.error(
+            "'-' reads from stdin and can be given only once, but was given "
+            f"{len(given)} times: as {', '.join(given)}"
         )
 
 

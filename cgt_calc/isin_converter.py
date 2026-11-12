@@ -46,6 +46,17 @@ if TYPE_CHECKING:
 
 ISIN_TRANSLATION_HEADER: Final = ["ISIN", "symbol"]
 ISIN_TRANSLATION_COLUMNS_NUM: Final = len(ISIN_TRANSLATION_HEADER)
+
+
+def is_isin_translation_header(header: list[str]) -> bool:
+    """Say whether a first row, read skipping spaces after commas, is the header.
+
+    The cache is read only with a header, so this is also how a plain INPUT
+    is known to be an ISIN translation file and not a broker export.
+    """
+    return header == ISIN_TRANSLATION_HEADER
+
+
 # The symbol US over-the-counter markets give a security from outside the US.
 _US_OVER_THE_COUNTER_SYMBOL: Final = re.compile(r"[A-Z]{4}F")
 # One literal, so that the link check reads the whole address.
@@ -485,7 +496,7 @@ class IsinConverter:
             if not lines:
                 return {}, {}
             header = lines[0]
-            if header != ISIN_TRANSLATION_HEADER:
+            if not is_isin_translation_header(header):
                 raise UnexpectedHeaderError(header, ISIN_TRANSLATION_HEADER, file_label)
             entries: dict[Isin, set[str]] = {}
             # The row each ISIN was first read from, to name it in the error.

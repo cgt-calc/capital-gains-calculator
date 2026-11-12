@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import datetime as dt
 from importlib import resources
+import io
 from typing import TYPE_CHECKING, Final, TextIO, override
 
 if TYPE_CHECKING:
@@ -83,6 +84,16 @@ class ERIRawParser(BaseSingleFileParser[ERIRaw]):
         "custom Excess Reported Income (ERI) data in CSV format; PATH can be '-' "
         "to read the file from standard input (only one '-' per run)"
     )
+
+    @classmethod
+    @override
+    def recognise(cls, text: str, file_path: Path) -> list[str]:
+        """Name the file when its first row passes the reader's header check."""
+        try:
+            cls._validate_header(next(csv.reader(io.StringIO(text)), []), file_path)
+        except ParsingError:
+            return []
+        return ["ERI data"]
 
     @staticmethod
     def _validate_header(header: list[str], file: Path) -> None:
