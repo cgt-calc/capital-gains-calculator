@@ -6,9 +6,9 @@ Type the commands on this page in a terminal: **Terminal** on macOS, which is in
 Utilities, or **PowerShell** on Windows, which you can open from the Start menu.
 
 - **With uv** you need only [uv itself](https://docs.astral.sh/uv/getting-started/installation/).
-    The uv commands on this page include `--python 3.12`, so uv uses Python 3.12 and downloads it if
-    needed. Keep it if you type a command yourself: without it, uv may use an older Python it finds
-    and install an old release of cgt-calc without an error.
+    The uv commands on this page that install or run cgt-calc include `--python 3.12`, so uv uses
+    Python 3.12 and downloads it if needed. Keep it if you type such a command yourself: without it,
+    uv may use an older Python it finds and install an old release of cgt-calc without an error.
 - **With pipx or pip** you need **Python 3.12** or newer installed first. Check with
     `python3 --version`, or `python --version` on Windows. With an older Python, pipx and pip also
     install an old release of cgt-calc without an error. cgt-calc is tested on Python 3.12, 3.13 and
@@ -65,9 +65,13 @@ cgt-calc --version
 
 If you use `uvx` instead of installing cgt-calc, run `uvx --python 3.12 cgt-calc --version`.
 
-If the version starts with `1.`, cgt-calc was installed with a Python older than 3.12 and is an old
-release without later fixes. With uv, run `uv tool install --python 3.12 cgt-calc`, which replaces
-it. With pipx or pip, install Python 3.12 or newer, then install cgt-calc again with it.
+If the version starts with `1.`, it is an old release without later fixes: it was installed with a
+Python older than 3.12, or installed before 2.0.0 and not upgraded since. To replace it:
+
+- **uv:** run `uv tool install --python 3.12 cgt-calc`.
+- **pipx:** install Python 3.12 or newer if you do not have it, then run
+    `pipx reinstall --python 3.12 cgt-calc`.
+- **pip:** create a new virtual environment with Python 3.12 or newer and install cgt-calc in it.
 
 Once the command prints a version of 2.0.0 or later, choose your [broker](brokers/index.md) and
 follow the [report guide](usage.md).
