@@ -252,6 +252,7 @@ QCBs
 QCOM
 rata
 RawTransaction
+regs
 regularMarketPrice
 reinstalls
 reportable

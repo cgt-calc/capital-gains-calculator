@@ -872,8 +872,12 @@ class Matcher:
                     # ERI needs to be reported when doing bed and breakfast as if you
                     # held the stocks at the reporting end date.
                     # https://www.rawknowledge.ltd/eri-explained-four-tricky-questions-answered/
+                    # Only for a period end before the repurchase day: units
+                    # bought on the period end itself are held at its close, and
+                    # the end-of-day ERI counts them (regs 94(3) and 94(3A)).
+                    matched_eris = [eri for eri in eris if eri.date < search_index]
                     total_dist_amount = Decimal(0)
-                    for eri in eris:
+                    for eri in matched_eris:
                         eri_distribution = ExcessReportedIncomeDistribution(
                             price=eri.price,
                             amount=available_quantity * eri.price,
@@ -922,7 +926,7 @@ class Matcher:
                         consumed_acquisition_units,
                         amount_delta + total_dist_amount,
                         Decimal(0),
-                        eris,
+                        matched_eris,
                     )
                     ctx.calculation_entries.append(
                         CalculationEntry(
