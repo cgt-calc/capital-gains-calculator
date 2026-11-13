@@ -192,8 +192,8 @@ prek run --hook-stage manual python-typing-update --all-files
 Harper runs as a regular hook via `uv` (the `harper-cli` dev dependency), so no separate
 installation is needed. Project vocabulary (tickers, broker names, identifiers) lives in
 `.harper-dictionary.txt`; the Harper editor extension picks it up automatically. Harper
-dialect-gates US spellings, so the dictionary cannot whitelist some of them, such as product names;
-those are accepted via regexes in `.harper-ignore.txt`.
+dialect-gates US spellings, so the dictionary cannot whitelist them; those the project needs, such
+as product names, are accepted via regexes in `.harper-ignore.txt`.
 
 ## Running linters and tests manually
 

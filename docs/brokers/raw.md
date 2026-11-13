@@ -633,12 +633,13 @@ had sold them for what they were worth on the day, although no money changed han
 the `GIFT` action. The `price` is the market value of the gift divided by its units. Market value
 has its own rules ([s272](https://www.legislation.gov.uk/ukpga/1992/12/section/272)): for shares
 quoted on an exchange it follows the day's quoted prices, while unquoted shares need a defensible
-open-market valuation of the holding you gave away. The size of the holding changes the value per
-share ([CG59562](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg59562)), and HMRC
-can check a valuation after the disposal (form CG34). If the count has been restated for a later
-split (Schwab's export does this), divide the value of the whole gift by the restated count. A
-holding that has become worthless can be given away at a market value of `0`, and the whole cost
-becomes a loss.
+open-market valuation of the holding you gave away. For unquoted shares, the size of the holding
+changes the value per share
+([CG59562](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg59562)), and HMRC can
+check a valuation after the disposal (form CG34). If the count has been restated for a later split
+(Schwab's export does this), divide the value of the whole gift by the restated count. A holding
+that has become worthless can be given away at a market value of `0`, and the whole cost becomes a
+loss.
 
 Gifts to connected persons made within six years of each other are valued as a series
 ([s19](https://www.legislation.gov.uk/ukpga/1992/12/section/19),
