@@ -918,11 +918,17 @@ def isins_joined_at_known_splits(
     keeps the two ISINs apart and a ticker exported for both is refused as
     two securities.
 
+    One of those rows must also buy or sell under the new ISIN. That is what
+    makes known_splits_crossed() check the joined holding for its split row,
+    and a run with no row under the new ISIN has nothing to join.
+
     Nor are they joined when a sale of the ticker before the split is
-    matched with a purchase of it in the 30 days after the sale, on or after
-    the split day, from any input. Matching them needs the split, and when
-    nothing is held going into the split day, the known-split check does
-    not look and no split row can state it.
+    followed by a purchase of it on or after the split day, within 30 days
+    of the sale, from any input. The sale may then be matched with that
+    purchase across the split, and when nothing is held going into the split
+    day, the known-split check does not look and no split row can state the
+    split. The pattern is refused without working out whether that match is
+    made.
     """
     window = dt.timedelta(days=BED_AND_BREAKFAST_DAYS)
     joined: dict[Isin, Isin] = {}
@@ -932,17 +938,24 @@ def isins_joined_at_known_splits(
         rows = [row for row in transactions if row.isin in split.isins]
         # Every row of the ticker: a purchase with no ISIN is matched too.
         traded = [row for row in transactions if row.symbol == split.symbol]
-        if all(
-            isinstance(row, Trading212Transaction)
-            and row.symbol == split.symbol
-            and (row.isin == split.new_isin) == (row.date >= split.date)
-            for row in rows
-        ) and not any(
-            quantity_sign(sold.action) < 0
-            and quantity_sign(bought.action) > 0
-            and sold.date < split.date <= bought.date <= sold.date + window
-            for sold in traded
-            for bought in traded
+        if (
+            any(
+                row.isin == split.new_isin and quantity_sign(row.action) != 0
+                for row in rows
+            )
+            and all(
+                isinstance(row, Trading212Transaction)
+                and row.symbol == split.symbol
+                and (row.isin == split.new_isin) == (row.date >= split.date)
+                for row in rows
+            )
+            and not any(
+                quantity_sign(sold.action) < 0
+                and quantity_sign(bought.action) > 0
+                and sold.date < split.date <= bought.date <= sold.date + window
+                for sold in traded
+                for bought in traded
+            )
         ):
             (old,) = split.isins - {split.new_isin}
             joined[old] = split.new_isin

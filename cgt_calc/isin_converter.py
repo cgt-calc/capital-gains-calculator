@@ -127,9 +127,9 @@ class IsinConverter:
         # identifies the rest of them through this.
         self.exported_isins: dict[str, Isin] = {}
         # The new ISIN each old one continues as, for each known split that
-        # changed it and that no row of this run contradicts. The checks below
-        # read the old ISIN as the new one, whether a row or reference data
-        # gives it.
+        # changed it and that this run's rows cross as that split, with a
+        # purchase or sale under the new ISIN. The checks below read the old
+        # ISIN as the new one, whether a row or reference data gives it.
         self.joined_isins: dict[Isin, Isin] = {}
         self.validate_data(self._read_isin_translation_data())
 

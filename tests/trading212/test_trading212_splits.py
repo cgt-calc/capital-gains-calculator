@@ -3037,7 +3037,8 @@ def _two_isins(symbol: str, first: str, second: str) -> str:
                 bought="2024-09-24 14:00:00",
                 sold="2024-09-30 14:00:00",
             ),
-            (_ten_for_one("SMCI", "2024-10-01"),),
+            # 1 is held going into the split day: 10-for-1 adds 9.
+            ("2024-10-01,STOCK_SPLIT,SMCI,9,0.00,0.00,GBP",),
             _two_isins("SMCI", SMCI_ISIN_BEFORE, SMCI_ISIN_AFTER),
             id="new ISIN the day before the split",
         ),
@@ -3151,10 +3152,21 @@ def test_another_broker_s_row_under_the_new_isin_is_refused(tmp_path: Path) -> N
 
     The Trading 212 rows alone would be joined: 2 bought under Lam
     Research's old ISIN and 1 sold under the new one, with the split row.
-    A Freetrade purchase under the new ISIN after the split keeps the two
-    ISINs apart.
+    A Freetrade purchase under the new ISIN after the split, paid for by a
+    top-up, keeps the two ISINs apart.
     """
     history = tmp_path / "freetrade.csv"
+    top_up = _default_new_row(
+        {
+            FreetradeColumn.TITLE.value: "Top up",
+            FreetradeColumn.TYPE.value: "TOP_UP",
+            FreetradeColumn.TIMESTAMP.value: "2024-10-07T09:00:00.000Z",
+            FreetradeColumn.BUY_SELL.value: "",
+            FreetradeColumn.TICKER.value: "",
+            FreetradeColumn.ISIN.value: "",
+            "Total Amount in Account Currency": "100.00",
+        }
+    )
     purchase = _default_new_row(
         {
             FreetradeColumn.TITLE.value: "Lam Research",
@@ -3168,7 +3180,7 @@ def test_another_broker_s_row_under_the_new_isin_is_refused(tmp_path: Path) -> N
         }
     )
     with history.open("w", encoding="utf-8", newline="") as handle:
-        csv.writer(handle).writerows([NEW_COLUMNS, purchase])
+        csv.writer(handle).writerows([NEW_COLUMNS, top_up, purchase])
     rows = _across_the_split(
         "LRCX", "2024-10-03", LRCX_ISIN_BEFORE, sold_isin=LRCX_ISIN_AFTER
     )
@@ -3212,8 +3224,10 @@ def test_a_history_before_the_split_with_a_translation_row_runs(
 ) -> None:
     """Rows only under the old ISIN, before the split, calculate as before.
 
-    2 bought for GBP 800 on 24 September 2024 and 1 sold for GBP 88 on 26
-    September: the sale's cost is 800 x 1/2 = 400, and 1 is left at 400.
+    No row has the new ISIN, so nothing is joined and the translation row
+    agrees with the rows. 2 bought for GBP 800 on 24 September 2024 and 1
+    sold for GBP 88 on 26 September: the sale's cost is 800 x 1/2 = 400,
+    and 1 is left at 400.
     """
     rows = _bought_then_sold(
         ticker="SMCI",
@@ -3230,6 +3244,85 @@ def test_a_history_before_the_split_with_a_translation_row_runs(
 
     assert re.search(r"Allowable costs:\s+£400\.00\n", result.stdout), result.stdout
     assert "  SMCI: 1.00, £400.00\n" in result.stdout, result.stdout
+
+
+def test_a_history_without_the_new_isin_names_the_isin_it_exports(
+    tmp_path: Path,
+) -> None:
+    """Super Micro Computer rows before the split, and the ETP under SMCI.
+
+    No row has Super Micro Computer's new ISIN, so the refusal of the two
+    securities under one ticker names the ISINs the export holds.
+    """
+    rows = [
+        *_bought_then_sold(
+            ticker="SMCI",
+            isin=SMCI_ISIN_BEFORE,
+            deposited="2024-09-24 09:00:00",
+            bought="2024-09-24 14:00:00",
+            sold="2024-09-26 14:00:00",
+        ),
+        _trade(
+            "Market buy",
+            "2024-09-27 14:00:00",
+            "1",
+            "88.00",
+            ticker="SMCI",
+            isin="XS2779863021",
+        ),
+    ]
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    assert "ERROR: " + _two_isins("SMCI", SMCI_ISIN_BEFORE, "XS2779863021") in stderr
+
+
+def test_a_dividend_alone_under_the_new_isin_is_refused(tmp_path: Path) -> None:
+    """Only a purchase or sale under the new ISIN joins the two ISINs.
+
+    2 Lam Research bought under the old ISIN, a dividend under the new one
+    in January 2025, and a RAW sale of 1 for GBP 88, with no split row.
+    Joined, nothing would check the split: the dividend changes no holding
+    and the sale is not a Trading 212 row. The sale would then take
+    800 x 1/2 = 400, a loss of 312, where with the split it takes
+    800 x 1/20 = 40, a gain of 48. So the ISINs stay apart and the run
+    stops, as before.
+    """
+    rows = [
+        _deposit("2024-09-26 09:00:00"),
+        _trade(
+            "Market buy",
+            "2024-09-26 14:00:00",
+            "2",
+            "400.00",
+            ticker="LRCX",
+            isin=LRCX_ISIN_BEFORE,
+        ),
+        _make_row(
+            HEADER_2026,
+            {
+                Trading212Column.ACTION: "Dividend (Ordinary)",
+                Trading212Column.TIME: "2025-01-08 10:00:00",
+                Trading212Column.ISIN: LRCX_ISIN_AFTER,
+                Trading212Column.TICKER: "LRCX",
+                Trading212Column.NAME: "LRCX",
+                Trading212Column.NO_OF_SHARES: "20",
+                Trading212Column.PRICE_PER_SHARE: "0.01",
+                Trading212Column.CURRENCY_PRICE_PER_SHARE: "USD",
+                Trading212Column.EXCHANGE_RATE: "Not available",
+                Trading212Column.TOTAL: "0.16",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "dividend-1",
+            },
+        ),
+    ]
+    cmd = _known_split_cmd(
+        tmp_path, rows, raw_rows=("2025-01-09,SELL,LRCX,1,88.00,0.00,GBP",)
+    )
+
+    stderr = _refusal(cmd)
+
+    assert "ERROR: " + _two_isins("LRCX", LRCX_ISIN_BEFORE, LRCX_ISIN_AFTER) in stderr
 
 
 # Lam Research held from 30 August 2024 and sold out before its split on 3
@@ -3288,7 +3381,10 @@ def _bought_back(day: str, shares: str = "20") -> list[str]:
         ),
         pytest.param(
             [*_sold_out("2024-09-30"), _bought_back("2024-11-15", shares="1")],
-            ("2024-10-07,BUY,LRCX,20,46.00,0.00,GBP",),
+            (
+                "2024-10-07,TRANSFER,,1,920.00,0.00,GBP",
+                "2024-10-07,BUY,LRCX,20,46.00,0.00,GBP",
+            ),
             id="in a RAW row with no ISIN",
         ),
     ],
