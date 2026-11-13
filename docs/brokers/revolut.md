@@ -49,6 +49,10 @@ cgt-calc recognises the account statement from its column headings, so the filen
 `--year 2025` means 6 April 2025 to 5 April 2026. Follow the [report guide](../usage.md) to find and
 check the output.
 
+If you received dividends, Revolut exports each one after any foreign tax, such as US tax on a US
+share, so the report's dividend income is too low by that tax until you add it as described in
+[Dividends and withholding tax](#dividends-and-withholding-tax).
+
 You can also pass the file with `--revolut-file revolut.csv`, which reads it as a Revolut statement
 without recognising it first.
 
@@ -95,27 +99,7 @@ and BST in summer, before taking the date. The tax year boundary and the same-da
 matching rules all run on UK calendar days, and the boundary always falls inside BST, so a
 transaction stamped at or after 23:00 UTC on 5 April belongs to the following tax year.
 
-## Known limitations
-
-- Only the types listed above are mapped. Any other value stops the import with `Unknown action`; do
-    not delete a financial transaction merely to make the calculation run, because the missing
-    activity could make the resulting holdings and gains incorrect.
-- A Revolut `STOCK SPLIT` row states only the change in that account. If you also hold the ticker
-    through another input, cgt-calc stops. Follow the error's instructions to provide a complete
-    [`STOCK_SPLIT` row](raw.md#share-reorganisations) for the whole holding, or calculate the event
-    outside cgt-calc.
-- cgt-calc also stops if Revolut booked another transaction for the ticker earlier on the day of a
-    split. The export does not say whether that transaction's share count is before or after the
-    split, and a RAW `STOCK_SPLIT` row cannot resolve this. Work out the day's transactions and
-    split outside cgt-calc.
-- A custody fee reduces the broker balance but is not treated as an allowable cost against a gain.
-- The CSV gives no ISIN or market, so a ticker that is both a London fund's and a US security's,
-    such as `OPEN`, is matched to the fund, with a warning. See
-    [Tickers that are also US symbols](../extra-data-and-options.md#tickers-that-are-also-us-symbols).
-- The statement covers the investment account only. Commodities and interest on savings products are
-    not part of this export.
-
-### Dividends and withholding tax
+## Dividends and withholding tax
 
 A `DIVIDEND` row gives the amount you received, after any foreign tax such as US tax on a US share.
 The CSV does not give the tax withheld, and cgt-calc cannot work it out: the rate depends on the
@@ -179,7 +163,7 @@ cgt-calc expects, first check that the RAW rows have the date of the dividend.
 If you do not add the tax this way, add it to your dividend income yourself and, if you use
 [`--income`](../tax-estimates.md#estimate-the-tax-from-your-income), to the figure you pass.
 
-#### Tax corrections
+### Tax corrections
 
 A `DIVIDEND TAX (CORRECTION)` row changes the tax on a dividend after it was paid. These rows
 usually come in pairs of the same amount, one negative and one positive, which cancel and change
@@ -195,6 +179,26 @@ to add yourself, is the dividend before tax less the `DIVIDEND` amount in the CS
 dividend before tax as the dividend per share that the company declared, which its investor pages
 give, times the shares you held on the day before the ex-dividend date. If nothing is left, as when
 the dividend was paid in full, enter no rows for it: the correction is already its tax at source.
+
+## Known limitations
+
+- Only the types listed above are mapped. Any other value stops the import with `Unknown action`; do
+    not delete a financial transaction merely to make the calculation run, because the missing
+    activity could make the resulting holdings and gains incorrect.
+- A Revolut `STOCK SPLIT` row states only the change in that account. If you also hold the ticker
+    through another input, cgt-calc stops. Follow the error's instructions to provide a complete
+    [`STOCK_SPLIT` row](raw.md#share-reorganisations) for the whole holding, or calculate the event
+    outside cgt-calc.
+- cgt-calc also stops if Revolut booked another transaction for the ticker earlier on the day of a
+    split. The export does not say whether that transaction's share count is before or after the
+    split, and a RAW `STOCK_SPLIT` row cannot resolve this. Work out the day's transactions and
+    split outside cgt-calc.
+- A custody fee reduces the broker balance but is not treated as an allowable cost against a gain.
+- The CSV gives no ISIN or market, so a ticker that is both a London fund's and a US security's,
+    such as `OPEN`, is matched to the fund, with a warning. See
+    [Tickers that are also US symbols](../extra-data-and-options.md#tickers-that-are-also-us-symbols).
+- The statement covers the investment account only. Commodities and interest on savings products are
+    not part of this export.
 
 ## Troubleshooting
 

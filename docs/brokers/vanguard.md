@@ -9,6 +9,17 @@ cgt-calc an account type it can use to exclude tax-advantaged activity.
 The importer does not read the Excel workbook directly. Keep that original workbook for your
 records, but save the complete General Account worksheet as a CSV for cgt-calc.
 
+!!! warning "Two cases give a wrong result without an error"
+
+    - When Vanguard sells units to pay your account fee, in a row such as
+        `Selling of account investments for payment of Account Fee`, cgt-calc records only the cash.
+        The report has no disposal, gain or loss for those units and still counts them in your
+        holding. See [Automatic sales to pay fees](#automatic-sales-to-pay-fees) before you rely on
+        the result.
+    - cgt-calc takes the final text in parentheses in an investment's name as its ticker. A name
+        ending in `(Accumulation)` gets the ticker `Accumulation`, which can combine different funds
+        in one holding. Check that each holding in the report is a single fund.
+
 ## Export the complete history
 
 Export enough history to establish the cost of every investment owned or sold during the tax year.
@@ -261,16 +272,22 @@ Make sure the disposal appears exactly once and retain the original workbook as 
 
 ### Transactions are missing without an error
 
-Compare the activity and row counts in both CSV tables with the original workbook. A row whose field
-count differs from its table header, a header that does not match the section title above it, a
-conflicting header or section title, and a transaction-shaped row above the first header or after a
-summary now stop the import naming the physical file line, rather than being skipped. Stray text
-inside a table stops the import for the same reason: a transaction that lost its separators arrives
-as a single cell and must not pass as a footer.
+Ordinary transactions come from the Cash Transactions table. An Investment Transactions row with no
+matching cash row is not imported, and cgt-calc gives no warning: only a `NameChange` row is read
+from that table on its own. Units sold to pay an account fee are missing as a disposal too; see
+[Automatic sales to pay fees](#automatic-sales-to-pay-fees).
 
-A reversed purchase or disposal no longer imports silently either; see
-[A reversed purchase or disposal](#a-reversed-purchase-or-disposal). Keep the original export
-unchanged and report an unchanged Vanguard row that behaves unexpectedly in a
+Compare the activity and row counts in both CSV tables with the original workbook. For a transaction
+that is only in Investment Transactions, establish what it was, then record it through the
+[RAW format](raw.md) or calculate it separately. Retain the original workbook as evidence.
+
+A damaged or misplaced row is not skipped. A row whose field count differs from its table header, a
+header that does not match the section title above it, a conflicting header or section title, and a
+transaction-shaped row above the first header or after a summary stop the import naming the physical
+file line. Stray text inside a table stops the import for the same reason: a transaction that lost
+its separators arrives as a single cell and must not pass as a footer. A
+[reversed purchase or disposal](#a-reversed-purchase-or-disposal) stops the import too. Keep the
+original export unchanged and report an unchanged Vanguard row that behaves unexpectedly in a
 [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new).
 
 ### `Reached a negative balance` or `Tried to sell`
