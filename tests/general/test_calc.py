@@ -1350,6 +1350,25 @@ def test_eri_reached_by_a_30_day_repurchase_is_marked_while_estimated(
             10,
             id="part sold and bought back on the period end",
         ),
+        # Five units sold on 20 March and five on 25 March, £100 each time.
+        # The earlier sale is matched first, with the five bought on 31 March,
+        # the period end, which are held at the end of the period (reg 94(3)).
+        # That purchase is then used up, so the later sale is matched with the
+        # five bought on 1 April, in the next period, and the five it sold
+        # count as held at the period end (reg 94(3A)). So each of the ten
+        # carries its £2 once, £20, and the pool keeps its ten units and £100,
+        # plus the £20.
+        pytest.param(
+            [
+                sell_transaction(dt.date(2025, 3, 20), "VWRL", 5, 20, 0, 100),
+                sell_transaction(dt.date(2025, 3, 25), "VWRL", 5, 20, 0, 100),
+                buy_transaction(dt.date(2025, 3, 31), "VWRL", 5, 10, 0, -50),
+                buy_transaction(dt.date(2025, 4, 1), "VWRL", 5, 10, 0, -50),
+            ],
+            "0",
+            10,
+            id="earlier sale takes the period end's purchase",
+        ),
         # Held over the period end, so the pool is £100 + £20 = £120. One unit
         # is sold on 1 June for £20 and bought back on 10 June for £10: the
         # sale's cost is the repurchase's £10, and the repurchase takes over

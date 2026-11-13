@@ -734,6 +734,9 @@ class Matcher:
 
                 # ERI is distributed annually, but when a fund closes we might have
                 # multiple ERI distributions in close succession
+                # Found before the checks below can skip the day: a repurchase
+                # in the next period still needs this period end's ERI when
+                # the day's own purchase is already used (reg 94(3A)).
                 eri = self.get_eri(effective_symbol, search_index)
                 if eri:
                     eris.append(eri)
