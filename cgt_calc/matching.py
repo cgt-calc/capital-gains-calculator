@@ -873,8 +873,9 @@ class Matcher:
                     # held the stocks at the reporting end date.
                     # https://www.rawknowledge.ltd/eri-explained-four-tricky-questions-answered/
                     # Only for a period end before the repurchase day: units
-                    # bought on the period end itself are held at its close, and
-                    # the end-of-day ERI counts them (regs 94(3) and 94(3A)).
+                    # bought on the period end itself are in the same period,
+                    # and the end-of-day ERI counts them if still held then
+                    # (regs 94(3) and 94(3A)).
                     matched_eris = [eri for eri in eris if eri.date < search_index]
                     total_dist_amount = Decimal(0)
                     for eri in matched_eris:

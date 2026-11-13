@@ -1321,12 +1321,12 @@ def test_eri_reached_by_a_30_day_repurchase_is_marked_while_estimated(
             5,
             id="part bought back on the period end",
         ),
-        # Sold on 25 March and bought back in two halves: five units on
-        # 31 March, the period end, and five on 1 April, in the next period.
-        # The five bought on 31 March are held at the period end (reg 94(3)),
-        # and the five sold units matched with 1 April's purchase count as
-        # held then too (reg 94(3A)). So each of the ten carries its £2 once,
-        # £20, and the pool keeps its ten units and £100, plus the £20.
+        # All ten sold on 25 March, for £200, and bought back in two halves:
+        # five units on 31 March, the period end, and five on 1 April, in the
+        # next period. The five bought on 31 March are held at the period end
+        # (reg 94(3)), and the five sold units matched with 1 April's purchase
+        # count as held then too (reg 94(3A)). So each of the ten carries its
+        # £2 once, £20, and the pool keeps its ten units and £100, plus the £20.
         pytest.param(
             [
                 sell_transaction(dt.date(2025, 3, 25), "VWRL", 10, 20, 0, 200),
@@ -1378,8 +1378,11 @@ def test_a_30_day_match_adds_eri_only_for_a_period_end_between_its_trades(
     5, that is £2 a unit, both the income and the cost added (Offshore Funds
     (Tax) Regulations 2009, regs 94(3) and 99(3)); at the period-end rate, 2,
     it would be £5. Each case below ends with £2 of income in the 2025/26
-    report for each of `units`, the units held at the period end, and those
-    units in the pool at their £10 cost plus £2, £12 each.
+    report for each of `units`, the units held, or treated as held under
+    reg 94(3A), at the period end, and those units in the pool at their £10
+    cost plus £2, £12 each. The 2024/25 report's entries, which the PDF
+    prints, say the period end's ERI added that same £2 a unit to the cost,
+    once.
     """
     period_end = dt.date(2025, 3, 31)
     distribution_date = period_end + ERI_TAX_DATE_DELTA
@@ -1402,6 +1405,22 @@ def test_a_30_day_match_adds_eri_only_for_a_period_end_between_its_trades(
     assert [(p.symbol, p.quantity, p.amount) for p in report.portfolio] == [
         ("VWRL", Decimal(units), Decimal(12 * units))
     ]
+    log = (
+        _eri_calculator(rates, distribution_date, tax_year=2024)
+        .calculate(transactions)
+        .calculation_log
+    )
+    assert (
+        sum(
+            eri.price * entry.quantity
+            for day in log.values()
+            for entries in day.values()
+            for entry in entries
+            for eri in entry.eris
+            if eri.date == period_end
+        )
+        == 2 * units
+    )
 
 
 @pytest.mark.parametrize(
