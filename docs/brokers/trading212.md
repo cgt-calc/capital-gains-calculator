@@ -8,6 +8,20 @@ Export the Invest account only. Do not include ISA activity: income and capital 
 If you also export the ISA for your own records, keep it in a separate directory. The CSV does not
 identify the account type, so cgt-calc cannot separate the accounts later.
 
+!!! warning "Check for share splits before you rely on the result"
+
+    Trading 212 does not export a row for every share split. In the exports examined, a split before
+    December 2024 can have none, such as NVIDIA's 10-for-1 split of June 2024. cgt-calc then counts
+    your purchases before the split in old shares and your sales after it in new ones. It stops in
+    some cases, but a sale can also go through with no error, and the report then understates the
+    gain or shows a loss you did not make. A missing share consolidation gives no error at all and
+    overstates the gain.
+
+    After your first run, compare the final portfolio cgt-calc prints with your holdings in Trading
+    212, using exports that run to today. If a share count differs, see
+    [A split with no rows in the export](#a-split-with-no-rows-in-the-export) for the splits
+    cgt-calc knows about and the row to add.
+
 ## Export your account history
 
 1. In Trading 212, open **Menu**, then **History**.
@@ -453,7 +467,7 @@ amount in `Currency conversion from amount` off the balance of that currency and
 in the currency of that total, which is the currency you converted to in the exports examined.
 cgt-calc does not treat the conversion as a disposal and reports no gain or loss on it.
 
-### Known limitations
+## Known limitations
 
 - Some tax withheld is left in the amount received and does not appear separately in the report: tax
     in pounds or pence, whatever your account's currency, tax with no currency given, and tax on
