@@ -49,12 +49,12 @@ cgt-calc recognises the account statement from its column headings, so the filen
 `--year 2025` means 6 April 2025 to 5 April 2026. Follow the [report guide](../usage.md) to find and
 check the output.
 
+You can also pass the file with `--revolut-file revolut.csv`, which reads it as a Revolut statement
+without recognising it first.
+
 If you received dividends, Revolut exports each one after any foreign tax, such as US tax on a US
 share, so the report's dividend income is too low by that tax until you add it as described in
 [Dividends and withholding tax](#dividends-and-withholding-tax).
-
-You can also pass the file with `--revolut-file revolut.csv`, which reads it as a Revolut statement
-without recognising it first.
 
 ## Supported activity
 

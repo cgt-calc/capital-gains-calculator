@@ -9,16 +9,21 @@ cgt-calc an account type it can use to exclude tax-advantaged activity.
 The importer does not read the Excel workbook directly. Keep that original workbook for your
 records, but save the complete General Account worksheet as a CSV for cgt-calc.
 
-!!! warning "Two cases give a wrong result without an error"
+!!! warning "Check these before you rely on the result"
+
+    These give a wrong result without an error:
 
     - When Vanguard sells units to pay your account fee, in a row such as
         `Selling of account investments for payment of Account Fee`, cgt-calc records only the cash.
         The report has no disposal, gain or loss for those units and still counts them in your
-        holding. See [Automatic sales to pay fees](#automatic-sales-to-pay-fees) before you rely on
-        the result.
-    - cgt-calc takes the final text in parentheses in an investment's name as its ticker. A name
-        ending in `(Accumulation)` gets the ticker `Accumulation`, which can combine different funds
-        in one holding. Check that each holding in the report is a single fund.
+        holding. See [Automatic sales to pay fees](#automatic-sales-to-pay-fees).
+    - Activity that is in the Investment Transactions table but has no row in the Cash Transactions
+        table is not imported. See
+        [Transactions are missing without an error](#transactions-are-missing-without-an-error).
+    - cgt-calc takes the text in parentheses at the end of an investment's name as its ticker. A
+        name ending in `(Accumulation)` gets the ticker `Accumulation`, which can combine different
+        funds in one holding. Check that each holding in the report is a single fund. If one is not,
+        do not rely on the gains for those funds: work them out by hand.
 
 ## Export the complete history
 
@@ -273,13 +278,15 @@ Make sure the disposal appears exactly once and retain the original workbook as 
 ### Transactions are missing without an error
 
 Ordinary transactions come from the Cash Transactions table. An Investment Transactions row with no
-matching cash row is not imported, and cgt-calc gives no warning: only a `NameChange` row is read
-from that table on its own. Units sold to pay an account fee are missing as a disposal too; see
-[Automatic sales to pay fees](#automatic-sales-to-pay-fees).
+matching cash row is not imported, and cgt-calc gives no warning: only a `NameChange` row is
+imported from that table on its own. Units sold to pay an account fee are missing as a disposal too;
+see [Automatic sales to pay fees](#automatic-sales-to-pay-fees).
 
-Compare the activity and row counts in both CSV tables with the original workbook. For a transaction
-that is only in Investment Transactions, establish what it was, then record it through the
-[RAW format](raw.md) or calculate it separately. Retain the original workbook as evidence.
+Check that every Investment Transactions row other than a `NameChange` has a Cash Transactions row
+for the same activity, and compare the activity and row counts in both CSV tables with the original
+workbook. For a transaction that is only in Investment Transactions, establish what it was, then
+record it through the [RAW format](raw.md) or calculate it separately. Retain the original workbook
+as evidence.
 
 A damaged or misplaced row is not skipped. A row whose field count differs from its table header, a
 header that does not match the section title above it, a conflicting header or section title, and a

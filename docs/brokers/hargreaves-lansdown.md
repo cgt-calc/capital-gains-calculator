@@ -9,7 +9,7 @@ Use reports for a taxable **Fund and Share Account** only. Do not include an ISA
 SIPP: the parser does not identify the account type or exclude tax-advantaged accounts.
 
 cgt-calc does not read dividends, tax deductions, transfers of investments or corporate actions. A
-Transaction Summary row for any of them stops the import with
+Transaction Summary row for any of them with a value in its `Reference` column stops the import with
 [`Unknown transaction type`](#unknown-transaction-type), and that entry explains how to leave the
 row out of a working copy and record the activity another way. Read it before you download a
 contract note for every trade.
