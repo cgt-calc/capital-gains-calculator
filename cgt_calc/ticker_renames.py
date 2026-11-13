@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Final
 from .const import TICKER_RENAMES_RESOURCE
 from .csv_columns import CsvColumns
 from .exceptions import InvalidTransactionError
-from .model import Isin, TransactionSource
+from .model import Isin
 from .resources import RESOURCES_PACKAGE
 from .util import indent_entry
 
@@ -227,12 +227,12 @@ def _located(row: BrokerTransaction, file_path: Path) -> BrokerTransaction:
     Schwab drops a cancelled purchase, and the row would then print with no
     place at all.
     """
-    if row.source is not None and row.source.file is not None:
+    # Schwab, the one parser that drops rows before then, numbers each first.
+    assert row.source is not None
+    if row.source.file is not None:
         return row
     located = copy.copy(row)
-    located.source = dataclasses.replace(
-        row.source or TransactionSource(), file=file_path
-    )
+    located.source = dataclasses.replace(row.source, file=file_path)
     return located
 
 

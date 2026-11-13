@@ -17,6 +17,8 @@ import re
 import subprocess
 from typing import TYPE_CHECKING
 
+import pytest
+
 from tests.utils import build_cmd, run_cli, stderr_alerts
 
 if TYPE_CHECKING:
@@ -312,7 +314,140 @@ def test_a_schwab_vest_finds_its_award_price_across_the_change(
     10/24 of it = 1,500.488. Proceeds: 2,200 / 1.3573 (March 2026) =
     1,620.865. Gain: 1,620.865 - 1,500.488 = 120.38.
     """
-    schwab = _write(
+    schwab = _vest_history(tmp_path, "01/15/2026", "MRSH")
+    awards = _lapse_export(tmp_path, "01/13/2026")
+
+    result = _run(
+        "--year", "2025", "--schwab-file", str(schwab),
+        "--schwab-award-file", str(awards),
+    )  # fmt: skip
+
+    assert _holdings(result.stdout) == {"MRSH": "14.00"}
+    assert _figure(result.stdout, "Gain") == "120.38"
+
+
+@pytest.mark.parametrize("layout", ["json", "csv"])
+def test_a_schwab_vest_before_the_change_is_sold_as_mrsh(
+    tmp_path: Path, layout: str
+) -> None:
+    """Marsh's usual vest: MMC in the history and in the award file alike.
+
+    1. 18 December 2025: 40 MMC lapse at a fair market value of 200 dollars,
+       16 withheld, 24 delivered; the history shows the 24 arriving as MMC.
+    2. 25 March 2026: sell 10 MRSH at 220 dollars.
+
+    The award file comes as the Equity Awards JSON export or as the award
+    price CSV. Cost: 24 x 200 = 4,800 dollars / 1.3126 (December 2025) =
+    3,656.864, so 10/24 of it = 1,523.693. Proceeds: 2,200 / 1.3573 (March
+    2026) = 1,620.865. Gain: 1,620.865 - 1,523.693 = 97.17.
+    """
+    schwab = _vest_history(tmp_path, "12/18/2025", "MMC")
+    if layout == "json":
+        awards = _lapse_export(tmp_path, "12/18/2025")
+    else:
+        awards = _write(
+            tmp_path / "awards.csv",
+            [
+                (
+                    '"Date","Action","Symbol","Description","Quantity",'
+                    '"FeesAndCommissions","DisbursementElection","Amount",'
+                    '"AwardDate","AwardId","FairMarketValuePrice","SalePrice",'
+                    '"SharesSoldWithheldForTaxes","NetSharesDeposited","Taxes"'
+                ),
+                (
+                    '"12/18/2025","Lapse","MMC","Restricted Stock Lapse","40","","",'
+                    '"","","","","","","",""'
+                ),
+                (
+                    '"","","","","","","","","12/18/2022","C0001","$200.00","",'
+                    '"16","24","$3200.00"'
+                ),
+            ],
+        )
+
+    result = _run(
+        "--year", "2025", "--schwab-file", str(schwab),
+        "--schwab-award-file", str(awards),
+    )  # fmt: skip
+
+    assert _holdings(result.stdout) == {"MRSH": "14.00"}
+    assert _figure(result.stdout, "Gain") == "97.17"
+
+
+def test_a_complete_equity_awards_export_crosses_the_change(tmp_path: Path) -> None:
+    """A complete export delivers MMC before the change and sells MRSH after.
+
+    1. 18 December 2025: 24 MMC deposited from a vest at a fair market value
+       of 200 dollars.
+    2. 25 March 2026: sell 10 MRSH at 220 dollars.
+
+    One holding, as in the vest above: 1,523.693 allowed, 1,620.865 proceeds,
+    97.17 gain.
+    """
+    details = {"AwardDate": "12/18/2022", "AwardId": "C0001", "VestDate": "12/18/2025"}
+    deposit = {
+        "Date": "12/18/2025",
+        "Action": "Deposit",
+        "Symbol": "MMC",
+        "Quantity": "24",
+        "Description": "RS",
+        "FeesAndCommissions": None,
+        "DisbursementElection": None,
+        "Amount": None,
+        "TransactionDetails": [
+            {"Details": {**details, "VestFairMarketValue": "$200.00"}}
+        ],
+    }
+    sale = {
+        "Date": "03/25/2026",
+        "Action": "Sale",
+        "Symbol": "MRSH",
+        "Quantity": "10",
+        "Description": "Share Sale",
+        "FeesAndCommissions": None,
+        "DisbursementElection": "Journal",
+        "Amount": "$2,200.00",
+        "TransactionDetails": [
+            {
+                "Details": {
+                    "Type": "RS",
+                    "Shares": "10",
+                    "SalePrice": "$220.00",
+                    "SubscriptionDate": "",
+                    "SubscriptionFairMarketValue": "",
+                    "PurchaseDate": "",
+                    "PurchasePrice": "",
+                    "PurchaseFairMarketValue": "",
+                    "DispositionType": None,
+                    "GrantId": "C0001",
+                    "VestDate": "12/18/2025",
+                    "VestFairMarketValue": "$200.00",
+                    "GrossProceeds": "$2,200.00",
+                }
+            }
+        ],
+    }
+    export = tmp_path / "awards.json"
+    export.write_text(
+        json.dumps(
+            {
+                "FromDate": "12/01/2025",
+                "ToDate": "03/31/2026",
+                "Transactions": [sale, deposit],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run("--year", "2025", "--schwab-award-file", str(export))
+
+    assert _holdings(result.stdout) == {"MRSH": "14.00"}
+    assert _figure(result.stdout, "Gain") == "97.17"
+
+
+def _vest_history(tmp_path: Path, vest_date: str, symbol: str) -> Path:
+    """Write a Schwab history: 24 shares vest under `symbol`, 10 MRSH sold later."""
+    return _write(
         tmp_path / "schwab.csv",
         [
             (
@@ -323,11 +458,18 @@ def test_a_schwab_vest_finds_its_award_price_across_the_change(
                 '"03/25/2026","Sell","MRSH","MARSH & MCLENNAN","10","$220.00","",'
                 '"$2200.00"'
             ),
-            '"01/15/2026","Stock Plan Activity","MRSH","MARSH & MCLENNAN","24","","",""',
+            (
+                f'"{vest_date}","Stock Plan Activity","{symbol}","MARSH & MCLENNAN",'
+                '"24","","",""'
+            ),
         ],
     )
+
+
+def _lapse_export(tmp_path: Path, date: str) -> Path:
+    """Write an Equity Awards export of one MMC lapse: 40 at 200 dollars, 24 net."""
     lapse = {
-        "Date": "01/13/2026",
+        "Date": date,
         "Action": "Lapse",
         "Symbol": "MMC",
         "Quantity": "40",
@@ -352,18 +494,11 @@ def test_a_schwab_vest_finds_its_award_price_across_the_change(
     awards = tmp_path / "awards.json"
     awards.write_text(
         json.dumps(
-            {"FromDate": "01/01/2026", "ToDate": "01/31/2026", "Transactions": [lapse]}
+            {"FromDate": "12/01/2025", "ToDate": "01/31/2026", "Transactions": [lapse]}
         ),
         encoding="utf-8",
     )
-
-    result = _run(
-        "--year", "2025", "--schwab-file", str(schwab),
-        "--schwab-award-file", str(awards),
-    )  # fmt: skip
-
-    assert _holdings(result.stdout) == {"MRSH": "14.00"}
-    assert _figure(result.stdout, "Gain") == "120.38"
+    return awards
 
 
 def test_a_row_of_the_other_market_keeps_its_ticker(tmp_path: Path) -> None:

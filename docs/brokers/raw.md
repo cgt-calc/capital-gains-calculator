@@ -380,7 +380,7 @@ still applies whatever the market says.
 A market also tells cgt-calc that an old ticker is a renamed company's where another exchange used
 the ticker for another security: an `RMG` row marked `LSE` is read as Royal Mail's `IDS`, and an
 `MMC` row marked `US` as Marsh & McLennan Companies' `MRSH`. A row whose market is blank is read
-from your other files. See
+from the rest of your files. See
 [Renames kept to one market](../extra-data-and-options.md#renames-kept-to-one-market).
 
 Three refusals protect a holding from being pooled with another security:
@@ -392,8 +392,9 @@ Three refusals protect a holding from being pooled with another security:
     another export gives the ticker the ISIN of something else. See
     [`is a London ticker on this row`](../extra-data-and-options.md#is-a-london-ticker-on-this-row).
 - **`names no ISIN or market on this row`**: a row with a blank market uses a renamed company's old
-    ticker, such as `RMG`, and your other files show both that company and another security under
-    it. See [Renames kept to one market](../extra-data-and-options.md#renames-kept-to-one-market).
+    ticker, such as `RMG`, and the rest of your files show both that company and another security
+    under it. See
+    [Renames kept to one market](../extra-data-and-options.md#renames-kept-to-one-market).
 
 ## Generate the report
 
