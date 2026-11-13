@@ -18,6 +18,7 @@ from .const import (
     FIRST_DIVIDEND_ALLOWANCE_YEAR,
 )
 from .dates import get_tax_year_end, get_tax_year_start, is_date
+from .exceptions import CurrentPriceRequestError
 from .income import IncomeProcessor
 from .ingestion import TransactionIngester
 from .logging import style_text
@@ -237,10 +238,7 @@ class CapitalGainsCalculator:
 
         return CapitalGainsReport(
             self.tax_year,
-            [
-                self.make_portfolio_entry(symbol, position.quantity, position.amount)
-                for symbol, position in self.run.portfolio.items()
-            ],
+            self.make_portfolio(),
             walked.disposal_count,
             round_decimal(walked.disposal_proceeds, 2),
             round_decimal(walked.allowable_costs, 2),
@@ -262,6 +260,32 @@ class CapitalGainsCalculator:
             dividends_carry_tax_credit=self.tax_year < FIRST_DIVIDEND_ALLOWANCE_YEAR,
             eri_estimated_until=max(self.run.provisional_eris.values(), default=None),
         )
+
+    def make_portfolio(self) -> list[PortfolioEntry]:
+        """Create the report's portfolio entries.
+
+        One warning names every holding whose price request failed, rather
+        than one each: offline, all of them fail.
+        """
+        entries = []
+        failed = []
+        for symbol, position in self.run.portfolio.items():
+            try:
+                entry = self.make_portfolio_entry(
+                    symbol, position.quantity, position.amount
+                )
+            except CurrentPriceRequestError:
+                failed.append(symbol)
+                entry = PortfolioEntry(symbol, position.quantity, position.amount, None)
+            entries.append(entry)
+        if failed:
+            # Sorted as the report lists them.
+            LOGGER.warning(
+                "Could not get today's prices from Yahoo Finance for %s: the request "
+                "failed. Their unrealised gains are left out of the estimate.",
+                ", ".join(sorted(failed)),
+            )
+        return entries
 
     def make_portfolio_entry(
         self, symbol: str, quantity: Decimal, amount: Decimal

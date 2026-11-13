@@ -3,23 +3,27 @@
 from __future__ import annotations
 
 import datetime as dt
-from decimal import Decimal
+from decimal import Decimal, localcontext
 import sys
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
+from curl_cffi.requests.exceptions import ConnectionError as CurlConnectionError
 import pandas as pd
 import pytest
+from yfinance.exceptions import YFRateLimitError  # type: ignore[import-untyped]
 
+from cgt_calc.cli import main
 from cgt_calc.currency_converter import CurrencyConverter
 from cgt_calc.current_price_fetcher import CurrentPriceFetcher
-from cgt_calc.exceptions import MarketDataMissingError
+from cgt_calc.exceptions import CurrentPriceRequestError, MarketDataMissingError
 from cgt_calc.main import CapitalGainsCalculator
 from cgt_calc.model import CurrencyCode
-from tests.utils import run_cli
+from tests.utils import run_cli, stderr_alerts, summary_figure
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
+    from pathlib import Path
 
 
 class FakeTicker:
@@ -28,6 +32,39 @@ class FakeTicker:
     def __init__(self, info: dict[str, float | str]) -> None:
         """Store the info dict to return."""
         self.info = info
+
+
+# What yfinance passes on from curl_cffi when there is no connection.
+OFFLINE = CurlConnectionError(
+    "Failed to perform, curl: (7) Failed to connect to query2.finance.yahoo.com "
+    "port 443 after 0 ms: Could not connect to server"
+)
+
+
+class FailingTicker:
+    """Stand-in for yf.Ticker whose info request raises `error`.
+
+    Given `history`, its price history answers, as when Yahoo starts refusing
+    partway through; otherwise the history request fails first, as offline.
+    """
+
+    def __init__(
+        self, error: Exception, history: FakeHistoryTicker | None = None
+    ) -> None:
+        """Store the error to raise and the history, if any, to answer with."""
+        self._error = error
+        self._history = history
+
+    @property
+    def info(self) -> dict[str, float | str]:
+        """Fail the info request."""
+        raise self._error
+
+    def history(self, **kwargs: object) -> pd.DataFrame:
+        """Answer from the stored history, or fail the request."""
+        if self._history is None:
+            raise self._error
+        return self._history.history(**kwargs)
 
 
 def _fetcher() -> CurrentPriceFetcher:
@@ -187,6 +224,26 @@ def test_symbol_without_a_quote_falls_back_to_london(
     lookups = _lookup_fake(monkeypatch, {"ISF.L": PENCE_QUOTE})
     assert _fetcher().get_current_market_price("ISF") == Decimal(9)
     assert lookups == ["ISF", "ISF.L"]
+
+
+def test_a_failed_isin_request_is_not_followed_by_the_symbol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The symbol would answer, but it can be another security: no price."""
+    lookups: list[str] = []
+
+    def ticker(name: str) -> FakeTicker | FailingTicker:
+        lookups.append(name)
+        return (
+            FailingTicker(OFFLINE)
+            if name == "IE0005042456"
+            else FakeTicker(PENCE_QUOTE)
+        )
+
+    monkeypatch.setattr("yfinance.Ticker", ticker)
+    with pytest.raises(CurrentPriceRequestError, match="IE0005042456"):
+        _fetcher().get_current_market_price("ISF", "IE0005042456")
+    assert lookups == ["IE0005042456"]
 
 
 def test_nothing_found_anywhere_is_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -408,3 +465,138 @@ def test_a_run_that_fetches_no_price_loads_neither_yfinance_nor_pandas() -> None
     )
 
     assert result.stderr.splitlines()[-1] == "loaded: []"
+
+
+def _run_main(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    rows: str,
+    ticker: Callable[[str], object],
+    *args: str,
+) -> int:
+    """Run the CLI in this process on RAW rows, with yf.Ticker replaced."""
+    raw = tmp_path / "raw.csv"
+    raw.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n" + rows, encoding="utf-8"
+    )
+    monkeypatch.setattr("yfinance.Ticker", ticker)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "cgt-calc",
+            "--year",
+            "2024",
+            "--raw-file",
+            str(raw),
+            "--no-report",
+            "--no-balance-check",
+            "--exchange-rates-file=",
+            "--isin-translation-file=",
+            *args,
+        ],
+    )
+    # main() enables the FloatOperation trap on the active decimal context;
+    # keep that from leaking into other tests in the same worker.
+    with localcontext():
+        return main()
+
+
+@pytest.mark.parametrize(
+    ("error", "history"),
+    [
+        pytest.param(OFFLINE, None, id="offline"),
+        pytest.param(YFRateLimitError(), None, id="rate-limited"),
+        pytest.param(
+            YFRateLimitError(),
+            FakeHistoryTicker(48.17, "GBP"),
+            id="rate-limited-after-the-history",
+        ),
+    ],
+)
+def test_a_failed_request_for_a_spin_off_price_stops_with_what_to_do(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error: Exception,
+    history: FakeHistoryTicker | None,
+) -> None:
+    """The price divides the cost, so the run stops, saying why and what to do.
+
+    BBB, the new holding, is priced first. A failed request is not a fault in
+    cgt-calc: no traceback, and no advice to update it.
+    """
+    spin_offs = tmp_path / "spin_offs.csv"
+    spin_offs.write_text("dst,src\nBBB,AAA\n", encoding="utf-8")
+
+    status = _run_main(
+        tmp_path,
+        monkeypatch,
+        "2024-05-01,BUY,AAA,10,4.00,0,GBP\n2024-06-03,SPIN_OFF,BBB,5,0,0,GBP\n",
+        lambda symbol: FailingTicker(error, history),
+        "--spin-offs-file",
+        str(spin_offs),
+    )
+
+    assert status == 1
+    err = capsys.readouterr().err
+    assert stderr_alerts(err) == [
+        (
+            "ERROR: Could not get the closing price of BBB on 2024-06-03 from Yahoo "
+            "Finance: the request failed. Check your connection and try again, or "
+            "give the closing prices of both holdings in the spin-off on that day, "
+            "in the same currency, in a file passed with --prices-file (header "
+            "'date,symbol,price')."
+        )
+    ]
+    assert "cgt-calc update" not in err
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(OFFLINE, id="offline"),
+        pytest.param(YFRateLimitError(), id="rate-limited"),
+    ],
+)
+def test_failed_requests_for_today_s_prices_are_named_in_one_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error: Exception,
+) -> None:
+    """Their holdings are left out of the estimate, and the run finishes.
+
+    The warning lists them as the report does, sorted: BBB is bought first.
+    CCC cost £40.00 for 10 and is worth £5.00 each today, an unrealised gain of
+    10 x £5.00 - £40.00 = £10.00, which is the whole total.
+    """
+
+    def ticker(name: str) -> FakeTicker | FailingTicker:
+        if name == "CCC":
+            return FakeTicker({"currentPrice": 5.0, "currency": "GBP"})
+        return FailingTicker(error)
+
+    status = _run_main(
+        tmp_path,
+        monkeypatch,
+        "2024-05-01,BUY,BBB,5,2.00,0,GBP\n"
+        "2024-05-01,BUY,AAA,10,4.00,0,GBP\n"
+        "2024-05-01,BUY,CCC,10,4.00,0,GBP\n",
+        ticker,
+        "--unrealized-gains",
+    )
+
+    assert status == 0
+    out, err = capsys.readouterr()
+    assert stderr_alerts(err) == [
+        (
+            "WARNING: Could not get today's prices from Yahoo Finance for AAA, BBB: "
+            "the request failed. Their unrealised gains are left out of the estimate."
+        )
+    ]
+    assert "  AAA: 10.00, £40.00 (unrealized gains: unknown)\n" in out
+    assert "  BBB: 5.00, £10.00 (unrealized gains: unknown)\n" in out
+    assert "  CCC: 10.00, £40.00 (unrealized gains: £10.00)\n" in out
+    assert summary_figure(out, "Unrealized gains") == "10.00"
+    assert "WARNING: Some unrealized gains couldn't be calculated." in out
