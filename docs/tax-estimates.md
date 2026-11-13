@@ -83,7 +83,7 @@ Personal Allowance, without the dividends and interest in the files you supply. 
 that is the pay shown on the P60:
 
 ```shell
-cgt-calc --year 2025 --schwab-file schwab_transactions.csv --income 45000
+cgt-calc --year 2025 schwab_transactions.csv --income 45000
 ```
 
 cgt-calc then:

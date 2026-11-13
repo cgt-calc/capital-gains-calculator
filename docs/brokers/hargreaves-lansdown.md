@@ -49,11 +49,16 @@ The tests create synthetic contract notes rather than publishing real account PD
 For the 2025/26 tax year, run:
 
 ```shell
-cgt-calc --year 2025 --hl-dir hargreaves_lansdown/
+cgt-calc --year 2025 hargreaves_lansdown/
 ```
 
-`--year 2025` means 6 April 2025 to 5 April 2026. Pass the directory, not an individual CSV or PDF.
-Follow [Generate a report](../usage.md) to find and check the output.
+cgt-calc recognises each Transaction Summary in the directory from its column headings and reads the
+contract notes beside it. You can pass the CSV files themselves instead, with their PDFs in the same
+directory, or every file in the directory, PDFs included. `--year 2025` means 6 April 2025 to 5
+April 2026. Follow [Generate a report](../usage.md) to find and check the output.
+
+You can also pass the directory with `--hl-dir hargreaves_lansdown/`, which reads every CSV in it as
+a Transaction Summary without recognising it first.
 
 Run with the balance check enabled. Do not add `--no-balance-check` merely to bypass an error; first
 reconcile the report and any unsupported rows as described under

@@ -1,7 +1,7 @@
 # Trading 212
 
-cgt-calc reads the CSV account history exported by Trading 212. Give it a directory rather than a
-single file because a complete account history may require several exports.
+cgt-calc reads the CSV account history exported by Trading 212. A complete account history may
+require several exports, so keep them together in one directory.
 
 Export the Invest account only. Do not include ISA activity: income and capital gains from
 [investments in an ISA do not need to be declared](https://www.gov.uk/individual-savings-accounts/how-isas-work).
@@ -60,11 +60,16 @@ You can compare the structure with this
 For the 2024/25 tax year, run:
 
 ```shell
-cgt-calc --year 2024 --trading212-dir trading212/
+cgt-calc --year 2024 trading212/
 ```
 
+cgt-calc recognises each CSV in the directory as a Trading 212 export from its column headings, and
+reads them all as one account. You can pass the CSV files themselves instead of the directory.
 `--year 2024` means 6 April 2024 to 5 April 2025. Follow [Generate a report](../usage.md) to find
 and check the output.
+
+You can also pass the directory with `--trading212-dir trading212/`, which reads every CSV in it as
+a Trading 212 export without recognising it first.
 
 ## Supported activity
 
@@ -209,7 +214,7 @@ Add the split yourself in a [RAW file](raw.md):
     one, add the row to that file instead.
 
     ```shell
-    cgt-calc --year 2024 --trading212-dir trading212/ --raw-file splits.csv
+    cgt-calc --year 2024 trading212/ splits.csv
     ```
 
 When it checks one of the splits in the table, cgt-calc also checks that your row gives that split's
@@ -434,11 +439,11 @@ cgt-calc does not treat the conversion as a disposal and reports no gain or loss
     [Income reported in more than one currency](../extra-data-and-options.md#income-reported-in-more-than-one-currency).
 - Share transfers between accounts or brokers, labelled `Transfer in` or `Transfer out`, are not
     supported, and cgt-calc stops at the row.
-- One run covers one Trading 212 account. `--trading212-dir` takes a single directory and every file
-    in it is read as one account, because nothing in the CSV identifies which account a row belongs
-    to. If you hold the same security in two Trading 212 accounts, their exports cannot be combined
-    in one run: a reorganisation of that security appears twice, and cgt-calc refuses rather than
-    guess which half belongs to which account.
+- One run covers one Trading 212 account. Every Trading 212 export in a run is read as one account,
+    because nothing in the CSV identifies which account a row belongs to. If you hold the same
+    security in two Trading 212 accounts, their exports cannot be combined in one run: a
+    reorganisation of that security appears twice, and cgt-calc refuses rather than guess which half
+    belongs to which account.
 - A reorganisation cgt-calc cannot pair is refused while the CSV is read, which is before the
     calculator assembles the day. A RAW `STOCK_SPLIT` row, which overrides an unprovable
     reorganisation from any other input, therefore cannot override this one.
@@ -472,10 +477,9 @@ cgt-calc does not treat the conversion as a disposal and reports no gain or loss
     pooled cost has to be apportioned between the two resulting holdings by market value rather than
     preserved whole. Once you have established what the distribution was, and if one of the
     [RAW actions](raw.md#actions-to-use) records it, you can remove its row from a working copy of
-    the export and enter the distribution in the RAW file you pass with `--raw-file`, or start one
-    if you do not use one yet; see
-    [Combining RAW with a broker export](raw.md#combining-raw-with-a-broker-export). No RAW action
-    records a takeover paid in shares; see the next item.
+    the export and enter the distribution in the RAW file you pass, or start one if you do not use
+    one yet; see [Combining RAW with a broker export](raw.md#combining-raw-with-a-broker-export). No
+    RAW action records a takeover paid in shares; see the next item.
 - A takeover paid in shares is not supported. Trading 212 exports the shares you gave up as a
     `Market sell` with a price and a total of zero, and cgt-calc stops at a sale like that: read as
     a sale, the row would report the whole cost of those shares as a loss you did not make. The new
@@ -537,8 +541,8 @@ the affected exports with a fresh one.
 ### No transactions are detected
 
 Check that the directory contains CSV files directly, rather than inside another directory. The file
-extension is matched case-insensitively, so `.csv`, `.CSV` and mixed-case variants all work. Also
-check that you passed the directory itself to `--trading212-dir`, not the path to one CSV file.
+extension is matched case-insensitively, so `.csv`, `.CSV` and mixed-case variants all work. With
+`--trading212-dir`, also check that you passed the directory itself, not the path to one CSV file.
 
 ### The balance or portfolio looks wrong
 

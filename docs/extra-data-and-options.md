@@ -4,6 +4,10 @@ Most users can generate a report from a supported broker export without these fi
 Start with your [broker guide](brokers/index.md). Return here only if cgt-calc asks for more
 information or one of the tax settings below applies to your investments.
 
+When you give cgt-calc a file described here, use its option rather than passing it beside your
+broker exports. A file passed that way, or found in a folder you pass, stops the run with a message
+naming the option to use.
+
 ## Automatic data fetching
 
 cgt-calc creates and updates these local files itself. You do not need to create or select them for
@@ -448,7 +452,7 @@ If the rows really are the same dividend and use GBP plus one foreign currency, 
 `--autoconvert-currency`:
 
 ```shell
-cgt-calc --year 2024 --revolut-file revolut.csv --trading212-dir trading212/ --autoconvert-currency
+cgt-calc --year 2024 revolut.csv trading212/ --autoconvert-currency
 ```
 
 cgt-calc then reports them as one figure, converting the foreign amounts at the HMRC rate for the

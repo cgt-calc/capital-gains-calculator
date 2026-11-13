@@ -26,8 +26,11 @@ Keep the four column names unchanged and do not add other columns.
 Add `--eri-raw-file` to your normal cgt-calc command. For example, with a Schwab transaction file:
 
 ```shell
-cgt-calc --year 2024 --schwab-file schwab_transactions.csv --eri-raw-file eri_raw.csv
+cgt-calc --year 2024 schwab_transactions.csv --eri-raw-file eri_raw.csv
 ```
+
+Pass the ERI file with this option, not as an input like a broker export: cgt-calc does not read ERI
+data passed that way, and stops with a message naming the option.
 
 Schwab rows carry no ISIN, so the ERI is applied only when the mapping gives the fund's ISIN the
 symbol Schwab shows. The bundled mapping does that for very few funds: a US fund it lists under its

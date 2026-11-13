@@ -230,11 +230,11 @@ Irish one, see [Offshore Funds (ERI)](../offshore-funds.md).
 
 A RAW row is assigned to a separate broker called `Unknown` unless its `broker` column names
 another. A complete history converted to RAW can therefore reconcile its own cash. With the broker
-left blank, its cash balance and interest stay separate from a named broker export passed with
-another flag. In particular, such a RAW `DIVIDEND_TAX` is not attached to that broker's dividend,
-and such a RAW deposit does not fund a purchase in that broker's balance. Dividends themselves are
-pooled by ticker and date across every broker, so a payment entered here that is already in the
-export is added to it rather than listed separately.
+left blank, its cash balance and interest stay separate from a broker's export. In particular, such
+a RAW `DIVIDEND_TAX` is not attached to that broker's dividend, and such a RAW deposit does not fund
+a purchase in that broker's balance. Dividends themselves are pooled by ticker and date across every
+broker, so a payment entered here that is already in the export is added to it rather than listed
+separately.
 
 To add a row to a broker's own balance and dividends, or to replace a row that the broker's export
 got wrong, see [Correct a row in a broker export](#correct-a-row-in-a-broker-export).
@@ -244,8 +244,8 @@ below. For a correction that section does not cover, make it in a working copy o
 sure the original activity is not also imported, and check both the final holdings and each broker
 balance. Keep the downloaded export unchanged for your records.
 
-cgt-calc reads one RAW file in a run. Keep every row you write yourself in that file: a second
-`--raw-file` stops the run.
+cgt-calc reads one RAW file in a run. Keep every row you write yourself in that file: a second RAW
+file stops the run.
 
 ## Correct a row in a broker export
 
@@ -342,11 +342,14 @@ The error names the RAW row:
 For the tax year 2024/25, run:
 
 ```shell
-cgt-calc --year 2024 --raw-file raw_data.csv
+cgt-calc --year 2024 raw_data.csv
 ```
 
-`--year 2024` means 6 April 2024 to 5 April 2025. Follow [Generate a report](../usage.md) to find
-and check the output.
+cgt-calc recognises a RAW file from its header row. `--year 2024` means 6 April 2024 to 5 April
+2025. Follow [Generate a report](../usage.md) to find and check the output.
+
+You can also pass the file with `--raw-file raw_data.csv`, which reads it as a RAW file without
+recognising it first. A file without its header row is read only that way.
 
 Include cash deposits and withdrawals if your records contain them so the balance check can detect
 an incomplete conversion. If the source genuinely has no cash history, use `--no-balance-check` only
@@ -496,11 +499,12 @@ Leave `price` at `0`, since a gift has no sale price. Put any fee you paid to ma
 `fees` — it is added to the base cost the recipient inherits.
 
 No broker export marks these, so you add the row yourself. You do not have to convert your whole
-history to the RAW format to do it: pass a small RAW file of just the transfers alongside your
-broker export. If you already use a RAW file, add the rows to it instead: cgt-calc reads only one.
+history to the RAW format to do it: pass a small RAW file of just the transfers, under the
+[header row](#create-the-csv), alongside your broker export. If you already use a RAW file, add the
+rows to it instead: cgt-calc reads only one.
 
 ```shell
-cgt-calc --year 2024 --schwab-file transactions.csv --raw-file transfers.csv
+cgt-calc --year 2024 transactions.csv transfers.csv
 ```
 
 A complete Schwab Equity Awards export does list gifts, without saying who received them. If all of

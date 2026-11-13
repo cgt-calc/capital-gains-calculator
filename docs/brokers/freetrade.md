@@ -31,11 +31,15 @@ columns unchanged. You can compare the layout with this
 For the 2024/25 tax year, run:
 
 ```shell
-cgt-calc --year 2024 --freetrade-file freetrade.csv
+cgt-calc --year 2024 freetrade.csv
 ```
 
-The filename does not matter. `--year 2024` means 6 April 2024 to 5 April 2025. Follow
-[Generate a report](../usage.md) to find and check the output.
+cgt-calc recognises the Freetrade export from its column headings, so the filename does not matter.
+`--year 2024` means 6 April 2024 to 5 April 2025. Follow [Generate a report](../usage.md) to find
+and check the output.
+
+You can also pass the file with `--freetrade-file freetrade.csv`, which reads it as a Freetrade
+export without recognising it first.
 
 ## Supported activity
 
