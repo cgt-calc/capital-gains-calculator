@@ -610,8 +610,13 @@ calc_basic_data_2 = [
                 isin=Isin("USMSP0000000"),
                 price=0.2,
             ),
+            # Bought back between the two period ends, in the period after
+            # the sale's, so the 500 units sold count as held on 1 September
+            # (reg 94(3A)) and are held on 10 September. A purchase after
+            # both is refused: see
+            # test_a_30_day_match_across_two_period_ends_is_refused.
             buy_transaction(
-                date=dt.date(day=11, month=9, year=2020),
+                date=dt.date(day=5, month=9, year=2020),
                 symbol="MSP",
                 quantity=500,
                 price=1.7,
@@ -641,7 +646,7 @@ calc_basic_data_2 = [
                         new_quantity=Decimal(9000),
                         new_pool_cost=Decimal(13500),
                         bed_and_breakfast_date_index=(
-                            dt.date(day=11, month=9, year=2020)
+                            dt.date(day=5, month=9, year=2020)
                         ),
                     ),
                     CalculationEntry(
@@ -670,30 +675,34 @@ calc_basic_data_2 = [
                     ),
                 ],
             },
-            dt.date(day=10, month=9, year=2020): {
-                "excess-reported-income$MSP": [
-                    CalculationEntry(
-                        RuleType.EXCESS_REPORTED_INCOME,
-                        quantity=Decimal("5500.0"),
-                        amount=Decimal("-10450.0"),
-                        gain=None,
-                        allowable_cost=Decimal(1100),
-                        fees=Decimal("0.0"),
-                        new_quantity=Decimal("5500.0"),
-                        new_pool_cost=Decimal("11550.0"),
-                    ),
-                ],
-            },
-            dt.date(day=11, month=9, year=2020): {
+            # The repurchase takes on the sold units' pool cost, 750, and
+            # their 500 x 0.4 = 200 of the 1 September ERI: 10,450 + 950 =
+            # 11,400 for 6,000 units. All 6,000 are held on 10 September:
+            # 6,000 x 0.2 = 1,200 more, so 12,600.
+            dt.date(day=5, month=9, year=2020): {
                 "buy$MSP": [
                     CalculationEntry(
                         RuleType.BED_AND_BREAKFAST,
                         quantity=Decimal(500),
-                        amount=Decimal(-1050),
+                        amount=Decimal(-950),
                         allowable_cost=Decimal(850),
                         fees=Decimal(0),
                         new_quantity=Decimal(6000),
-                        new_pool_cost=Decimal(12600),
+                        new_pool_cost=Decimal(11400),
+                    ),
+                ],
+            },
+            dt.date(day=10, month=9, year=2020): {
+                "excess-reported-income$MSP": [
+                    CalculationEntry(
+                        RuleType.EXCESS_REPORTED_INCOME,
+                        quantity=Decimal("6000.0"),
+                        amount=Decimal("-11400.0"),
+                        gain=None,
+                        allowable_cost=Decimal(1200),
+                        fees=Decimal("0.0"),
+                        new_quantity=Decimal("6000.0"),
+                        new_pool_cost=Decimal("12600.0"),
                     ),
                 ],
             },

@@ -52,6 +52,7 @@ from cgt_calc.model import (
     BrokerTransaction,
     CapitalGainsReport,
     CurrencyCode,
+    DatePeriod,
     Isin,
     Position,
     RuleType,
@@ -401,6 +402,7 @@ def _eri_calculator(
     tax_year: int = 2024,
     interest_fund_tickers: list[str] | None = None,
     period: tuple[dt.date, dt.date] | None = None,
+    non_uk_resident_periods: list[DatePeriod] | None = None,
 ) -> CapitalGainsCalculator:
     """Create a calculator with only `rates`, running on `today`."""
     currency_converter = CurrencyConverter(None, rates)
@@ -415,6 +417,7 @@ def _eri_calculator(
         balance_check=False,
         period_start=period[0] if period else None,
         period_end=period[1] if period else None,
+        non_uk_resident_periods=non_uk_resident_periods,
     )
     calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
     calculator.ingester.today = today
@@ -1571,6 +1574,275 @@ def test_a_30_day_note_counts_the_units_sold_when_a_split_follows_the_period_end
     ) == [
         "VWRL cost increased by £20.00",
         "Cost basis increased by £20.00 (10 units at £2.0000/unit)",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("trades", "income", "pool_units", "pool_cost", "eri_lines"),
+    [
+        # Ten sold on 20 March; on 25 March each of the ten still held
+        # becomes two. At 31 March the ten sold stand for 20 units, so the
+        # twenty bought back on 3 April for USD 100 take on 20 x £2 = £40, as
+        # do the 20 units held. Income £80; pool 40 units at £200 + £80.
+        pytest.param(
+            [
+                sell_transaction(dt.date(2025, 3, 20), "VWRL", 10, 20, 0, 200),
+                split_transaction(dt.date(2025, 3, 25), "VWRL", 10),
+                buy_transaction(dt.date(2025, 4, 3), "VWRL", 20, 5, 0, -100),
+            ],
+            80,
+            40,
+            280,
+            [
+                "VWRL cost increased by £40.00",
+                "Cost basis increased by £40.00 (20 units at £2.0000/unit)",
+            ],
+            id="split between the sale and the period end",
+        ),
+        # As above, but every two units held on 25 March become one: the ten
+        # held become 5, and the ten sold stand for 5 at 31 March. Each 5
+        # carry 5 x £2 = £10. Income £20; pool 10 units at £200 + £20.
+        pytest.param(
+            [
+                sell_transaction(dt.date(2025, 3, 20), "VWRL", 10, 20, 0, 200),
+                split_transaction(dt.date(2025, 3, 25), "VWRL", -5),
+                buy_transaction(dt.date(2025, 4, 3), "VWRL", 5, 20, 0, -100),
+            ],
+            20,
+            10,
+            220,
+            [
+                "VWRL cost increased by £10.00",
+                "Cost basis increased by £10.00 (5 units at £2.0000/unit)",
+            ],
+            id="consolidation between the sale and the period end",
+        ),
+        # Two 2-for-1 splits, on 22 and 26 March: the ten sold stand for
+        # 10 x 2 x 2 = 40 units at 31 March, and so do the ten held. Each 40
+        # carry 40 x £2 = £80. Income £160; pool 80 units at £200 + £160.
+        pytest.param(
+            [
+                sell_transaction(dt.date(2025, 3, 20), "VWRL", 10, 20, 0, 200),
+                split_transaction(dt.date(2025, 3, 22), "VWRL", 10),
+                split_transaction(dt.date(2025, 3, 26), "VWRL", 20),
+                buy_transaction(dt.date(2025, 4, 3), "VWRL", 40, 2.5, 0, -100),
+            ],
+            160,
+            80,
+            360,
+            [
+                "VWRL cost increased by £80.00",
+                "Cost basis increased by £80.00 (40 units at £2.0000/unit)",
+            ],
+            id="two splits between the sale and the period end",
+        ),
+        # A 2-for-1 split on 25 March and another on 1 April. Only the first
+        # comes by 31 March, so the ten sold stand for 20 units then, not
+        # the 40 bought back on 3 April, and carry 20 x £2 = £40, as do the
+        # 20 held. Income £80; pool 80 units at £200 + £80.
+        pytest.param(
+            [
+                sell_transaction(dt.date(2025, 3, 20), "VWRL", 10, 20, 0, 200),
+                split_transaction(dt.date(2025, 3, 25), "VWRL", 10),
+                split_transaction(dt.date(2025, 4, 1), "VWRL", 20),
+                buy_transaction(dt.date(2025, 4, 3), "VWRL", 40, 2.5, 0, -100),
+            ],
+            80,
+            80,
+            280,
+            [
+                "VWRL cost increased by £40.00",
+                "Cost basis increased by £40.00 (20 units at £2.0000/unit)",
+            ],
+            id="a split either side of the period end",
+        ),
+        # The split takes effect on 31 March itself, so the units in issue
+        # at the end of the period are the new ones: the ten sold stand for
+        # 20 then, and the 20 held carry their £40 too. Income £80; pool
+        # 40 units at £200 + £80.
+        pytest.param(
+            [
+                sell_transaction(dt.date(2025, 3, 20), "VWRL", 10, 20, 0, 200),
+                split_transaction(dt.date(2025, 3, 31), "VWRL", 10),
+                buy_transaction(dt.date(2025, 4, 3), "VWRL", 20, 5, 0, -100),
+            ],
+            80,
+            40,
+            280,
+            [
+                "VWRL cost increased by £40.00",
+                "Cost basis increased by £40.00 (20 units at £2.0000/unit)",
+            ],
+            id="split on the period end",
+        ),
+    ],
+)
+def test_a_30_day_match_counts_eri_in_the_units_at_the_period_end(
+    trades: list[BrokerTransaction],
+    income: int,
+    pool_units: int,
+    pool_cost: int,
+    eri_lines: list[str],
+    tmp_path: Path,
+) -> None:
+    """Units sold before a split count at the period end in the new units.
+
+    Twenty units bought on 1 January 2025 for USD 200, at a rate of 1, cost
+    £200. The fund reports ERI of USD 10 a unit in issue at the end of the
+    period ending 31 March 2025 (Offshore Funds (Tax) Regulations 2009,
+    reg 92(3)(a)), £2 a unit at its distribution date's rate of 5. Units
+    sold before the period end and bought back after it, within 30 days,
+    count as held at it (reg 94(3A)); a split or consolidation leaves them
+    the same holding in new units (TCGA 1992 s127). So the units sold carry
+    £2 for each unit they had become by 31 March. The repurchase takes on
+    the sold units' share of the £200, so the pool keeps the £200 and adds
+    every unit's ERI. The 2024/25 PDF states the ERI of the units held at
+    31 March and of the units sold (`eri_lines`).
+    """
+    period_end = dt.date(2025, 3, 31)
+    distribution_date = period_end + ERI_TAX_DATE_DELTA
+    # In the command line's order, which puts a day's ERI after its trades.
+    transactions = sorted(
+        [
+            buy_transaction(dt.date(2025, 1, 1), "VWRL", 20, 10, 0, -200),
+            *trades,
+            ERITransaction(
+                date=period_end, isin=ERI_ISIN, price=Decimal(10), currency=USD
+            ),
+        ],
+        key=_transaction_sort_key,
+    )
+    rates = _flat_rates(transactions) | {
+        period_end: {USD: Decimal(2)},
+        distribution_date: {USD: Decimal(5)},
+    }
+
+    report = _eri_calculator(rates, distribution_date, tax_year=2025).calculate(
+        transactions
+    )
+
+    assert report.total_eri_amount(is_interest=False) == income
+    assert [(p.symbol, p.quantity, p.amount) for p in report.portfolio] == [
+        ("VWRL", Decimal(pool_units), Decimal(pool_cost))
+    ]
+    assert (
+        _period_end_eri_lines(
+            _eri_calculator(rates, distribution_date, tax_year=2024).calculate(
+                transactions
+            ),
+            tmp_path,
+        )
+        == eri_lines
+    )
+
+
+TWO_PERIOD_ENDS = (dt.date(2025, 3, 31), dt.date(2025, 4, 10))
+
+
+def _two_period_end_history(
+    sale_day: dt.date,
+    buy_day: dt.date,
+    prices: tuple[str, str] = ("10", "10"),
+    non_uk_resident_periods: list[DatePeriod] | None = None,
+) -> tuple[CapitalGainsCalculator, list[BrokerTransaction]]:
+    """Sell ten of twenty units and buy them back around two period ends.
+
+    Twenty units cost USD 200, £200 at a rate of 1. The fund's periods end
+    on 31 March and 10 April 2025, each with ERI of USD `prices` a unit,
+    £2 for each USD 10 at its distribution date's rate of 5. The run is on
+    the second distribution date.
+    """
+    transactions = [
+        buy_transaction(dt.date(2025, 1, 1), "VWRL", 20, 10, 0, -200),
+        sell_transaction(sale_day, "VWRL", 10, 20, 0, 200),
+        *(
+            ERITransaction(date=day, isin=ERI_ISIN, price=Decimal(price), currency=USD)
+            for day, price in zip(TWO_PERIOD_ENDS, prices, strict=True)
+        ),
+        buy_transaction(buy_day, "VWRL", 10, 10, 0, -100),
+    ]
+    rates = _flat_rates(transactions) | {
+        day + ERI_TAX_DATE_DELTA: {USD: Decimal(5)} for day in TWO_PERIOD_ENDS
+    }
+    calculator = _eri_calculator(
+        rates,
+        TWO_PERIOD_ENDS[1] + ERI_TAX_DATE_DELTA,
+        tax_year=2025,
+        non_uk_resident_periods=non_uk_resident_periods,
+    )
+    return calculator, transactions
+
+
+@pytest.mark.parametrize(
+    ("sale_day", "prices", "non_uk_resident_periods"),
+    [
+        pytest.param(dt.date(2025, 3, 20), ("10", "10"), None, id="both reports"),
+        pytest.param(dt.date(2025, 3, 20), ("10", "0"), None, id="second report nil"),
+        # The first report's distribution date, 30 September 2025, falls
+        # while not UK resident, so its income is left out.
+        pytest.param(
+            dt.date(2025, 3, 20),
+            ("10", "10"),
+            [DatePeriod(dt.date(2025, 9, 1), dt.date(2025, 10, 5))],
+            id="first report left out for non-residence",
+        ),
+        # A sale on 31 March is in the period that ends that day, so both
+        # period ends still come before the repurchase.
+        pytest.param(
+            dt.date(2025, 3, 31), ("10", "10"), None, id="sale on the first period end"
+        ),
+    ],
+)
+def test_a_30_day_match_across_two_period_ends_is_refused(
+    sale_day: dt.date,
+    prices: tuple[str, str],
+    non_uk_resident_periods: list[DatePeriod] | None,
+) -> None:
+    """A repurchase after two of the fund's period ends is refused.
+
+    Ten units sold by 31 March 2025 are bought back on 12 April, after the
+    fund's period ends on 31 March and 10 April. Units sold count as held at
+    a period end only when they are bought back in the next reporting period
+    (Offshore Funds (Tax) Regulations 2009, reg 94(3A)), and 12 April is not
+    in the period after 31 March. Each date ends a period whatever its
+    report says, so a nil report, or one left out for non-residence, is
+    refused the same way.
+    """
+    calculator, transactions = _two_period_end_history(
+        sale_day, dt.date(2025, 4, 12), prices, non_uk_resident_periods
+    )
+
+    with pytest.raises(
+        CalculationError,
+        match=re.escape(
+            "the fund has reporting period ends on 2025-03-31 and 2025-04-10, "
+            "from the disposal up to the day before the purchase. Units "
+            "disposed of count as held at a period end only when they are "
+            "bought back in the next reporting period"
+        ),
+    ):
+        calculator.calculate(transactions)
+
+
+def test_a_30_day_repurchase_on_the_next_period_end_is_worked_out() -> None:
+    """A repurchase on the second period end is in the next period, so it is matched.
+
+    Ten units sold on 20 March 2025 are bought back on 10 April, the second
+    period end itself, which is in the period after 31 March's
+    (reg 94(3A)). On 31 March the ten held and the ten sold each carry
+    10 x £2 = £20; at the end of 10 April all twenty are held and carry
+    20 x £2 = £40. Income £20 + £20 + £40 = £80, and the pool keeps its
+    £200 cost for 20 units, plus the £80.
+    """
+    calculator, transactions = _two_period_end_history(
+        dt.date(2025, 3, 20), dt.date(2025, 4, 10)
+    )
+
+    report = calculator.calculate(transactions)
+
+    assert report.total_eri_amount(is_interest=False) == Decimal(80)
+    assert [(p.symbol, p.quantity, p.amount) for p in report.portfolio] == [
+        ("VWRL", Decimal(20), Decimal(280))
     ]
 
 

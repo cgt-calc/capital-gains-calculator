@@ -115,6 +115,7 @@ DT14005
 DWS
 env
 ERI
+eris
 ERSM20192
 ERSM20420
 ESPP
@@ -257,6 +258,7 @@ regularMarketPrice
 reinstalls
 reportable
 repr
+repurchase's
 RequiredAwardColumn
 rescanning
 restkey

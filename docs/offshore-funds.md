@@ -136,9 +136,11 @@ cost yourself, or ask a tax adviser:
 1. Find the ERI, in the fund's currency, that your holding's cost took on for the period. It is the
     ERI per unit (from the bundled ERI file or the fund's report) times the units you held at the
     end of the period, plus any units you sold before the end and bought back after it, within 30
-    days of the sale. The PDF reports show each part in pounds: the report for the tax year that
-    includes the period end has its "Excess Reported Income" entry, and the report for the year of
-    the repurchase has its "Cost basis increased" line.
+    days of the sale. Count those sold units as the units they had become by the end of the period,
+    after any split or consolidation up to and including that day. The PDF reports show each part in
+    pounds: the report for the tax year that includes the period end has its "Excess Reported
+    Income" entry, and the report for the year of the repurchase has its "Cost basis increased"
+    line.
 2. Work out the share of it in the disposal's cost. Only the units the disposal takes from your
     holding carry ERI: the Section 104 line in the PDF report that has the note. Units matched with
     a purchase on the same day or within 30 days do not. Each disposal takes the same fraction of
@@ -167,3 +169,9 @@ cgt-calc does not support:
     [income guidance](https://www.gov.uk/hmrc-internal-manuals/investment-funds/ifm13328) and
     [CGT guidance](https://www.gov.uk/hmrc-internal-manuals/investment-funds/ifm13372) to make both
     adjustments outside the tool.
+- Selling units and buying them back within 30 days when more than one of the fund's reporting
+    periods ends from the sale up to the day before the purchase. The units sold count as held at a
+    period end only if you bought them back in the next period
+    ([regulation 94(3A)](https://www.legislation.gov.uk/uksi/2009/3001/regulation/94)), and cgt-calc
+    does not work out a match across two period ends. It stops with an error naming the dates; work
+    out that match's excess reported income and the repurchase's cost by hand.
