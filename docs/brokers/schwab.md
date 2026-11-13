@@ -333,8 +333,9 @@ from your share plan:
     cash rows.
 
 Pass either one without an option, or with `--schwab-award-file`: cgt-calc reads the contents and
-works out which one it has. What changes is what cgt-calc does with the file, described in the two
-sections below. If you have neither, see
+works out which one it has. What changes is what cgt-calc does with the file, described in
+[Price-only export](#price-only-export) and
+[Complete transaction export](#complete-transaction-export) below. If you have neither, see
 [Vests without an award file](#vests-without-an-award-file).
 
 ### Price-only export
@@ -482,31 +483,34 @@ from the CSV. This works with or without an award file.
     cgt-calc --year 2023 schwab_transactions.csv schwab_awards.csv --dump-transactions parsed.csv
     ```
 
-    Without an award file, the run then stops with `Cannot price a vest`, but the file is saved
-    first, because it is written before the calculation.
+    If a vest has a blank `Price` and you pass no award file, the run then stops with
+    `Cannot price a vest`, but the file is saved first, because it is written before the
+    calculation.
 
-2. Find each vest: its rows have the action `STOCK_ACTIVITY`. Their `date` is the one to put in
-    `replaces`. With an award file, it is the `Date` of the vest's `Lapse` row, with its
-    `FairMarketValuePrice` as the `price`. Without one, it is the day Schwab posted the shares, and
-    `price` is empty.
+2. Find each vest: its rows have the action `STOCK_ACTIVITY`. Copy the `date` the dump shows into
+    `replaces`. A vest with a price in the main CSV keeps its own date and price. One with a blank
+    `Price` takes the `Date` of its `Lapse` row and its `FairMarketValuePrice` from the award file.
+    Without an award file, it stays on the day Schwab posted the shares, and `price` is empty.
 
 3. For each vest you change, add one `STOCK_ACTIVITY` row to a RAW file, with the date and value
-    your records support, and [keep the evidence](#keep-the-evidence). With an award file, a vest
-    you leave out keeps the file's date and price. Without one, every vest needs a row.
+    your records support, and [keep the evidence](#keep-the-evidence). A vest you leave out keeps
+    the date and price the dump shows. A vest with an empty `price` cannot be left out: give each
+    one a row.
 
 4. Run again with the RAW file added. The run names each row it uses in place of a vest. The dump
     cannot show this: it is what cgt-calc read, saved before the replacements.
 
-For example, your main CSV has two vests, posted on 15 June and 18 August 2023. With the award file,
-the dump shows them on their `Lapse` dates (other columns left out):
+For example, your main CSV has two vests with a blank `Price`, posted on 15 June and 18 August 2023.
+With the award file, the dump shows them on their `Lapse` dates (other columns left out):
 
 | date       | symbol | quantity | price |
 | ---------- | ------ | -------- | ----- |
 | 2023-06-12 | ZQX    | 60       | 20.00 |
 | 2023-08-15 | ZQX    | 40       | 24.00 |
 
-Your employer taxed the June vest as the award file shows, and the August one on 18 August, the day
-the shares were issued, at 24.80 dollars a share. Only the August vest needs a row:
+Your award records agree with the award file for the June vest. For the August one, they show that
+you became entitled to the shares on 18 August, the day they were issued, when they were worth 24.80
+dollars each, and your employer taxed that value. Only the August vest needs a row:
 
 ```csv
 date,action,symbol,quantity,price,fees,currency,broker,replaces
