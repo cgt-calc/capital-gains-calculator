@@ -186,13 +186,13 @@ cgt-calc reads the two as one holding and checks it for the split row like the o
 table. It cannot tell that a row is the same share if the row has the first ISIN and is dated on or
 after the split day, has the second and is dated before it, has another ticker or comes from another
 broker's export. Then it stops earlier, with `is exported for ISIN`. It also stops there if you sold
-the share before the split and bought it again within 30 days after it. The sale is then matched
-with that purchase across the split, and if you held none of the share going into the split day, no
-split row can state the split for that match. If the export's own split rows change the ISIN, it
-stops with `changes the ISIN` while reading the export. A RAW row gets past neither. Do not
-calculate the two ISINs in separate runs, as the first message suggests for two different
-securities: here they are one holding, and splitting it would give the wrong cost. Work the holding
-out by hand (consider professional advice).
+the share before the split and bought it again on or after the split day, within 30 days of the
+sale, at Trading 212 or anywhere else. The sale is then matched with that purchase across the split,
+and if you held none of the share going into the split day, no split row can state the split for
+that match. If the export's own split rows change the ISIN, it stops with `changes the ISIN` while
+reading the export. A RAW row gets past neither. Do not calculate the two ISINs in separate runs, as
+the first message suggests for two different securities: here they are one holding, and splitting it
+would give the wrong cost. Work the holding out by hand (consider professional advice).
 
 To find one that gave no error, compare the final portfolio cgt-calc prints with your holdings in
 the account you exported. The final portfolio is the position after the last row of your exports, so

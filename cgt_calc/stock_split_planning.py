@@ -918,10 +918,11 @@ def isins_joined_at_known_splits(
     keeps the two ISINs apart and a ticker exported for both is refused as
     two securities.
 
-    Nor are they joined when a sale before the split is matched with a
-    purchase in the 30 days after it. Matching them needs the split, and
-    when nothing is held going into the split day, the known-split check
-    does not look and no split row can state it.
+    Nor are they joined when a sale of the ticker before the split is
+    matched with a purchase of it in the 30 days after the sale, on or after
+    the split day, from any input. Matching them needs the split, and when
+    nothing is held going into the split day, the known-split check does
+    not look and no split row can state it.
     """
     window = dt.timedelta(days=BED_AND_BREAKFAST_DAYS)
     joined: dict[Isin, Isin] = {}
@@ -929,6 +930,8 @@ def isins_joined_at_known_splits(
         if split.new_isin is None:
             continue
         rows = [row for row in transactions if row.isin in split.isins]
+        # Every row of the ticker: a purchase with no ISIN is matched too.
+        traded = [row for row in transactions if row.symbol == split.symbol]
         if all(
             isinstance(row, Trading212Transaction)
             and row.symbol == split.symbol
@@ -938,8 +941,8 @@ def isins_joined_at_known_splits(
             quantity_sign(sold.action) < 0
             and quantity_sign(bought.action) > 0
             and sold.date < split.date <= bought.date <= sold.date + window
-            for sold in rows
-            for bought in rows
+            for sold in traded
+            for bought in traded
         ):
             (old,) = split.isins - {split.new_isin}
             joined[old] = split.new_isin

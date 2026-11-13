@@ -3233,13 +3233,13 @@ def test_a_history_before_the_split_with_a_translation_row_runs(
 
 
 # Lam Research held from 30 August 2024 and sold out before its split on 3
-# October, then bought again under the new ISIN on 4 October. A sale is
-# matched with a purchase on any of the 30 days after it (TCGA 1992 s.106A),
-# and that match would cross the split with nothing held going into it.
+# October, then bought again. A sale is matched with a purchase on any of the
+# 30 days after it (TCGA 1992 s.106A), and a purchase on or after the split
+# day makes that match cross the split with nothing held going into it.
 
 
-def _sold_out_then_bought_back(sold: str) -> list[list[str]]:
-    """Buy 2 for GBP 800, sell both for GBP 900, buy 20 for GBP 920."""
+def _sold_out(sold: str) -> list[list[str]]:
+    """Buy 2 for GBP 800 under the old ISIN and sell both for GBP 900."""
     return [
         _deposit("2024-08-30 09:00:00"),
         _trade(
@@ -3258,31 +3258,57 @@ def _sold_out_then_bought_back(sold: str) -> list[list[str]]:
             ticker="LRCX",
             isin=LRCX_ISIN_BEFORE,
         ),
-        _trade(
-            "Market buy",
-            "2024-10-04 14:00:00",
-            "20",
-            "46.00",
-            ticker="LRCX",
-            isin=LRCX_ISIN_AFTER,
-        ),
     ]
 
 
+def _bought_back(day: str, shares: str = "20") -> list[str]:
+    """Buy at GBP 46 each under the new ISIN: 20 cost GBP 920."""
+    return _trade(
+        "Market buy",
+        f"{day} 14:00:00",
+        shares,
+        "46.00",
+        ticker="LRCX",
+        isin=LRCX_ISIN_AFTER,
+    )
+
+
+@pytest.mark.parametrize(
+    ("rows", "raw_rows"),
+    [
+        pytest.param(
+            [*_sold_out("2024-09-04"), _bought_back("2024-10-04")],
+            (),
+            id="on the 30th day after the sale",
+        ),
+        pytest.param(
+            [*_sold_out("2024-10-02"), _bought_back("2024-10-03")],
+            (),
+            id="on the split day",
+        ),
+        pytest.param(
+            [*_sold_out("2024-09-30"), _bought_back("2024-11-15", shares="1")],
+            ("2024-10-07,BUY,LRCX,20,46.00,0.00,GBP",),
+            id="in a RAW row with no ISIN",
+        ),
+    ],
+)
 def test_a_sale_matched_with_a_purchase_across_the_split_is_refused(
-    tmp_path: Path,
+    tmp_path: Path, rows: list[list[str]], raw_rows: tuple[str, ...]
 ) -> None:
-    """4 October is the 30th day after a sale on 4 September.
+    """The 20 bought back for GBP 920 are matched with the 2 sold for 900.
 
-    Matched without the split, the 2 old shares sold would take the cost
-    of 2 of the 20 new ones, 920 x 2/20 = 92, a gain of 900 - 92 = 808,
-    where 2 old shares are all 20 new ones and the result is a loss of
-    900 - 920 = 20. No split row can state a split of nothing, so the two
-    ISINs stay apart and the run stops.
+    Respectively: sold on 4 September and bought on 4 October, the 30th
+    day; sold the day before the split and bought on the split day; and
+    sold on 30 September with the 20 bought on 7 October in a RAW row,
+    while a later Trading 212 purchase shows the new ISIN. Matched without
+    the split, the 2 old shares sold would take the cost of 2 of the 20 new
+    ones, 920 x 2/20 = 92, a gain of 900 - 92 = 808, where 2 old shares are
+    all 20 new ones and the result is a loss of 900 - 920 = 20. No split row
+    can state a split of nothing, so the two ISINs stay apart and the run
+    stops.
     """
-    rows = _sold_out_then_bought_back("2024-09-04")
-
-    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+    stderr = _refusal(_known_split_cmd(tmp_path, rows, raw_rows=raw_rows))
 
     assert "ERROR: " + _two_isins("LRCX", LRCX_ISIN_BEFORE, LRCX_ISIN_AFTER) in stderr
 
@@ -3296,7 +3322,7 @@ def test_a_sale_more_than_30_days_before_the_purchase_is_joined(
     and the 20 bought are a new holding at 920. Nothing is held at the
     split, so it needs no row.
     """
-    rows = _sold_out_then_bought_back("2024-09-03")
+    rows = [*_sold_out("2024-09-03"), _bought_back("2024-10-04")]
 
     result = run_cli(_known_split_cmd(tmp_path, rows))
 
