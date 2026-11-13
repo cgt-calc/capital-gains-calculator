@@ -392,6 +392,7 @@ v1
 v2
 v3
 ValueError
+VanEck
 VanguardTransaction
 VTI
 WCLD

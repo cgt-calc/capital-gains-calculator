@@ -257,12 +257,13 @@ ERI_TAX_DATE_DELTA: Final = relativedelta(months=6)
 # line, its London line in dollars, as `CON3` is.
 # Add a pair only once an export has shown the alias and both tickers are
 # confirmed for the ISIN from the exchange's or the issuer's own listing data.
-# Leave out an alias that another security is known to use as its ticker on
-# an exchange a supported broker offers. A row with no ISIN is matched by its
-# ticker alone, so another broker's holding of that other security would be
-# pooled with this one, with no error. Four aliases an export has shown are
-# left out for that reason: `GDX`, `SMH`, `WCLD` and `DFNS`. `NVD` carries the
-# same risk: it is also a fund in the US.
+# A row with no ISIN is matched by its ticker alone, so an alias that another
+# security uses as its ticker on an exchange a supported broker offers would
+# pool another broker's holding of that security with this one, with no error.
+# An alias that is another security's US symbol is listed in
+# ALIASES_THAT_ARE_US_SYMBOLS too, which keeps such rows apart or refuses them.
+# Leave out an alias another security uses on any other exchange. `NVD` is
+# also a fund in the US and is not listed there, so it carries that risk.
 # The reported ticker is not held to that rule, though `TSLA`, `AMZN` and
 # `NVDA` also name trackers and depositary receipts on other exchanges. A row
 # with no ISIN under `TSLA` joins a Trading 212 `TSLA` holding without this
@@ -284,6 +285,10 @@ ISIN_TICKER_ALIASES: Final[dict[tuple[Isin, str], str]] = {
     (Isin("IE00B4ND3602"), "IGLN"): "SGLN",
     (Isin("IE00BFNM3P36"), "SAEM"): "SEGM",  # codespell:ignore saem
     (Isin("XS2399367254"), "3CNE"): "CON3",
+    (Isin("US3695501086"), "GDX"): "GD",
+    (Isin("IE00BMC38736"), "SMH"): "SMGB",
+    (Isin("IE00BJGWQN72"), "WCLD"): "KLWD",
+    (Isin("IE000YYE6WK5"), "DFNS"): "DFNG",
 }
 
 # For ActionType.RENAME: set symbol=new_ticker, description=f"{RENAME_DESCRIPTION_PREFIX}{old_ticker}"
@@ -309,6 +314,18 @@ US_MARKET: Final = "US"
 # BrokerTransaction.market for a ticker on the London Stock Exchange, AIM
 # included.
 LSE_MARKET: Final = "LSE"
+
+# Aliases in ISIN_TICKER_ALIASES that are also another security's US symbol,
+# with the market of the listing the alias names. A row without an ISIN is that
+# listing only when the run gives the ticker that market; with no market at
+# all it could be either. `GDX` is General Dynamics' German line, on neither
+# market, while a US or London `GDX` is a gold miners fund.
+ALIASES_THAT_ARE_US_SYMBOLS: Final[dict[str, str | None]] = {
+    "GDX": None,
+    "SMH": LSE_MARKET,
+    "WCLD": LSE_MARKET,
+    "DFNS": LSE_MARKET,
+}
 
 # Tickers the bundled ISIN list gives a fund based outside the US that are also
 # the symbols of other securities in the US. A row naming one of them, with no

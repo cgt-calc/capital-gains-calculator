@@ -383,7 +383,7 @@ the ticker for another security: an `RMG` row marked `LSE` is read as Royal Mail
 from the rest of your files. See
 [Renames kept to one market](../extra-data-and-options.md#renames-kept-to-one-market).
 
-Three refusals protect a holding from being pooled with another security:
+Four refusals protect a holding from being pooled with another security:
 
 - **`is from market ... on another row`**: one ticker has rows of both markets, for example an `LSE`
     row beside a [Charles Schwab](schwab.md#funds-based-outside-the-us) row, which is always US. See
@@ -395,6 +395,11 @@ Three refusals protect a holding from being pooled with another security:
     ticker, such as `RMG`, and the rest of your files show both that company and another security
     under it. See
     [Renames kept to one market](../extra-data-and-options.md#renames-kept-to-one-market).
+- **`has no ISIN on this row and no market`**: a row with a blank market, where no other row gives
+    the ticker one, uses `GDX`, `SMH`, `WCLD` or `DFNS`, which another export, such as Trading
+    212's, gives to General Dynamics or a fund's London line, and which is also another security's
+    US symbol. See
+    [`has no ISIN on this row and no market`](../extra-data-and-options.md#has-no-isin-on-this-row-and-no-market).
 
 ## Generate the report
 

@@ -16,6 +16,7 @@ from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
 from requests import exceptions as requests_exceptions
 
 from .const import (
+    ALIASES_THAT_ARE_US_SYMBOLS,
     CGT_MODE,
     INITIAL_ISIN_TRANSLATION_RESOURCE,
     ISIN_TICKER_ALIASES,
@@ -134,6 +135,9 @@ class IsinConverter:
         # The tickers a row of this run gives the London market, which says
         # which of two securities sharing the ticker its holding is.
         self.london_symbols: set[str] = set()
+        # The market a row of this run gives each ticker, which its rows
+        # with a blank market share.
+        self.markets: dict[str, str | None] = {}
         # The tickers this run's transactions carry, and the reverse index.
         # Two transactions disagreeing about a security is the one case where
         # a pool really splits, and the only one refused here.
@@ -144,6 +148,8 @@ class IsinConverter:
         # puts the ISIN in a dividend description but not in a trade one -
         # identifies the rest of them through this.
         self.exported_isins: dict[str, Isin] = {}
+        # The first row that exported each ticker with an ISIN, to show it.
+        self.exporters: dict[str, BrokerTransaction] = {}
         # The new ISIN each old one continues as, for each known split that
         # changed it and that this run's rows cross as that split, with a
         # purchase or sale under the new ISIN. The checks below read the old
@@ -269,6 +275,7 @@ class IsinConverter:
                     "two securities, calculate them in separate runs; to split the "
                     f"files and combine the reports, see {_SEPARATE_RUNS_DOCS}",
                 )
+        self.markets = {symbol: row.market for symbol, row in markets.items()}
         us_symbols = {
             symbol for symbol, row in markets.items() if row.market == US_MARKET
         }
@@ -398,6 +405,9 @@ class IsinConverter:
         export needs add_from_transactions(), which reads every row's
         identity before the first is normalised, so a trade is not left
         split by arriving ahead of the dividend that names its security.
+        The exception is an alias that is also another security's US symbol:
+        its market says whether the row is the exported listing, and with no
+        market the row is refused.
 
         Anything else is recorded as this run's name for the ISIN. Two
         transactions disagreeing is refused, in either direction: one ISIN
@@ -420,9 +430,9 @@ class IsinConverter:
 
         isin = transaction.isin
         if isin is None:
-            isin = self.exported_isins.get(transaction.symbol) or self._isin_for_symbol(
-                transaction.symbol
-            )
+            isin = self._exported_isin(
+                transaction, transaction.symbol
+            ) or self._isin_for_symbol(transaction.symbol)
             if isin is None:
                 return
 
@@ -467,6 +477,41 @@ class IsinConverter:
         self.transaction_symbols.setdefault(isin, set()).add(symbol)
         self.transaction_isins[symbol] = isin
 
+    def _exported_isin(
+        self, transaction: BrokerTransaction, symbol: str
+    ) -> Isin | None:
+        """Return the ISIN another row of the run exported a row's ticker with.
+
+        An alias in ALIASES_THAT_ARE_US_SYMBOLS, exported with the ISIN its
+        table entry names, is also another security's US symbol. A row
+        without an ISIN under it is that listing only when the run gives the
+        ticker the listing's market, and is another security under any other
+        market. With no market it could be either, so it is refused.
+        """
+        isin = self.exported_isins.get(symbol)
+        if isin is None or symbol not in ALIASES_THAT_ARE_US_SYMBOLS:
+            return isin
+        reported = ISIN_TICKER_ALIASES.get((isin, symbol))
+        if reported is None:
+            return isin
+        market = transaction.market or self.markets.get(symbol)
+        if market is None:
+            raise InvalidTransactionError(
+                transaction,
+                f"Ticker {symbol} has no ISIN on this row and no market in this "
+                f"run, and another row of this run exports {symbol} with ISIN "
+                f"{isin}, reported as {reported}:\n"
+                f"{indent_entry(self.exporters[symbol])}\n"
+                f"{symbol} is also the US symbol of another security, so cgt-calc "
+                "cannot tell which of the two this row is. Pooled, two securities "
+                "would be matched as one holding. If this row is in your RAW file, "
+                "write in its market column where its security is listed. If they "
+                "are two securities and their rows cannot say so, calculate them "
+                "in separate runs; to split the files and combine the reports, see "
+                f"{_SEPARATE_RUNS_DOCS}",
+            )
+        return isin if market == ALIASES_THAT_ARE_US_SYMBOLS[symbol] else None
+
     def add_from_transactions(self, transactions: list[BrokerTransaction]) -> None:
         """Normalise a whole run's tickers, reading their identities first.
 
@@ -492,6 +537,7 @@ class IsinConverter:
                 continue
             isin = self.joined_isins.get(transaction.isin, transaction.isin)
             known = self.exported_isins.setdefault(transaction.symbol, isin)
+            self.exporters.setdefault(transaction.symbol, transaction)
             if known != isin:
                 raise InvalidTransactionError(
                     transaction,

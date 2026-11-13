@@ -377,6 +377,16 @@ its ticker alone. Two things can then go wrong, neither with an error:
     add the ticker to your
     [ISIN to ticker mapping](../extra-data-and-options.md#isin-to-ticker-translation).
 
+The exception is `GDX`, `SMH`, `WCLD` and `DFNS`. Trading 212 uses them for General Dynamics' German
+line and three funds' London dollar lines, and they are also the US symbols of other securities,
+such as the VanEck Gold Miners ETF. Where your export has one of these listings, a row without an
+ISIN under the same ticker joins the Trading 212 holding only when its
+[`market`](raw.md#say-which-market-a-ticker-is-from) is `LSE` and the ticker is `SMH`, `WCLD` or
+`DFNS`. A row marked `US`, as every Charles Schwab row is, stays a holding of its own, and so does a
+`GDX` row marked `LSE`, which is a gold miners fund. A row with no market, where no other row gives
+the ticker one, stops the run: see
+[`has no ISIN on this row and no market`](../extra-data-and-options.md#has-no-isin-on-this-row-and-no-market).
+
 Check each holding and disposal in the report against your records.
 
 If one broker pays a fund's distribution in dollars and another pays it in pounds on the same day,
