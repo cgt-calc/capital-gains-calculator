@@ -68,9 +68,10 @@ If you use `uvx` instead of installing cgt-calc, run `uvx --python 3.12 cgt-calc
 If the version starts with `1.`, it is an old release without later fixes: it was installed with a
 Python older than 3.12, or installed before 2.0.0 and not upgraded since. To replace it:
 
-- **uv:** run `uv tool install --python 3.12 cgt-calc`.
+- **uv:** run `uv tool install --python 3.12 cgt-calc@latest`.
 - **pipx:** install Python 3.12 or newer if you do not have it, then run
-    `pipx reinstall --python 3.12 cgt-calc`.
+    `pipx reinstall --python python3.12 cgt-calc`. On Windows, give the full path to `python.exe` in
+    your Python 3.12 installation in place of `python3.12`.
 - **pip:** create a new virtual environment with Python 3.12 or newer and install cgt-calc in it.
 
 Once the command prints a version of 2.0.0 or later, choose your [broker](brokers/index.md) and
