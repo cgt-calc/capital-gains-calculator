@@ -2096,7 +2096,7 @@ class Matcher:
             amount,
             new_amount,
         )
-        self.run.portfolio[eri.symbol].amount = new_amount
+        self.run.portfolio[eri.symbol].amount = normalize_amount(new_amount)
         self._carry_eri(eri.symbol, eri)
 
         if self.date_in_tax_year(eri.distribution_date):
