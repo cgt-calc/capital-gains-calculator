@@ -568,3 +568,30 @@ class MarketDataMissingError(CgtError):
             "spin-off on that day, in the same currency, in a file passed with "
             f"{_PRICES_FILE}, or work out the spin-off outside cgt-calc."
         )
+
+
+class ClosingPriceRequestError(CgtError):
+    """Raised when a request to Yahoo Finance for a spin-off's closing price fails."""
+
+    def __init__(self, symbol: str, date: dt.date):
+        """Initialise."""
+        super().__init__(
+            f"Could not get the closing price of {symbol} on {date} from Yahoo "
+            "Finance: the request failed. Check your connection and try again, or "
+            "give the closing prices of both holdings in the spin-off on that day, "
+            f"in the same currency, in a file passed with {_PRICES_FILE}."
+        )
+
+
+class CurrentPriceRequestError(CgtError):
+    """Raised when a request to Yahoo Finance for today's price fails.
+
+    The calculator catches it and names every such holding in one warning.
+    """
+
+    def __init__(self, name: str):
+        """Initialise with the symbol or ISIN asked for."""
+        super().__init__(
+            f"Could not get today's price of {name} from Yahoo Finance: the request "
+            "failed."
+        )

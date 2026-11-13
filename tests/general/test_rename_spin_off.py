@@ -726,6 +726,11 @@ def test_a_third_price_against_agreeing_ends_is_still_refused() -> None:
 class _NoMarketData:
     """Stand-in for `yf.Ticker` with no price history for any day."""
 
+    @property
+    def info(self) -> dict[str, str]:
+        """Return no details, as for a ticker Yahoo does not know."""
+        return {}
+
     def history(self, **kwargs: str) -> pd.DataFrame:
         """Return an empty price history."""
         return pd.DataFrame()

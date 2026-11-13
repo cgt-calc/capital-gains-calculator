@@ -40,6 +40,7 @@ Center
 Chipotle
 Cintas
 CFA
+cffi
 CFP
 CG10246
 CG12313
@@ -94,6 +95,7 @@ csv
 CSVs
 CurrencyConverter
 currentPrice
+CurrentPriceRequestError
 cusip
 CUSIPs
 DayAcquisitions
@@ -339,6 +341,7 @@ StockPlan
 StockSplitTransaction
 str
 strptime
+subclasses
 subrow
 tablefinder
 TCGA
@@ -405,6 +408,7 @@ XOF
 XPF
 xtrackers
 yfinance
+YFRateLimitError
 YYYY
 ZQX
 Opendoor

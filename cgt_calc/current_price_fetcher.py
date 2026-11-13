@@ -2,14 +2,40 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import datetime as dt
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
+
     from .currency_converter import CurrencyConverter
-from .exceptions import ExchangeRateMissingError, MarketDataMissingError
+from .exceptions import (
+    CgtError,
+    ClosingPriceRequestError,
+    CurrentPriceRequestError,
+    ExchangeRateMissingError,
+    MarketDataMissingError,
+)
 from .model import CurrencyCode
+
+
+@contextmanager
+def _asking_yahoo(failed: CgtError) -> Generator[None]:
+    """Report a request to Yahoo Finance that fails as `failed`.
+
+    The HTTP libraries yfinance uses, `curl_cffi` and `requests`, raise
+    subclasses of `OSError` for no connection, DNS, a proxy, TLS or a timeout.
+    Yahoo refusing with HTTP 429 is `YFRateLimitError`.
+    """
+    # Imported here because it loads pandas, and most runs fetch no price.
+    from yfinance.exceptions import YFRateLimitError  # type: ignore[import-untyped]  # noqa: PLC0415
+
+    try:
+        yield
+    except (OSError, YFRateLimitError) as err:
+        raise failed from err
 
 
 class CurrentPriceFetcher:
@@ -51,7 +77,9 @@ class CurrentPriceFetcher:
         Yahoo reads a bare symbol as a US listing, which can be another security
         entirely or nothing at all, while an ISIN names the security itself. So
         the ISIN comes first if known, then the symbol, then the symbol's London
-        listing for one with no quote of its own.
+        listing for one with no quote of its own. A failed request raises
+        `CurrentPriceRequestError` rather than trying the next name, which after
+        the ISIN could price another security.
         """
         if self.current_prices_data is not None and symbol in self.current_prices_data:
             return self.current_prices_data[symbol]
@@ -73,7 +101,8 @@ class CurrentPriceFetcher:
         # Imported here because it loads pandas, and most runs fetch no price.
         import yfinance as yf  # type: ignore[import-untyped]  # noqa: PLC0415
 
-        ticker = yf.Ticker(name).info
+        with _asking_yahoo(CurrentPriceRequestError(name)):
+            ticker = yf.Ticker(name).info
         if not ticker:
             return None
         # ETFs often lack currentPrice, e.g. VTI only has regularMarketPrice
@@ -112,13 +141,18 @@ class CurrentPriceFetcher:
         # Imported here because it loads pandas, and most runs fetch no price.
         import yfinance as yf  # noqa: PLC0415
 
-        yf_ticker = yf.Ticker(symbol)
-        prices = yf_ticker.history(
-            interval="1d",
-            start=date.strftime("%Y-%m-%d"),
-            auto_adjust=False,
-            actions=True,
-        )
+        with _asking_yahoo(ClosingPriceRequestError(symbol, date)):
+            yf_ticker = yf.Ticker(symbol)
+            prices = yf_ticker.history(
+                interval="1d",
+                start=date.strftime("%Y-%m-%d"),
+                auto_adjust=False,
+                actions=True,
+            )
+            # Asked before the history is checked: once yfinance has cached the
+            # ticker's time zone, a failed history request comes back empty,
+            # and only this request reports the failure.
+            info = yf_ticker.info
         # With no end, Yahoo starts at the next day it has a price for: after
         # a day the market was shut, or at today's quote for a ticker it has
         # no history for.
@@ -128,5 +162,5 @@ class CurrentPriceFetcher:
         for ratio in prices["Stock Splits"].iloc[1:]:
             if ratio:
                 closing_price *= Decimal(format(ratio, ".15g"))
-        currency = yf_ticker.info.get("currency") if yf_ticker.info else None
+        currency = info.get("currency") if info else None
         return self._convert_to_gbp(closing_price, currency, date)

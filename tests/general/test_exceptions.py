@@ -15,6 +15,8 @@ from cgt_calc.exceptions import (
     CalculatedAmountDiscrepancyError,
     CalculationError,
     CgtError,
+    ClosingPriceRequestError,
+    CurrentPriceRequestError,
     ExchangeRateMissingError,
     ExternalApiError,
     HmrcRateMissingError,
@@ -210,7 +212,13 @@ def test_every_exception_has_a_context_case() -> None:
     in the failing user run that raises it.
     """
     bare_base_classes = {CgtError, CalculationError}
-    tested_directly = {ParsingError}
+    # The Yahoo request errors are checked where raised, in
+    # test_current_price_fetcher.py.
+    tested_directly = {
+        ParsingError,
+        ClosingPriceRequestError,
+        CurrentPriceRequestError,
+    }
     covered = (
         {type(error) for error, _ in CONTEXT_CASES}
         | bare_base_classes
