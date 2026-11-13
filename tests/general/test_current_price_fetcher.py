@@ -614,3 +614,36 @@ def test_failed_requests_for_today_s_prices_are_named_in_one_warning(
     assert "  CCC: 10.00, £40.00 (unrealized gains: £10.00)\n" in out
     assert summary_figure(out, "Unrealized gains") == "10.00"
     assert "WARNING: Some unrealized gains couldn't be calculated." in out
+
+
+def test_an_error_other_than_a_failed_request_still_stops_the_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Only a failed request is warned about; any other error stops the run.
+
+    Yahoo quotes Johannesburg listings in South African cents, `ZAc`, which
+    cgt-calc has no rate for. AAA's request fails first, then NPN's price
+    cannot be converted, so the run ends with that error and no warning.
+    """
+
+    def ticker(name: str) -> FakeTicker | FailingTicker:
+        if name == "NPN":
+            return FakeTicker({"currentPrice": 5.0, "currency": "ZAc"})
+        return FailingTicker(OFFLINE)
+
+    status = _run_main(
+        tmp_path,
+        monkeypatch,
+        "2024-05-01,BUY,AAA,10,4.00,0,GBP\n2024-05-01,BUY,NPN,10,4.00,0,GBP\n",
+        ticker,
+        "--unrealized-gains",
+        "--spin-offs-file=",
+    )
+
+    assert status == 1
+    alerts = stderr_alerts(capsys.readouterr().err)
+    # The date in the message is today's.
+    assert len(alerts) == 1
+    assert alerts[0].startswith("ERROR: No GBP/ZAc price for ")
