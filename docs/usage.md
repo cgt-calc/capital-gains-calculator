@@ -76,8 +76,8 @@ Hargreaves Lansdown contract notes in the folder are still read with the Transac
 cgt-calc cannot use a file, it stops before reading any transaction and says why.
 
 Each broker also has an option that reads its export without recognising it first, such as
-`--schwab-file schwab_transactions.csv`. An option that takes a value can be given only once:
-cgt-calc stops if you repeat one rather than leave the first value unread.
+`--schwab-file schwab_transactions.csv`. An option that takes a value can be given only once. If you
+repeat one, cgt-calc stops rather than leave the first value unread.
 
 See the [broker instructions](brokers/index.md) for the export format and option for each source. If
 your broker is not listed, you can convert its transactions to the generic
