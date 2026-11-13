@@ -168,6 +168,7 @@ ISIN
 ISIN's
 IsinConverter
 ISINs
+isins
 isoformat
 JPN
 JPY

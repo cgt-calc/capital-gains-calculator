@@ -37,6 +37,7 @@ from .exceptions import (
 from .model import Isin
 from .parsers.vanguard import VanguardTransaction
 from .resources import RESOURCES_PACKAGE
+from .stock_split_planning import isins_joined_at_known_splits
 from .util import csv_fields, is_blank_row, save_csv
 
 if TYPE_CHECKING:
@@ -125,6 +126,11 @@ class IsinConverter:
         # puts the ISIN in a dividend description but not in a trade one -
         # identifies the rest of them through this.
         self.exported_isins: dict[str, Isin] = {}
+        # The new ISIN each old one continues as, for each known split that
+        # changed it and that this run's rows cross as that split, with a
+        # purchase or sale under the new ISIN. The checks below read the old
+        # ISIN as the new one, whether a row or reference data gives it.
+        self.joined_isins: dict[Isin, Isin] = {}
         self.validate_data(self._read_isin_translation_data())
 
     def validate_data(self, file_rows: dict[Isin, int] | None = None) -> None:
@@ -370,6 +376,7 @@ class IsinConverter:
             )
             transaction.symbol = canonical
 
+        isin = self.joined_isins.get(isin, isin)
         symbol = transaction.symbol
         recorded = self.transaction_symbols.get(isin) or set()
         known = self.data.get(isin) or set()
@@ -389,7 +396,7 @@ class IsinConverter:
             )
 
         owner = self.transaction_isins.get(symbol) or self._isin_for_symbol(symbol)
-        if owner is not None and owner != isin:
+        if owner is not None and self.joined_isins.get(owner, owner) != isin:
             raise InvalidTransactionError(
                 transaction,
                 f"Ticker {symbol} is already used for ISIN {owner}, so it "
@@ -415,12 +422,17 @@ class IsinConverter:
         first. A ticker code belongs to an exchange, so two brokers really can
         export one code for two securities; which of them a trade belongs to
         is not in the file, so cgt-calc refuses rather than pick one.
+
+        The exception is a known split that changed the ISIN, crossed by
+        this run's rows as that split: see isins_joined_at_known_splits().
         """
+        self.joined_isins = isins_joined_at_known_splits(transactions)
         for transaction in transactions:
             if not transaction.symbol or not transaction.isin:
                 continue
-            known = self.exported_isins.setdefault(transaction.symbol, transaction.isin)
-            if known != transaction.isin:
+            isin = self.joined_isins.get(transaction.isin, transaction.isin)
+            known = self.exported_isins.setdefault(transaction.symbol, isin)
+            if known != isin:
                 raise InvalidTransactionError(
                     transaction,
                     f"Ticker {transaction.symbol} is exported for ISIN {known} "

@@ -10,6 +10,7 @@ from fractions import Fraction
 import logging
 from typing import TYPE_CHECKING, Final, Literal
 
+from .const import BED_AND_BREAKFAST_DAYS
 from .exceptions import (
     CalculationError,
     InvalidTransactionError,
@@ -39,7 +40,7 @@ from .stock_splits import (
 from .util import indent_entry, strip_zeros
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Iterable, Mapping, Sequence
     from pathlib import Path
 
     from .calculator_state import CalculatorState
@@ -713,14 +714,17 @@ class KnownSplit:
     # The first day of split-adjusted trading, the date a supplied row takes.
     date: dt.date
     ratio: Fraction
-    # The issuer's identifiers either side of the split. They only decide
-    # whether a Trading 212 row is this security, because another product
-    # can trade under the same ticker; they never merge two holdings.
+    # The issuer's identifiers either side of the split. They decide whether
+    # a Trading 212 row is this security, because another product can trade
+    # under the same ticker.
     isins: frozenset[Isin]
     # Trading 212 closed fractions of a share for cash at this split instead
     # of splitting them, and how its exports show that is not known, so a
     # history carried across it is refused whatever split rows it has.
     fractions_cashed_out: bool = False
+    # Where the ISIN changed with the split, the one from the split on; the
+    # other one in `isins` is the one before it.
+    new_isin: Isin | None = None
 
 
 # In date order, so that a history crossing two splits of one share with rows
@@ -870,6 +874,7 @@ KNOWN_TRADING212_SPLITS: Final = (
         date=dt.date(2024, 10, 1),
         ratio=Fraction(10),
         isins=frozenset({Isin("US86800U1043"), Isin("US86800U3023")}),
+        new_isin=Isin("US86800U3023"),
     ),
     # Lam Research's CUSIP changed from 512807108 to 512807306 with its split.
     # https://www.miaxglobal.com/sites/default/files/alert-files/LRCX_Split_55311.pdf
@@ -878,6 +883,7 @@ KNOWN_TRADING212_SPLITS: Final = (
         date=dt.date(2024, 10, 3),
         ratio=Fraction(10),
         isins=frozenset({Isin("US5128071082"), Isin("US5128073062")}),
+        new_isin=Isin("US5128073062"),
     ),
 )
 
@@ -895,6 +901,65 @@ _NEW_ISSUE: Final = "https://github.com/cgt-calc/capital-gains-calculator/issues
 # 2022, two days before the first day of split-adjusted trading. A third day
 # allows for a Monday market holiday.
 _SCHWAB_SPLIT_DATE_LEAD: Final = dt.timedelta(days=3)
+
+
+def isins_joined_at_known_splits(
+    transactions: Sequence[BrokerTransaction],
+) -> dict[Isin, Isin]:
+    """Return the new ISIN each old one continues as, for the splits it joins.
+
+    Super Micro Computer and Lam Research changed ISIN at their splits, so a
+    Trading 212 export can list one under the old ISIN before the split and
+    the new one from it, and those rows are one holding. A split's two ISINs
+    are joined only when every row carrying either of them is a Trading 212
+    row under the split's ticker, with the old ISIN dated before the split
+    and the new one on or after it. Any other row with either ISIN, such as
+    one changing on another day, is not shown to be this split, so the run
+    keeps the two ISINs apart and a ticker exported for both is refused as
+    two securities.
+
+    One of those rows must also buy or sell under the new ISIN. That is what
+    makes known_splits_crossed() check the joined holding for its split row,
+    and a run with no row under the new ISIN has nothing to join.
+
+    Nor are they joined when a sale of the ticker before the split is
+    followed by a purchase of it on or after the split day, within 30 days
+    of the sale, from any input. The sale may then be matched with that
+    purchase across the split, and when nothing is held going into the split
+    day, the known-split check does not look and no split row can state the
+    split. The pattern is refused without working out whether that match is
+    made.
+    """
+    window = dt.timedelta(days=BED_AND_BREAKFAST_DAYS)
+    joined: dict[Isin, Isin] = {}
+    for split in KNOWN_TRADING212_SPLITS:
+        if split.new_isin is None:
+            continue
+        rows = [row for row in transactions if row.isin in split.isins]
+        # Every row of the ticker: a purchase with no ISIN is matched too.
+        traded = [row for row in transactions if row.symbol == split.symbol]
+        if (
+            any(
+                row.isin == split.new_isin and quantity_sign(row.action) != 0
+                for row in rows
+            )
+            and all(
+                isinstance(row, Trading212Transaction)
+                and row.symbol == split.symbol
+                and (row.isin == split.new_isin) == (row.date >= split.date)
+                for row in rows
+            )
+            and not any(
+                quantity_sign(sold.action) < 0
+                and quantity_sign(bought.action) > 0
+                and sold.date < split.date <= bought.date <= sold.date + window
+                for sold in traded
+                for bought in traded
+            )
+        ):
+            (old,) = split.isins - {split.new_isin}
+            joined[old] = split.new_isin
+    return joined
 
 
 def known_splits_crossed(
