@@ -26,6 +26,7 @@ if TYPE_CHECKING:
         SpinOff,
     )
     from .rename_planning import RenameComponent
+    from .stock_split_planning import KnownSplit
     from .stock_splits import SplitTransformation
 
 
@@ -60,6 +61,14 @@ class PreparedHistory:
     # one pass ends up substituting the broker's count while the other
     # scales by the ratio.
     splits: dict[dt.date, dict[str, SplitTransformation]] = field(
+        default_factory=lambda: defaultdict(dict)
+    )
+    # Known splits of a share the history trades at Trading 212 that it holds
+    # none of going into, by the split's date and ticker. An empty opening
+    # alone establishes no conversion between the counts either side, so a
+    # 30-day match across one is refused unless the split recorded that day
+    # has the known ratio.
+    empty_known_splits: dict[dt.date, dict[str, KnownSplit]] = field(
         default_factory=lambda: defaultdict(dict)
     )
     # What a decrease may still take, on a day a reorganisation restated

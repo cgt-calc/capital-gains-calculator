@@ -29,6 +29,7 @@ from .model import (
     SpinOff,
 )
 from .rename_planning import connected_names, end_name
+from .stock_split_planning import unconverted_known_split_message
 from .stock_splits import (
     StockSplitDetail,
     StockSplitEvent,
@@ -43,6 +44,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
     from .calculator_state import CalculatorState
+    from .stock_split_planning import KnownSplit
+    from .stock_splits import SplitTransformation
 
 LOGGER = logging.getLogger(__name__)
 
@@ -688,6 +691,9 @@ class Matcher:
             # very error the exact ratio removed.
             cumulative_ratio = Fraction(1)
             unresolved_splits: list[tuple[dt.date, StockSplitEvent]] = []
+            # Known splits the history entered holding nothing, with the split
+            # it records that day when that is not the known one.
+            unconverted_splits: list[tuple[KnownSplit, SplitTransformation | None]] = []
             # A rename recorded on the disposal date itself has taken effect by
             # the time the following days start, so the walk begins under the
             # name it leaves the holding under.
@@ -717,6 +723,18 @@ class Matcher:
                 # it with by the close.
                 opening_symbol = effective_symbol
                 effective_symbol = renamed_symbol
+                # An empty opening alone establishes no conversion, so only a
+                # split recorded that day with the known ratio converts the
+                # two counts; an unresolved one is refused below as it is.
+                empty_splits = self.history.empty_known_splits.get(search_index, {})
+                known_split = empty_splits.get(opening_symbol) or empty_splits.get(
+                    renamed_symbol
+                )
+                if known_split is not None and (
+                    transformation is None
+                    or transformation.ratio not in {None, known_split.ratio}
+                ):
+                    unconverted_splits.append((known_split, transformation))
                 if transformation is not None:
                     if transformation.ratio is None:
                         unresolved_splits.append((search_index, transformation.event))
@@ -826,6 +844,17 @@ class Matcher:
                         raise CalculationError(
                             self._unresolved_bnb_message(
                                 unresolved_event, ctx.symbol, ctx.date_index, split_date
+                            )
+                        )
+                    if unconverted_splits:
+                        known_split, recorded = unconverted_splits[0]
+                        raise CalculationError(
+                            unconverted_known_split_message(
+                                known_split,
+                                recorded,
+                                ctx.symbol,
+                                ctx.date_index,
+                                search_index,
                             )
                         )
                     if cumulative_ratio != 1:
