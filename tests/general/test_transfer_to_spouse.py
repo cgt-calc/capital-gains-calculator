@@ -1747,7 +1747,7 @@ def test_hand_over_row_round_trips_through_the_raw_parser(tmp_path: Path) -> Non
     (intro,) = (
         index
         for index, line in enumerate(lines)
-        if line.startswith("A new RAW file starts with this header line.")
+        if line.endswith("A new RAW file starts with this header line:")
     )
     header = lines[intro + 1]
     row = next(line for line in lines if "TRANSFER_FROM_SPOUSE" in line)

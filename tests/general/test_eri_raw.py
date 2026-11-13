@@ -375,10 +375,11 @@ def test_read_eri_raw_raises_on_invalid_isin(tmp_path: Path) -> None:
         # The blank line is where the header belongs, so it is refused as blank.
         pytest.param(
             "\n" + HEADER.strip(),
-            "This line must be the header, but it is blank. Put this header line "
-            "in its place, with the names in the order of the values in each "
-            "row:\n  ISIN,Fund Reporting Period End Date,Currency,Excess of "
-            "reporting income over distribution",
+            "This line must be the header, but it is blank. If the header is on a "
+            "later line, delete the blank lines above it; otherwise put this "
+            "header line in its place, with the names in the order of the values "
+            "in each row:\n  ISIN,Fund Reporting Period End Date,Currency,Excess "
+            "of reporting income over distribution",
             id="a blank line above the header",
         ),
     ],

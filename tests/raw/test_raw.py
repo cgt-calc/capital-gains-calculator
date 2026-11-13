@@ -586,9 +586,10 @@ _WRONG_COLUMNS = (
         ),
         pytest.param(
             [[], COLUMNS, _TAX_ROW],
-            "This line must be the header, but it is blank. Put this header line "
-            "in its place, with the names in the order of the values in each "
-            f"row:\n  {_SEVEN}",
+            "This line must be the header, but it is blank. If the header is on a "
+            "later line, delete the blank lines above it; otherwise put this "
+            "header line in its place, with the names in the order of the values "
+            f"in each row:\n  {_SEVEN}",
             id="a blank line above the header",
         ),
         pytest.param(

@@ -46,9 +46,10 @@ def test_load_custom_file(tmp_path: Path) -> None:
         ),
         pytest.param(
             ' , , \ndate,symbol,price\n"Apr 01, 2024",ACME,94.00\n',
-            "This line must be the header, but it is blank. Put this header line "
-            "in its place, with the names in the order of the values in each "
-            "row:\n  date,symbol,price",
+            "This line must be the header, but it is blank. If the header is on a "
+            "later line, delete the blank lines above it; otherwise put this "
+            "header line in its place, with the names in the order of the values "
+            "in each row:\n  date,symbol,price",
             id="a line of spaces and commas above the header",
         ),
     ],

@@ -49,14 +49,18 @@ class CsvColumns:
         shown = repr(csv_fields(list(header)))
         if not any(name in known for name in found):
             # As many optional columns as the line has cells beyond the
-            # required ones, so a row of data gets a header as wide as it.
+            # required ones, as far as the format has them, so a row of data
+            # is shown the header its width needs.
             extra = self.optional[: max(0, len(header) - len(self.required))]
             example = csv_fields([*self.required, *extra])
             if all(not name for name in found):
+                # A blank line above the header and a missing header look
+                # alike, so the advice covers both.
                 return (
-                    "This line must be the header, but it is blank. Put this "
-                    "header line in its place, with the names in the order of "
-                    f"the values in each row:\n  {example}"
+                    "This line must be the header, but it is blank. If the header "
+                    "is on a later line, delete the blank lines above it; "
+                    "otherwise put this header line in its place, with the names "
+                    f"in the order of the values in each row:\n  {example}"
                 )
             # A row of data and a header with every name wrong look alike, so
             # the advice covers both and never says to replace the line.

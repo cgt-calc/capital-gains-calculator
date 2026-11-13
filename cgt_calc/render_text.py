@@ -489,9 +489,9 @@ def _render_spouse_transfers(report: CapitalGainsReport) -> str:
         " shares arriving at that cost in their own report.\n"
         # A RAW header can list its columns in any order, and a row pasted in
         # this one under it would be read wrongly without error.
-        "  A new RAW file starts with this header line. In an existing one, put"
-        " each value under its column in the order of that file's header, with"
-        " a blank cell for any other column:\n"
+        "  In an existing RAW file, put each value under its column in the order"
+        " of that file's header, with a blank cell for any other column. A new"
+        " RAW file starts with this header line:\n"
         f"    {RAW_HEADER_LINE}\n"
     )
     for date_index, key, entry_list in transfers:
