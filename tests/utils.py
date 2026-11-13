@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 SEPARATE_RUNS = (
     "https://cgt-calc.uk/extra-data-and-options/#two-securities-in-separate-runs"
 )
-# The fewest columns a Trading 212 export can have for a trade.
+# The header of the Trading 212 exports these tests write.
 T212_HEADER = (
     "Action,Time (UTC),ISIN,Ticker,Name,No. of shares,Price / share,"
     "Currency (Price / share),Exchange rate,Result,Currency (Result),Total,"
