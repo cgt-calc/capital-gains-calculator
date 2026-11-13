@@ -837,10 +837,14 @@ def test_main_rejects_stdin_given_to_several_options(
     assert "can only be given to one option" in capsys.readouterr().err
 
 
-def _options_taking_a_value() -> list[tuple[str, object]]:
-    """Every option that takes a value, with the type that reads the value."""
+def _options_taking_a_value() -> list[tuple[str, object, tuple[str, ...]]]:
+    """Every valued option, with its reader and any allowed choices."""
     return [
-        (option, action.type)
+        (
+            option,
+            action.type,
+            tuple(str(choice) for choice in action.choices) if action.choices else (),
+        )
         for action in create_parser()._actions  # noqa: SLF001
         # --print-completion prints a script and exits where it stands.
         if action.nargs != 0 and action.dest != "print_completion"
@@ -849,13 +853,14 @@ def _options_taking_a_value() -> list[tuple[str, object]]:
 
 
 @pytest.mark.parametrize(
-    ("option", "value_type"),
+    ("option", "value_type", "choices"),
     _options_taking_a_value(),
-    ids=[option for option, _ in _options_taking_a_value()],
+    ids=[option for option, _, _ in _options_taking_a_value()],
 )
 def test_an_option_given_twice_is_refused(
     option: str,
     value_type: object,
+    choices: tuple[str, ...],
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -871,20 +876,23 @@ def test_an_option_given_twice_is_refused(
     for directory in (first_dir, second_dir):
         directory.mkdir()
     files = (str(first_file), str(second_file))
-    # Keyed by the function that reads the value, so an option with a new kind
-    # of value has to say here what two of them look like.
-    values = {
-        "year_type": ("2021", "2022"),
-        "date_type": ("2021-04-06", "2022-04-05"),
-        "income_type": ("45000", "50000"),
-        "existing_file_or_stdin_type": files,
-        "existing_file_type": files,
-        "optional_cache_file_type": files,
-        "existing_directory_type": (str(first_dir), str(second_dir)),
-        "ticker_list_type": ("AAA", "BBB"),
-        "date_periods_type": ("2021-04-06:", "2022-04-06:"),
-        "output_path_type": (str(tmp_path / "a.pdf"), str(tmp_path / "b.pdf")),
-    }[getattr(value_type, "__name__", "")]
+    if choices:
+        values = choices[0], choices[-1]
+    else:
+        # Keyed by the function that reads the value, so an option with a new
+        # kind of value has to say here what two of them look like.
+        values = {
+            "year_type": ("2021", "2022"),
+            "date_type": ("2021-04-06", "2022-04-05"),
+            "income_type": ("45000", "50000"),
+            "existing_file_or_stdin_type": files,
+            "existing_file_type": files,
+            "optional_cache_file_type": files,
+            "existing_directory_type": (str(first_dir), str(second_dir)),
+            "ticker_list_type": ("AAA", "BBB"),
+            "date_periods_type": ("2021-04-06:", "2022-04-06:"),
+            "output_path_type": (str(tmp_path / "a.pdf"), str(tmp_path / "b.pdf")),
+        }[getattr(value_type, "__name__", "")]
 
     with pytest.raises(SystemExit) as exc_info:
         create_parser().parse_args([option, values[0], option, values[1]])

@@ -24,8 +24,11 @@ from cgt_calc.args_validators import (
     set_completer,
 )
 from cgt_calc.const import US_MARKET
+from cgt_calc.current_price_fetcher import CurrentPriceFetcher
 from cgt_calc.exceptions import (
     CgtError,
+    InvalidTransactionError,
+    MarketDataMissingError,
     ParsingError,
     SymbolMissingError,
     UnexpectedColumnCountError,
@@ -376,10 +379,20 @@ class SchwabTransaction(BrokerTransaction):
 
     @staticmethod
     def create(
-        row_dict: OrderedDict[str, str], file: Path, awards_prices: AwardPrices
+        row_dict: OrderedDict[str, str],
+        file: Path,
+        awards_prices: AwardPrices,
+        *,
+        settlement: bool = False,
     ) -> SchwabTransaction:
         """Create and post process a SchwabTransaction."""
         transaction = SchwabTransaction(row_dict, file)
+        if settlement and transaction.action is ActionType.STOCK_ACTIVITY:
+            # Assume beneficial acquisition on the main history's date.
+            # Its valuation comes from that day's historical close, fetched
+            # after loading the account, instead of an exported price.
+            transaction.price = None
+            return transaction
         if (
             transaction.price is None
             and transaction.action == ActionType.STOCK_ACTIVITY
@@ -387,12 +400,9 @@ class SchwabTransaction(BrokerTransaction):
             symbol = transaction.symbol
             if symbol is None:
                 raise SymbolMissingError(transaction)
-            # The transaction list dates a vest by when Schwab posted it, a few
-            # days after the vest itself. The shares are acquired at the vest,
-            # when the employee becomes beneficially entitled to them, not when
-            # they are transferred (ERSM20420), and the award file's price is
-            # the market value on that day, so the date is taken from the award
-            # file along with the price.
+            # Beneficial acquisition determines the date (ERSM20420). The
+            # default assumes this is the award date and keeps the reported
+            # FMV, which can use an earlier reference price.
             try:
                 transaction.date, transaction.price = awards_prices.get(
                     transaction.date, symbol
@@ -1043,6 +1053,7 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
     glob_dir: ClassVar[str] = "*.csv"
 
     awards_prices: AwardPrices = AwardPrices(award_prices={})
+    acquisition_date: ClassVar[str] = "vesting"
 
     @classmethod
     @override
@@ -1097,6 +1108,16 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
     @override
     def register_arguments(cls, arg_group: argparse._ArgumentGroup) -> None:
         """Register argparse arguments for this broker."""
+        arg_group.add_argument(
+            "--schwab-acquisition-date",
+            choices=("vesting", "settlement"),
+            default=None,
+            help="date and valuation for stock-plan acquisitions in the main "
+            "Schwab history: vesting uses the existing award treatment; "
+            "settlement assumes acquisition on the first brokerage date "
+            "and fetches that day's closing price instead of the award FMV "
+            "(default: vesting)",
+        )
         set_completer(
             arg_group.add_argument(
                 "--schwab-award-file",
@@ -1157,7 +1178,20 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 "--schwab-file and --schwab-dir cannot be used together. Pass "
                 "the directory holding every export, or the single file."
             )
+        # Reset on every run, as callers can load more than one account.
+        cls.acquisition_date = args.schwab_acquisition_date or "vesting"
         award_transactions = cls._load_award_file(args)
+        if (
+            cls.acquisition_date == "settlement"
+            and cls.awards_prices.from_complete_export
+        ):
+            raise CgtError(
+                "--schwab-acquisition-date settlement currently applies only "
+                "to Stock Plan Activity rows in the main Schwab transaction "
+                "history. Complete Equity Awards imports are not supported "
+                "in this mode. Use the main history on its own or with a "
+                "price-only award export."
+            )
         # Recognition refuses plain main-history files next to an option.
         plain_main = cls._plain_of(args, MAIN_HISTORY)
         main_transactions: list[BrokerTransaction] = []
@@ -1173,8 +1207,10 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 [plain.path for plain in plain_main],
                 ", ".join(str(plain.path) for plain in plain_main),
             )
-        # Nothing reconciles a complete export with a main history, so the
-        # combination is accepted with a warning rather than refused. Only
+        if cls.acquisition_date == "settlement":
+            cls._price_settlements(main_transactions)
+        # In vesting mode, nothing reconciles a complete export with a main
+        # history, so the combination is accepted with a warning. Only
         # once the main history has loaded: a run that stops on it produces no
         # report to check.
         if cls.awards_prices.from_complete_export and cls._main_history_given(args):
@@ -1203,6 +1239,63 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
             transaction.market = US_MARKET
         return transactions
 
+    @staticmethod
+    def _price_settlements(transactions: list[BrokerTransaction]) -> None:
+        """Assume acquisition on the main date and value it at that day's close.
+
+        Several grants can be delivered on one day. They share one lookup,
+        but the cache belongs to this run, so a later run cannot inherit a
+        previous account's data. The engine converts the USD amounts using
+        these same transaction dates, as it does for other acquisitions.
+        """
+        prices: dict[tuple[str, dt.date], Decimal] = {}
+        for transaction in transactions:
+            if transaction.action is not ActionType.STOCK_ACTIVITY:
+                continue
+            symbol = transaction.symbol
+            if symbol is None:
+                raise SymbolMissingError(transaction)
+            if transaction.date >= dt.datetime.now(dt.UTC).date():
+                raise InvalidTransactionError(
+                    transaction,
+                    f"The {symbol} settlement on {transaction.date} needs a "
+                    "completed day's closing price. Run again after that day.",
+                )
+            key = symbol, transaction.date
+            if key not in prices:
+                try:
+                    price, currency = CurrentPriceFetcher.get_closing_quote(*key)
+                except MarketDataMissingError as err:
+                    raise InvalidTransactionError(
+                        transaction,
+                        f"No historical closing price for {symbol} on the "
+                        f"settlement date {transaction.date}. Check the date "
+                        "and Yahoo Finance ticker. The settlement treatment "
+                        "requires that day's quote; the award FMV is not used.",
+                    ) from err
+                if currency != transaction.currency:
+                    raise InvalidTransactionError(
+                        transaction,
+                        f"The {symbol} closing quote on {transaction.date} "
+                        f"states currency {currency!r}; the Schwab acquisition "
+                        f"is in {transaction.currency}. Check the quoted security.",
+                    )
+                if not price.is_finite() or price <= 0:
+                    raise InvalidTransactionError(
+                        transaction,
+                        f"The {symbol} closing price on {transaction.date} "
+                        "must be finite and positive.",
+                    )
+                prices[key] = price
+                LOGGER.info(
+                    "Using %s closing price of %s %s for Schwab settlement on %s",
+                    symbol,
+                    price,
+                    currency,
+                    transaction.date,
+                )
+            transaction.price = prices[key]
+
     @classmethod
     def _load_award_file(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
         """Read --schwab-award-file and route it by what it holds.
@@ -1212,6 +1305,9 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         imports its own history and prices no vests. Either way
         `awards_prices` is assigned, because it is class-level state and
         leaving it would price this run's vests from the last run's file.
+
+        Settlement mode ignores price-only exports and values acquisitions
+        from the main history using historical quotes instead.
 
         One export per run. Two would only be needed by an account with some
         vests delivered to the brokerage account and others held in the award
@@ -1242,6 +1338,8 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
             text = read_input(award_path, cls.encoding)
         content = _award_content(text)
         if not _is_complete_award_export(content, award_path):
+            if cls.acquisition_date == "settlement":
+                return []
             cls.awards_prices = _award_prices_from_lines(
                 list(csv.reader(io.StringIO(content))), award_path
             )
@@ -1259,6 +1357,8 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         if price_only is not None:
             if not cls._main_history_given(args):
                 raise CgtError(price_only_alone_message())
+            if cls.acquisition_date == "settlement":
+                return []
             rows, names = price_only
             lapse_prices = lapse_award_prices(rows, award_path, names)
             first_priced: dict[str, dt.date] = {}
@@ -1304,7 +1404,8 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
         doubt. The boundary hook runs exactly once, after every file has been
         read and stamped.
         """
-        _reject_split_of_a_lapse_priced_symbol(transactions, cls.awards_prices)
+        if cls.acquisition_date != "settlement":
+            _reject_split_of_a_lapse_priced_symbol(transactions, cls.awards_prices)
         return reconcile_written_options(
             [row for row in transactions if isinstance(row, SchwabTransaction)]
         )
@@ -1482,6 +1583,7 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                     OrderedDict(zip(header, row, strict=True)),
                     file_path,
                     cls.awards_prices,
+                    settlement=cls.acquisition_date == "settlement",
                 )
             except ParsingError as err:
                 err.add_row_context(index)

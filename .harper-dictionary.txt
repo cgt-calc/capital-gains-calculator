@@ -130,6 +130,8 @@ FairMarketValuePrice
 FeesAndCommissions
 FIGI
 FileNotFoundError
+FMV
+FMVs
 freetrade
 FX
 GA
@@ -232,6 +234,7 @@ OTGLY
 P60
 Palo
 ParsingError
+PAYE
 pdf
 pdfplumber
 PermissionError
@@ -266,6 +269,8 @@ RKT
 ROL
 RON
 roundings
+RSU
+RSUs
 RowIterator
 RunState
 RuntimeError

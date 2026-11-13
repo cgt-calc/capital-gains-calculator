@@ -82,13 +82,17 @@ themselves:
 cgt-calc --year 2025 schwab/
 ```
 
-If a `Stock Plan Activity` row has no price, also pass the supported Equity Awards export described
-below. cgt-calc recognises either layout:
+With the default `vesting` treatment, if a `Stock Plan Activity` row has no price, also pass the
+supported Equity Awards export described below. cgt-calc recognises either layout:
 
 ```shell
 cgt-calc --year 2025 schwab_transactions.csv schwab_awards.csv
 cgt-calc --year 2025 schwab_transactions.csv schwab_awards.json
 ```
+
+Where your agreement supports acquisition at settlement, the
+[`settlement` treatment](#dates-containing-as-of) obtains historical prices instead and needs no
+award-price export.
 
 The options still work, and read their files as Schwab's without recognising them first:
 `--schwab-file` takes one transaction history, `--schwab-dir` a directory of them, and
@@ -103,7 +107,7 @@ The importer recognises these exact values from the main CSV's `Action` column:
 | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `Buy`, `Sell`                                                        | A purchase or disposal, including `Fees & Comm`                                     |
 | `Cancel Buy`                                                         | Removes the cancellation and the matching `Buy`                                     |
-| `Stock Plan Activity`                                                | An employer-share acquisition at the exported or Equity Awards price; no cash moves |
+| `Stock Plan Activity`                                                | Employer shares; see [dates and valuation](#dates-containing-as-of). No cash moves. |
 | `Qualified Dividend`, `Cash Dividend`, `Qual Div Reinvest`           | Dividend income                                                                     |
 | `Div Adjustment`, `Special Qual Div`, `Non-Qualified Div`            | Dividend income                                                                     |
 | `NRA Tax Adj`, `NRA Withholding`, `NRA Withhold`, `Foreign Tax Paid` | Tax deducted from a dividend                                                        |
@@ -162,6 +166,9 @@ calculation could create a purchase that never happened.
 Schwab can show a date such as `08/18/2023 as of 08/15/2023`. cgt-calc uses the first date,
 `08/18/2023`, for the transaction.
 
+Stock-plan acquisitions use `--schwab-acquisition-date vesting` by default, which assumes beneficial
+acquisition at vesting.
+
 A vest is the exception. Schwab posts the shares a few days after they vest, and the main CSV may
 show only that posting date. The day you acquire the shares and their capital gains cost come from
 one event: the acquisition taxed as employment income. That acquisition happens when you gain a
@@ -172,9 +179,9 @@ counts as exercising an option
 the day you acquire the shares and a cost that includes the amount taxed as income
 ([HS287](https://www.gov.uk/government/publications/employee-share-and-security-schemes-and-capital-gains-tax-hs287-self-assessment-helpsheet)).
 If you paid nothing for the shares, that amount is their market value on the day
-([ITEPA 2003 s479](https://www.legislation.gov.uk/ukpga/2003/1/section/479)). For a typical award
-that event is the vest: HMRC describes a restricted stock unit award as normally an agreement to
-issue the shares when it vests
+([ITEPA 2003 s479](https://www.legislation.gov.uk/ukpga/2003/1/section/479)). The default treatment
+assumes that event is the vest: HMRC describes a restricted stock unit award as normally an
+agreement to issue the shares when it vests
 ([ERSM20192](https://www.gov.uk/hmrc-internal-manuals/employment-related-securities/ersm20192)).
 
 So when cgt-calc prices a `Stock Plan Activity` row from your [award file](#price-only-export), it
@@ -184,17 +191,64 @@ is no longer matched to that vest under the same-day rule. It is matched in the 
 acquisitions on 18 August first, then those in the following 30 days, then your pool
 ([CG51560](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51560)).
 
+The reported award FMV can be based on a closing share price from an earlier trading day. The
+default keeps that reported valuation; it does not fetch a vesting-day quote.
+
+#### Settlement acquisitions
+
+To assume beneficial acquisition occurs on settlement day, choose
+`--schwab-acquisition-date settlement`. For `Stock Plan Activity` rows in the main history, **this
+replaces Schwab's reported FMV with that day's historical closing share price, retrieved
+automatically from Yahoo Finance**:
+
+```shell
+cgt-calc --year 2025 transactions.csv --schwab-acquisition-date settlement
+```
+
+A row dated `08/18/2023 as of 08/15/2023` is then treated as an acquisition on 18 August, valued at
+the 18 August close. That same date controls GBP conversion using the configured FX mechanism, the
+tax year and share matching. Any exported price on the stock-plan row is also replaced.
+
+No award-price file or additional valuation file is needed. The option works with a single main
+history, several main histories passed as INPUTs, or `--schwab-dir`. An existing price-only award
+export can remain in the command, but its FMVs are ignored. Complete Equity Awards imports are not
+supported by this option; see [Complete transaction export](#complete-transaction-export). Other
+transactions, such as purchases and sales, retain their existing treatment.
+
+Vesting an RSU right and acquiring its underlying shares can be separate events. For example,
+sections 1–2 of
+[this public RSU agreement](https://www.sec.gov/Archives/edgar/data/1326801/000162828025036791/meta06302025-ex102.htm)
+permit settlement up to 30 days after vesting and say that, until issuance in settlement, the
+participant has **“no ownership of the Shares allocated to the RSUs”**. Use the treatment that
+corresponds to beneficial acquisition under your agreement. A later administrative transfer of
+shares already beneficially owned does not create a new acquisition. HMRC also allows a reasonable
+acquisition date and time consistent with the beneficial-ownership definitions
+([ERSM20420](https://www.gov.uk/hmrc-internal-manuals/employment-related-securities/ersm20420)).
+
+The daily close is used as the FMV estimate. Historical quotes are restored to the price per share
+as traded on that date, without adjustments for later dividends or stock splits. The quote must
+state USD, as the main Schwab history does. Each symbol and date is fetched once per run. The price
+and date are logged and appear in `--dump-transactions` if requested. A missing quote, a different
+currency, or a day which has not finished stops the calculation. A non-trading day with no quote is
+also refused: cgt-calc does not substitute another day's price or fall back to the award FMV.
+
+PAYE and employment income-tax calculations are outside the scope of cgt-calc. This option concerns
+the acquisition date and allowable cost used for CGT.
+
+#### Other acquisition dates or costs
+
 The facts of each award, rather than its label, decide its tax treatment (ERSM20192), so your
 employer may have taxed the shares at their market value on another day, such as the day they were
 issued. cgt-calc cannot tell this from Schwab's files. Your award statement or payslip, or your
-payroll team, can tell you which day's market value your employer taxed as income. If that day is
-not the `Date` of the vest's `Lapse` row in your award file, use that day and its market value for
-both the date and the cost: add a [`STOCK_ACTIVITY` row](raw.md#actions-to-use) to your RAW file
-that [replaces the vest](raw.md#replace-a-row-of-the-export). Give it that date, the quantity of the
-vest's `Stock Plan Activity` row in the main CSV, the market value of one share on that day,
-`Charles Schwab` as its `broker`, and the `Lapse` row's `Date` in `replaces`, written `YYYY-MM-DD`
-like the other dates in the RAW file. The main CSV stays as you downloaded it. If you are unsure
-which day applies, ask a tax adviser.
+payroll team, can tell you which day's market value your employer taxed as income. If your supported
+acquisition date or cost differs from the selected treatment, add a
+[`STOCK_ACTIVITY` row](raw.md#actions-to-use) to your RAW file that
+[replaces the vest](raw.md#replace-a-row-of-the-export). Give it that date, the quantity of the
+vest's `Stock Plan Activity` row in the main CSV, the market value of one share on that day and
+`Charles Schwab` as its `broker`. In `replaces`, use the date the selected treatment would give the
+imported vest: the `Lapse` row's `Date` for a vest priced from the award file, or the main row's
+date in settlement mode. Write it as `YYYY-MM-DD`, like the other dates in the RAW file. The main
+CSV stays as you downloaded it. If you are unsure which day applies, ask a tax adviser.
 
 For other rows, the date affects the tax year, the exchange rate and the same-day and 30-day
 matching rules. Check any such row carefully when the two dates cross 5 April or another purchase or
@@ -336,8 +390,8 @@ sections below.
 
 ### Price-only export
 
-Use this method when the main transaction CSV contains `Stock Plan Activity` rows with a blank
-`Price`:
+Use this method with the default `vesting` treatment when the main transaction CSV contains
+`Stock Plan Activity` rows with a blank `Price`:
 
 1. In Schwab, open the Equity Awards account. Schwab's
     [grant guide](https://eac.schwab.com/content/how-to-accept-your-grant) shows how to reach the
@@ -417,6 +471,11 @@ cgt-calc --year 2025 schwab_awards.csv
 ```
 
 cgt-calc identifies the format from the file's contents, so both layouts produce the same result.
+The `--schwab-acquisition-date settlement` option currently applies only to `Stock Plan Activity`
+rows in the main brokerage history, so it rejects complete Equity Awards imports. A complete export
+can contain a transaction `Date` as well as `VestDate`; this option does not interpret that
+transaction date as settlement. To use this option, pass the main brokerage history instead. A
+price-only award export can accompany it, but is not needed.
 
 The complete CSV states one transaction per row, followed by a row for each lot or grant with the
 transaction columns left blank. Keep the file exactly as Schwab exported it: cgt-calc reads those
@@ -576,10 +635,15 @@ transfer of the same shares on one day are refused when there is such a purchase
 
 ### `Cannot price a vest`
 
-The named `Stock Plan Activity` has no price in the main CSV. Export the Equity Awards history and
-pass it alongside the main CSV. Either layout of the price-only export will do: the award-price CSV,
-or the JSON export whose every row is a `Lapse`. If you already did, check that it contains the same
-ticker and a `FairMarketValuePrice` dated no more than six days before the activity.
+This error concerns the default `vesting` treatment. The named `Stock Plan Activity` has no price in
+the main CSV. Export the Equity Awards history and pass it alongside the main CSV. Either layout of
+the price-only export will do: the award-price CSV, or the JSON export whose every row is a `Lapse`.
+If you already did, check that it contains the same ticker and a `FairMarketValuePrice` dated no
+more than six days before the activity.
+
+Where your agreement supports acquisition at settlement, the
+[`settlement` treatment](#dates-containing-as-of) obtains historical prices from the main history
+instead, without an award-price file.
 
 If its JSON holds `Lapse` rows together with cash rows such as `Journal` or `Wire Transfer`,
 cgt-calc will not read prices from it. Export the same history as the award-price CSV, which reads

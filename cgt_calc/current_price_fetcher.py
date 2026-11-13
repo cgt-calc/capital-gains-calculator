@@ -100,6 +100,12 @@ class CurrentPriceFetcher:
         return self.historical_prices_data.get(symbol, {}).get(date)
 
     def get_closing_price(self, symbol: str, date: dt.date) -> Decimal:
+        """Get the day's closing price, as it traded then, converted to GBP."""
+        closing_price, currency = self.get_closing_quote(symbol, date)
+        return self._convert_to_gbp(closing_price, currency, date)
+
+    @staticmethod
+    def get_closing_quote(symbol: str, date: dt.date) -> tuple[Decimal, str | None]:
         """Get the price the share closed at on the day, as it traded then.
 
         Yahoo rewrites past prices: by default it lowers them for every later
@@ -129,4 +135,4 @@ class CurrentPriceFetcher:
             if ratio:
                 closing_price *= Decimal(format(ratio, ".15g"))
         currency = yf_ticker.info.get("currency") if yf_ticker.info else None
-        return self._convert_to_gbp(closing_price, currency, date)
+        return closing_price, currency

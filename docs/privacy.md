@@ -19,7 +19,8 @@ The external services used are:
 - [**Yahoo Finance**](https://uk.help.yahoo.com/kb/finance/privacy-policy-sln6177.html) – to fetch
     current prices when you use `--unrealized-gains`, or historical prices when the transaction
     history contains a spin-off whose prices you have not given in a file passed with
-    `--prices-file` (ticker symbols and, for historical lookups, dates are queried)
+    `--prices-file`, or you select `--schwab-acquisition-date settlement` (ticker symbols and, for
+    historical lookups, dates are queried)
 
 Reports and cache files are saved locally. Store them under the same access, retention and deletion
 controls as your own tax records.
