@@ -723,7 +723,7 @@ class Matcher:
                 # it with by the close.
                 opening_symbol = effective_symbol
                 effective_symbol = renamed_symbol
-                # No split row restated a holding entered empty, so only a
+                # An empty opening alone establishes no conversion, so only a
                 # split recorded that day with the known ratio converts the
                 # two counts; an unresolved one is refused below as it is.
                 empty_splits = self.history.empty_known_splits.get(search_index, {})

@@ -64,9 +64,10 @@ class PreparedHistory:
         default_factory=lambda: defaultdict(dict)
     )
     # Known splits of a share the history trades at Trading 212 that it holds
-    # none of going into, by the split's date and ticker. No split row
-    # restated a holding there, so a 30-day match across one is refused
-    # unless the split recorded that day has the known ratio.
+    # none of going into, by the split's date and ticker. An empty opening
+    # alone establishes no conversion between the counts either side, so a
+    # 30-day match across one is refused unless the split recorded that day
+    # has the known ratio.
     empty_known_splits: dict[dt.date, dict[str, KnownSplit]] = field(
         default_factory=lambda: defaultdict(dict)
     )

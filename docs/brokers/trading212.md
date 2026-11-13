@@ -180,13 +180,14 @@ apply:
 - No split row you supplied establishes the split's ratio for that match.
 
 cgt-calc then cannot establish that the shares sold and the shares bought are counted in the same
-units. Work that disposal out by hand (consider professional advice). A purchase more than 30 days
-after the sale, or one the sale is not matched with, runs as usual. The check applies once your
-history has a Trading 212 purchase or sale of the share under one of its ISINs, and it then covers
-sales and purchases from all your inputs. That includes shares whose counts another export has
-already restated to the new count, such as NVIDIA or Alphabet award shares in a complete Schwab
-Equity Awards export: cgt-calc cannot tell those apart from counts that were not restated, so it
-stops for them too.
+units. Work that disposal out by hand (consider professional advice). Do not add a split row for it:
+a split row restates the shares held at that point, and with none held cgt-calc stops with **nothing
+to restate**. A purchase more than 30 days after the sale, or one the sale is not matched with, runs
+as usual. The check applies once your history has a Trading 212 purchase or sale of the share under
+one of its ISINs, and it then covers sales and purchases from all your inputs. That includes shares
+whose counts another export has already restated to the new count, such as NVIDIA or Alphabet award
+shares in a complete Schwab Equity Awards export: cgt-calc cannot tell those apart from counts that
+were not restated, so it stops for them too.
 
 cgt-calc reads NVIDIA and Alphabet (`GOOG` and `GOOGL`) shares in a complete Schwab Equity Awards
 export at the new count (see

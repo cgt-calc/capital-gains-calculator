@@ -3749,6 +3749,19 @@ def test_a_split_row_with_the_known_ratio_converts_the_match(tmp_path: Path) -> 
             "120.00",
             id="the purchase matched with its own day's sale",
         ),
+        pytest.param(
+            [
+                _deposit("2024-06-03 09:00:00"),
+                _trade("Market buy", "2024-06-03 14:00:00", "2", "400.00"),
+                _trade("Market sell", "2024-06-05 14:00:00", "2", "450.00"),
+                _trade("Market buy", "2024-06-06 14:00:00", "2", "410.00"),
+                _trade("Market sell", "2024-06-07 14:00:00", "2", "420.00"),
+                _trade("Market buy", "2024-07-15 14:00:00", "20", "46.00"),
+            ],
+            "1,620.00",
+            "120.00",
+            id="a repurchase before the split",
+        ),
     ],
 )
 def test_a_sale_not_matched_across_the_split_is_calculated(
@@ -3762,6 +3775,12 @@ def test_a_sale_not_matched_across_the_split_is_calculated(
     Second, the 20 bought on 12 June go to that day's sale of 20 for GBP 940,
     a gain of 940 - 920 = 20, leaving the sale on 7 June to the pool, a gain
     of 900 - 800 = 100: costs of 800 + 920 = 1,720 and gains of 120.
+
+    Third, the sale on 5 June is matched with the 2 bought on 6 June, before
+    the split, although its 30 days run past 10 June: 900 - 820 = 80. The
+    sale on 7 June takes the 2 pooled on 3 June, 840 - 800 = 40, since the
+    purchase on 15 July is 38 days later. Costs of 820 + 800 = 1,620 and gains
+    of 120.
     """
     result = run_cli(_known_split_cmd(tmp_path, rows))
 
