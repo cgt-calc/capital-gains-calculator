@@ -11,6 +11,7 @@ from colorama import Style
 
 from .const import BASIC_RATE_LIMITS, CAPITAL_GAINS_TAX_RATES, PERSONAL_ALLOWANCES
 from .dates import get_tax_year_end, get_tax_year_start
+from .exceptions import RAW_HEADER_LINE
 from .logging import bullet, style_text
 from .model import RuleType
 from .util import exact_str, round_decimal, strip_zeros
@@ -486,6 +487,12 @@ def _render_spouse_transfers(report: CapitalGainsReport) -> str:
         " (TCGA 1992 s58).\n"
         "  Give them the RAW row shown under each transfer: it records the"
         " shares arriving at that cost in their own report.\n"
+        # A RAW header can list its columns in any order, and a row pasted in
+        # this one under it would be read wrongly without error.
+        "  A new RAW file starts with this header line. In an existing one, put"
+        " each value under its column in the order of that file's header, with"
+        " a blank cell for any other column:\n"
+        f"    {RAW_HEADER_LINE}\n"
     )
     for date_index, key, entry_list in transfers:
         symbol = key[len(transfer_prefix) :]

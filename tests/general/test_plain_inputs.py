@@ -607,36 +607,53 @@ def test_lines_ended_by_a_carriage_return_alone_are_read_as_the_option_reads_the
     assert _dump(_load(file)) == expected
 
 
+_RAW_HEADING = "date,action,symbol,quantity,price,fees,currency"
+_RAW_TAX_ROW = "2024-06-03,DIVIDEND_TAX,FOO,1,-5.00,0.00,USD"
+
+
 @pytest.mark.parametrize(
-    ("columns", "values", "replaces"),
+    ("heading", "row", "replaces"),
     [
-        pytest.param("broker", "Charles Schwab", None, id="broker"),
         pytest.param(
-            "broker,replaces",
-            "Charles Schwab,2024-06-27",
+            f"{_RAW_HEADING},broker",
+            f"{_RAW_TAX_ROW},Charles Schwab",
+            None,
+            id="broker",
+        ),
+        pytest.param(
+            f"{_RAW_HEADING},broker,replaces",
+            f"{_RAW_TAX_ROW},Charles Schwab,2024-06-27",
             dt.date(2024, 6, 27),
             id="broker and replaces",
+        ),
+        pytest.param(
+            f"{_RAW_HEADING},replaces,broker",
+            f"{_RAW_TAX_ROW},2024-06-27,Charles Schwab",
+            dt.date(2024, 6, 27),
+            id="replaces before broker",
+        ),
+        pytest.param(
+            "Currency,Fees,Price,Quantity,Symbol,Action,Date,Broker",
+            "USD,0.00,-5.00,1,FOO,DIVIDEND_TAX,2024-06-03,Charles Schwab",
+            None,
+            id="every column in another order",
         ),
     ],
 )
 def test_a_raw_heading_with_its_optional_columns_is_recognised(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
-    columns: str,
-    values: str,
+    heading: str,
+    row: str,
     replaces: dt.date | None,
 ) -> None:
-    """The RAW heading can end with `broker`, or with `broker,replaces`.
+    """The RAW heading names its columns in any order, the optional ones too.
 
     The one row is tax of 5.00 on FOO dated 2024-06-03. It names its broker,
-    and in the second file the date of the export row it takes the place of.
+    and in two files the date of the export row it takes the place of.
     """
     file = tmp_path / "raw.csv"
-    _write(
-        file,
-        f"date,action,symbol,quantity,price,fees,currency,{columns}\n"
-        f"2024-06-03,DIVIDEND_TAX,FOO,1,-5.00,0.00,USD,{values}\n",
-    )
+    _write(file, f"{heading}\n{row}\n")
 
     with caplog.at_level(logging.INFO):
         expected = _dump(_load("--raw-file", file))
@@ -646,9 +663,9 @@ def test_a_raw_heading_with_its_optional_columns_is_recognised(
         f"Recognised {tmp_path.as_posix()}/raw.csv as a RAW format file"
     ]
     assert _dump(transactions) == expected
-    (row,) = transactions
-    assert isinstance(row, RawTransaction)
-    assert (row.broker, row.replaces) == ("Charles Schwab", replaces)
+    (transaction,) = transactions
+    assert isinstance(transaction, RawTransaction)
+    assert (transaction.broker, transaction.replaces) == ("Charles Schwab", replaces)
 
 
 @pytest.mark.parametrize(
@@ -671,7 +688,7 @@ def test_a_raw_heading_with_its_optional_columns_is_recognised(
             id="without its header row",
         ),
         pytest.param(
-            # So is RAW's, which once had no heading row.
+            # RAW's reader once did too; now it refuses the file as well.
             lambda folder: _write(
                 folder / "a.csv", RAW.read_text(encoding="utf-8").split("\n", 1)[1]
             ),
@@ -714,6 +731,17 @@ def test_a_raw_heading_with_its_optional_columns_is_recognised(
             "a.csv is ERI data, not a broker export: pass it with --eri-raw-file.",
             id="ERI data",
         ),
+        # Each heading below is in another order and letter case, with spaces,
+        # and is named as its option now reads it.
+        pytest.param(
+            lambda folder: _write(
+                folder / "a.csv",
+                "currency, isin ,excess of reporting income over distribution,"
+                "fund reporting period end date\n",
+            ),
+            "a.csv is ERI data, not a broker export: pass it with --eri-raw-file.",
+            id="ERI data in lower case",
+        ),
         pytest.param(
             lambda folder: _copy(
                 TESTS / "general/data/example_isin_translation.csv", folder / "a.csv"
@@ -729,6 +757,12 @@ def test_a_raw_heading_with_its_optional_columns_is_recognised(
             id="ISIN translation, space after the comma",
         ),
         pytest.param(
+            lambda folder: _write(folder / "a.csv", "isin,SYMBOL \n"),
+            "a.csv is an ISIN translation file, not a broker export: pass it with "
+            "--isin-translation-file.",
+            id="ISIN translation in another letter case",
+        ),
+        pytest.param(
             lambda folder: _copy(
                 TESTS.parent / "cgt_calc/resources/share_prices.csv", folder / "a.csv"
             ),
@@ -737,16 +771,34 @@ def test_a_raw_heading_with_its_optional_columns_is_recognised(
             id="share prices",
         ),
         pytest.param(
+            lambda folder: _write(folder / "a.csv", "Price, Date ,Symbol\n"),
+            "a.csv is a share prices file, not a broker export: pass it with "
+            "--prices-file.",
+            id="share prices in another order",
+        ),
+        pytest.param(
             lambda folder: _copy(TESTS / "exchange_rates_data.csv", folder / "a.csv"),
             "a.csv is an exchange rates cache, not a broker export: pass it with "
             "--exchange-rates-file.",
             id="exchange rates, after comment lines",
         ),
         pytest.param(
+            lambda folder: _write(folder / "a.csv", "# typed\nRate, Month ,Currency\n"),
+            "a.csv is an exchange rates cache, not a broker export: pass it with "
+            "--exchange-rates-file.",
+            id="exchange rates in another order, after a comment line",
+        ),
+        pytest.param(
             lambda folder: _write(folder / "a.csv", "src,dst\nOLD,NEW\n"),
             "a.csv is a spin-offs file, not a broker export: pass it with "
             "--spin-offs-file.",
             id="spin-offs",
+        ),
+        pytest.param(
+            lambda folder: _write(folder / "a.csv", "DST, SRC\nNEW,OLD\n"),
+            "a.csv is a spin-offs file, not a broker export: pass it with "
+            "--spin-offs-file.",
+            id="spin-offs in capitals",
         ),
         pytest.param(
             lambda folder: _write(folder / "a.csv", ",".join(DUMP_FIELDS) + "\n"),
@@ -1322,14 +1374,21 @@ def _vanguard_without_tables(path: Path) -> None:
             "a.csv",
             _edited(RAW, "fees", "fee"),
             "--raw-file",
-            "Expected column 6 to be 'fees' but found 'fee'",
+            "Missing columns: 'fees'. Unknown columns: 'fee'.",
             id="RAW",
+        ),
+        pytest.param(
+            "a.csv",
+            _edited(RAW, "currency", "currency,note"),
+            "--raw-file",
+            "\nUnknown columns: 'note'.\n",
+            id="RAW with a column of notes",
         ),
         pytest.param(
             "a.csv",
             _edited(ERI, "Currency", "Ccy"),
             "--eri-raw-file",
-            "Unknown columns: Ccy",
+            "Missing columns: 'Currency'. Unknown columns: 'Ccy'.",
             id="ERI data",
         ),
         pytest.param(
@@ -1338,7 +1397,7 @@ def _vanguard_without_tables(path: Path) -> None:
                 TESTS / "general/data/example_isin_translation.csv", "symbol", "ticker"
             ),
             "--isin-translation-file",
-            "This line must be the header 'ISIN,symbol'",
+            "Missing columns: 'symbol'. Unknown columns: 'ticker'.",
             id="ISIN translation",
         ),
         pytest.param(
@@ -1347,7 +1406,7 @@ def _vanguard_without_tables(path: Path) -> None:
                 TESTS.parent / "cgt_calc/resources/share_prices.csv", "date,", "day,"
             ),
             "--prices-file",
-            "This line must be the header 'date,symbol,price'",
+            "Missing columns: 'date'. Unknown columns: 'day'.",
             id="share prices",
         ),
         pytest.param(
@@ -1359,15 +1418,22 @@ def _vanguard_without_tables(path: Path) -> None:
                 "\nmonth,currency,value",
             ),
             "--exchange-rates-file",
-            "This line must be the header 'month,currency,rate'",
+            "Missing columns: 'rate'. Unknown columns: 'value'.",
             id="exchange rates",
         ),
         pytest.param(
             "a.csv",
             lambda path: _write(path, "dst,source\nNEW,OLD\n"),
             "--spin-offs-file",
-            "This line must be the header 'dst,src'",
+            "Missing columns: 'src'. Unknown columns: 'source'.",
             id="spin-offs",
+        ),
+        pytest.param(
+            "a.csv",
+            lambda path: _write(path, "dst,src,DST\nNEW,OLD,NEW\n"),
+            "--spin-offs-file",
+            "\nRepeated columns: 'dst'.\n",
+            id="spin-offs with a column named twice",
         ),
     ],
 )

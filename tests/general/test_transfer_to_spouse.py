@@ -507,14 +507,25 @@ def test_unclassified_gift_is_rejected_with_instructions() -> None:
 
     message = str(err.value)
     # The exact RAW line to paste, so the fix is mechanical. The run reads
-    # no RAW file, so the line goes in a new one, and no row in a RAW file
-    # can have been meant for this gift.
+    # no RAW file, so the line goes in a new one under the header it needs,
+    # and no row in a RAW file can have been meant for this gift.
     assert (
-        "Put this line in a CSV and pass it with --raw-file alongside the file "
-        "you already use, and the gift is then taken as accounted for:\n"
+        "Put this line in a CSV under the header line "
+        "date,action,symbol,quantity,price,fees,currency and pass it with "
+        "--raw-file alongside the file you already use, and the gift is then "
+        "taken as accounted for:\n"
         "  2024-06-10,TRANSFER_TO_SPOUSE,FOO,4,0.00,0.00,GBP\n"
     ) in message
     assert "If your RAW file already has" not in message
+    # A RAW header can list its columns in any order, so the line's order is
+    # given, with how to fit it into a file whose header has another.
+    assert (
+        "\n\nThe lines above give their values in the order "
+        "date,action,symbol,quantity,price,fees,currency. If your RAW file's "
+        "header lists its columns in another order, or also has broker or "
+        "replaces, put each value under its column in that order, with a blank "
+        "cell for each column a line does not use.\n\n"
+    ) in message
     # Both outcomes are named, so a non-spouse gift is not quietly treated as one.
     assert "spouse or civil partner" in message
     assert "disposal at market value" in message
@@ -1056,8 +1067,9 @@ def test_ambiguous_gift_error_offers_both_readings(
         )
     else:
         assert (
-            "You record that by putting a line in a CSV and passing it with "
-            "--raw-file alongside the file you already use.\n"
+            "You record that by putting a line in a CSV under the header line "
+            "date,action,symbol,quantity,price,fees,currency and passing it "
+            "with --raw-file alongside the file you already use.\n"
         ) in message
     # Only a RAW file can hold a row mistyped for either count.
     assert (
@@ -1698,9 +1710,11 @@ def test_transfer_from_spouse_sorts_before_a_same_day_sale() -> None:
 def test_hand_over_row_round_trips_through_the_raw_parser(tmp_path: Path) -> None:
     """What the transferor's report prints is exactly what the recipient reads.
 
-    A pool of 15 shares costing £155 gives 3 of them a base cost of £31, and
-    £31 over 3 shares does not terminate. The row still has to reproduce £31
-    once parsed and pooled, with nothing rounded away on the way.
+    The report gives the header line that starts a new RAW file and the row
+    to go under it, and those two lines alone make a file the recipient can
+    read. A pool of 15 shares costing £155 gives 3 of them a base cost of
+    £31, and £31 over 3 shares does not terminate. The row still has to
+    reproduce £31 once parsed and pooled, with nothing rounded away on the way.
     """
     transfer_day = dt.date(2024, 6, 10)
     sender = get_report(
@@ -1729,13 +1743,16 @@ def test_hand_over_row_round_trips_through_the_raw_parser(tmp_path: Path) -> Non
             transfer_to_spouse_transaction(transfer_day, "FOO", 3),
         ],
     )
-    row = next(
-        line.strip()
-        for line in render_text(sender).splitlines()
-        if "TRANSFER_FROM_SPOUSE" in line
+    lines = [line.strip() for line in render_text(sender).splitlines()]
+    (intro,) = (
+        index
+        for index, line in enumerate(lines)
+        if line.startswith("A new RAW file starts with this header line.")
     )
+    header = lines[intro + 1]
+    row = next(line for line in lines if "TRANSFER_FROM_SPOUSE" in line)
     raw_file = tmp_path / "transfers.csv"
-    raw_file.write_text(f"date,action,symbol,quantity,price,fees,currency\n{row}\n")
+    raw_file.write_text(f"{header}\n{row}\n")
 
     (arrival,) = RawParser().load_from_file(raw_file)
     recipient = get_report(

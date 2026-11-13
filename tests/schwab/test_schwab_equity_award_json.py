@@ -1701,10 +1701,15 @@ def test_a_gift_refusal_names_the_raw_file_and_the_row_left_over(
         "for:\n  2023-10-09,TRANSFER_TO_SPOUSE,GOOG,2,0.00,0.00,USD\n"
     ) in refused.stderr
     # The row is named above, so the general warning no longer comes before
-    # the link that ends the refusal.
+    # the link that ends the refusal. The lines' column order does, as the
+    # RAW file's header may list its columns in another.
     assert (
-        "the loss counts like any other.\n\nSee https://cgt-calc.uk/brokers/raw/"
-        "#transfers-to-a-spouse-or-civil-partner"
+        "the loss counts like any other.\n\nThe lines above give their values "
+        "in the order date,action,symbol,quantity,price,fees,currency. If your "
+        "RAW file's header lists its columns in another order, or also has "
+        "broker or replaces, put each value under its column in that order, "
+        "with a blank cell for each column a line does not use.\n\n"
+        "See https://cgt-calc.uk/brokers/raw/#transfers-to-a-spouse-or-civil-partner"
     ) in refused.stderr
 
 

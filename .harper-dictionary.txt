@@ -193,6 +193,7 @@ md
 Meta's
 MicroStrategy
 mille
+misspelt
 MMM
 mojibake
 msg

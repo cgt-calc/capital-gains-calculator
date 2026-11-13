@@ -31,5 +31,7 @@ Interest
 Transferred to spouse
   No gain/no loss; the base cost below passes to the recipient (TCGA 1992 s58).
   Give them the RAW row shown under each transfer: it records the shares arriving at that cost in their own report.
+  A new RAW file starts with this header line. In an existing one, put each value under its column in the order of that file's header, with a blank cell for any other column:
+    date,action,symbol,quantity,price,fees,currency
   2024-06-15: FOO 40 units, base cost £400.00
     2024-06-15,TRANSFER_FROM_SPOUSE,FOO,40,10,0.00,GBP

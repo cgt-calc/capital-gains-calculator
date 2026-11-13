@@ -5,9 +5,9 @@ from __future__ import annotations
 from contextlib import contextmanager
 import csv
 import io
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
-from .util import display_str, is_blank_row, strip_zeros
+from .util import display_str, strip_zeros
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Sequence
@@ -142,6 +142,12 @@ class InvalidTransactionError(CgtError):
         super().__init__(self.message)
 
 
+# The seven RAW columns, in the order the lines cgt-calc prints give their
+# values. parsers.raw, which declares them, cannot be imported here without
+# a cycle.
+RAW_HEADER_LINE: Final = "date,action,symbol,quantity,price,fees,currency"
+
+
 def raw_file_to_add_to(raw_file: Path | None) -> str:
     """Say which file a RAW row goes in: the run's RAW file, or a new one.
 
@@ -208,13 +214,14 @@ class UnclassifiedGiftError(CgtError):
             "gain/no loss transfer."
         )
         if raw_file is None:
+            # No comma after the header: copied with it, it would add a column.
             add_this_line = (
-                "Put this line in a CSV and pass it with --raw-file alongside "
-                "the file you already use"
+                f"Put this line in a CSV under the header line {RAW_HEADER_LINE} "
+                "and pass it with --raw-file alongside the file you already use"
             )
             adding_a_line = (
-                "putting a line in a CSV and passing it with --raw-file "
-                "alongside the file you already use"
+                f"putting a line in a CSV under the header line {RAW_HEADER_LINE} "
+                "and passing it with --raw-file alongside the file you already use"
             )
             # Nothing was read from a RAW file, so no row there can be meant
             # for this gift.
@@ -299,6 +306,13 @@ class UnclassifiedGiftError(CgtError):
             "is not a connected person, write GIFT_UNCONNECTED instead and the "
             "loss counts like any other.\n"
             "\n"
+            # A RAW header can list its columns in any order, and a line
+            # pasted in this one under it would be read wrongly without error.
+            f"The lines above give their values in the order {RAW_HEADER_LINE}. "
+            "If your RAW file's header lists its columns in another order, or "
+            "also has broker or replaces, put each value under its column in "
+            "that order, with a blank cell for each column a line does not use.\n"
+            "\n"
             f"{mistyped}"
             "See https://cgt-calc.uk/brokers/raw/#transfers-to-a-spouse-or-civil-partner"
         )
@@ -370,30 +384,6 @@ class UnexpectedColumnCountError(ParsingError):
         super().__init__(
             file,
             f"This row has {len(row)} columns, not {count}:\n  {_as_csv(row)}",
-            row_index=row_index,
-        )
-
-
-class UnexpectedHeaderError(ParsingError):
-    """A data file whose header line is not the one its reader expects."""
-
-    def __init__(
-        self,
-        header: Sequence[str],
-        expected: Sequence[str],
-        file: Path,
-        *,
-        row_index: int = 1,
-    ):
-        """Initialise with the line found where the header belongs.
-
-        The line is shown as Python quotes a string, so that a space at the
-        end of a name, or a character that cannot be seen, shows up.
-        """
-        found = " blank." if is_blank_row(header) else f":\n  {_as_csv(header)!r}"
-        super().__init__(
-            file,
-            f"This line must be the header '{_as_csv(expected)}', but it is{found}",
             row_index=row_index,
         )
 

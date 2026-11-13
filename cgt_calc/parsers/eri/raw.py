@@ -10,11 +10,13 @@ from typing import TYPE_CHECKING, Final, TextIO, override
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Mapping
     from pathlib import Path
 
     from cgt_calc.model import BrokerTransaction
 
 from cgt_calc.const import ERI_RESOURCE_FOLDER
+from cgt_calc.csv_columns import CsvColumns
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import CurrencyCode, Isin, TransactionSource
 from cgt_calc.parsers.base_parsers import BaseSingleFileParser
@@ -29,6 +31,7 @@ COLUMNS: Final[list[str]] = [
     "Currency",
     "Excess of reporting income over distribution",
 ]
+ERI_COLUMNS: Final = CsvColumns(tuple(COLUMNS))
 
 RAW_DATE_FORMAT = "%d/%m/%Y"
 
@@ -36,12 +39,14 @@ RAW_DATE_FORMAT = "%d/%m/%Y"
 class ERIRaw(ERITransaction):
     """Represents a single raw ERI transaction."""
 
-    def __init__(self, header: list[str], row_raw: list[str], file: Path) -> None:
-        """Create transaction from CSV row."""
+    def __init__(
+        self, columns: Mapping[str, int], row_raw: list[str], file: Path
+    ) -> None:
+        """Create transaction from CSV row, read by its header's `columns`."""
         if len(row_raw) != len(COLUMNS):
             raise UnexpectedColumnCountError(row_raw, len(COLUMNS), file)
 
-        row = dict(zip(header, row_raw, strict=True))
+        row = {column: row_raw[index] for column, index in columns.items()}
 
         isin_raw = row["ISIN"]
         isin = Isin.parse(isin_raw)
@@ -89,38 +94,8 @@ class ERIRawParser(BaseSingleFileParser[ERIRaw]):
     @override
     def recognise(cls, text: str, file_path: Path) -> list[str]:
         """Name the file when its first row passes the reader's header check."""
-        try:
-            cls._validate_header(next(csv.reader(io.StringIO(text)), []), file_path)
-        except ParsingError:
-            return []
-        return ["ERI data"]
-
-    @staticmethod
-    def _validate_header(header: list[str], file: Path) -> None:
-        """Check that the header is the four columns, in any order."""
-        unknown_columns = sorted(set(header) - set(COLUMNS))
-        if unknown_columns:
-            raise ParsingError(
-                file,
-                f"Unknown columns: {', '.join(unknown_columns)}",
-                row_index=1,
-            )
-        # Each row is matched to the header cell by cell and then read by
-        # column name, so each of the four has to be there exactly once.
-        missing_columns = [column for column in COLUMNS if column not in header]
-        if missing_columns:
-            raise ParsingError(
-                file,
-                f"Missing columns: {', '.join(missing_columns)}",
-                row_index=1,
-            )
-        repeated_columns = [column for column in COLUMNS if header.count(column) > 1]
-        if repeated_columns:
-            raise ParsingError(
-                file,
-                f"Repeated columns: {', '.join(repeated_columns)}",
-                row_index=1,
-            )
+        first_row = next(csv.reader(io.StringIO(text)), [])
+        return ["ERI data"] if ERI_COLUMNS.matches(first_row) else []
 
     @classmethod
     @override
@@ -146,17 +121,14 @@ class ERIRawParser(BaseSingleFileParser[ERIRaw]):
         if all(is_blank_row(row) for row in lines):
             raise ParsingError(file_path, "ERI data file is empty")
 
-        header = lines[0]
-
-        cls._validate_header(header, file_path)
-
+        columns = ERI_COLUMNS.positions(lines[0], file_path)
         transactions: list[ERIRaw] = []
         for index, row in enumerate(lines[1:], start=2):
             # Skip harmless blank rows left by editors or tooling.
             if is_blank_row(row):
                 continue
             try:
-                transaction = ERIRaw(header, row, file_path)
+                transaction = ERIRaw(columns, row, file_path)
             except ParsingError as err:
                 err.add_row_context(index)
                 raise

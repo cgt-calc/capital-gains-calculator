@@ -921,18 +921,53 @@ def test_translation_file_with_a_byte_order_mark(tmp_path: Path) -> None:
     assert converter.write_data == {ISIN_A: {"FOO"}}
 
 
-def test_translation_file_bad_header(tmp_path: Path) -> None:
+def test_translation_file_header_in_any_letter_case(tmp_path: Path) -> None:
+    """The header names are matched in any letter case, spaces around them aside.
+
+    Every cell after the ISIN is a ticker, however many a row holds.
+    """
+    translation_file = tmp_path / "isin_translation.csv"
+    translation_file.write_text(f"isin, SYMBOL \n{ISIN_A},FOO,BAR\n")
+
+    converter = IsinConverter(isin_translation_file=translation_file)
+
+    assert converter.write_data == {ISIN_A: {"FOO", "BAR"}}
+
+
+@pytest.mark.parametrize(
+    ("header", "message"),
+    [
+        pytest.param(
+            "Wrong,Header",
+            "This line must be the header, but it names none of the columns:\n"
+            "  'Wrong,Header'\n"
+            "If it is a row of data, add this header line above it, with the "
+            "names in the order of its values. If it is the header, correct each "
+            "name where it stands:\n  ISIN,symbol",
+            id="no name it uses",
+        ),
+        # A row holds any number of tickers after its ISIN, so the columns
+        # cannot be swapped like those of the other files.
+        pytest.param(
+            "symbol,ISIN",
+            "This line must be the header, but its columns are in another order:\n"
+            "  'symbol,ISIN'\n"
+            "Every cell after the ISIN is a ticker, so the ISIN comes first. Use "
+            "this header line, and move each row's ISIN to the start of the "
+            "row:\n  ISIN,symbol",
+            id="ISIN not first",
+        ),
+    ],
+)
+def test_translation_file_bad_header(tmp_path: Path, header: str, message: str) -> None:
     """Raise on translation files with an unexpected header."""
     translation_file = tmp_path / "isin_translation.csv"
-    translation_file.write_text("Wrong,Header\n")
+    translation_file.write_text(f"{header}\n")
 
-    with pytest.raises(
-        ParsingError,
-        match=re.escape(
-            "must be the header 'ISIN,symbol', but it is:\n  'Wrong,Header'"
-        ),
-    ):
+    with pytest.raises(ParsingError) as excinfo:
         IsinConverter(isin_translation_file=translation_file)
+
+    assert str(excinfo.value) == f"While parsing {translation_file}, row 1: {message}"
 
 
 @pytest.mark.parametrize(

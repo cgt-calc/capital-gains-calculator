@@ -27,13 +27,13 @@ from .const import (
     UK_CURRENCY,
     RuntimeMode,
 )
+from .csv_columns import CsvColumns
 from .dates import is_date
 from .exceptions import (
     CalculationError,
     ExternalApiError,
     HmrcRateMissingError,
     ParsingError,
-    UnexpectedHeaderError,
     rates_file_row,
     reading_as,
     saving,
@@ -44,27 +44,20 @@ from .resources import RESOURCES_PACKAGE
 from .util import exclusive_lock, is_blank_row, open_with_parents, save_csv
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable
 
     from .model import BrokerTransaction
 
 LOGGER = logging.getLogger(__name__)
 
 EXCHANGE_RATES_HEADER: Final = ["month", "currency", "rate"]
+# The header is the first row after the comment lines.
+EXCHANGE_RATES_COLUMNS: Final = CsvColumns(tuple(EXCHANGE_RATES_HEADER))
 
 
 def is_comment(line: str) -> bool:
     """Say whether a line of the rates cache is a comment, which is skipped."""
     return line.lstrip().startswith("#")
-
-
-def is_exchange_rates_header(header: Sequence[str]) -> bool:
-    """Say whether the first row after the comments is the header.
-
-    The cache is read only with a header, so this is also how a plain INPUT
-    is known to be the exchange rates cache and not a broker export.
-    """
-    return sorted(header) == sorted(EXCHANGE_RATES_HEADER)
 
 
 NEW_ENDPOINT_FROM_YEAR: Final = 2021
@@ -137,14 +130,13 @@ class CurrencyConverter:
             # File is empty.
             return cache
         # Checked before any row: a file of one rate and no header has no row
-        # left to check, and would be read as empty.
-        if not is_exchange_rates_header(header):
-            raise UnexpectedHeaderError(
-                header,
-                EXCHANGE_RATES_HEADER,
-                exchange_rates_file,
-                row_index=line_numbers[0],
+        # left to check, and would be read as empty. The rows are then read
+        # by the names as declared, whatever their spelling in the file.
+        csv_reader.fieldnames = list(
+            EXCHANGE_RATES_COLUMNS.positions(
+                header, exchange_rates_file, row_index=line_numbers[0]
             )
+        )
         for line in csv_reader:
             row_number = line_numbers[csv_reader.line_num - 1]
             # A value beyond the last column is filed under the key None.

@@ -23,13 +23,13 @@ from .const import (
     US_SYMBOLS_OF_BUNDLED_TICKERS,
     RuntimeMode,
 )
+from .csv_columns import CsvColumns
 from .exceptions import (
     ExternalApiError,
     InvalidTransactionError,
     IsinTranslationError,
     ParsingError,
     UnexpectedColumnCountError,
-    UnexpectedHeaderError,
     reading_as,
     saving,
     without_file,
@@ -46,15 +46,11 @@ if TYPE_CHECKING:
 
 ISIN_TRANSLATION_HEADER: Final = ["ISIN", "symbol"]
 ISIN_TRANSLATION_COLUMNS_NUM: Final = len(ISIN_TRANSLATION_HEADER)
-
-
-def is_isin_translation_header(header: list[str]) -> bool:
-    """Say whether a first row, read skipping spaces after commas, is the header.
-
-    The cache is read only with a header, so this is also how a plain INPUT
-    is known to be an ISIN translation file and not a broker export.
-    """
-    return header == ISIN_TRANSLATION_HEADER
+# Read skipping spaces after commas. A row holds any number of tickers after
+# its ISIN, so the ISIN keeps its place first rather than being found by name.
+ISIN_TRANSLATION_COLUMNS: Final = CsvColumns(
+    tuple(ISIN_TRANSLATION_HEADER), in_order=True
+)
 
 
 # The symbol US over-the-counter markets give a security from outside the US.
@@ -495,9 +491,8 @@ class IsinConverter:
                 lines = list(csv.reader(csv_file, skipinitialspace=True))
             if not lines:
                 return {}, {}
-            header = lines[0]
-            if not is_isin_translation_header(header):
-                raise UnexpectedHeaderError(header, ISIN_TRANSLATION_HEADER, file_label)
+            # Checked only: the rows are read by place, the ISIN first.
+            ISIN_TRANSLATION_COLUMNS.positions(lines[0], file_label)
             entries: dict[Isin, set[str]] = {}
             # The row each ISIN was first read from, to name it in the error.
             first_rows: dict[Isin, int] = {}

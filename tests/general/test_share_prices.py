@@ -37,13 +37,18 @@ def test_load_custom_file(tmp_path: Path) -> None:
     [
         pytest.param(
             '"Apr 01, 2024",ACME,94.00\n"Apr 01, 2024",NEWCO,17.50\n',
-            "This line must be the header 'date,symbol,price', but it is:\n"
-            "  '\"Apr 01, 2024\",ACME,94.00'",
+            "This line must be the header, but it names none of the columns:\n"
+            "  '\"Apr 01, 2024\",ACME,94.00'\n"
+            "If it is a row of data, add this header line above it, with the "
+            "names in the order of its values. If it is the header, correct each "
+            "name where it stands:\n  date,symbol,price",
             id="a price where the header belongs",
         ),
         pytest.param(
             ' , , \ndate,symbol,price\n"Apr 01, 2024",ACME,94.00\n',
-            "This line must be the header 'date,symbol,price', but it is blank.",
+            "This line must be the header, but it is blank. Put this header line "
+            "in its place, with the names in the order of the values in each "
+            "row:\n  date,symbol,price",
             id="a line of spaces and commas above the header",
         ),
     ],
@@ -75,11 +80,20 @@ def test_an_empty_prices_file_holds_no_prices(tmp_path: Path) -> None:
     [
         'Date, Symbol, Price\n"Mar 08, 2021", FOO, 10.5\n',
         '\ufeffdate,symbol,price\n"Mar 08, 2021",FOO,10.5\n',
+        # Read by position, the price would be read as the date and refused.
+        'Price,symbol,DATE\n10.5,FOO,"Mar 08, 2021"\n',
     ],
-    ids=["capitals and a space after each comma", "byte-order mark"],
+    ids=[
+        "capitals and a space after each comma",
+        "byte-order mark",
+        "columns in another order",
+    ],
 )
 def test_a_prices_file_is_read_as_typed_or_saved(tmp_path: Path, content: str) -> None:
-    """Capitals, a space after each comma and Excel's "CSV UTF-8" are accepted."""
+    """Capitals, a space after each comma and Excel's "CSV UTF-8" are accepted.
+
+    So are the columns in any order: each value is read under its name.
+    """
     prices_file = tmp_path / "share_prices.csv"
     prices_file.write_text(content, encoding="utf8")
 

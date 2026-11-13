@@ -7,14 +7,22 @@ from dataclasses import dataclass
 import datetime as dt
 from functools import cache
 from importlib import resources
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Final
 
 from .const import TICKER_RENAMES_RESOURCE
+from .csv_columns import CsvColumns
 from .model import Isin
 from .resources import RESOURCES_PACKAGE
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Mapping, Sequence
+
+# Every column the bundled table has, read or not, so a misspelt name gets
+# the header message rather than a KeyError, or no notice at all.
+TICKER_RENAMES_COLUMNS: Final = CsvColumns(
+    ("old", "new", "since", "until", "reused", "isin", "company", "source")
+)
 
 
 @dataclass(frozen=True)
@@ -88,7 +96,14 @@ def ticker_renames() -> Mapping[str, Sequence[TickerRename]]:
         .joinpath(TICKER_RENAMES_RESOURCE)
         .open(encoding="utf-8") as csv_file
     ):
-        rows = list(csv.DictReader(csv_file))
+        reader = csv.DictReader(csv_file)
+        reader.fieldnames = list(
+            TICKER_RENAMES_COLUMNS.positions(
+                reader.fieldnames or [],
+                Path("resources") / TICKER_RENAMES_RESOURCE,
+            )
+        )
+        rows = list(reader)
     by_old: dict[str, list[TickerRename]] = {}
     for row in rows:
         rename = TickerRename(

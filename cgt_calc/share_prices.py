@@ -8,33 +8,26 @@ import datetime as dt
 from decimal import Decimal, InvalidOperation
 from importlib import resources
 from pathlib import Path
-from typing import Final, override
+from typing import TYPE_CHECKING, Final, override
 
 from .const import SHARE_PRICES_RESOURCE
+from .csv_columns import CsvColumns
 from .dates import is_date
 from .exceptions import (
     BundledPriceCurrencyError,
     ParsingError,
     SharePriceMissingError,
     UnexpectedColumnCountError,
-    UnexpectedHeaderError,
     reading_as,
 )
 from .resources import RESOURCES_PACKAGE
 from .ticker_renames import current_ticker
 from .util import is_blank_row
 
-SHARE_PRICES_HEADER: Final = ["date", "symbol", "price"]
-SHARE_PRICES_COLUMNS_NUM: Final = len(SHARE_PRICES_HEADER)
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
-
-def is_share_prices_header(header: list[str]) -> bool:
-    """Say whether the first row is the header, in any letter case.
-
-    The file is read only with a header, so this is also how a plain INPUT
-    is known to be a share prices file and not a broker export.
-    """
-    return [cell.strip().lower() for cell in header] == SHARE_PRICES_HEADER
+SHARE_PRICES_COLUMNS: Final = CsvColumns(("date", "symbol", "price"))
 
 
 @dataclass
@@ -45,21 +38,21 @@ class SharePricesEntry:
     symbol: str
     price: Decimal
 
-    def __init__(self, row: list[str], file: Path):
-        """Create entry from CSV row."""
-        if len(row) != SHARE_PRICES_COLUMNS_NUM:
-            raise UnexpectedColumnCountError(row, SHARE_PRICES_COLUMNS_NUM, file)
-        # date,symbol,price
-        self.date = self._parse_date(row[0], file)
+    def __init__(self, row: list[str], file: Path, columns: Mapping[str, int]):
+        """Create entry from CSV row, read by its header's `columns`."""
+        if len(row) != len(columns):
+            raise UnexpectedColumnCountError(row, len(columns), file)
+        self.date = self._parse_date(row[columns["date"]], file)
         # Spaces typed beside the comma are not part of a ticker.
-        self.symbol = row[1].strip()
+        self.symbol = row[columns["symbol"]].strip()
+        price = row[columns["price"]]
         try:
-            self.price = Decimal(row[2])
+            self.price = Decimal(price)
         except InvalidOperation as err:
-            raise ParsingError(file, f"Invalid decimal price: {row[2]!r}") from err
+            raise ParsingError(file, f"Invalid decimal price: {price!r}") from err
         if not self.price.is_finite() or self.price < 0:
             raise ParsingError(
-                file, f"Share price must be finite and non-negative: {row[2]!r}"
+                file, f"Share price must be finite and non-negative: {price!r}"
             )
 
     @staticmethod
@@ -134,19 +127,20 @@ class SharePrices:
             ):
                 lines = list(csv.reader(csv_file))
         file = self.prices_file or Path("resources") / SHARE_PRICES_RESOURCE
-        # Skipped unread, the first line of a file with no header would be a
-        # price dropped without a word.
-        if lines and not is_share_prices_header(lines[0]):
-            raise UnexpectedHeaderError(lines[0], SHARE_PRICES_HEADER, file)
-        lines = lines[1:]
+        # An empty file passed holds no prices, and the bundled ones are not
+        # used either. Otherwise, the first line is the header: skipped unread,
+        # a first line that is a price would be dropped without a word.
+        if not lines:
+            return prices
+        columns = SHARE_PRICES_COLUMNS.positions(lines[0], file)
         # The ticker each price was written under, to name an earlier one.
         stated: dict[tuple[dt.date, str], str] = {}
-        for index, row in enumerate(lines, start=2):
+        for index, row in enumerate(lines[1:], start=2):
             # Skip harmless blank rows left by editors or tooling.
             if is_blank_row(row):
                 continue
             try:
-                entry = SharePricesEntry(row, file)
+                entry = SharePricesEntry(row, file, columns)
             except ParsingError as err:
                 err.add_row_context(index)
                 raise
