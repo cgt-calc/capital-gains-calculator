@@ -181,7 +181,10 @@ the split out by hand (consider professional advice). Do not add a split row for
 restate the award shares too, and cgt-calc would not stop.
 
 Super Micro Computer's and Lam Research's ISINs changed with their splits. If your export lists the
-share under the first ISIN in the table before the split and the second after it, cgt-calc stops
+share under the first ISIN in the table before the split and the second from the split day on,
+cgt-calc reads the two as one holding and checks it for the split row like the other shares in the
+table. It cannot tell that a row is the same share if it has either ISIN and is dated on the other
+side of the split day, has another ticker or comes from another broker's export. Then it stops
 earlier, with `is exported for ISIN`. If the export's own split rows change the ISIN, it stops with
 `changes the ISIN` while reading the export. A RAW row gets past neither. Do not calculate the two
 ISINs in separate runs, as the first message suggests for two different securities: here they are

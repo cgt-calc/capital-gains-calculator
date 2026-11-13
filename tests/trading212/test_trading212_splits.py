@@ -1997,9 +1997,12 @@ def test_the_same_event_in_two_exports_still_combines(tmp_path: Path) -> None:
 # Without it the sale takes 800 x 1/2 = 400, a loss of 312 with no error.
 
 NVDA_ISIN = "US67066G1040"
-# Super Micro Computer's ISIN changed with its CUSIP at the split.
+# Super Micro Computer's and Lam Research's ISINs changed with their CUSIPs at
+# their splits.
 SMCI_ISIN_BEFORE = "US86800U1043"
 SMCI_ISIN_AFTER = "US86800U3023"
+LRCX_ISIN_BEFORE = "US5128071082"
+LRCX_ISIN_AFTER = "US5128073062"
 NO_ROWS_DOCS = (
     "https://cgt-calc.uk/brokers/trading212/#a-split-with-no-rows-in-the-export"
 )
@@ -2056,13 +2059,21 @@ def _bought_then_sold(
     bought: str = "2024-06-03 14:00:00",
     sold: str = "2024-06-12 14:00:00",
     sold_as: str | None = None,
+    sold_isin: str | None = None,
     deposited: str = "2024-06-01 09:00:00",
 ) -> list[list[str]]:
     """Buy 2 for GBP 800 and sell 1 for GBP 88, with the cash to pay for it."""
     return [
         _deposit(deposited),
         _trade("Market buy", bought, "2", "400.00", ticker=ticker, isin=isin),
-        _trade("Market sell", sold, "1", "88.00", ticker=sold_as or ticker, isin=isin),
+        _trade(
+            "Market sell",
+            sold,
+            "1",
+            "88.00",
+            ticker=sold_as or ticker,
+            isin=sold_isin or isin,
+        ),
     ]
 
 
@@ -2917,12 +2928,15 @@ ADDED_SPLITS = [
 ]
 
 
-def _across_the_split(symbol: str, split_day: str, isin: str) -> list[list[str]]:
+def _across_the_split(
+    symbol: str, split_day: str, isin: str, sold_isin: str | None = None
+) -> list[list[str]]:
     """Buy 2 the week before the split and sell 1 the day after it."""
     day = date.fromisoformat(split_day)
     return _bought_then_sold(
         ticker=symbol,
         isin=isin,
+        sold_isin=sold_isin,
         deposited=f"{day - timedelta(days=7)} 09:00:00",
         bought=f"{day - timedelta(days=7)} 14:00:00",
         sold=f"{day + timedelta(days=1)} 14:00:00",
@@ -2955,6 +2969,195 @@ def test_each_split_added_to_the_table_accepts_a_matching_row(
     result = run_cli(_known_split_cmd(tmp_path, rows, raw_rows=(split_row,)))
 
     assert f"\n  {symbol}: {2 * ratio - 1}.00\n" in result.stdout, result.stdout
+
+
+# A Trading 212 export lists Super Micro Computer (10-for-1 from 1 October
+# 2024) and Lam Research (10-for-1 from 3 October 2024) under the old ISIN
+# before the split and the new one from it. Each history here is the one
+# worked out for NVIDIA above, with its purchase of 2 under the old ISIN and
+# its sale of 1 under the new one.
+
+ISIN_CHANGES = [
+    pytest.param("SMCI", "2024-10-01", SMCI_ISIN_BEFORE, SMCI_ISIN_AFTER, id="SMCI"),
+    pytest.param("LRCX", "2024-10-03", LRCX_ISIN_BEFORE, LRCX_ISIN_AFTER, id="LRCX"),
+]
+
+
+def _ten_for_one(symbol: str, split_day: str) -> str:
+    """Return a RAW row adding 18 to the 2 held: 10-for-1."""
+    return f"{split_day},STOCK_SPLIT,{symbol},18,0.00,0.00,GBP"
+
+
+@pytest.mark.parametrize(("symbol", "split_day", "before", "after"), ISIN_CHANGES)
+def test_an_isin_changed_by_its_split_is_one_holding(
+    tmp_path: Path, symbol: str, split_day: str, before: str, after: str
+) -> None:
+    """The 2 bought under the old ISIN become 20, and the sale takes 1 of them.
+
+    As worked out above: the sale's cost is 800 x 1/20 = 40, its gain
+    88 - 40 = 48, and 19 remain at a cost of 800 - 40 = 760.
+    """
+    rows = _across_the_split(symbol, split_day, before, sold_isin=after)
+    raw_rows = (_ten_for_one(symbol, split_day),)
+
+    result = run_cli(_known_split_cmd(tmp_path, rows, raw_rows=raw_rows))
+
+    _assert_split_applied(result.stdout, symbol)
+
+
+@pytest.mark.parametrize(("symbol", "split_day", "before", "after"), ISIN_CHANGES)
+def test_an_isin_changed_by_its_split_still_needs_the_split_row(
+    tmp_path: Path, symbol: str, split_day: str, before: str, after: str
+) -> None:
+    """One holding of 2 is carried into the split day, so the row is missing."""
+    rows = _across_the_split(symbol, split_day, before, sold_isin=after)
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    assert "ERROR: " + _missing(symbol, split_day, "2") + "\n" in stderr
+
+
+def _two_isins(symbol: str, first: str, second: str) -> str:
+    """Return the refusal of one ticker exported for two ISINs."""
+    return (
+        f"Ticker {symbol} is exported for ISIN {first} and for ISIN {second}. "
+        "Two securities under one ticker cannot be told apart"
+    )
+
+
+@pytest.mark.parametrize(
+    ("symbol", "split_day", "rows", "refusal"),
+    [
+        pytest.param(
+            "SMCI",
+            "2024-10-01",
+            _bought_then_sold(
+                ticker="SMCI",
+                isin=SMCI_ISIN_BEFORE,
+                sold_isin=SMCI_ISIN_AFTER,
+                deposited="2024-09-24 09:00:00",
+                bought="2024-09-24 14:00:00",
+                sold="2024-09-30 14:00:00",
+            ),
+            _two_isins("SMCI", SMCI_ISIN_BEFORE, SMCI_ISIN_AFTER),
+            id="new ISIN the day before the split",
+        ),
+        pytest.param(
+            "LRCX",
+            "2024-10-03",
+            [
+                *_bought_then_sold(
+                    ticker="LRCX",
+                    isin=LRCX_ISIN_BEFORE,
+                    deposited="2024-09-26 09:00:00",
+                    bought="2024-09-26 14:00:00",
+                    sold="2024-10-03 15:00:00",
+                ),
+                _trade(
+                    "Market sell",
+                    "2024-10-04 14:00:00",
+                    "1",
+                    "88.00",
+                    ticker="LRCX",
+                    isin=LRCX_ISIN_AFTER,
+                ),
+            ],
+            _two_isins("LRCX", LRCX_ISIN_BEFORE, LRCX_ISIN_AFTER),
+            id="old ISIN on the split day",
+        ),
+        pytest.param(
+            "SMCI",
+            "2024-10-01",
+            [
+                *_across_the_split(
+                    "SMCI", "2024-10-01", SMCI_ISIN_BEFORE, sold_isin=SMCI_ISIN_AFTER
+                ),
+                _trade(
+                    "Market buy",
+                    "2024-10-03 14:00:00",
+                    "1",
+                    "88.00",
+                    ticker="SMCI",
+                    isin="XS2779863021",
+                ),
+            ],
+            _two_isins("SMCI", SMCI_ISIN_AFTER, "XS2779863021"),
+            id="a third ISIN under the ticker",
+        ),
+        pytest.param(
+            "LRCX",
+            "2024-10-03",
+            [
+                *_across_the_split(
+                    "LRCX", "2024-10-03", LRCX_ISIN_BEFORE, sold_isin=LRCX_ISIN_AFTER
+                ),
+                _trade(
+                    "Market buy",
+                    "2024-10-07 14:00:00",
+                    "1",
+                    "88.00",
+                    ticker="XLRC",
+                    isin=LRCX_ISIN_AFTER,
+                ),
+            ],
+            _two_isins("LRCX", LRCX_ISIN_BEFORE, LRCX_ISIN_AFTER),
+            id="the new ISIN under another ticker",
+        ),
+    ],
+)
+def test_an_isin_change_the_split_does_not_explain_is_refused(
+    tmp_path: Path, symbol: str, split_day: str, rows: list[list[str]], refusal: str
+) -> None:
+    """Each history has the split row, and one ISIN that is not the split's.
+
+    Respectively: the new ISIN before the split, the old one on the split
+    day, a Leverage Shares ETP's ISIN beside both of Super Micro Computer's,
+    and Lam Research's new ISIN under a ticker that is not the split's. The
+    first two are the ISIN changing on another day.
+    """
+    raw_rows = (_ten_for_one(symbol, split_day),)
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows, raw_rows=raw_rows))
+
+    assert "ERROR: " + refusal in stderr
+
+
+def test_another_broker_s_row_under_the_new_isin_is_refused(tmp_path: Path) -> None:
+    """Only Trading 212 rows are shown to cross the split as it changed the ISIN.
+
+    The Trading 212 rows alone would be joined: 2 bought under Lam
+    Research's old ISIN and 1 sold under the new one, with the split row.
+    A Freetrade purchase under the new ISIN after the split keeps the two
+    ISINs apart.
+    """
+    history = tmp_path / "freetrade.csv"
+    purchase = _default_new_row(
+        {
+            FreetradeColumn.TITLE.value: "Lam Research",
+            FreetradeColumn.TIMESTAMP.value: "2024-10-07T14:00:00.000Z",
+            FreetradeColumn.BUY_SELL.value: "BUY",
+            FreetradeColumn.TICKER.value: "LRCX",
+            FreetradeColumn.ISIN.value: LRCX_ISIN_AFTER,
+            FreetradeColumn.QUANTITY.value: "1",
+            FreetradeColumn.PRICE_PER_SHARE_ACCOUNT.value: "88.00",
+            "Total Amount in Account Currency": "88.00",
+        }
+    )
+    with history.open("w", encoding="utf-8", newline="") as handle:
+        csv.writer(handle).writerows([NEW_COLUMNS, purchase])
+    rows = _across_the_split(
+        "LRCX", "2024-10-03", LRCX_ISIN_BEFORE, sold_isin=LRCX_ISIN_AFTER
+    )
+    cmd = _known_split_cmd(
+        tmp_path,
+        rows,
+        raw_rows=(_ten_for_one("LRCX", "2024-10-03"),),
+        extra=("--freetrade-file", str(history)),
+    )
+
+    stderr = _refusal(cmd)
+
+    assert "ERROR: " + _two_isins("LRCX", LRCX_ISIN_BEFORE, LRCX_ISIN_AFTER) in stderr
 
 
 # NVIDIA split 4-for-1 from 20 July 2021 and 10-for-1 from 10 June 2024: 2
