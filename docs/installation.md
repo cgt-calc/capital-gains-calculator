@@ -1,8 +1,14 @@
 # Installation
 
-## Prerequisites
+## Before you install
 
-- **Python 3.12** or newer (tested on 3.12, 3.13, and 3.14)
+Type the commands on this page in a terminal: **Terminal** on macOS, which is in Applications >
+Utilities, or **PowerShell** on Windows, which you can open from the Start menu.
+
+- **With uv** you need only [uv itself](https://docs.astral.sh/uv/getting-started/installation/). If
+    your computer has no suitable version of Python, uv downloads one when it installs cgt-calc.
+- **With pipx or pip** you need **Python 3.12** or newer installed first. cgt-calc is tested on
+    Python 3.12, 3.13 and 3.14.
 
 cgt-calc creates the PDF report itself. You do not need LaTeX or any other program to create it.
 
@@ -32,6 +38,9 @@ Or run it directly without installing:
 ```shell
 uvx cgt-calc
 ```
+
+If you already use Docker, you can instead run the published [Docker image](docker.md), which
+includes cgt-calc and Python.
 
 ## Nix
 

@@ -45,15 +45,7 @@ year, from 6 April 2024 to 5 April 2025.
 
 If you omit `--year`, cgt-calc uses the most recently completed UK tax year.
 
-The earliest tax year cgt-calc reports is 2008/09, the first in which every sale is matched under
-the share pooling rules that still apply
-([CG51550](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51550)). For years before
-2016/17 the report shows no dividend allowance and no taxable dividend figure: there was no
-allowance then, and most dividends carried a tax credit, so the amount you received is not the
-amount taxed. If you need the taxable amount for those years, work it out from your dividend
-vouchers and HMRC's guidance on the tax credits on
-[UK dividends](https://www.gov.uk/hmrc-internal-manuals/savings-and-investment-manual/saim5100) and
-[foreign dividends](https://www.gov.uk/hmrc-internal-manuals/savings-and-investment-manual/saim5102).
+For a tax year before 2016/17, see [Earlier tax years](#earlier-tax-years).
 
 ## Generate the report
 
@@ -75,18 +67,17 @@ You can combine exports from different brokers in one calculation:
 cgt-calc --year 2024 schwab_transactions.csv trading212/ morgan_stanley/
 ```
 
-A folder stands for the `.csv` and `.json` files directly inside it, not those in folders below it.
-Hargreaves Lansdown contract notes in the folder are still read with the Transaction Summary. If
-cgt-calc cannot use a file, it stops before reading any transaction and says why.
-
 If you pass both a Charles Schwab transaction history and a complete Equity Awards export, a
 transaction recorded in both is counted twice. See
 [Combining a main history with a complete export](brokers/schwab.md#combining-a-main-history-with-a-complete-export).
 
+A folder stands for the `.csv` and `.json` files directly inside it, not those in folders below it.
+Hargreaves Lansdown contract notes in the folder are still read with the Transaction Summary. If
+cgt-calc cannot use a file, it stops before reading any transaction and says why.
+
 Each broker also has an option that reads its export without recognising it first, such as
-`--schwab-file schwab_transactions.csv`. An option that takes a value can be given only once.
-cgt-calc stops if you repeat one, because the option holds a single value and the first would
-otherwise go unread.
+`--schwab-file schwab_transactions.csv`. An option that takes a value can be given only once:
+cgt-calc stops if you repeat one rather than leave the first value unread.
 
 See the [broker instructions](brokers/index.md) for the export format and option for each source. If
 your broker is not listed, you can convert its transactions to the generic
@@ -97,15 +88,15 @@ your broker is not listed, you can convert its transactions to the generic
 cgt-calc prints a summary to the terminal and, by default, writes the detailed PDF report to
 `out/calculations.pdf`.
 
-If the report includes excess reported income in a foreign currency from an offshore fund whose
-distribution date hasn't come yet, its figures are not final and cgt-calc writes no PDF. The
-terminal shows the estimated figures and the date from which to run cgt-calc again; see
-[Exchange rate](offshore-funds.md#exchange-rate).
-
 The PDF opens with the **Overall** summaries, then has a **Capital Gains Events** section and an
 **Interest and Dividends Events** section when there is income to show. In the events, a table under
 each acquisition or disposal shows how it was matched: one row per rule, with the pool left after
 it. Interest is grouped monthly per broker, even if your broker pays it daily.
+
+If the report includes excess reported income in a foreign currency from an offshore fund whose
+distribution date hasn't come yet, its figures are not final and cgt-calc writes no PDF. The
+terminal shows the estimated figures and the date from which to run cgt-calc again; see
+[Exchange rate](offshore-funds.md#exchange-rate).
 
 Use `--output` to choose a different PDF location:
 
@@ -215,12 +206,26 @@ the calculation. Follow HMRC's
 [Capital Gains Tax record-keeping guidance](https://www.gov.uk/capital-gains-tax/records) for the
 required records and retention period.
 
+## Earlier tax years
+
+The earliest tax year cgt-calc reports is 2008/09, the first in which every sale is matched under
+the share pooling rules that still apply
+([CG51550](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51550)). For years before
+2016/17 the report shows no dividend allowance and no taxable dividend figure: there was no
+allowance then, and most dividends carried a tax credit, so the amount you received is not the
+amount taxed. If you need the taxable amount for those years, work it out from your dividend
+vouchers and HMRC's guidance on the tax credits on
+[UK dividends](https://www.gov.uk/hmrc-internal-manuals/savings-and-investment-manual/saim5100) and
+[foreign dividends](https://www.gov.uk/hmrc-internal-manuals/savings-and-investment-manual/saim5102).
+
+## Other ways to run cgt-calc
+
 Run `cgt-calc --help` for the complete list of available options. Use `--verbose` when you need more
 detail while investigating a warning or error, and
 [`--dump-transactions`](#inspect-parsed-transactions) to see the transactions the calculation
 started from.
 
-## Inspect parsed transactions
+### Inspect parsed transactions
 
 Use `--dump-transactions` to save the parsed transactions as CSV before calculation. Use it to
 compare exports or check what cgt-calc read from a broker file:
@@ -238,7 +243,7 @@ Saved 123 parsed transactions to parsed-transactions.csv
 This confirms that the CSV is complete, not that the calculation succeeded. If calculation fails,
 the CSV remains available and the command exits with an error.
 
-### What the file contains
+#### What the file contains
 
 The file has a header and one row per loaded transaction, including dates outside the report's
 `--year` or `--from`/`--to` period. Rows follow the order supplied to the calculation, which may not
@@ -265,7 +270,7 @@ The dump is not [RAW format](brokers/raw.md), and cgt-calc does not read it back
 column includes input paths and, where recorded, row numbers. Check these before sharing the file;
 see the [privacy notes](privacy.md).
 
-### Where it is written
+#### Where it is written
 
 Choose a new filename in an existing directory, separate from the report and cache paths. cgt-calc
 refuses existing files, missing directories and paths the run would write later. If writing fails,
@@ -273,7 +278,7 @@ the error names the path; remove any partly written file or choose another name 
 
 The usual input checks and the `--output` and `--no-report` options still apply.
 
-## Report part of a tax year (advanced)
+### Report part of a tax year (advanced)
 
 Use `--from` and `--to` instead of `--year` to report a period within one UK tax year. For example,
 the following reports sales and other disposals on or after 30 October 2024 for the
@@ -299,7 +304,7 @@ both sets of rates. Its dividend and interest figures are not annual totals eith
 only income received inside the period, and the dividend section still deducts the full-year
 dividend allowance.
 
-## Read a file from standard input
+### Read a file from standard input
 
 Pass `-` in place of a file path to read that file from standard input. Another program can then
 supply the file without saving it first, such as a script that converts your broker's export to the
@@ -335,7 +340,7 @@ Reading from standard input changes a few things:
 - **The input must be UTF-8.** The program supplying it must write UTF-8, whatever your system's
     default encoding is.
 
-## Terminal appearance
+### Terminal appearance
 
 Colours and emoji are used automatically when the terminal supports them. The standard
 [`NO_COLOR`](https://no-color.org/) and `FORCE_COLOR` conventions are respected, plus `NO_EMOJI` to
