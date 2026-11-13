@@ -168,6 +168,8 @@ def _line_data(line: LineView) -> dict[str, object]:
         "eris": [
             {
                 "cost": _money(eri.cost),
+                "units": strip_zeros(eri.units),
+                "is_one_unit": eri.units == 1,
                 "unit_price": _money(eri.unit_price),
                 "date": _short_date(eri.date),
             }

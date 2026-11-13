@@ -127,7 +127,7 @@ class TaxTreaty:
     treaty_rate: Decimal
 
 
-@dataclass
+@dataclass(frozen=True)
 class ExcessReportedIncome:
     """Class representing Excess Reported Income on a fund.
 
@@ -182,18 +182,23 @@ class HmrcTransactionData:
     quantity: Decimal = Decimal(0)
     amount: Decimal = Decimal(0)
     fees: Decimal = Decimal(0)
-    # This is a list to support Bed and Breakfast acquisitions that can cross multiple
-    # ERI reports for the same fund. This can happen for example when a fund is
-    # liquidated shortly after its usual reporting date, requiring a new final report.
-    eris: list[ExcessReportedIncome] = field(default_factory=list)
+    # The ERI a Bed and Breakfast acquisition takes on, each with the units sold
+    # that carry it. Two disposals matched with one acquisition add up their
+    # units for a report they share. There can be several reports for the same
+    # fund, for example when a fund is liquidated shortly after its usual
+    # reporting date, requiring a new final report.
+    eri_units: dict[ExcessReportedIncome, Decimal] = field(default_factory=dict)
 
     def __add__(self, transaction: HmrcTransactionData) -> HmrcTransactionData:
         """Add two transactions."""
+        eri_units = dict(self.eri_units)
+        for eri, units in transaction.eri_units.items():
+            eri_units[eri] = eri_units.get(eri, Decimal(0)) + units
         return self.__class__(
             self.quantity + transaction.quantity,
             self.amount + transaction.amount,
             self.fees + transaction.fees,
-            self.eris + transaction.eris,
+            eri_units,
         )
 
 
@@ -670,6 +675,7 @@ class CalculationEntry:
         spin_off: SpinOff | None = None,
         dividend: Dividend | None = None,
         eris: list[ExcessReportedIncome] | None = None,
+        eri_units: dict[ExcessReportedIncome, Decimal] | None = None,
         renamed_to: str | None = None,
         stock_split: StockSplitDetail | None = None,
     ):
@@ -688,6 +694,8 @@ class CalculationEntry:
         self.spin_off = spin_off
         self.dividend = dividend
         self.eris = eris or []
+        # A Bed and Breakfast acquisition's ERI, with the units sold that carry it.
+        self.eri_units = eri_units or {}
         self.renamed_to = renamed_to
         self.stock_split = stock_split
         if self.rule_type == RuleType.EXCESS_REPORTED_INCOME:

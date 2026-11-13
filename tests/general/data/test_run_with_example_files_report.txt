@@ -87,8 +87,8 @@ for £737.72 (£24.19/unit), including £3.19 fees
 Rule Quantity Actual cost
 1. BED AND BREAKFAST 30.5 £643.46
 Number of units in the pool: 30.5, new pool cost: £643.46 (£21.10/unit)
-Cost basis increased by £20.54 (£0.6733/unit), due to excess reported income
-on 30 Jun 2020.
+Cost basis increased by £20.54 (30.5 units at £0.6733/unit), due to excess
+reported income on 30 Jun 2020.
 25 November 2020
 Acquisition 6: 100 units of GME
 for £1,106.25 (£11.06/unit)
