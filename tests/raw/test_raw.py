@@ -424,6 +424,7 @@ _ROWS_BY_COLUMN = [
         "currency": "USD",
         "broker": "Charles Schwab",
         "replaces": "2023-06-12",
+        "market": "us",
     },
     {
         "date": "2024-01-03",
@@ -435,6 +436,7 @@ _ROWS_BY_COLUMN = [
         "currency": "GBP",
         "broker": "",
         "replaces": "",
+        "market": "",
     },
 ]
 
@@ -442,9 +444,10 @@ _ROWS_BY_COLUMN = [
 @pytest.mark.parametrize(
     "header",
     [
-        pytest.param([*COLUMNS, "broker", "replaces"], id="documented order"),
+        pytest.param([*COLUMNS, "broker", "replaces", "market"], id="documented order"),
         pytest.param(
             [
+                " Market ",
                 " Replaces ",
                 "CURRENCY",
                 "broker",
@@ -457,18 +460,22 @@ _ROWS_BY_COLUMN = [
             ],
             id="reversed, in mixed case and with spaces",
         ),
-        pytest.param(["replaces", "broker", *COLUMNS], id="optional columns first"),
+        pytest.param(
+            ["replaces", "market", "broker", *COLUMNS], id="optional columns first"
+        ),
     ],
 )
-def test_read_raw_transactions_with_broker_and_replaces_columns(
+def test_read_raw_transactions_with_its_optional_columns(
     tmp_path: Path, header: list[str]
 ) -> None:
     """Each value is read under the column the header names for it.
 
-    The header names the seven and `broker` and `replaces` in any order and
-    letter case. A blank broker is the RAW file's own ledger, `Unknown`, as
-    every row was before the column; a blank `replaces` adds the row rather
-    than replacing.
+    The header names the seven and `broker`, `replaces` and `market` in any
+    order and letter case. A blank broker is the RAW file's own ledger,
+    `Unknown`, as every row was before the column; a blank `replaces` adds
+    the row rather than replacing. A market is read in capitals, as the
+    codes are written, and a blank one is unknown, as every row's was before
+    the column.
 
     Quantity, price and fees differ in every row, so reading one in place of
     another changes a figure even where it leaves the amount alone:
@@ -496,6 +503,7 @@ def test_read_raw_transactions_with_broker_and_replaces_columns(
             row.currency,
             row.broker,
             row.replaces,
+            row.market,
         )
         for row in transactions
     ] == [
@@ -510,6 +518,7 @@ def test_read_raw_transactions_with_broker_and_replaces_columns(
             CurrencyCode("USD"),
             "Charles Schwab",
             dt.date(2023, 6, 12),
+            "US",
         ),
         (
             dt.date(2024, 1, 3),
@@ -521,6 +530,7 @@ def test_read_raw_transactions_with_broker_and_replaces_columns(
             Decimal("-755.00"),
             CurrencyCode("GBP"),
             "Unknown",
+            None,
             None,
         ),
     ]
@@ -558,7 +568,7 @@ _WRONG_COLUMNS = (
     "Correct each name where it stands, so every value stays under its name; if "
     "this line is a row of data, add a header line above it instead. The header "
     "names these columns, once each, in any order:\n  {header}\n"
-    "Optional columns: 'broker', 'replaces'."
+    "Optional columns: 'broker', 'replaces', 'market'."
 )
 
 
@@ -662,8 +672,8 @@ _WRONG_COLUMNS = (
                 problems="Unknown columns: 'description', 'amount', 'isin', "
                 "'foreign_fees', 'ambiguous_quantity', 'option_contract', "
                 "'written_option_tax', 'capital_adjustments', "
-                "'affects_cash_balance', 'market', 'source'.",
-                header=f"{_SEVEN},broker",
+                "'affects_cash_balance', 'source'.",
+                header=f"{_SEVEN},broker,market",
             ),
             id="the --dump-transactions output",
         ),
@@ -737,9 +747,18 @@ def test_read_raw_transactions_refuses_a_wrong_header(
             "row 2: DIVIDEND_TAX cannot be positive.",
             id="positive tax added to a named broker",
         ),
+        # Sharesight's name for a US exchange, not one of the two codes.
+        pytest.param(
+            [[*COLUMNS, "market"], [*_TAX_ROW, "NASDAQ"]],
+            "row 2: Unknown market: 'NASDAQ'. Write US for a security listed in "
+            "the United States, on an exchange or over the counter, or LSE for one "
+            "listed on the London Stock Exchange. Leave the cell blank for any "
+            "other market.",
+            id="a market other than US or LSE",
+        ),
     ],
 )
-def test_read_raw_transactions_refuses_a_bad_broker_or_replaces_column(
+def test_read_raw_transactions_refuses_a_bad_optional_column(
     tmp_path: Path, rows: list[list[str]], message: str
 ) -> None:
     """Each optional-column rule refuses the row that breaks it.

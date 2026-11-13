@@ -160,11 +160,12 @@ are read like any other row, so remove one that is wrong.
 
 The bundled list gives a fund from outside the US its London tickers. A transaction that cgt-calc
 knows to be from a US market, which is every
-[Charles Schwab](brokers/schwab.md#funds-based-outside-the-us) transaction, is not matched to them,
-and nor is any other transaction in the run under the same ticker. Two kinds of bundled ticker are
-still matched, because they are the fund's own US symbol: the ticker of a fund with a US ISIN, and a
-US over-the-counter symbol of five letters ending in `F`. A row in your own file is matched
-whichever broker the transaction came from.
+[Charles Schwab](brokers/schwab.md#funds-based-outside-the-us) transaction and every RAW row whose
+[`market`](brokers/raw.md#say-which-market-a-ticker-is-from) is `US`, is not matched to them, and
+nor is any other transaction in the run under the same ticker. Two kinds of bundled ticker are still
+matched, because they are the fund's own US symbol: the ticker of a fund with a US ISIN, and a US
+over-the-counter symbol of five letters ending in `F`. A row in your own file is matched whichever
+broker the transaction came from.
 
 A transaction that carries its own ISIN, as Trading 212, Freetrade and Hargreaves Lansdown rows and
 Interactive Brokers dividend rows do, is not matched to a bundled ticker that belongs to a different
@@ -181,10 +182,10 @@ stops instead; see [`is a Vanguard fund's on this row`](#is-a-vanguard-funds-on-
 Some London tickers in the bundled list are also the symbols of other securities in the US. `OPEN`,
 for example, is an iShares fund in London and Opendoor in the US. A holding under one of these
 tickers may be either. When nothing in your files says which, because no transaction under the
-ticker carries an ISIN or comes from a US market, cgt-calc applies the bundled fund's excess
-reported income and warns. This happens with Interactive Brokers trades in a security that paid no
-dividend in your export, with Revolut, and with RAW files. It does not happen with a holding that
-appears only in Vanguard exports, because Vanguard sells only its own funds.
+ticker carries an ISIN or a market, cgt-calc applies the bundled fund's excess reported income and
+warns. This happens with Interactive Brokers trades in a security that paid no dividend in your
+export, with Revolut, and with RAW rows whose `market` is blank. It does not happen with a holding
+that appears only in Vanguard exports, because Vanguard sells only its own funds.
 
 ```text
 WARNING: Excess reported income of fund IE00BD0B9B76 was added to OPEN because cgt-calc's bundled ISIN list gives that fund the ticker OPEN, which is also a US symbol, and no row in your files says which security OPEN is.
@@ -195,12 +196,14 @@ If it is that fund, add this row instead:
 See https://cgt-calc.uk/extra-data-and-options/#tickers-that-are-also-us-symbols
 ```
 
-Check what you hold, then add the matching row to your ISIN translation file and run cgt-calc again.
-The fund's income is then added to the holding only if you confirmed the fund. Either row replaces
-the fund's entry in the bundled list and keeps its other tickers, so cgt-calc stops warning about
-all of them, not only the one in the warning. Two funds have a second ticker that is also a US
-symbol: `RISE` and `WING`, and `WLDS` and `WSML`. The warning then names the other ticker too;
-decide for both before adding the row, and leave out a ticker that is not the fund.
+If the holding is in a RAW file, write `US` or `LSE` in its
+[`market` column](brokers/raw.md#say-which-market-a-ticker-is-from) and run cgt-calc again.
+Otherwise, check what you hold, then add the matching row to your ISIN translation file and run
+cgt-calc again. The fund's income is then added to the holding only if you confirmed the fund.
+Either row replaces the fund's entry in the bundled list and keeps its other tickers, so cgt-calc
+stops warning about all of them, not only the one in the warning. Two funds have a second ticker
+that is also a US symbol: `RISE` and `WING`, and `WLDS` and `WSML`. The warning then names the other
+ticker too; decide for both before adding the row, and leave out a ticker that is not the fund.
 
 The warning appears only if a report changed a holding's cost, once for each ticker the holding took
 a report under, so a holding renamed between two reports can show it twice.
@@ -239,6 +242,23 @@ One transaction, such as a Charles Schwab one, uses the ticker as a US symbol. A
 ticker and carries the ISIN of the London fund that the bundled list gives the ticker to. They are
 two securities, and cgt-calc would pool them as one holding. Calculate them in
 [separate runs](#two-securities-in-separate-runs).
+
+#### `is from market`
+
+Two transactions give one ticker different markets: RAW rows with
+[`market`](brokers/raw.md#say-which-market-a-ticker-is-from) `LSE` and `US`, or an `LSE` row and a
+Charles Schwab row, which is always US. The error shows both rows. If one market is wrong, correct
+it in the RAW file. If they really are two securities, cgt-calc would pool them as one holding:
+calculate them in [separate runs](#two-securities-in-separate-runs).
+
+#### `is a London ticker on this row`
+
+A RAW row's [`market`](brokers/raw.md#say-which-market-a-ticker-is-from) is `LSE` and its ticker is
+one the bundled list gives a London fund, such as `OPEN`. Another transaction exports the ticker
+with a different ISIN, as a Trading 212 one does. cgt-calc cannot tell whether the RAW row is the
+fund or the security the export names. If they are two securities, calculate them in
+[separate runs](#two-securities-in-separate-runs). If the RAW row is the security the export names,
+leave its market blank: it then takes that ISIN.
 
 #### `is a Vanguard fund's on this row`
 

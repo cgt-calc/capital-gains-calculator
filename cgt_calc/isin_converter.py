@@ -19,6 +19,7 @@ from .const import (
     CGT_MODE,
     INITIAL_ISIN_TRANSLATION_RESOURCE,
     ISIN_TICKER_ALIASES,
+    LSE_MARKET,
     US_MARKET,
     US_SYMBOLS_OF_BUNDLED_TICKERS,
     RuntimeMode,
@@ -38,7 +39,7 @@ from .model import Isin
 from .parsers.vanguard import VanguardTransaction
 from .resources import RESOURCES_PACKAGE
 from .stock_split_planning import isins_joined_at_known_splits
-from .util import csv_fields, is_blank_row, save_csv
+from .util import csv_fields, indent_entry, is_blank_row, save_csv
 
 if TYPE_CHECKING:
     from importlib.resources.abc import Traversable
@@ -61,6 +62,20 @@ _SEPARATE_RUNS_DOCS: Final = (
     "https://cgt-calc.uk/extra-data-and-options/#two-securities-in-separate-runs"
 )
 LOGGER = logging.getLogger(__name__)
+
+
+def _is_london_ticker(isin: Isin, ticker: str) -> bool:
+    """Tell whether a bundled entry's ticker is a London one.
+
+    The bundled list gives a fund from outside the US its London tickers.
+    Two kinds of ticker in it are the fund's own US symbol instead: any
+    ticker of a fund with a US ISIN, which is listed in the US, and five
+    letters ending in F, the symbol US over-the-counter markets give a fund
+    from outside the US.
+    """
+    return not isin.startswith("US") and not _US_OVER_THE_COUNTER_SYMBOL.fullmatch(
+        ticker
+    )
 
 
 @dataclass
@@ -116,6 +131,9 @@ class IsinConverter:
         # replaces the bundled one and is theirs to stand by, whatever market
         # its tickers are from.
         self.bundled_isins: set[Isin] = set()
+        # The tickers a row of this run gives the London market, which says
+        # which of two securities sharing the ticker its holding is.
+        self.london_symbols: set[str] = set()
         # The tickers this run's transactions carry, and the reverse index.
         # Two transactions disagreeing about a security is the one case where
         # a pool really splits, and the only one refused here.
@@ -205,6 +223,13 @@ class IsinConverter:
         the US is traded there over the counter under five letters ending in
         F, which is the symbol a US row for that very fund carries.
 
+        A row's market is its parser's to give: every Schwab row is US, and a
+        RAW row is US or LSE when its market column says so. One ticker given
+        two markets in one run is refused first, as two securities under one
+        ticker that would pool as one holding. A ticker a row gives the
+        London market keeps its bundled fund, and `ticker_only_rows()` then
+        has no warning to give for it.
+
         Decided for the run rather than row by row, because every row under
         one ticker is one holding. The fund keeps its other tickers.
 
@@ -221,21 +246,41 @@ class IsinConverter:
         broker that names no ISIN; that is two securities in one run, and is
         not looked for. Except at Vanguard, which sells only its own funds:
         a Vanguard row under the ticker is the fund, and the run is refused
-        as two securities under one ticker.
+        as two securities under one ticker. And except for a row giving a
+        bundled London ticker the London market: the only London security
+        cgt-calc knows by that ticker is the bundled fund, and the exported
+        ISIN is another, so nothing says which of the two the row is. The run
+        is refused rather than pool them.
         """
+        markets: dict[str, BrokerTransaction] = {}
+        for transaction in transactions:
+            if transaction.symbol is None or transaction.market is None:
+                continue
+            first = markets.setdefault(transaction.symbol, transaction)
+            if first.market != transaction.market:
+                raise InvalidTransactionError(
+                    transaction,
+                    f"Ticker {transaction.symbol} is from market "
+                    f"{transaction.market} on this row and from market "
+                    f"{first.market} on another row of this run:\n"
+                    f"{indent_entry(first)}\n"
+                    "Two securities under one ticker would be pooled and matched "
+                    "as one holding. If a market is wrong, correct it. If they are "
+                    "two securities, calculate them in separate runs; to split the "
+                    f"files and combine the reports, see {_SEPARATE_RUNS_DOCS}",
+                )
         us_symbols = {
-            transaction.symbol
-            for transaction in transactions
-            if transaction.market == US_MARKET and transaction.symbol
+            symbol for symbol, row in markets.items() if row.market == US_MARKET
+        }
+        self.london_symbols = {
+            symbol for symbol, row in markets.items() if row.market == LSE_MARKET
         }
         set_aside: dict[str, Isin] = {}
         for isin in self.bundled_isins:
-            if isin.startswith("US"):
-                continue
             london = {
                 ticker
                 for ticker in self.data[isin] & us_symbols
-                if not _US_OVER_THE_COUNTER_SYMBOL.fullmatch(ticker)
+                if _is_london_ticker(isin, ticker)
             }
             for ticker in london:
                 set_aside[ticker] = isin
@@ -277,12 +322,10 @@ class IsinConverter:
             taken.update(dict.fromkeys(mismatched, isin))
         for transaction in transactions:
             symbol = transaction.symbol
-            if (
-                symbol is not None
-                and symbol in taken
-                and isinstance(transaction, VanguardTransaction)
-            ):
-                other = min(exported[symbol] - {taken[symbol]})
+            if symbol is None or symbol not in taken:
+                continue
+            other = min(exported[symbol] - {taken[symbol]})
+            if isinstance(transaction, VanguardTransaction):
                 raise InvalidTransactionError(
                     transaction,
                     f"Ticker {symbol} is a Vanguard fund's on this row, which the "
@@ -292,6 +335,21 @@ class IsinConverter:
                     "Calculate them in separate runs; to split the files and "
                     f"combine the reports, see {_SEPARATE_RUNS_DOCS}",
                 )
+            if transaction.market == LSE_MARKET and _is_london_ticker(
+                taken[symbol], symbol
+            ):
+                raise InvalidTransactionError(
+                    transaction,
+                    f"Ticker {symbol} is a London ticker on this row, which the "
+                    f"bundled list gives ISIN {taken[symbol]}, and another row of "
+                    f"this run exports it with ISIN {other}, so cgt-calc cannot "
+                    "tell whether they are one security. Pooled, two securities "
+                    "would be matched as one holding. If they are two securities, "
+                    "calculate them in separate runs; to split the files and "
+                    f"combine the reports, see {_SEPARATE_RUNS_DOCS}. If this row "
+                    f"is the security exported with ISIN {other}, leave its "
+                    "market blank.",
+                )
 
     def ticker_only_rows(
         self, isin: Isin, symbol: str
@@ -300,9 +358,10 @@ class IsinConverter:
 
         ``symbol`` is one of the tickers the ISIN is known by. None unless the
         link is the bundled list's, the symbol is also a US one, and no row of
-        the run exported it with an ISIN: a holding of either security would
-        match. The rows are the one that takes the symbol away from the fund,
-        keeping its other tickers, and the one that confirms it.
+        the run exported it with an ISIN or gave it the London market: a
+        holding of either security would match. The rows are the one that
+        takes the symbol away from the fund, keeping its other tickers, and
+        the one that confirms it.
 
         Either row replaces the fund's bundled entry, so none of the tickers
         it keeps is warned about again. The fund's other tickers that are US
@@ -312,6 +371,7 @@ class IsinConverter:
             isin not in self.bundled_isins
             or symbol not in US_SYMBOLS_OF_BUNDLED_TICKERS
             or symbol in self.exported_isins
+            or symbol in self.london_symbols
         ):
             return None
         tickers = sorted(self.data[isin])

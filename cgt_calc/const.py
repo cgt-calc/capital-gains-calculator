@@ -306,6 +306,9 @@ TICKER_RENAMES_RESOURCE: Final = "ticker_renames.csv"
 # BrokerTransaction.market for a symbol assigned in the United States, on an
 # exchange or over the counter.
 US_MARKET: Final = "US"
+# BrokerTransaction.market for a ticker on the London Stock Exchange, AIM
+# included.
+LSE_MARKET: Final = "LSE"
 
 # Tickers the bundled ISIN list gives a fund based outside the US that are also
 # the symbols of other securities in the US. A row naming one of them, with no
