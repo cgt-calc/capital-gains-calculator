@@ -3772,37 +3772,57 @@ def test_a_sale_not_matched_across_the_split_is_calculated(
     assert re.search(rf"\n  Gain:\s+£{re.escape(gain)}\n", result.stdout), result.stdout
 
 
+@pytest.mark.parametrize(
+    ("sold", "trading212_rows"),
+    [
+        pytest.param("3", [_deposit("2024-06-01 09:00:00")], id="sold out"),
+        pytest.param(
+            "2",
+            [
+                _deposit("2024-06-01 09:00:00"),
+                _trade("Market buy", "2024-08-01 14:00:00", "1", "100.00"),
+            ],
+            id="held into the split",
+        ),
+    ],
+)
 def test_award_shares_matched_across_the_split_are_not_refused(
-    tmp_path: Path,
+    tmp_path: Path, sold: str, trading212_rows: list[list[str]]
 ) -> None:
     """The Equity Awards export's counts are all at the new count already.
 
-    30 NVDA vested on 1 May are sold on 3 June, which Schwab writes as 3 at
-    USD 1,150 and cgt-calc restates as 30, and 10 vest on 15 June. The sale
-    is matched with that vest with no conversion. No Trading 212 trade shows
-    the ticker is NVIDIA's, so the check does not apply. The figures are
-    not asserted: the contract is that the run is not refused.
+    30 NVDA vest on 1 May, Schwab writes a sale on 3 June at USD 1,150 in
+    the old count, which cgt-calc restates tenfold, and 10 vest on 15 June.
+    The sale is matched with that vest with no conversion.
+
+    First, 3 are sold, which is all 30, and no Trading 212 trade shows the
+    ticker is NVIDIA's, so the check does not apply. Second, 2 are sold,
+    which is 20, so 10 are held going into 10 June; a Trading 212 purchase
+    in August makes the check apply, but the split is not one the history
+    entered empty. The figures are not asserted: the contract is that the
+    run is not refused.
     """
+    shares = int(sold)
     sale: dict[str, object] = {
         "Date": "06/03/2024",
         "Action": "Sale",
         "Symbol": "NVDA",
-        "Quantity": "3",
+        "Quantity": sold,
         "Description": "Share Sale",
         "FeesAndCommissions": "$0.00",
         "DisbursementElection": "Cash",
-        "Amount": "$3,450.00",
+        "Amount": f"${1150 * shares:,}.00",
         "TransactionDetails": [
             {
                 "Details": {
                     "Type": "RS",
-                    "Shares": "3",
+                    "Shares": sold,
                     "SalePrice": "$1,150.00",
-                    "GrossProceeds": "$3,450.00",
+                    "GrossProceeds": f"${1150 * shares:,}.00",
                     "VestDate": "05/01/2024",
                     "VestFairMarketValue": "$850.00",
-                    "TotalCostBasis": "$2,550.00",
-                    "RealizedGainLoss": "$900.00",
+                    "TotalCostBasis": f"${850 * shares:,}.00",
+                    "RealizedGainLoss": f"${300 * shares:,}.00",
                     "DispositionType": "Short",
                     "HoldingPeriod": "Short",
                 }
@@ -3818,9 +3838,7 @@ def test_award_shares_matched_across_the_split_are_not_refused(
         ],
     )
     cmd = _known_split_cmd(
-        tmp_path,
-        [_deposit("2024-06-01 09:00:00")],
-        extra=("--schwab-award-file", awards),
+        tmp_path, trading212_rows, extra=("--schwab-award-file", awards)
     )
 
     result = run_cli(cmd)
@@ -4071,9 +4089,10 @@ def test_a_history_not_carried_across_august_2020_runs(
     Each history also buys 1 and sells it after the split, so a Trading 212
     row trades the share on or after 31 August either way, and only the
     empty holding keeps it from being refused. That purchase, on 28
-    September, is 31 days after the sale on 28 August, so no 30-day match
-    crosses the split. The figures are not asserted: no split applies to
-    them.
+    September, is 31 days after the first history's sale on 28 August, so
+    no 30-day match crosses the split; the second history sells after the
+    split, so its match does not cross it either. The figures are not
+    asserted: no split applies to them.
     """
     rows = [
         _deposit(f"{bought} 09:00:00"),

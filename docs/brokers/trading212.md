@@ -173,7 +173,8 @@ with a split row, as [Apple and Tesla in August 2020](#apple-and-tesla-in-august
 cgt-calc also stops, with a message that begins **Cannot compute the disposal**, when all of these
 apply:
 
-- You sold one of these shares before its split and held none of it going into the split day.
+- You sold one of these shares before its split, or Apple or Tesla before 31 August 2020, and held
+    none of it going into the split day.
 - Under the 30-day rule, the sale is matched with shares you bought on or after the split day,
     within 30 days of the sale.
 - No split row you supplied establishes the split's ratio for that match.
@@ -181,11 +182,11 @@ apply:
 cgt-calc then cannot establish that the shares sold and the shares bought are counted in the same
 units. Work that disposal out by hand (consider professional advice). A purchase more than 30 days
 after the sale, or one the sale is not matched with, runs as usual. The check applies once your
-history has a Trading 212 purchase or sale of the share with one of the ISINs in the table, and it
-then covers sales and purchases from all your inputs. That includes shares whose counts another
-export has already restated to the new count, such as NVIDIA or Alphabet award shares in a complete
-Schwab Equity Awards export: cgt-calc cannot tell those apart from counts that were not restated, so
-it stops for them too.
+history has a Trading 212 purchase or sale of the share under one of its ISINs, and it then covers
+sales and purchases from all your inputs. That includes shares whose counts another export has
+already restated to the new count, such as NVIDIA or Alphabet award shares in a complete Schwab
+Equity Awards export: cgt-calc cannot tell those apart from counts that were not restated, so it
+stops for them too.
 
 cgt-calc reads NVIDIA and Alphabet (`GOOG` and `GOOGL`) shares in a complete Schwab Equity Awards
 export at the new count (see
