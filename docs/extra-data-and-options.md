@@ -263,6 +263,25 @@ row is the fund or the security the export names. If they are two securities, ca
 [separate runs](#two-securities-in-separate-runs). If the RAW row is the security the export names,
 leave its market blank: it then takes that ISIN.
 
+#### `has no ISIN on this row and no market`
+
+A row without an ISIN, such as an Interactive Brokers trade or a RAW row whose
+[`market`](brokers/raw.md#say-which-market-a-ticker-is-from) is blank, uses `GDX`, `SMH`, `WCLD` or
+`DFNS`. Another transaction, usually a Trading 212 one, exports the ticker with the ISIN of General
+Dynamics or of a fund whose London dollar line it is. The same letters are also the US symbol of
+another security, such as the VanEck Gold Miners ETF, and no row in your files gives the ticker a
+market, so cgt-calc cannot tell which of the two the row is. The error shows the row that exported
+the ticker.
+
+If the row is in your RAW file, write its market: `US` for the security listed in the US under those
+letters, or `LSE` for the one listed in London. An `LSE` row under `SMH`, `WCLD` or `DFNS` joins the
+Trading 212 holding. A `GDX` row of either market stays a holding of its own, because `GDX` is a
+gold miners fund in both places. If the row is General Dynamics, write its ticker as `GD` instead. A
+market on one row applies to the ticker's rows with a blank market too. A row of another broker's
+export cannot be given a market: move those trades from a working copy of the export into your RAW
+file and write their market there, or, if they are another security, calculate the two in
+[separate runs](#two-securities-in-separate-runs).
+
 #### `is a Vanguard fund's on this row`
 
 A Vanguard transaction uses a ticker that the bundled list gives a Vanguard fund, such as `VERX`.

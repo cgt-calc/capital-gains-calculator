@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from typing import TYPE_CHECKING
@@ -15,6 +16,17 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from cgt_calc.model import BrokerTransaction, CapitalGainsReport
+
+# Where the refusals that ask for two securities in separate runs send you.
+SEPARATE_RUNS = (
+    "https://cgt-calc.uk/extra-data-and-options/#two-securities-in-separate-runs"
+)
+# The header of the Trading 212 exports these tests write.
+T212_HEADER = (
+    "Action,Time (UTC),ISIN,Ticker,Name,No. of shares,Price / share,"
+    "Currency (Price / share),Exchange rate,Result,Currency (Result),Total,"
+    "Currency (Total),ID"
+)
 
 
 def build_cmd(*args: str) -> list[str]:
@@ -78,6 +90,19 @@ def stderr_alerts(stderr: str) -> list[str]:
         for line in stderr.splitlines()
         if line.startswith(("WARNING", "ERROR", "CRITICAL"))
     ]
+
+
+def final_portfolio(stdout: str) -> dict[str, str]:
+    """Return the final portfolio printed by a run as ticker to quantity."""
+    block = stdout.split("Final portfolio\n", 1)[1].split("\n\n", 1)[0]
+    return dict(line.strip().split(": ") for line in block.splitlines())
+
+
+def summary_figure(stdout: str, label: str) -> str:
+    """Return a pound figure of the printed tax summary, such as `Gain`."""
+    match = re.search(rf"^  {label}:\s+£([\d,.]+)$", stdout, re.MULTILINE)
+    assert match is not None, stdout
+    return match.group(1)
 
 
 def run_cli(

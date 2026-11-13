@@ -19,15 +19,20 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.utils import build_cmd, run_cli, stderr_alerts
+from tests.utils import (
+    SEPARATE_RUNS,
+    T212_HEADER,
+    build_cmd,
+    final_portfolio,
+    run_cli,
+    stderr_alerts,
+    summary_figure,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 RMG_ISIN = "GB00BDVZYZ77"
-SEPARATE_RUNS = (
-    "https://cgt-calc.uk/extra-data-and-options/#two-securities-in-separate-runs"
-)
 RAW_HEADER = "date,action,symbol,quantity,price,fees,currency,market"
 FREETRADE_HEADER = (
     "Title,Type,Timestamp,Account Currency,Total Amount,Buy / Sell,Ticker,ISIN,"
@@ -71,11 +76,6 @@ IBKR_ROYAL_MAIL_BUY = (
     "Transaction History,Data,2021-01-04,U***00000,ROYAL MAIL PLC,Buy,RMG,10.0,"
     "100.0,-1000.0,-,-1000.0"
 )
-T212_HEADER = (
-    "Action,Time (UTC),ISIN,Ticker,Name,No. of shares,Price / share,"
-    "Currency (Price / share),Exchange rate,Result,Currency (Result),Total,"
-    "Currency (Total),ID"
-)
 SCHWAB_HEADER = "Date,Action,Symbol,Description,Price,Quantity,Fees & Comm,Amount"
 
 
@@ -103,18 +103,6 @@ def _refused(*args: str) -> str:
     )
     assert result.returncode != 0, result.stdout
     return result.stderr
-
-
-def _holdings(stdout: str) -> dict[str, str]:
-    """Return the final portfolio as ticker to quantity."""
-    block = stdout.split("Final portfolio\n", 1)[1].split("\n\n", 1)[0]
-    return dict(line.strip().split(": ") for line in block.splitlines())
-
-
-def _figure(stdout: str, label: str) -> str:
-    match = re.search(rf"^  {label}:\s+£([\d,.]+)$", stdout, re.MULTILINE)
-    assert match is not None, stdout
-    return match.group(1)
 
 
 def test_a_trade_without_an_isin_joins_the_company_its_ticker_was_exported_for(
@@ -149,9 +137,9 @@ def test_a_trade_without_an_isin_joins_the_company_its_ticker_was_exported_for(
         "--freetrade-file", str(freetrade),
     )  # fmt: skip
 
-    assert _holdings(result.stdout) == {"IDS": "15.00"}
-    assert _figure(result.stdout, "Allowable costs") == "750.00"
-    assert _figure(result.stdout, "Gain") == "750.00"
+    assert final_portfolio(result.stdout) == {"IDS": "15.00"}
+    assert summary_figure(result.stdout, "Allowable costs") == "750.00"
+    assert summary_figure(result.stdout, "Gain") == "750.00"
     assert stderr_alerts(result.stderr) == []
 
 
@@ -177,7 +165,7 @@ def test_a_row_exported_under_the_new_ticker_says_nothing_about_the_old_one(
 
     result = _run("--year", "2022", "--interactive-brokers-file", str(ibkr))
 
-    assert _holdings(result.stdout) == {"RMG": "10.00"}
+    assert final_portfolio(result.stdout) == {"RMG": "10.00"}
     assert stderr_alerts(result.stderr) == [
         (
             "WARNING: Rows under RMG name no ISIN or market, and no row of this run "
@@ -239,9 +227,9 @@ def test_evidence_survives_the_rows_trading_212_merges_into_a_reorganisation(
         "--trading212-dir", str(t212),
     )  # fmt: skip
 
-    assert _holdings(result.stdout) == {"IDS": "15.00"}
-    assert _figure(result.stdout, "Allowable costs") == "750.00"
-    assert _figure(result.stdout, "Gain") == "750.00"
+    assert final_portfolio(result.stdout) == {"IDS": "15.00"}
+    assert summary_figure(result.stdout, "Allowable costs") == "750.00"
+    assert summary_figure(result.stdout, "Gain") == "750.00"
 
 
 def test_a_raw_history_marked_lse_crosses_the_change(tmp_path: Path) -> None:
@@ -264,9 +252,9 @@ def test_a_raw_history_marked_lse_crosses_the_change(tmp_path: Path) -> None:
 
     result = _run("--year", "2023", "--raw-file", str(raw))
 
-    assert _holdings(result.stdout) == {"IDS": "5.00"}
-    assert _figure(result.stdout, "Allowable costs") == "1,000.00"
-    assert _figure(result.stdout, "Gain") == "500.00"
+    assert final_portfolio(result.stdout) == {"IDS": "5.00"}
+    assert summary_figure(result.stdout, "Allowable costs") == "1,000.00"
+    assert summary_figure(result.stdout, "Gain") == "500.00"
 
 
 def test_a_schwab_call_written_as_mmc_expires_as_mrsh(tmp_path: Path) -> None:
@@ -296,8 +284,8 @@ def test_a_schwab_call_written_as_mmc_expires_as_mrsh(tmp_path: Path) -> None:
 
     result = _run("--year", "2025", "--schwab-file", str(schwab))
 
-    assert _holdings(result.stdout) == {"MRSH": "100.00"}
-    assert _figure(result.stdout, "Gain") == "228.06"
+    assert final_portfolio(result.stdout) == {"MRSH": "100.00"}
+    assert summary_figure(result.stdout, "Gain") == "228.06"
 
 
 def test_a_schwab_vest_finds_its_award_price_across_the_change(
@@ -322,8 +310,8 @@ def test_a_schwab_vest_finds_its_award_price_across_the_change(
         "--schwab-award-file", str(awards),
     )  # fmt: skip
 
-    assert _holdings(result.stdout) == {"MRSH": "14.00"}
-    assert _figure(result.stdout, "Gain") == "120.38"
+    assert final_portfolio(result.stdout) == {"MRSH": "14.00"}
+    assert summary_figure(result.stdout, "Gain") == "120.38"
 
 
 @pytest.mark.parametrize("layout", ["json", "csv"])
@@ -370,8 +358,8 @@ def test_a_schwab_vest_before_the_change_is_sold_as_mrsh(
         "--schwab-award-file", str(awards),
     )  # fmt: skip
 
-    assert _holdings(result.stdout) == {"MRSH": "14.00"}
-    assert _figure(result.stdout, "Gain") == "97.17"
+    assert final_portfolio(result.stdout) == {"MRSH": "14.00"}
+    assert summary_figure(result.stdout, "Gain") == "97.17"
 
 
 def test_a_complete_equity_awards_export_crosses_the_change(tmp_path: Path) -> None:
@@ -441,8 +429,8 @@ def test_a_complete_equity_awards_export_crosses_the_change(tmp_path: Path) -> N
 
     result = _run("--year", "2025", "--schwab-award-file", str(export))
 
-    assert _holdings(result.stdout) == {"MRSH": "14.00"}
-    assert _figure(result.stdout, "Gain") == "97.17"
+    assert final_portfolio(result.stdout) == {"MRSH": "14.00"}
+    assert summary_figure(result.stdout, "Gain") == "97.17"
 
 
 def _vest_history(tmp_path: Path, vest_date: str, symbol: str) -> Path:
@@ -527,9 +515,9 @@ def test_a_row_of_the_other_market_keeps_its_ticker(tmp_path: Path) -> None:
         "--year", "2021", "--raw-file", str(raw), "--freetrade-file", str(freetrade)
     )  # fmt: skip
 
-    assert _holdings(result.stdout) == {"IDS": "5.00", "RMG": "60.00"}
-    assert _figure(result.stdout, "Allowable costs") == "1,000.00"
-    assert _figure(result.stdout, "Gain") == "500.00"
+    assert final_portfolio(result.stdout) == {"IDS": "5.00", "RMG": "60.00"}
+    assert summary_figure(result.stdout, "Allowable costs") == "1,000.00"
+    assert summary_figure(result.stdout, "Gain") == "500.00"
     assert stderr_alerts(result.stderr) == []
 
 
@@ -646,9 +634,9 @@ def test_rows_that_show_nothing_stay_under_the_old_ticker(tmp_path: Path) -> Non
         "--year", "2025", "--raw-file", str(raw), "--freetrade-file", str(freetrade)
     )  # fmt: skip
 
-    assert _holdings(result.stdout) == {"IDS": "5.00", "MMC": "6.00"}
-    assert _figure(result.stdout, "Allowable costs") == "609.48"
-    assert _figure(result.stdout, "Gain") == "38.87"
+    assert final_portfolio(result.stdout) == {"IDS": "5.00", "MMC": "6.00"}
+    assert summary_figure(result.stdout, "Allowable costs") == "609.48"
+    assert summary_figure(result.stdout, "Gain") == "38.87"
     assert stderr_alerts(result.stderr) == [
         (
             "WARNING: Rows under MMC name no ISIN or market, and no row of this run "
@@ -720,9 +708,9 @@ def test_a_namesake_row_schwab_dropped_still_shows_another_security(
         ), stderr
         return
     result = _run(*args)
-    assert _holdings(result.stdout) == holdings
-    assert _figure(result.stdout, "Allowable costs") == "1,000.00"
-    assert _figure(result.stdout, "Gain") == "500.00"
+    assert final_portfolio(result.stdout) == holdings
+    assert summary_figure(result.stdout, "Allowable costs") == "1,000.00"
+    assert summary_figure(result.stdout, "Gain") == "500.00"
 
 
 def test_rows_beside_another_security_alone_join_it_without_a_warning(
@@ -748,5 +736,5 @@ def test_rows_beside_another_security_alone_join_it_without_a_warning(
 
     result = _run("--year", "2020", "--raw-file", str(raw))
 
-    assert _holdings(result.stdout) == {"RMG": "150.00"}
+    assert final_portfolio(result.stdout) == {"RMG": "150.00"}
     assert stderr_alerts(result.stderr) == []
