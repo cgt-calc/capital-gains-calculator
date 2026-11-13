@@ -14,8 +14,8 @@ identify the account type, so cgt-calc cannot separate the accounts later.
     December 2024 can have none, such as NVIDIA's 10-for-1 split of June 2024. cgt-calc then counts
     your purchases before the split in old shares and your sales after it in new ones. It stops in
     some cases, but a sale can also go through with no error, and the report then understates the
-    gain or shows a loss you did not make. A missing share consolidation gives no error at all and
-    overstates the gain.
+    gain or shows a loss you did not make. A missing share consolidation can give no error at all and
+    overstate the gain.
 
     After your first run, compare the final portfolio cgt-calc prints with your holdings in Trading
     212, using exports that run to today. If a share count differs, see
@@ -130,10 +130,13 @@ event date.
 If you hold one security under two tickers that cgt-calc [combines](#tickers-and-exchange-listings),
 Trading 212 may state a reorganisation once for each listing, and both then apply to the one
 holding. If they fall on the same day, cgt-calc stops with **has more than one reorganisation**. If
-they fall on different days, it applies the reorganisation twice, with no error. Check that the
-report shows it once. If cgt-calc stops or the report shows it twice, remove the `Stock split close`
-and `Stock split open` rows of one listing from a copy of the export: the other listing's rows give
-the ratio, and cgt-calc applies it to the whole holding.
+they fall on different days and all your shares of the security came from the export, it stops at
+the first, because each listing's rows count only that listing's shares (see
+[Split rows that do not match your holding](#split-rows-that-do-not-match-your-holding)). If another
+input has added shares to the holding, it applies the reorganisation twice, with no error, so check
+that the report shows it once. In each case, remove the `Stock split close` and `Stock split open`
+rows of both listings from a copy of the export, and add one `STOCK_SPLIT` row for the whole
+holding, as [A split with no rows in the export](#a-split-with-no-rows-in-the-export) describes.
 
 #### A split with no rows in the export
 
@@ -141,8 +144,10 @@ Trading 212 does not export `Stock split close` and `Stock split open` rows for 
 exports examined, they first appear in December 2024, and an earlier split has neither them nor the
 older single `Stock Split` row: NVIDIA's 10-for-1 split of 10 June 2024 is one. Your purchases
 before the split are then counted in old shares and your sales after it in new ones. For the splits
-listed below cgt-calc can stop instead, in the cases described there. Otherwise, it cannot tell that
-the split is missing:
+listed below cgt-calc can stop instead, in the cases described there. It also stops at a later split
+or consolidation of the share that has rows in the export, when all your shares of it came from the
+export, as [Split rows that do not match your holding](#split-rows-that-do-not-match-your-holding)
+explains. Otherwise, it cannot tell that the split is missing:
 
 - A sale of more shares than the old count holds stops the run with
     [`Tried to sell`](#tried-to-sell).
@@ -333,6 +338,44 @@ do depends on where the row is:
     date and the split day. If it gives another ratio, correct its number there. If a trade does
     fall in between, or the row's time and order cannot be kept, work the split out by hand
     (consider professional advice).
+
+#### Split rows that do not match your holding
+
+The `Stock split close` row states how many shares your Trading 212 account held just before a split
+or consolidation. When every share of the holding came from that account, cgt-calc checks that
+number against the holding your history adds up to at that point. If the two differ, it stops with
+**the Trading 212 split rows say**, giving both numbers. Applying the split to the wrong holding
+would carry the difference into every later sale, and the gain would be wrong in either direction.
+
+The usual causes are:
+
+- **An earlier split or consolidation has no rows.** Trading 212 has no rows for some splits, as
+    [A split with no rows in the export](#a-split-with-no-rows-in-the-export) describes. Check the
+    company's announcements for a split or consolidation since you first bought the share. If there
+    was one, add it as a `STOCK_SPLIT` row following the steps in that section, dated the first day
+    the shares traded at the new count, which the export cannot give you. If it is the only thing
+    missing, the row's number is the one the message gives: the shares the split rows state less the
+    shares the history holds. Trades after it do not change that number, because both counts include
+    them. For example, 160 shares consolidated 1-for-16 become 10, so the rows say 10 where the
+    history holds 160, and the row's number is -150.
+- **Rows of the account are missing.** If the company made no such change, your exports are missing
+    rows, for example because they start after your first purchase or leave a gap between date
+    ranges. Replace them with a complete history from your first purchase of the share.
+- **You hold the share under two tickers.** If cgt-calc [combines](#tickers-and-exchange-listings)
+    two listings and each has its own split rows, each set counts only its own listing's shares.
+    Remove the `Stock split close` and `Stock split open` rows of both listings from a copy of the
+    export, and add one `STOCK_SPLIT` row for the change to the whole holding.
+
+Do not add a row only to make the counts agree. If rows are missing, a split row that makes up the
+difference hides them, and later sales take the wrong share of the cost without an error. The counts
+have to agree exactly, so if a split row you added leaves a small difference, correct its number by
+the amount the message gives.
+
+cgt-calc does not check a holding that has had shares from another input, such as another broker's
+export or a purchase in your RAW file, since it last ended a day empty. It applies the ratio of the
+split rows to the whole holding instead, so a missing split there gives no error. Compare the final
+portfolio with your holdings, as
+[A split with no rows in the export](#a-split-with-no-rows-in-the-export) describes.
 
 #### Apple and Tesla in August 2020
 

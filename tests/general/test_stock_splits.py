@@ -751,8 +751,41 @@ def test_an_unresolved_ratio_is_refused_when_an_earlier_row_needs_restating() ->
 
 
 def test_an_unresolved_ratio_is_refused_when_the_holding_must_be_scaled() -> None:
-    """A pool the event does not state in full has to be scaled, and cannot be."""
+    """A pool the event does not state in full has to be scaled, and cannot be.
+
+    Half the pool is at another broker, so the event's count is not the
+    whole holding.
+    """
     with pytest.raises(CalculationError, match="has to be scaled by the corporate"):
+        run(
+            [
+                trade(POOL_DAY, ActionType.BUY, "FOO", "0.0001", "1000"),
+                trade(
+                    POOL_DAY,
+                    ActionType.BUY,
+                    "FOO",
+                    "0.0001",
+                    "1000",
+                    source=elsewhere(0),
+                ),
+                paired_split(
+                    EVENT_DAY, "FOO", "0.0001000000", "0.0000066700", UNRESOLVED
+                ),
+            ]
+        )
+
+
+def test_an_unresolved_ratio_from_the_one_account_is_not_blamed_on_another() -> None:
+    """With every unit from the pair's own account, rows are missing.
+
+    No other broker holds part of the pool, so the ratio is not what needs
+    explaining: the export states 0.0001 where its own rows give 0.0002.
+    """
+    with pytest.raises(
+        CalculationError,
+        match=r"split rows say 0\.0001 units were held before it, but the "
+        r"history holds 0\.0002",
+    ):
         run(
             [
                 trade(POOL_DAY, ActionType.BUY, "FOO", "0.0002", "1000"),
@@ -2158,12 +2191,15 @@ def test_a_sale_before_the_reorganisation_is_restated_under_either_ticker(
 
     Five units sold ahead of a 2-for-1 are ten of the units the day ends in,
     and that is the count the pool gives up, whichever ticker the row names.
+    Half the pool is at another broker, so the pair's count is not the five
+    left and the pool, sale included, is scaled by the ratio.
     """
     calculator = create_calculator(tax_year=2023, balance_check=False)
     report = get_report(
         calculator,
         [
-            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+            trade(POOL_DAY, ActionType.BUY, "OLD", "5", "10"),
+            trade(POOL_DAY, ActionType.BUY, "OLD", "5", "10", source=elsewhere(0)),
             trade(EVENT_DAY, ActionType.SELL, spelling, "5", "16"),
             paired_split(EVENT_DAY, "OLD", "10", "20", Fraction(2)),
             rename(EVENT_DAY, "OLD", "NEW"),
@@ -2418,6 +2454,38 @@ def test_a_row_stamped_before_the_event_is_restated() -> None:
     assert calculator.portfolio["FOO"].amount == Decimal(120)
 
 
+def test_a_purchase_by_another_account_that_morning_keeps_the_pair_scaled() -> None:
+    """Units another account bought before the event are not in its count.
+
+    The pair states its own account's 10, and 12 are held once the other
+    account's 2 are counted, so the holding is scaled by the ratio rather
+    than refused: 12 units costing 120 become 24 still costing 120.
+    """
+    calculator = run(
+        [
+            trade(POOL_DAY, ActionType.BUY, "FOO", "10", "10"),
+            trade(
+                EVENT_DAY,
+                ActionType.BUY,
+                "FOO",
+                "2",
+                "10",
+                source=_stamped(SPLIT_OPENED - dt.timedelta(minutes=1)),
+            ),
+            paired_split(
+                EVENT_DAY,
+                "FOO",
+                "10",
+                "20",
+                Fraction(2),
+                instants=(SPLIT_OPENED, SPLIT_CLOSED),
+            ),
+        ]
+    )
+    assert calculator.splits[EVENT_DAY]["FOO"].mode is SplitMode.RATIO_ONLY
+    assert calculator.portfolio["FOO"] == Position(Decimal(24), Decimal(120))
+
+
 def test_a_row_stamped_after_the_event_is_left_alone() -> None:
     """The same instant on the other side leaves the count as exported."""
     calculator = run(
@@ -2665,7 +2733,8 @@ def test_a_reorganisation_is_not_a_disposal_row_of_its_own(
     row before the reorganisation is a sale of units it had not yet restated,
     which is why those three orders sell five of ten rather than five of
     twenty. Both readings are what `origin/main` gives for the same rows, and
-    the rename does not touch either.
+    the rename does not touch either. Half the pool is at another broker, so
+    after a sale the pair's count is not the holding and the pool is scaled.
     """
     rows = {
         "split": paired_split(EVENT_DAY, "OLD", "10", "20", Fraction(2)),
@@ -2677,7 +2746,8 @@ def test_a_reorganisation_is_not_a_disposal_row_of_its_own(
     report = get_report(
         calculator,
         [
-            trade(POOL_DAY, ActionType.BUY, "OLD", "10", "10"),
+            trade(POOL_DAY, ActionType.BUY, "OLD", "5", "10"),
+            trade(POOL_DAY, ActionType.BUY, "OLD", "5", "10", source=elsewhere(0)),
             *(rows[name] for name in order),
         ],
     )

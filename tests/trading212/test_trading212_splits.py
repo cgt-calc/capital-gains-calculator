@@ -4202,3 +4202,316 @@ def test_tesla_carried_across_both_splits_is_refused_for_2020(tmp_path: Path) ->
     stderr = _refusal(_known_split_cmd(tmp_path, rows))
 
     assert "ERROR: " + _cashed_out("TSLA", 5) + "\n" in stderr
+
+
+# ===== split rows that state a count the account's own rows do not give =====
+
+
+FOO_ISIN = "US0000000002"
+# Lockheed Martin, which Trading 212 also exports under its German code LOM.
+LMT_ISIN = "US5398301094"
+UNHELD_DOCS = (
+    "https://cgt-calc.uk/brokers/trading212/#split-rows-that-do-not-match-your-holding"
+)
+
+
+def _pair(
+    time: str,
+    before: str,
+    after: str,
+    total: str,
+    *,
+    ticker: str = "FOO",
+    isin: str = FOO_ISIN,
+) -> list[list[str]]:
+    """Return both halves of a reorganisation, each worth ``total``."""
+    return [
+        close_row(
+            time=time,
+            shares=before,
+            price=f"{Decimal(total) / Decimal(before):.2f}",
+            total=total,
+            ticker=ticker,
+            isin=isin,
+            transaction_id=f"close-{time}",
+        ),
+        open_row(
+            time=time,
+            shares=after,
+            price=f"{Decimal(total) / Decimal(after):.2f}",
+            total=total,
+            ticker=ticker,
+            isin=isin,
+            transaction_id=f"open-{time}",
+        ),
+    ]
+
+
+def _unheld(
+    date: str,
+    stated: str,
+    held: str,
+    quantity: str,
+    *,
+    symbol: str = "FOO",
+    where: str = "a file passed with --raw-file",
+) -> str:
+    """Return the refusal for split rows stating a count the history lacks."""
+    return (
+        f"Cannot apply the reorganisation of {symbol} on {date}: the Trading "
+        f"212 split rows say {stated} units were held before it, but the "
+        f"history holds {held} at that point, and every {symbol} unit in it "
+        "came from that Trading 212 account. Something that changed the "
+        f"holding before {date} is missing. First check whether the company "
+        "split or consolidated its shares earlier: Trading 212 exports have no "
+        "rows for some splits. If it did, add that split as one STOCK_SPLIT "
+        f"row in {where}, dated the first day {symbol} traded at the new "
+        "count. The export cannot give you that date: take it from the "
+        "company's announcement. If that split is the only thing missing, the "
+        f"row's quantity is {quantity} ({stated} less {held}). If the company "
+        "made no such change, the exports are missing rows: replace them with "
+        f"a complete history from your first {symbol} purchase, with no gaps "
+        f"between date ranges. If you hold {symbol} under two tickers and each "
+        "has its own split rows, remove both sets of split rows from a copy "
+        "of the export and add one STOCK_SPLIT row for the whole holding. Do "
+        f"not add a row only to make the counts agree. See {UNHELD_DOCS}"
+    )
+
+
+# 160 FOO bought for 160, then a 1-for-16 consolidation with no rows leaves
+# 10: the pair consolidates those 10 to 2, which are sold for 200.
+CONSOLIDATED_WITHOUT_ROWS = [
+    _deposit("2024-03-01 09:00:00"),
+    _trade(
+        "Market buy", "2024-03-01 14:00:00", "160", "1.00", ticker="FOO", isin=FOO_ISIN
+    ),
+    *_pair("2024-07-15 07:00:00", "10", "2", "160.00"),
+    _trade(
+        "Market sell", "2024-09-02 14:00:00", "2", "100.00", ticker="FOO", isin=FOO_ISIN
+    ),
+]
+# 10 FOO bought for 1,000, then a 2-for-1 split with no rows makes 20: the
+# pair splits those 20 to 40, and 20 are sold for 600.
+SPLIT_WITHOUT_ROWS = [
+    _deposit("2024-03-01 09:00:00"),
+    _trade(
+        "Market buy", "2024-03-01 14:00:00", "10", "100.00", ticker="FOO", isin=FOO_ISIN
+    ),
+    *_pair("2024-07-15 07:00:00", "20", "40", "1000.00"),
+    _trade(
+        "Market sell", "2024-09-02 14:00:00", "20", "30.00", ticker="FOO", isin=FOO_ISIN
+    ),
+]
+# As CONSOLIDATED_WITHOUT_ROWS, with 5 more bought for 50 after the missing
+# consolidation: 10 + 5 = 15, so the pair states 15 -> 3, which are sold for
+# 300. The history holds 165, and 15 - 165 = -150 is still the missing row.
+BOUGHT_AFTER_THE_MISSING_SPLIT = [
+    _deposit("2024-03-01 09:00:00"),
+    _trade(
+        "Market buy", "2024-03-01 14:00:00", "160", "1.00", ticker="FOO", isin=FOO_ISIN
+    ),
+    _trade(
+        "Market buy", "2024-05-01 14:00:00", "5", "10.00", ticker="FOO", isin=FOO_ISIN
+    ),
+    *_pair("2024-07-15 07:00:00", "15", "3", "300.00"),
+    _trade(
+        "Market sell", "2024-09-02 14:00:00", "3", "100.00", ticker="FOO", isin=FOO_ISIN
+    ),
+]
+# 1 FOO bought for 30, then a 1-for-3 consolidation with no rows: Trading 212
+# counts to the eighth decimal place, so it holds 0.33333333, which the pair
+# consolidates 1-for-10 to 0.03333333, all sold for 50.
+THIRD_OF_A_SHARE = [
+    _deposit("2024-03-01 09:00:00"),
+    _trade(
+        "Market buy", "2024-03-01 14:00:00", "1", "30.00", ticker="FOO", isin=FOO_ISIN
+    ),
+    *_pair("2024-07-15 07:00:00", "0.33333333", "0.03333333", "10.00"),
+    _trade(
+        "Market sell",
+        "2024-09-02 14:00:00",
+        "0.03333333",
+        "1500.00",
+        ticker="FOO",
+        isin=FOO_ISIN,
+    ),
+]
+
+
+def test_split_rows_stating_fewer_units_than_the_history_holds_stop_the_run(
+    tmp_path: Path,
+) -> None:
+    """A consolidation with no rows no longer leaves a pool 16 times too large.
+
+    The pair states 10 and the history holds 160, so the missing row adds
+    10 - 160 = -150. Scaling the 160 by the pair's 1/5 instead gave 32 units,
+    so the sale of 2 for 200 took 160 x 2/32 = 10 of the cost and reported a
+    gain of 190, where 40 is right.
+    """
+    stderr = _refusal(_known_split_cmd(tmp_path, CONSOLIDATED_WITHOUT_ROWS))
+
+    assert "ERROR: " + _unheld("2024-07-15", "10", "160", "-150") + "\n" in stderr
+
+
+def test_split_rows_stating_more_units_name_the_raw_file_the_run_reads(
+    tmp_path: Path,
+) -> None:
+    """A split with no rows no longer turns a gain of 100 into a loss of 400.
+
+    The pair states 20 and the history holds 10, so the missing row adds
+    20 - 10 = 10. Scaling the 10 by the pair's 2 instead gave 20 units, so
+    the sale of 20 for 600 took all 1,000 of the cost. The RAW file records
+    a transfer from a spouse, nothing to do with FOO, and the row goes in it.
+    """
+    cmd = _known_split_cmd(
+        tmp_path,
+        SPLIT_WITHOUT_ROWS,
+        raw_rows=("2024-03-01,TRANSFER_FROM_SPOUSE,BAR,1,100.00,0.00,GBP",),
+    )
+
+    stderr = _refusal(cmd)
+
+    where = f"your RAW file ({tmp_path / 'splits.csv'})"
+    expected = _unheld("2024-07-15", "20", "10", "10", where=where)
+    assert "ERROR: " + expected + "\n" in stderr
+
+
+def test_a_split_row_a_few_billionths_out_still_stops_the_run(tmp_path: Path) -> None:
+    """The counts are compared exactly, so the refusal gives the correction.
+
+    A RAW row for the 1-for-3 written to ten places, -0.6666666667, leaves
+    0.3333333333 of the 1 bought, where the pair states 0.33333333. The
+    row is out by 0.33333333 - 0.3333333333 = -0.0000000033.
+    """
+    raw_rows = ("2024-04-02,STOCK_SPLIT,FOO,-0.6666666667,0.00,0.00,GBP",)
+
+    stderr = _refusal(_known_split_cmd(tmp_path, THIRD_OF_A_SHARE, raw_rows=raw_rows))
+
+    expected = _unheld(
+        "2024-07-15",
+        "0.33333333",
+        "0.3333333333",
+        "-0.0000000033",
+        where=f"your RAW file ({tmp_path / 'splits.csv'})",
+    )
+    assert "ERROR: " + expected + "\n" in stderr
+
+
+@pytest.mark.parametrize(
+    ("rows", "raw_row", "costs", "gain", "left"),
+    [
+        pytest.param(
+            CONSOLIDATED_WITHOUT_ROWS,
+            "2024-04-02,STOCK_SPLIT,FOO,-150,0.00,0.00,GBP",
+            "160",
+            "40",
+            None,
+            id="consolidation",
+        ),
+        pytest.param(
+            SPLIT_WITHOUT_ROWS,
+            "2024-04-02,STOCK_SPLIT,FOO,10,0.00,0.00,GBP",
+            "500",
+            "100",
+            "  FOO: 20.00, £500.00\n",
+            id="split",
+        ),
+        pytest.param(
+            BOUGHT_AFTER_THE_MISSING_SPLIT,
+            "2024-04-02,STOCK_SPLIT,FOO,-150,0.00,0.00,GBP",
+            "210",
+            "90",
+            None,
+            id="purchase after the missing split",
+        ),
+        pytest.param(
+            THIRD_OF_A_SHARE,
+            "2024-04-02,STOCK_SPLIT,FOO,-0.66666667,0.00,0.00,GBP",
+            "30",
+            "20",
+            None,
+            id="corrected by the difference",
+        ),
+    ],
+)
+def test_the_row_the_refusal_gives_lets_the_history_run(
+    tmp_path: Path,
+    rows: list[list[str]],
+    raw_row: str,
+    costs: str,
+    gain: str,
+    left: str | None,
+) -> None:
+    """With the missing reorganisation added, the pair states the holding.
+
+    Consolidation: 160 become 10 and the pair's 2, still costing 160, so the
+    sale of both for 200 takes all 160, a gain of 40, and leaves nothing.
+    Split: 10 become 20 and the pair's 40, still costing 1,000, so the sale
+    of 20 for 600 takes 1,000 x 20/40 = 500, a gain of 100, and leaves 20 at
+    a cost of 500. Purchase after the missing split: 160 become 10, and the 5
+    bought later make the pair's 15, costing 160 + 50 = 210, so the sale of
+    the 3 left for 300 takes all 210, a gain of 90, and leaves nothing.
+    Corrected: -0.6666666667 less 0.0000000033 leaves the
+    pair's 0.33333333 of the 1 share, so the sale of all 0.03333333 for 50
+    takes the whole 30, a gain of 20, and leaves nothing.
+    """
+    result = run_cli(_known_split_cmd(tmp_path, rows, raw_rows=(raw_row,)))
+
+    assert re.search(rf"Allowable costs:\s+£{costs}\.00\n", result.stdout), (
+        result.stdout
+    )
+    assert re.search(rf"\n  Gain:\s+£{gain}\.00\n", result.stdout), result.stdout
+    if left is None:
+        assert "  FOO:" not in result.stdout, result.stdout
+    else:
+        assert left in result.stdout, result.stdout
+
+
+def test_split_rows_of_two_listings_on_different_days_stop_the_run(
+    tmp_path: Path,
+) -> None:
+    """One listing's pair states its 70 of the 100 held under one ticker.
+
+    70 LMT and 30 LOM are one holding of 100 costing 1,000, and each listing
+    has its own 2-for-1 pair, a day apart. Applying both gave 100 x 2 x 2 =
+    400 units, so the sale of 200 for 1,200 took 1,000 x 200/400 = 500 of
+    the cost and reported a gain of 700.
+    """
+    rows = [
+        _deposit("2024-06-01 09:00:00"),
+        _trade(
+            "Market buy",
+            "2024-06-03 14:00:00",
+            "70",
+            "10.00",
+            ticker="LMT",
+            isin=LMT_ISIN,
+        ),
+        _trade(
+            "Market buy",
+            "2024-06-04 14:00:00",
+            "30",
+            "10.00",
+            ticker="LOM",
+            isin=LMT_ISIN,
+        ),
+        *_pair(
+            "2024-07-15 07:00:00", "70", "140", "700.00", ticker="LMT", isin=LMT_ISIN
+        ),
+        *_pair(
+            "2024-07-16 07:00:00", "30", "60", "300.00", ticker="LOM", isin=LMT_ISIN
+        ),
+        _trade(
+            "Market sell",
+            "2024-09-02 14:00:00",
+            "200",
+            "6.00",
+            ticker="LMT",
+            isin=LMT_ISIN,
+        ),
+    ]
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    expected = _unheld("2024-07-15", "70", "100", "-30", symbol="LMT")
+    assert "ERROR: " + expected + "\n" in stderr
