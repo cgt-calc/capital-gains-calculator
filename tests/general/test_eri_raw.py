@@ -131,6 +131,49 @@ def test_bundled_csh2_eri_is_read_in_the_currency_kpmg_states(
     assert any(line.startswith(label) and line.endswith(f" {amount}") for line in lines)
 
 
+def test_a_holding_with_euro_eri_sold_and_bought_back_within_30_days(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """A whole holding with euro ERI, sold and bought back in 30 days, computes.
+
+    Ten CSH2 units are bought for 10 x 1,180.00 + 5.00 = 11,805.00 and held
+    over the period ending 31/10/2023, whose ERI KPMG states in euros: 10 x
+    34.5541 EUR at HMRC's rate of 1.1707 for 30/04/2024, its distribution
+    date, is £295.16, added to cost, so the holding costs £12,100.16. All ten
+    are sold on 06/11/2023 at 1,210.00 with a 5.00 fee and bought back on
+    20/11/2023 at 1,200.00 with a 5.00 fee, so the sale is matched with the
+    repurchase (TCGA 1992 s106A): proceeds 10 x 1,210.00 = £12,100.00,
+    allowable costs 10 x 1,200.00 + 5.00 + 5.00 = £12,010.00, gain £90.00.
+    The ten units held at the year end keep the holding's cost, ERI included,
+    at £12,100.16; the gain does not show the ERI, so the cost is asserted.
+
+    The euro amount converts to a 28-digit figure. Added to the cost
+    unrounded, it left about 2E-11 behind once the whole holding was matched,
+    and the run stopped on an assertion instead of producing a report.
+    """
+    raw = tmp_path / "raw.csv"
+    raw.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2023-10-02,TRANSFER,,1,11805.00,0.00,GBP\n"
+        "2023-10-02,BUY,CSH2,10,1180.00,5.00,GBP\n"
+        "2023-11-06,SELL,CSH2,10,1210.00,5.00,GBP\n"
+        "2023-11-20,BUY,CSH2,10,1200.00,5.00,GBP\n",
+        encoding="utf-8",
+    )
+
+    result = run_cli(
+        build_cmd(
+            "--year", "2023", "--raw-file", str(raw), "--output", report_path(request)
+        )
+    )
+
+    lines = [line.strip() for line in result.stdout.splitlines()]
+    assert "CSH2: 10.00, £12,100.16" in lines
+    assert "Disposal proceeds:  £12,100.00" in lines
+    assert "Allowable costs:    £12,010.00" in lines
+    assert "Gain:                   £90.00" in lines
+
+
 @pytest.mark.parametrize(
     ("periods", "eri_lines", "allowable_costs", "outcome"),
     [
