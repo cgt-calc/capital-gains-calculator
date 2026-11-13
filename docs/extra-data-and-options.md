@@ -1,4 +1,4 @@
-# Extra Data and Options
+# Extra data and options
 
 Most users can generate a report from a supported broker export without these files or options.
 Start with your [broker guide](brokers/index.md). Return here only if cgt-calc asks for more

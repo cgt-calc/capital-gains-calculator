@@ -165,14 +165,16 @@ convert any amounts, so use a GBP-base account export instead.
 
 ### `Price is in ... but the Exchange Rate column is missing or empty`
 
-A `Buy` or `Sell` row prices the trade in a currency other than GBP but gives no rate to convert it
-with, while its gross amount, commission and net amount are in GBP. The price cannot be checked
-against the amount, and a guessed rate would put a wrong cost or proceeds in the report, so the
-import stops. Re-export the statement with the `Exchange Rate` column filled in for that row — a
-`Buy` or `Sell` always needs a price, so clearing `Price` and `Price Currency` only trades this
-error for a missing-price one. Other row types are unaffected: only a trade's price feeds the
-calculation, so a dividend, fee or interest row keeps a foreign, unconverted `Price Currency` rather
-than being refused over a price nothing reads.
+Re-export the statement with the `Exchange Rate` column filled in for the row the message names. Do
+not clear `Price` and `Price Currency` instead: a `Buy` or `Sell` always needs a price, so that only
+trades this error for a missing-price one.
+
+The row prices a `Buy` or `Sell` in a currency other than GBP but gives no rate to convert it with,
+while its gross amount, commission and net amount are in GBP. The price cannot be checked against
+the amount, and a guessed rate would put a wrong cost or proceeds in the report, so the import
+stops. Other row types are unaffected: only a trade's price feeds the calculation, so a dividend,
+fee or interest row keeps a foreign, unconverted `Price Currency` rather than being refused over a
+price nothing reads.
 
 ### `Couldn't find Transaction History header`
 

@@ -1,4 +1,4 @@
-# Offshore Funds (ERI)
+# Offshore funds (ERI)
 
 Use this page if you hold a fund based outside the UK. Not every non-UK fund is an offshore fund for
 UK tax purposes, so check HMRC's

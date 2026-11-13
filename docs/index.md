@@ -3,17 +3,17 @@
 Use cgt-calc to calculate **UK capital gains** from your investment transaction history and generate
 a detailed report from a supported broker export.
 
-Supported sources include **Charles Schwab**, **Freetrade**, **Hargreaves Lansdown**, **Interactive
-Brokers**, **Morgan Stanley**, **Revolut**, **Sharesight**, **Trading 212**, **Vanguard**, or a
+Supported sources are **Charles Schwab**, **Freetrade**, **Hargreaves Lansdown**, **Interactive
+Brokers**, **Morgan Stanley**, **Revolut**, **Sharesight**, **Trading 212**, **Vanguard** and a
 custom **RAW** format. Check your broker's guide before starting, especially for employer shares,
 because not every award export or transaction type is supported.
 
 ## Where to start
 
-- [Installation](installation.md) — install cgt-calc and check that it runs
-- [Brokers](brokers/index.md) — find the export instructions for your broker
-- [Generate a report](usage.md) — run cgt-calc and check the results
-- [Offshore funds (ERI)](offshore-funds.md) — if you hold non-UK funds
+- [Installation](installation.md): install cgt-calc and check that it runs
+- [Brokers](brokers/index.md): find the export instructions for your broker
+- [Generate a report](usage.md): run cgt-calc and check the results
+- [Offshore funds (ERI)](offshore-funds.md): if you hold non-UK funds
 
 ## What cgt-calc calculates
 

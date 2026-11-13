@@ -1,4 +1,4 @@
-# Providing Custom ERI Data
+# Custom ERI data
 
 Use a custom file to supply excess reported income (ERI) data for an ETF or investment fund you held
 when the [bundled data](offshore-funds.md#bundled-data) does not cover its exact ISIN and every
@@ -154,4 +154,4 @@ second row under a shared **Reporting Period** heading.
 ## Contributing data back
 
 If you compile ERI data for any fund, please contribute it so other holders of the same fund can
-reuse it — see [Contributing ERI data](development/eri-data.md).
+reuse it. See [Contributing ERI data](development/eri-data.md).

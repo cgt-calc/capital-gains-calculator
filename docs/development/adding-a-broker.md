@@ -1,4 +1,4 @@
-# Adding a Broker
+# Adding a broker
 
 Start with the [development setup](contributing.md#getting-started). A broker parser converts an
 export into `BrokerTransaction` values; tax matching belongs in the calculator, not the parser. The

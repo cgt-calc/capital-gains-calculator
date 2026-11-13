@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in improving **cgt-calc** — contributions of all kinds are welcome! If you
+Thanks for your interest in improving **cgt-calc**. Contributions of all kinds are welcome! If you
 find a bug or have feature ideas, please open an
 [issue](https://github.com/cgt-calc/capital-gains-calculator/issues) or pull request.
 
@@ -128,15 +128,15 @@ All checks in CI must pass before merging changes.
 
 We use:
 
-- [ruff](https://docs.astral.sh/ruff/) — for Python linting and formatting
-- [mypy](https://mypy-lang.org/) — for static type checking
-- [ty](https://docs.astral.sh/ty/) — for additional static type checking
-- [pytest](https://docs.pytest.org/) — for running tests
-- [dprint](https://dprint.dev/) — for formatting Markdown, YAML, TOML, JSON, and Dockerfiles
-- [shfmt](https://github.com/mvdan/sh#shfmt) - for formatting shell scripts
-- [codespell](https://github.com/codespell-project/codespell) - for catching common misspellings
-- [Harper](https://writewithharper.com/) - for grammar and spell checking of comments, docstrings,
-    and Markdown docs
+- [ruff](https://docs.astral.sh/ruff/) for Python linting and formatting
+- [mypy](https://mypy-lang.org/) for static type checking
+- [ty](https://docs.astral.sh/ty/) for additional static type checking
+- [pytest](https://docs.pytest.org/) for running tests
+- [dprint](https://dprint.dev/) for formatting Markdown, YAML, TOML, JSON, and Dockerfiles
+- [shfmt](https://github.com/mvdan/sh#shfmt) for formatting shell scripts
+- [codespell](https://github.com/codespell-project/codespell) for catching common misspellings
+- [Harper](https://writewithharper.com/) for grammar and spell checking of comments, docstrings, and
+    Markdown docs
 
 `prek` can be used to run all checks with one command (see below).
 
@@ -180,7 +180,7 @@ You can also run all checks on the repository manually:
 prek run --all-files
 ```
 
-Or you can run single hook:
+Or you can run a single hook:
 
 ```shell
 prek run mypy --all-files
@@ -191,9 +191,9 @@ prek run --hook-stage manual python-typing-update --all-files
 
 Harper runs as a regular hook via `uv` (the `harper-cli` dev dependency), so no separate
 installation is needed. Project vocabulary (tickers, broker names, identifiers) lives in
-`.harper-dictionary.txt`; the Harper editor extension picks it up automatically. Words that the
-dictionary cannot whitelist — Harper dialect-gates US spellings such as product names — are accepted
-via regexes in `.harper-ignore.txt`.
+`.harper-dictionary.txt`; the Harper editor extension picks it up automatically. Harper
+dialect-gates US spellings, so the dictionary cannot whitelist them; those the project needs, such
+as product names, are accepted via regexes in `.harper-ignore.txt`.
 
 ## Running linters and tests manually
 

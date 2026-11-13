@@ -7,8 +7,8 @@
 Use cgt-calc to calculate **UK capital gains** from your investment transaction history and generate
 a detailed report from a supported broker export.
 
-Supported sources include **Charles Schwab**, **Freetrade**, **Hargreaves Lansdown**, **Interactive
-Brokers**, **Morgan Stanley**, **Revolut**, **Sharesight**, **Trading 212**, **Vanguard**, or a
+Supported sources are **Charles Schwab**, **Freetrade**, **Hargreaves Lansdown**, **Interactive
+Brokers**, **Morgan Stanley**, **Revolut**, **Sharesight**, **Trading 212**, **Vanguard** and a
 custom **RAW** format. Check your broker's guide before starting, especially for employer shares,
 because not every award export or transaction type is supported.
 
