@@ -9,6 +9,7 @@ from enum import StrEnum
 import io
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, overload, override
 
+from cgt_calc.const import LSE_MARKET, US_MARKET
 from cgt_calc.csv_columns import CsvColumns
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import (
@@ -39,9 +40,10 @@ class RawColumn(StrEnum):
     # Optional: read only when the header names them.
     BROKER = "broker"
     REPLACES = "replaces"
+    MARKET = "market"
 
 
-_OPTIONAL_COLUMNS: Final = (RawColumn.BROKER, RawColumn.REPLACES)
+_OPTIONAL_COLUMNS: Final = (RawColumn.BROKER, RawColumn.REPLACES, RawColumn.MARKET)
 # The seven every header names, in the order the guide gives them.
 COLUMNS: Final[list[str]] = [
     column.value for column in RawColumn if column not in _OPTIONAL_COLUMNS
@@ -174,6 +176,17 @@ class RawTransaction(BrokerTransaction):
                     "export: only DIVIDEND_TAX and STOCK_ACTIVITY rows can. "
                     "Edit a working copy of the export instead."
                 )
+        # A market code has no letter case, unlike a symbol, which is kept
+        # as written. Blank is unknown, as a row without the column is.
+        market = row_values.get(RawColumn.MARKET, "").upper()
+        if market not in {"", US_MARKET, LSE_MARKET}:
+            raise ValueError(
+                f"Unknown market: {row_values[RawColumn.MARKET]!r}. Write "
+                f"{US_MARKET} for a security listed in the United States, on an "
+                f"exchange or over the counter, or {LSE_MARKET} for one listed on "
+                "the London Stock Exchange. Leave the cell blank for any other "
+                "market."
+            )
         symbol = row_values[RawColumn.SYMBOL] or None
         quantity = _parse_decimal(row_values, RawColumn.QUANTITY)
         price = _parse_decimal(row_values, RawColumn.PRICE)
@@ -227,6 +240,7 @@ class RawTransaction(BrokerTransaction):
             currency,
             broker,
         )
+        self.market = market or None
 
 
 def raw_file_of(rows: Iterable[BrokerTransaction]) -> Path | None:

@@ -33,7 +33,9 @@ the columns in another order, put each value under its column.
 
 Two optional columns, `broker` and `replaces`, can be added when a row has to join a broker export
 or correct one of its rows. See
-[Correct a row in a broker export](#correct-a-row-in-a-broker-export).
+[Correct a row in a broker export](#correct-a-row-in-a-broker-export). A third, `market`, says
+whether a ticker is a US or a London one: see
+[Say which market a ticker is from](#say-which-market-a-ticker-is-from).
 
 A space before or after a value is ignored, so you can leave one after each comma.
 
@@ -222,8 +224,8 @@ Irish one, see [Offshore Funds (ERI)](../offshore-funds.md).
     country from the currency. Verify foreign dividend income and tax against the broker statement
     rather than assuming that treaty limits were applied.
 - For the same reason, a ticker that is both a London fund's and a US security's, such as `OPEN`, is
-    matched to the fund, with a warning. See
-    [Tickers that are also US symbols](../extra-data-and-options.md#tickers-that-are-also-us-symbols).
+    matched to the fund, with a warning, unless the row's `market` says which. See
+    [Say which market a ticker is from](#say-which-market-a-ticker-is-from).
 - The format does not identify the instrument type. It is intended for ordinary shares and funds; do
     not rely on it for options, futures, bonds, contracts for difference, crypto assets or another
     instrument whose UK tax treatment differs.
@@ -340,6 +342,49 @@ The error names the RAW row:
     the price per share in the units the export uses.
 - **`The broker '...' is not the broker of any other input`**: correct the name, or leave it blank.
 - **`A row that replaces a row of a broker export names that broker`**: fill in `broker`.
+
+## Say which market a ticker is from
+
+A ticker names a security only on one market. `OPEN`, for example, is Opendoor in the US and an
+iShares fund in London. cgt-calc's bundled ISIN list gives funds based outside the US their London
+tickers, and cgt-calc adds a fund's [excess reported income](../offshore-funds.md) to your holding.
+When nothing in your files says which security such a ticker is, cgt-calc takes the fund and, for a
+ticker that is also a US symbol, warns: see
+[Tickers that are also US symbols](../extra-data-and-options.md#tickers-that-are-also-us-symbols).
+
+Add a `market` column to say where each row's security is listed:
+
+| Value | Meaning                                                                     |
+| ----- | --------------------------------------------------------------------------- |
+| `US`  | A US symbol, on an exchange such as the NYSE or Nasdaq, or over the counter |
+| `LSE` | A ticker on the London Stock Exchange, AIM included                         |
+| blank | Not known, as for a row without the column                                  |
+
+Letter case does not matter. Any other value stops the run with `Unknown market`; for a security
+listed elsewhere, leave the cell blank.
+
+```csv
+date,action,symbol,quantity,price,fees,currency,market
+2022-05-03,BUY,OPEN,100,2.00,0.00,GBP,US
+2023-01-31,SELL,OPEN,40,3.00,0.00,GBP,US
+```
+
+With `US`, cgt-calc does not match `OPEN` to the London fund, so the fund's income is not added.
+With `LSE`, the fund's income is added. Either way, cgt-calc does not warn.
+
+A market applies to the ticker across the whole run, because all rows under one ticker are one
+holding: rows whose market is blank, in this file or another input, share it. A row in an
+[ISIN translation file](../extra-data-and-options.md#isin-to-ticker-translation) that you wrote
+still applies whatever the market says.
+
+Two refusals protect a holding from being pooled with another security:
+
+- **`is from market ... on another row`**: one ticker has rows of both markets, for example an `LSE`
+    row beside a [Charles Schwab](schwab.md#funds-based-outside-the-us) row, which is always US. See
+    [`is from market`](../extra-data-and-options.md#is-from-market).
+- **`is a London ticker on this row`**: an `LSE` row uses a London ticker of a bundled fund, and
+    another export gives the ticker the ISIN of something else. See
+    [`is a London ticker on this row`](../extra-data-and-options.md#is-a-london-ticker-on-this-row).
 
 ## Generate the report
 
@@ -647,12 +692,13 @@ and put the full amount in `price`: positive for money received and negative for
 
 Start the file with a header that names the seven columns from [Create the CSV](#create-the-csv),
 each once and in any order, and the optional
-[`broker` and `replaces` columns](#correct-a-row-in-a-broker-export) if you use them. If the message
-lists a missing or unknown name, correct that name where it stands rather than pasting a new header
-over it. Every row has as many cells as the header, blank where a row does not use them, and gives
-its values in the header's order, so keep every comma, including the empty `symbol` field in a cash
-row. Save the file as UTF-8 CSV rather than converting a PDF or pasting a formatted currency value
-such as `£1,000` into one field.
+[`broker` and `replaces` columns](#correct-a-row-in-a-broker-export) and
+[`market` column](#say-which-market-a-ticker-is-from) if you use them. If the message lists a
+missing or unknown name, correct that name where it stands rather than pasting a new header over it.
+Every row has as many cells as the header, blank where a row does not use them, and gives its values
+in the header's order, so keep every comma, including the empty `symbol` field in a cash row. Save
+the file as UTF-8 CSV rather than converting a PDF or pasting a formatted currency value such as
+`£1,000` into one field.
 
 ### `Reached a negative balance` for broker `Unknown`
 

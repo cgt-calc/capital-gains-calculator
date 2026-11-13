@@ -638,6 +638,12 @@ _RAW_TAX_ROW = "2024-06-03,DIVIDEND_TAX,FOO,1,-5.00,0.00,USD"
             None,
             id="every column in another order",
         ),
+        pytest.param(
+            f"{_RAW_HEADING},market,broker",
+            f"{_RAW_TAX_ROW},US,Charles Schwab",
+            None,
+            id="market",
+        ),
     ],
 )
 def test_a_raw_heading_with_its_optional_columns_is_recognised(
