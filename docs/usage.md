@@ -143,8 +143,8 @@ Before relying on the figures:
     does not know its [ticker rename](extra-data-and-options.md#ticker-renames), or that a merger or
     takeover is missing from your history.
 3. Compare **Number of disposals** in the PDF, or **Disposals** in the terminal, with your records.
-    Check that **Disposal proceeds** agrees with sale amounts on your broker statements and any
-    values used for other disposals.
+    Check that **Total disposal proceeds** in the PDF, or **Disposal proceeds** in the terminal,
+    agrees with sale amounts on your broker statements and any values used for other disposals.
 4. Check that dividends and interest are present when you expect them.
 5. Confirm that every relevant account was included once, without overlapping exports.
 6. Check that unusual events such as share splits, spin-offs and offshore fund income were handled.
