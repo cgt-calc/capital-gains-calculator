@@ -33,8 +33,8 @@ repeat the process with consecutive date ranges, making sure there are no gaps.
 
 ## Prepare the directory
 
-You can pass one export on its own. Several can go in one directory, which you pass instead, so you
-do not have to combine them yourself:
+You can pass a single export as a file. Several can go in one directory, which you pass instead, so
+you do not have to combine them yourself:
 
 ```text
 schwab/
