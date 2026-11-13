@@ -1536,6 +1536,22 @@ class TransactionIngester:
                 "Excess reported income price must be finite and non-negative.",
             )
 
+        known = self.isin_converter.get_symbols(transaction.isin)
+        # A name with an ISIN of its own keeps that fund's reports: what the
+        # ISIN data states outranks what a rename row implies.
+        owners = self.isin_converter.get_symbol_to_isin_map()
+        renamed = {
+            name
+            for symbol in known
+            for name in connected_names(renames, symbol)
+            if name not in owners
+        }
+        # Before the filters below: a 30-day match across two period ends is
+        # refused whatever either report's amount (reg 94(3A)).
+        self.history.eri_period_ends.update(
+            (transaction.date, symbol) for symbol in known | renamed if symbol
+        )
+
         if any(
             period.includes(distribution_date)
             for period in self.non_uk_resident_periods
@@ -1552,16 +1568,6 @@ class TransactionIngester:
         if transaction.price == Decimal(0):
             return
 
-        known = self.isin_converter.get_symbols(transaction.isin)
-        # A name with an ISIN of its own keeps that fund's reports: what the
-        # ISIN data states outranks what a rename row implies.
-        owners = self.isin_converter.get_symbol_to_isin_map()
-        renamed = {
-            name
-            for symbol in known
-            for name in connected_names(renames, symbol)
-            if name not in owners
-        }
         for symbol in sorted(known | renamed):
             # For some funds we don't have symbol translation
             if not symbol:

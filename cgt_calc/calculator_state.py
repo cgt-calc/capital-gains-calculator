@@ -141,6 +141,9 @@ class PreparedHistory:
     # itself once it is in.
     fee_days: set[tuple[dt.date, str]] = field(default_factory=set)
     eris: ExcessReportedIncomeLog = field(default_factory=lambda: defaultdict(dict))
+    # Every period end a report is supplied for, by holding, including the
+    # reports `eris` leaves out for a nil amount or non-residence.
+    eri_period_ends: set[tuple[dt.date, str]] = field(default_factory=set)
     # The warning for each holding whose reports reach it only because the
     # bundled list gives a fund a ticker that is also a US symbol. Written when
     # the report is read, where the mapping is known, and printed by the walk

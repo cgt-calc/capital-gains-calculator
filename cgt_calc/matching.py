@@ -679,10 +679,18 @@ class Matcher:
         """Identify the disposal against the next 30 days' acquisitions."""
         # Bed and breakfast rule next
         if ctx.disposal_quantity > 0:
-            eris = []
+            # Each report with the ratio of the splits from the day after the
+            # disposal to its period end: the disposal is counted in the
+            # day's closing units, the report per unit in issue at the period
+            # end (reg 92(3)(a)).
+            eris: list[tuple[ExcessReportedIncome, Fraction]] = []
+            # Every period end a report is supplied for, at any amount.
+            period_ends: list[dt.date] = []
             eri = self.get_eri(ctx.symbol, ctx.date_index)
             if eri:
-                eris.append(eri)
+                eris.append((eri, Fraction(1)))
+            if (ctx.date_index, ctx.symbol) in self.history.eri_period_ends:
+                period_ends.append(ctx.date_index)
 
             # A reorganisation between the disposal and the repurchase
             # leaves the two counted in different units. The ratios compose
@@ -757,7 +765,9 @@ class Matcher:
                 # the day's own purchase is already used (reg 94(3A)).
                 eri = self.get_eri(effective_symbol, search_index)
                 if eri:
-                    eris.append(eri)
+                    eris.append((eri, cumulative_ratio))
+                if (search_index, effective_symbol) in self.history.eri_period_ends:
+                    period_ends.append(search_index)
                 # The shares are the same holding under either spelling, so
                 # reading only the name the day ends with would let a row's
                 # spelling decide whether this disposal is identified against it.
@@ -908,13 +918,27 @@ class Matcher:
                     # bought on the period end itself are in the same period,
                     # and the end-of-day ERI counts them if still held then
                     # (regs 94(3) and 94(3A)).
-                    matched_eris = [eri for eri in eris if eri.date < search_index]
+                    # The units sold count as held only at the next period
+                    # end (reg 94(3A)), however much either report is.
+                    spanned = [day for day in period_ends if day < search_index]
+                    if len(spanned) > 1:
+                        raise CalculationError(
+                            self._several_period_ends_message(
+                                ctx, search_index, spanned
+                            )
+                        )
+                    # The units sold, as they stood at the period end.
+                    matched_eris = {
+                        eri: scale_quantity(available_quantity, ratio)
+                        for eri, ratio in eris
+                        if eri.date < search_index
+                    }
                     total_dist_amount = Decimal(0)
-                    for eri in matched_eris:
+                    for eri, eri_units in matched_eris.items():
                         eri_distribution = ExcessReportedIncomeDistribution(
                             price=eri.price,
-                            amount=available_quantity * eri.price,
-                            quantity=available_quantity,
+                            amount=eri_units * eri.price,
+                            quantity=eri_units,
                             provisional_rate=eri.provisional_rate,
                         )
                         self._warn_ticker_only_eri(eri)
@@ -961,7 +985,7 @@ class Matcher:
                         Decimal(0),
                         # The units this disposal adds to each ERI, the same
                         # count `total_dist_amount` was worked out from.
-                        dict.fromkeys(matched_eris, available_quantity),
+                        matched_eris,
                     )
                     ctx.calculation_entries.append(
                         CalculationEntry(
@@ -1812,6 +1836,27 @@ class Matcher:
             "less than the ten decimal places this keeps, so the match cannot "
             "be expressed in both unit systems at once. Work this disposal out "
             "by hand (consider professional advice)."
+        )
+
+    @staticmethod
+    def _several_period_ends_message(
+        ctx: DisposalContext,
+        search_index: dt.date,
+        period_ends: list[dt.date],
+    ) -> str:
+        """Explain why a match across two reporting period ends is refused."""
+        ends = " and ".join(str(day) for day in period_ends)
+        return (
+            "Cannot work out the excess reported income for the disposal of "
+            f"{ctx.symbol} on {ctx.date_index}, which is matched with the "
+            f"purchase on {search_index}: the fund has reporting period ends "
+            f"on {ends}, from the disposal up to the day before the purchase. "
+            "Units disposed of count as held at a "
+            "period end only when they are bought back in the next reporting "
+            "period (Offshore Funds (Tax) Regulations 2009, reg 94(3A)), and "
+            "cgt-calc does not work out a match across more than one period "
+            "end. Work out this match's excess reported income and the "
+            "repurchase's cost by hand (consider professional advice)."
         )
 
     def _matchable_acquisition(
