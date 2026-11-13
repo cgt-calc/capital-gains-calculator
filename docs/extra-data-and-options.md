@@ -429,7 +429,8 @@ Some old tickers also belonged to another security on another exchange. `RMG` wa
 London until it became `IDS` on 5 October 2022, and a US company's on the NYSE until 2020. `MMC` was
 Marsh & McLennan Companies' in New York until it became `MRSH` on 14 January 2026, and a London
 company's until 2020. The table's `market` column keeps such a rename to the company's market, `LSE`
-or `US`, and cgt-calc renames only the rows that show they are the company's:
+or `US`, and cgt-calc renames a row only when the row itself, or the rest of your files, shows that
+it is the company's:
 
 - **A row with an ISIN** is renamed when the ISIN is the company's.
 - **A row that gives a market** is renamed when it is the rename's market: a RAW row with that

@@ -185,7 +185,7 @@ def test_a_row_exported_under_the_new_ticker_says_nothing_about_the_old_one(
             "They may be Royal Mail, whose ticker changed to IDS, or another "
             "security that used RMG. If they are Royal Mail rows in your RAW file, "
             "write LSE in their market column. See "
-            "https://cgt-calc.uk/extra-data-and-options/#ticker-renames"
+            "https://cgt-calc.uk/extra-data-and-options/#renames-kept-to-one-market"
         )
     ]
 
@@ -627,7 +627,8 @@ def test_rows_that_show_nothing_stay_under_the_old_ticker(tmp_path: Path) -> Non
 
     It stays one MMC holding, with a warning. 10 x 200 = 2,000 dollars /
     1.3126 = 1,523.69, 4/10 of it = 609.48 allowed; 880 / 1.3573 = 648.35
-    proceeds; 38.87 gain.
+    proceeds; 38.87 gain. Freetrade's Royal Mail rows in the same run say
+    what RMG is, not MMC: they become 5 IDS, and their sale falls in 2021/22.
     """
     raw = _write(
         tmp_path / "raw.csv",
@@ -637,10 +638,15 @@ def test_rows_that_show_nothing_stay_under_the_old_ticker(tmp_path: Path) -> Non
             "2026-03-25,SELL,MMC,4,220,0,USD",
         ],
     )
+    freetrade = _write(
+        tmp_path / "freetrade.csv", [FREETRADE_HEADER, *FREETRADE_ROYAL_MAIL]
+    )
 
-    result = _run("--year", "2025", "--raw-file", str(raw))
+    result = _run(
+        "--year", "2025", "--raw-file", str(raw), "--freetrade-file", str(freetrade)
+    )  # fmt: skip
 
-    assert _holdings(result.stdout) == {"MMC": "6.00"}
+    assert _holdings(result.stdout) == {"IDS": "5.00", "MMC": "6.00"}
     assert _figure(result.stdout, "Allowable costs") == "609.48"
     assert _figure(result.stdout, "Gain") == "38.87"
     assert stderr_alerts(result.stderr) == [
@@ -650,9 +656,73 @@ def test_rows_that_show_nothing_stay_under_the_old_ticker(tmp_path: Path) -> Non
             "They may be Marsh & McLennan Companies, whose ticker changed to MRSH, "
             "or another security that used MMC. If they are Marsh & McLennan "
             "Companies rows in your RAW file, write US in their market column. See "
-            "https://cgt-calc.uk/extra-data-and-options/#ticker-renames"
+            "https://cgt-calc.uk/extra-data-and-options/#renames-kept-to-one-market"
         )
     ]
+
+
+@pytest.mark.parametrize(
+    ("raw_market", "holdings"),
+    [
+        pytest.param("", None, id="blank-refused"),
+        pytest.param("US", {"IDS": "5.00", "RMG": "1.00"}, id="marked-US"),
+    ],
+)
+def test_a_namesake_row_schwab_dropped_still_shows_another_security(
+    tmp_path: Path, raw_market: str, holdings: dict[str, str] | None
+) -> None:
+    """A cancelled Schwab purchase of the US RMG says RMG named it in this run.
+
+    1. 2 June 2020: Schwab buys 10 RMG at 10 dollars and cancels the purchase
+       the next day, so both rows are dropped.
+    2. 2 June 2020: a RAW row buys 1 RMG at 10 pounds.
+    3. Freetrade's Royal Mail rows: buy 10 RMG at 200 in February 2021, sell 5
+       at 300 in June 2021.
+
+    The run exported RMG for Royal Mail and for a US security, so a RAW row
+    with no market cannot be placed, and the refusal names the dropped
+    Schwab row. Pooled with Royal Mail instead, it would cost the sale
+    (1 x 10 + 10 x 200) / 11 x 5 = 913.64 and gain 586.36. Marked US, it is
+    its own RMG holding, and the sale is Royal Mail's alone: 5 x 200 =
+    1,000 allowed, 1,500 - 1,000 = 500 gain.
+    """
+    schwab = _write(
+        tmp_path / "schwab.csv",
+        [
+            SCHWAB_HEADER,
+            "06/03/2020,Cancel Buy,RMG,RMG ACQUISITION CORP,$10.00,10,$0.00,$0.00",
+            "06/02/2020,Buy,RMG,RMG ACQUISITION CORP,$10.00,10,$0.00,-$100.00",
+            "06/01/2020,MoneyLink Deposit,,,,,,$1000.00",
+        ],
+    )
+    raw = _write(
+        tmp_path / "raw.csv",
+        [RAW_HEADER, f"2020-06-02,BUY,RMG,1,10,0,GBP,{raw_market}"],
+    )
+    freetrade = _write(
+        tmp_path / "freetrade.csv", [FREETRADE_HEADER, *FREETRADE_ROYAL_MAIL]
+    )
+    args = (
+        "--year", "2021", "--schwab-file", str(schwab), "--raw-file", str(raw),
+        "--freetrade-file", str(freetrade),
+    )  # fmt: skip
+
+    if holdings is None:
+        stderr = _refused(*args)
+        assert re.search(
+            r"two securities under RMG: Royal Mail, whose ticker changed to IDS, on\n"
+            rf".*read from row 3 of {re.escape(str(freetrade))}\n"
+            r"and another security on\n"
+            rf".*read from row 2 of {re.escape(str(schwab))}\n"
+            r"so cgt-calc cannot tell which of them this row is\.",
+            stderr,
+            re.DOTALL,
+        ), stderr
+        return
+    result = _run(*args)
+    assert _holdings(result.stdout) == holdings
+    assert _figure(result.stdout, "Allowable costs") == "1,000.00"
+    assert _figure(result.stdout, "Gain") == "500.00"
 
 
 def test_rows_beside_another_security_alone_join_it_without_a_warning(

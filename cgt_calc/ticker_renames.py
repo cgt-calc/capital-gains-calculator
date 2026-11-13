@@ -6,7 +6,7 @@ from contextlib import contextmanager
 import copy
 import csv
 import dataclasses
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import datetime as dt
 from functools import cache
 from importlib import resources
@@ -37,17 +37,30 @@ TICKER_RENAMES_COLUMNS: Final = CsvColumns(
 _SEPARATE_RUNS_DOCS: Final = (
     "https://cgt-calc.uk/extra-data-and-options/#two-securities-in-separate-runs"
 )
-_TICKER_RENAMES_DOCS: Final = (
-    "https://cgt-calc.uk/extra-data-and-options/#ticker-renames"
+_MARKET_RENAMES_DOCS: Final = (
+    "https://cgt-calc.uk/extra-data-and-options/#renames-kept-to-one-market"
 )
 LOGGER = logging.getLogger(__name__)
 
-# The rows each run renamed by a market rename while their files were read,
-# with the file each was read from. A parser can drop or merge such a row
-# before the run ends, and before its source names the file, but that the
-# run exported the old ticker for the company stays true. Open only inside
+
+@dataclass
+class _Exported:
+    """What one run exported under a market rename's old ticker, row by row.
+
+    Each row comes with the file it was read from. A parser can drop or merge
+    a row before the run ends, and before its source names the file, but that
+    the run exported the old ticker for that security stays true.
+    """
+
+    # Rows that named the company: its ISIN, or the rename's market.
+    company: list[tuple[BrokerTransaction, Path]] = field(default_factory=list)
+    # Rows that named another security: another ISIN, or another market.
+    other: list[tuple[BrokerTransaction, Path]] = field(default_factory=list)
+
+
+# The evidence of each run under way, by market rename. Open only inside
 # `market_rename_evidence()`, so a parser read on its own records nothing.
-_open_runs: list[dict[TickerRename, list[tuple[BrokerTransaction, Path]]]] = []
+_open_runs: list[dict[TickerRename, _Exported]] = []
 
 
 @dataclass(frozen=True)
@@ -96,19 +109,24 @@ def current_ticker(
 def rename_read_row(transaction: BrokerTransaction, file_path: Path) -> None:
     """Give a row just read from `file_path` its current ticker.
 
-    A rename held to one market is logged for the run under way, as evidence
-    of what the old ticker means in it.
+    A row under the old ticker of a rename held to one market that names its
+    security, by ISIN or market, is logged for the run under way as evidence
+    of what that ticker means in it: the company's when the rename applies,
+    another security's when it does not.
     """
     if transaction.symbol is None:
         return
     found = _rename_of(
         transaction.symbol, transaction.date, transaction.isin, transaction.market
     )
-    if found is None:
-        return
-    if found.market is not None and _open_runs:
-        _open_runs[-1].setdefault(found, []).append((transaction, file_path))
-    transaction.symbol = found.new
+    if _open_runs and (transaction.isin is not None or transaction.market is not None):
+        for rename in ticker_renames().get(transaction.symbol, ()):
+            if rename.market is not None:
+                exported = _open_runs[-1].setdefault(rename, _Exported())
+                side = exported.company if rename == found else exported.other
+                side.append((transaction, file_path))
+    if found is not None:
+        transaction.symbol = found.new
 
 
 def _rename_of(
@@ -128,11 +146,9 @@ def _rename_of(
 
 
 @contextmanager
-def market_rename_evidence() -> Generator[
-    Mapping[TickerRename, Sequence[tuple[BrokerTransaction, Path]]]
-]:
-    """Log, for one run, the rows each market rename renamed as they were read."""
-    evidence: dict[TickerRename, list[tuple[BrokerTransaction, Path]]] = {}
+def market_rename_evidence() -> Generator[Mapping[TickerRename, _Exported]]:
+    """Log, for one run, what each market rename's old ticker named as rows were read."""
+    evidence: dict[TickerRename, _Exported] = {}
     _open_runs.append(evidence)
     try:
         yield evidence
@@ -142,45 +158,40 @@ def market_rename_evidence() -> Generator[
 
 def rename_unmarked_rows(
     transactions: Sequence[BrokerTransaction],
-    evidence: Mapping[TickerRename, Sequence[tuple[BrokerTransaction, Path]]],
+    evidence: Mapping[TickerRename, _Exported],
 ) -> None:
     """Decide once for the run what the rows under an old ticker that show nothing are.
 
     A rename held to one market has already renamed the rows that give its
     ISIN or its market. A row under the old ticker with neither could be the
     company or the other security that used the ticker, so the rest of the
-    run decides, from what it exported under the old ticker: the company
-    alone renames them all, another security alone or nothing leaves them
-    all, and both is refused. Rows exported under the new ticker say nothing
-    about the old one: they are another history.
+    run decides, from what it exported under the old ticker, rows a parser
+    later dropped included: the company alone renames them all, another
+    security alone or nothing leaves them all, and both is refused. Rows
+    exported under the new ticker say nothing about the old one: they are
+    another history.
     """
     for renames in ticker_renames().values():
         for rename in renames:
             if rename.market is None:
                 continue
-            under_old = [row for row in transactions if row.symbol == rename.old]
-            bare = [row for row in under_old if row.isin is None and row.market is None]
+            bare = [
+                row
+                for row in transactions
+                if row.symbol == rename.old and row.isin is None and row.market is None
+            ]
             if not bare:
                 continue
-            # The company's rows were renamed as they were read, so a row
-            # still under the old ticker that names its security is another's.
-            other = next(
-                (
-                    row
-                    for row in under_old
-                    if row.isin is not None or row.market is not None
-                ),
-                None,
-            )
-            company = evidence.get(rename, ())
-            if company and other is not None:
+            exported = evidence.get(rename, _Exported())
+            if exported.company and exported.other:
                 raise InvalidTransactionError(
-                    bare[0], _two_securities(rename, company[0], other)
+                    bare[0],
+                    _two_securities(rename, exported.company[0], exported.other[0]),
                 )
-            if company:
+            if exported.company:
                 for row in bare:
                     row.symbol = rename.new
-            elif other is None:
+            elif not exported.other:
                 LOGGER.warning(
                     "Rows under %s name no ISIN or market, and no row of this run "
                     "exported under %s names its ISIN or market, so they are kept "
@@ -195,20 +206,20 @@ def rename_unmarked_rows(
                     rename.old,
                     rename.company,
                     rename.market,
-                    _TICKER_RENAMES_DOCS,
+                    _MARKET_RENAMES_DOCS,
                 )
 
 
 def _two_securities(
     rename: TickerRename,
     company: tuple[BrokerTransaction, Path],
-    other: BrokerTransaction,
+    other: tuple[BrokerTransaction, Path],
 ) -> str:
     return (
         f"Ticker {rename.old} names no ISIN or market on this row, and this run "
         f"shows two securities under {rename.old}: {rename.company}, whose ticker "
         f"changed to {rename.new}, on\n{indent_entry(_located(*company))}\n"
-        f"and another security on\n{indent_entry(other)}\n"
+        f"and another security on\n{indent_entry(_located(*other))}\n"
         "so cgt-calc cannot tell which of them this row is. Two securities under "
         "one ticker would be pooled and matched as one holding. If this row is in "
         "your RAW file and you know where its security is listed, write that in "
