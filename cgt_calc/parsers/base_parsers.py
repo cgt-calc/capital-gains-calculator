@@ -29,7 +29,7 @@ from cgt_calc.exceptions import (
 )
 from cgt_calc.logging import parsing_msg
 from cgt_calc.model import BrokerTransaction, TransactionSource
-from cgt_calc.ticker_renames import ambiguity, current_ticker
+from cgt_calc.ticker_renames import ambiguity, rename_read_row
 from cgt_calc.util import is_blank_row
 
 if TYPE_CHECKING:
@@ -142,6 +142,10 @@ def use_current_tickers(
     A file is refused when only some of its rows under one ticker, without
     an ISIN, fall while that ticker was a renamed security's: nothing says
     which rows are which security's.
+
+    A rename held to one market renames here only the rows that give its
+    ISIN or its market. The rest of its old ticker's rows are decided once
+    the whole run is read.
     """
     dates: dict[str, list[dt.date]] = {}
     for transaction in transactions:
@@ -151,10 +155,7 @@ def use_current_tickers(
         if (reason := ambiguity(symbol, symbol_dates)) is not None:
             raise ParsingError(file_path, reason)
     for transaction in transactions:
-        if transaction.symbol is not None:
-            transaction.symbol = current_ticker(
-                transaction.symbol, transaction.date, transaction.isin
-            )
+        rename_read_row(transaction, file_path)
 
 
 def next_account_token(name: str) -> str:

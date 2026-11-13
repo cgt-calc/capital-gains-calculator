@@ -408,12 +408,13 @@ Another security can take a ticker after a company gives it up, so cgt-calc chec
 renamed company's:
 
 - **A row with an ISIN** is renamed when the ISIN is the company's, whatever the row's date.
-- **A row without an ISIN**, such as a Schwab or RAW row, is renamed from the table's `since` date
-    up to the day before its `reused` date, when another security started trading under the old
-    ticker. A blank column sets no limit on that side. The `until` column, the day the company
-    changed ticker, does not limit it, because a broker can keep the old ticker on later rows. `FB`
-    rows are renamed from 18 May 2012 to 25 June 2025, so an `FB` row from 26 June 2025 is left as
-    `FB`.
+- **A row without an ISIN**, such as a Schwab or RAW row, is renamed by its date when the table
+    gives the rename no `market`: from the table's `since` date up to the day before its `reused`
+    date, when another security started trading under the old ticker. A blank column sets no limit
+    on that side. The `until` column, the day the company changed ticker, does not limit it, because
+    a broker can keep the old ticker on later rows. `FB` rows are renamed from 18 May 2012 to 25
+    June 2025, so an `FB` row from 26 June 2025 is left as `FB`. A rename with a `market` is
+    described in [Renames kept to one market](#renames-kept-to-one-market).
 
 If one file has rows without an ISIN under an old ticker, some inside its renamed period and some
 outside it (for `FB`, before 18 May 2012 or from 26 June 2025), cgt-calc stops with
@@ -422,14 +423,61 @@ one company or two. In a RAW file, write the current ticker on every row of the 
 the message says. cgt-calc checks each file on its own, so rows in separate files are each read by
 their own date without an error.
 
-Two limitations remain:
+#### Renames kept to one market
 
-- A row without an ISIN is matched by its ticker and date alone. The table includes a rename only
-    when no other security is known to have used the old ticker in that period on an exchange a
-    supported broker offers. If you held another security under the old ticker in that period,
-    cgt-calc cannot detect it: it is reported under the new ticker, and pooled with the company's
-    shares if you also held them. Check each holding and disposal in the report against your
-    records.
+Some old tickers also belonged to another security on another exchange. `RMG` was Royal Mail's in
+London until it became `IDS` on 5 October 2022, and a US company's on the NYSE until 2020. `MMC` was
+Marsh & McLennan Companies' in New York until it became `MRSH` on 14 January 2026, and a London
+company's until 2020. The table's `market` column keeps such a rename to the company's market, `LSE`
+or `US`, and cgt-calc renames only the rows that show they are the company's:
+
+- **A row with an ISIN** is renamed when the ISIN is the company's.
+- **A row that gives a market** is renamed when it is the rename's market: a RAW row with that
+    [`market`](brokers/raw.md#say-which-market-a-ticker-is-from), or a Charles Schwab row, which is
+    always US. Schwab option contracts and award prices are renamed the same way. A row of the other
+    market keeps its ticker.
+- **A row with neither**, such as an Interactive Brokers trade or a RAW row without a market, is
+    read from the rest of your files. If the rows exported under the old ticker that do name their
+    security all name the company, it is renamed too. If they all name another security, or none
+    does, it keeps the old ticker. If they name both, cgt-calc stops, as described below. So an
+    Interactive Brokers trade under `RMG` is read as Royal Mail's when a dividend under `RMG` gives
+    Royal Mail's ISIN.
+
+Rows exported under the new ticker do not count: a dividend reported as `IDS` says nothing about
+whether earlier `RMG` trades were Royal Mail's.
+
+If nothing in your files says which security the rows with neither are, they keep the old ticker,
+and cgt-calc warns `Rows under <ticker> name no ISIN or market`. They may be the company's or the
+other security's. If they are the company's and in your RAW file, write the market in their `market`
+column. A broker export's rows cannot be given a market. If the report then shows the company under
+both tickers, or stops with `Tried to sell`, the holding is split: see the last paragraph of this
+section.
+
+If your files show both the company and another security under the old ticker, a row with neither
+cannot be placed, and cgt-calc stops with `Ticker <ticker> names no ISIN or market on this row`. The
+message shows a row of each security and the row it cannot place. If that row is in your RAW file
+and you know where its security is listed, write that in its `market` column. This includes a RAW
+row that [replaces](brokers/raw.md#replace-a-row-of-the-export) a row of a broker export. A row of a
+broker export needs the two securities calculated in
+[separate runs](#two-securities-in-separate-runs).
+
+#### Limitations of ticker renames
+
+- When the table gives a rename no `market`, a row without an ISIN is matched by its ticker and date
+    alone. The table includes such a rename only when no other security is known to have used the
+    old ticker in that period on an exchange a supported broker offers. If you held another security
+    under the old ticker in that period, cgt-calc cannot detect it: it is reported under the new
+    ticker, and pooled with the company's shares if you also held them. Check each holding and
+    disposal in the report against your records.
+- A new ticker can have belonged to an earlier company. `IDS` was Ideal Shopping Direct's on AIM
+    until 2011, so Royal Mail rows read as `IDS` join any Ideal Shopping Direct rows in your files.
+    If your files show that holding sold in full before you bought Royal Mail, the figures are
+    unchanged. If both companies' rows carry an ISIN, cgt-calc stops with `is exported for ISIN`. If
+    your files leave the Ideal Shopping Direct holding open, its shares are pooled with Royal Mail's
+    and the figures are wrong: add its disposal to your RAW file.
+- In a [prices file](#missing-share-prices), write the current ticker, such as `MRSH` for a Marsh &
+    McLennan Companies vest. Price rows give no market, so a rename kept to one market does not
+    apply to them.
 - A rename missing from the table leaves the old and new tickers as two holdings, except in a
     Vanguard export, whose `NameChange` rows record the change, and in
     [Trading 212](brokers/trading212.md#known-limitations), which stops on a ticker change it cannot

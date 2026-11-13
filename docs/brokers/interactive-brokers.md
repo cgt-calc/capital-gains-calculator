@@ -112,7 +112,10 @@ IBKR can report one security under different tickers. cgt-calc combines supporte
 one holding when it can identify the security by ISIN, from your file or from the bundled list of
 securities, and reports it under one ticker, which may not be the one you traded: `CSPX`, for
 example, is reported as `CSP1`. An ISIN in a dividend description can also identify trades under
-that ticker, wherever the dividend appears in your input.
+that ticker, wherever the dividend appears in your input. That includes a renamed company's old
+ticker: trades under `RMG` are read as Royal Mail's `IDS` when a dividend under `RMG` gives Royal
+Mail's ISIN. See
+[Renames kept to one market](../extra-data-and-options.md#renames-kept-to-one-market).
 
 Some London fund tickers are also US symbols, such as `OPEN`, which is an iShares fund in London and
 Opendoor in the US. A dividend's ISIN tells cgt-calc which of the two your trades are. Trades in a

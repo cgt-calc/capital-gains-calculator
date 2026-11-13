@@ -24,6 +24,7 @@ from cgt_calc.parsers.sharesight import SharesightParser
 from cgt_calc.parsers.trading212 import Trading212Parser
 from cgt_calc.parsers.vanguard import VanguardParser, VanguardTransaction
 from cgt_calc.rename_planning import connected_names
+from cgt_calc.ticker_renames import market_rename_evidence, rename_unmarked_rows
 from cgt_calc.util import csv_fields
 
 if TYPE_CHECKING:
@@ -157,15 +158,19 @@ class BrokerRegistry:
         # with every problem named and nothing loaded.
         args.plain_inputs = recognise_inputs(args, BrokerRegistry._BROKERS)
         all_transactions: list[BrokerTransaction] = []
-        for broker_class in BrokerRegistry._BROKERS:
-            transactions = broker_class.load_from_args(args)
-            if transactions:
-                LOGGER.info(
-                    "Loaded %d transactions from %s",
-                    len(transactions),
-                    broker_class.pretty_name,
-                )
-                all_transactions += transactions
+        with market_rename_evidence() as evidence:
+            for broker_class in BrokerRegistry._BROKERS:
+                transactions = broker_class.load_from_args(args)
+                if transactions:
+                    LOGGER.info(
+                        "Loaded %d transactions from %s",
+                        len(transactions),
+                        broker_class.pretty_name,
+                    )
+                    all_transactions += transactions
+            # Once every input is read, and before anything asks which
+            # security a ticker is.
+            rename_unmarked_rows(all_transactions, evidence)
 
         # ERI transactions are appended after this count, so scope the wording.
         msg = f"Found {len(all_transactions)} broker transactions"

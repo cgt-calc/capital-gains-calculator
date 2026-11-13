@@ -144,8 +144,9 @@ duplicates them.
 cgt-calc reads a known old ticker, such as Meta's `FB`, as the company's current ticker, so
 transactions under both names share one holding in the report. Schwab rows carry no ISIN, so some
 renames go by date: a row under `FB` dated from 26 June 2025 is left as `FB`, because another
-security has traded under that ticker since then. See
-[Ticker renames](../extra-data-and-options.md#ticker-renames).
+security has traded under that ticker since then. Schwab rows are US symbols, so a rename kept to
+the US market also applies, such as Marsh & McLennan Companies' `MMC` to `MRSH`, including option
+contracts and award prices. See [Ticker renames](../extra-data-and-options.md#ticker-renames).
 
 An unknown action stops the import. Do not delete a financial transaction simply to make the run
 finish; identify what happened and check [Known limitations](#known-limitations) first.

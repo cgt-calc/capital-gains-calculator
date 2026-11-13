@@ -6,7 +6,7 @@ import csv
 import datetime as dt
 from importlib import resources
 
-from cgt_calc.const import TICKER_RENAMES_RESOURCE
+from cgt_calc.const import LSE_MARKET, TICKER_RENAMES_RESOURCE, US_MARKET
 from cgt_calc.parsers.schwab_equity_award_json import SPLITS
 from cgt_calc.resources import RESOURCES_PACKAGE
 from cgt_calc.ticker_renames import ticker_renames
@@ -23,7 +23,10 @@ def test_every_rename_is_unambiguous_and_sourced() -> None:
     shown as META would otherwise move into Roundhill's ETF, which traded as
     META until January 2022. The Equity Awards parser keys its split table by
     ticker while reading, before renames apply, so renaming one of those
-    tickers needs that parser changed first.
+    tickers needs that parser changed first. A rename held to one market
+    names that market as a row of the RAW market column does, and states no
+    dates: the step that decides its rows with no ISIN or market for the
+    whole run reads none.
     """
     with (
         resources.files(RESOURCES_PACKAGE)
@@ -44,6 +47,10 @@ def test_every_rename_is_unambiguous_and_sourced() -> None:
         assert reused is None or reused >= until, row
         assert row["old"] not in SPLITS, row
         assert row["new"] not in SPLITS, row
+        assert row["market"] in {"", US_MARKET, LSE_MARKET}, row
+        if row["market"]:
+            assert since is None, row
+            assert reused is None, row
         assert row["company"], row
         urls = row["source"].split()
         assert urls, row

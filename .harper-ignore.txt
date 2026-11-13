@@ -125,3 +125,6 @@
 ^raw\.md:.*ThatThan
 # "a header with every name wrong look alike" uses the verb "look alike".
 ^csv_columns\.py:.*CompoundNouns
+# "the rows that show they are the company's" is "show (that) they are", a
+# clause, not "show" taking "they" as its object.
+^extra-data-and-options\.md:.*TheyToThem
