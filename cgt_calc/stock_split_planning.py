@@ -126,12 +126,14 @@ def plan_stock_splits(
     state: CalculatorState,
     date_index: dt.date,
     day_transactions: list[BrokerTransaction],
+    raw_file: Path | None,
 ) -> None:
     """Decide what each of the day's reorganisations does to a holding.
 
     Runs before any of the day's rows are processed, so the portfolio
     still holds the day-opening pool and every source row and its ordering
     are still to hand. Both passes replay what is recorded here.
+    ``raw_file`` is the run's RAW file, which a message can name.
     """
     splits: dict[str, list[BrokerTransaction]] = defaultdict(list)
     for transaction in day_transactions:
@@ -141,7 +143,7 @@ def plan_stock_splits(
         for row in rows:
             _check_reorganisation_row(row)
         row = _sole_reorganisation(symbol, date_index, rows)
-        _plan_stock_split(state, date_index, symbol, row, day_transactions)
+        _plan_stock_split(state, date_index, symbol, row, day_transactions, raw_file)
 
 
 def _check_reorganisation_row(transaction: BrokerTransaction) -> None:
@@ -306,6 +308,7 @@ def _plan_stock_split(
     symbol: str,
     row: BrokerTransaction,
     day_transactions: list[BrokerTransaction],
+    raw_file: Path | None,
 ) -> None:
     """Work out and record one reorganisation."""
     instants = _split_instants(row)
@@ -354,6 +357,13 @@ def _plan_stock_split(
     event = _stock_split_event(
         state, row, symbol, date_index, holding_at_event, instants, before_rows
     )
+    # Only a pair states a count of its own, and it is its account's count.
+    # With no other account in the holding, a different count is not units
+    # held elsewhere: rows are missing, or the holding pools listings that
+    # Trading 212 counts apart.
+    others = _contributors(state, symbol, before_rows) - {source_account(row)}
+    if holding_at_event != event.before_quantity and not others:
+        raise CalculationError(_unheld_pair_message(event, holding_at_event, raw_file))
     ratio = event.ratio
     if isinstance(ratio, UnresolvedRatio):
         if before_rows:
@@ -514,11 +524,7 @@ def _stock_split_event(
             f"{strip_zeros(holding_at_event)}."
         )
     if not isinstance(row, RawTransaction):
-        contributors = state.history.holding_sources.get(symbol, set()) | {
-            source_account(other)
-            for other in before_rows
-            if quantity_sign(other.action) > 0
-        }
+        contributors = _contributors(state, symbol, before_rows)
         account = source_account(row)
         if contributors - {account}:
             raise CalculationError(
@@ -538,6 +544,17 @@ def _stock_split_event(
         ratio=Fraction(after_quantity) / Fraction(holding_at_event),
         instants=instants,
     )
+
+
+def _contributors(
+    state: CalculatorState, symbol: str, before_rows: list[BrokerTransaction]
+) -> set[str]:
+    """Return the accounts that put units into the holding at the event."""
+    return state.history.holding_sources.get(symbol, set()) | {
+        source_account(other)
+        for other in before_rows
+        if quantity_sign(other.action) > 0
+    }
 
 
 def _two_splits_message(
@@ -676,6 +693,46 @@ def _unresolved_scaling_message(event: StockSplitEvent) -> str:
         f"the export: {event.ratio.describe()}. This happens when the same "
         "security is held through more than one broker. Work the "
         "reorganisation out by hand (consider professional advice)."
+    )
+
+
+# One literal, so that the link check reads the whole address.
+_UNHELD_PAIR_DOCS: Final = (
+    "https://cgt-calc.uk/brokers/trading212/#split-rows-that-do-not-match-your-holding"
+)
+
+
+def _unheld_pair_message(
+    event: StockSplitEvent, held: Decimal, raw_file: Path | None
+) -> str:
+    """Explain a pair stating a count its own account's rows do not give.
+
+    Only the Trading 212 parser builds a pair. The row quantity it suggests,
+    stated less held, is the change to the holding only if nothing was
+    traded between the missing split and this one, so the message says so.
+    """
+    symbol, date = event.symbol, event.date
+    stated = strip_zeros(event.before_quantity)
+    return (
+        f"Cannot apply the reorganisation of {symbol} on {date}: the "
+        f"Trading 212 split rows say {stated} units were held before it, but "
+        f"the history holds {strip_zeros(held)} at that point, and every "
+        f"{symbol} unit in it came from that Trading 212 account. Something "
+        f"that changed the holding before {date} is missing. First check "
+        "whether the company split or consolidated its shares earlier: "
+        "Trading 212 exports have no rows for some splits. If it did, add "
+        f"that split as one STOCK_SPLIT row in {raw_file_to_add_to(raw_file)}, "
+        f"dated the first day {symbol} traded at the new count. The export "
+        "cannot give you that date: take it from the company's announcement. "
+        f"If you did not buy or sell {symbol} between that day and {date}, "
+        f"the row's quantity is {strip_zeros(event.before_quantity - held)} "
+        f"({stated} less {strip_zeros(held)}). If the company made no such "
+        "change, the export is missing rows: replace it with one complete "
+        f"export from your first {symbol} purchase. If you hold {symbol} "
+        "under two tickers and each has its own split rows, remove both sets "
+        "of split rows from a copy of the export and add one STOCK_SPLIT row "
+        "for the whole holding. Do not add a row only to make the counts "
+        f"agree. See {_UNHELD_PAIR_DOCS}"
     )
 
 
