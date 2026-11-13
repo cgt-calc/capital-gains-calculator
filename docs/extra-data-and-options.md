@@ -175,7 +175,10 @@ fact the bundled fund, held at a broker whose export gives no ISIN, the two woul
 holding: calculate them in [separate runs](#two-securities-in-separate-runs).
 
 In both cases, a Vanguard transaction under the ticker is always Vanguard's own fund, so cgt-calc
-stops instead; see [`is a Vanguard fund's on this row`](#is-a-vanguard-funds-on-this-row).
+stops instead; see [`is a Vanguard fund's on this row`](#is-a-vanguard-funds-on-this-row). A RAW row
+whose `market` is `LSE` stops the run too when its London ticker belongs to a bundled fund and
+another transaction exports the ticker with a different ISIN; see
+[`is a London ticker on this row`](#is-a-london-ticker-on-this-row).
 
 #### Tickers that are also US symbols
 
@@ -255,8 +258,8 @@ calculate them in [separate runs](#two-securities-in-separate-runs).
 
 A RAW row's [`market`](brokers/raw.md#say-which-market-a-ticker-is-from) is `LSE` and its ticker is
 one the bundled list gives a London fund, such as `OPEN`. Another transaction exports the ticker
-with a different ISIN, as a Trading 212 one does. cgt-calc cannot tell whether the RAW row is the
-fund or the security the export names. If they are two securities, calculate them in
+with a different ISIN, for example a Trading 212 transaction. cgt-calc cannot tell whether the RAW
+row is the fund or the security the export names. If they are two securities, calculate them in
 [separate runs](#two-securities-in-separate-runs). If the RAW row is the security the export names,
 leave its market blank: it then takes that ISIN.
 

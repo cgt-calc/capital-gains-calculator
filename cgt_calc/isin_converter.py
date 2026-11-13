@@ -254,7 +254,7 @@ class IsinConverter:
         """
         markets: dict[str, BrokerTransaction] = {}
         for transaction in transactions:
-            if transaction.symbol is None or transaction.market is None:
+            if not transaction.symbol or transaction.market is None:
                 continue
             first = markets.setdefault(transaction.symbol, transaction)
             if first.market != transaction.market:

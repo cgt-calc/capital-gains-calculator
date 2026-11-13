@@ -347,8 +347,8 @@ The error names the RAW row:
 
 A ticker names a security only on one market. `OPEN`, for example, is Opendoor in the US and an
 iShares fund in London. cgt-calc's bundled ISIN list gives funds based outside the US their London
-tickers, and adds a fund's [excess reported income](../offshore-funds.md) to your holding. When
-nothing in your files says which security such a ticker is, cgt-calc takes the fund and, for a
+tickers, and cgt-calc adds a fund's [excess reported income](../offshore-funds.md) to your holding.
+When nothing in your files says which security such a ticker is, cgt-calc takes the fund and, for a
 ticker that is also a US symbol, warns: see
 [Tickers that are also US symbols](../extra-data-and-options.md#tickers-that-are-also-us-symbols).
 
@@ -692,12 +692,13 @@ and put the full amount in `price`: positive for money received and negative for
 
 Start the file with a header that names the seven columns from [Create the CSV](#create-the-csv),
 each once and in any order, and the optional
-[`broker` and `replaces` columns](#correct-a-row-in-a-broker-export) if you use them. If the message
-lists a missing or unknown name, correct that name where it stands rather than pasting a new header
-over it. Every row has as many cells as the header, blank where a row does not use them, and gives
-its values in the header's order, so keep every comma, including the empty `symbol` field in a cash
-row. Save the file as UTF-8 CSV rather than converting a PDF or pasting a formatted currency value
-such as `£1,000` into one field.
+[`broker` and `replaces` columns](#correct-a-row-in-a-broker-export) and
+[`market` column](#say-which-market-a-ticker-is-from) if you use them. If the message lists a
+missing or unknown name, correct that name where it stands rather than pasting a new header over it.
+Every row has as many cells as the header, blank where a row does not use them, and gives its values
+in the header's order, so keep every comma, including the empty `symbol` field in a cash row. Save
+the file as UTF-8 CSV rather than converting a PDF or pasting a formatted currency value such as
+`£1,000` into one field.
 
 ### `Reached a negative balance` for broker `Unknown`
 
