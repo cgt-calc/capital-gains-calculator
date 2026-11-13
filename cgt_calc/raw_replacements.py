@@ -188,7 +188,8 @@ def refuse_unpriced_vests(transactions: list[BrokerTransaction]) -> None:
                 row.source.file,
                 f"{row.unpriced} If you know the day you acquired the shares "
                 "and their market value that day instead, a RAW row can "
-                f"replace the vest: see {DOCS}",
+                "replace the vest: see "
+                "https://cgt-calc.uk/brokers/schwab/#vests-without-an-award-file",
                 row_index=row.source.row,
             )
 

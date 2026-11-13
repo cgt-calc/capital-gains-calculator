@@ -440,6 +440,10 @@ the day Schwab posted it, because that is not the day you acquired the shares. I
 file later, cgt-calc dates the vest from it instead, so change `replaces` to the `Date` of the
 vest's `Lapse` row. A row that replaces no vest stops the run.
 
+A row cannot fill a gap in an award file. If you pass one that does not price a vest, for example
+because its dates do not reach back that far, the run still stops while reading the history. Export
+an award file that covers every vest, or leave it out and give every vest without a price a row.
+
 cgt-calc also stops the run, naming your row, when the row has no price, a zero price, another
 currency or fees. It does the same when a split or consolidation of the share falls on either date
 or between them, if your main history records it or cgt-calc already knows of it, and when Schwab
@@ -700,8 +704,9 @@ ticker and a `FairMarketValuePrice` dated no more than six days before the activ
 
 If you cannot get an award export but your records establish the day you acquired the shares and
 their value that day, a RAW row can supply both: see
-[Vests without an award file](#vests-without-an-award-file). A price in `--prices-file` does not
-help here, because it would be for the day Schwab posted the shares.
+[Vests without an award file](#vests-without-an-award-file). This works only without an award file:
+a row does not help a vest that an award file you pass leaves out. A price in `--prices-file` does
+not help either, because it would be for the day Schwab posted the shares.
 
 If its JSON holds `Lapse` rows together with cash rows such as `Journal` or `Wire Transfer`,
 cgt-calc will not read prices from it. Export the same history as the award-price CSV, which reads

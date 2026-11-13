@@ -56,7 +56,7 @@ def test_missing_award_file_reports_the_vest_it_cannot_price(tmp_path: Path) -> 
         "Award file was provided. Pass the Equity Awards transaction history "
         "with --schwab-award-file. If you know the day you acquired the shares "
         "and their market value that day instead, a RAW row can replace the "
-        "vest: see https://cgt-calc.uk/brokers/raw/#correct-a-row-in-a-broker-export\n"
+        "vest: see https://cgt-calc.uk/brokers/schwab/#vests-without-an-award-file\n"
     ) in result.stderr
 
 
