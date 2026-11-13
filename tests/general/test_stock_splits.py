@@ -33,7 +33,7 @@ from cgt_calc.model import (
     RuleType,
     TransactionSource,
 )
-from cgt_calc.parsers.raw import RawTransaction
+from cgt_calc.parsers.raw import COLUMNS, RAW_COLUMNS, RawTransaction
 from cgt_calc.stock_splits import (
     RATIO_SEARCH_BOUND,
     SplitMode,
@@ -447,6 +447,7 @@ def test_a_raw_delta_is_a_change_to_the_whole_holding() -> None:
             RawTransaction(
                 [str(EVENT_DAY), "STOCK_SPLIT", "FOO", "10", "0.00", "0.00", "GBP"],
                 Path("raw.csv"),
+                RAW_COLUMNS.positions(COLUMNS, Path("raw.csv")),
             ),
         ]
     )
@@ -1378,6 +1379,7 @@ def raw_split(
     return RawTransaction(
         [str(date), "STOCK_SPLIT", symbol, delta, price, fees, "GBP"],
         Path("raw.csv"),
+        RAW_COLUMNS.positions(COLUMNS, Path("raw.csv")),
     )
 
 

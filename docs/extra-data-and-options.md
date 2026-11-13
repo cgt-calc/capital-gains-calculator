@@ -74,7 +74,8 @@ cgt-calc stops and names the currency and date when it has no rate for a transac
 To continue, add a row to the file yourself: the transaction's date in the `month` column, the
 currency code, and the rate as units of that currency per £1. Each date and currency needs one row.
 Offshore yuan (CNH) is converted at the CNY rate, so enter it as CNY. If the file does not exist
-yet, start it with the header line `month,currency,rate`.
+yet, start it with the header line `month,currency,rate`. The header names each column once, in any
+order and letter case, and nothing else; each row gives its values in the header's order.
 
 For a date from May 2016, cgt-calc also stops when HMRC's rates cannot be downloaded, and says why.
 Try again later first. Adding the rate yourself works too: read it from the HMRC pages linked under
@@ -117,7 +118,8 @@ if needed. It saves new mappings in `out/isin_translation.csv` by default; `--is
 selects another path.
 
 To add or correct a mapping yourself, edit that file, or create it if it does not exist yet. It is a
-CSV file that starts with the header line `ISIN,symbol`. Each row after it gives one ISIN, then
+CSV file that starts with the header line `ISIN,symbol`. Letter case does not matter, but `ISIN`
+comes first, because every column after it holds a ticker. Each row after it gives one ISIN, then
 every ticker that security is known by, each in its own column. For a fund listed under both `VAPX`
 and `VDPX`:
 
@@ -331,8 +333,10 @@ cgt-calc sometimes needs a share's price on a date that your broker files do not
     give are used instead of Yahoo's, and giving only one of the two stops the run.
 
 Put the prices in a CSV file in the same format as `share_prices.csv`, under the tickers in your
-broker files, not Yahoo's, and pass it with `--prices-file`. The first line must be the header
-`date,symbol,price`. For a spin-off of `NEWCO` from `ACME` on 1 April 2024:
+broker files, not Yahoo's, and pass it with `--prices-file`. Start it with the header line
+`date,symbol,price`. The header names each column once, in any order and letter case, and nothing
+else; each row gives its values in the header's order. For a spin-off of `NEWCO` from `ACME` on 1
+April 2024:
 
 ```csv
 date,symbol,price
@@ -353,8 +357,9 @@ that link to divide the existing pooled cost between them. During an interactive
 the old ticker and saves the answer to `out/spin_offs.csv`.
 
 If the run cannot ask you for the old ticker, put the mapping in a file, pass that file with
-`--spin-offs-file`, and rerun. The file starts with the header line `dst,src`. Each row after it
-gives the new ticker, then the ticker it was spun off from. For `NEWCO` spun off from `ACME`:
+`--spin-offs-file`, and rerun. The file starts with the header line `dst,src`, in either order and
+any letter case. Each row gives the new ticker under `dst` and the ticker it was spun off from under
+`src`. For `NEWCO` spun off from `ACME`:
 
 ```csv
 dst,src

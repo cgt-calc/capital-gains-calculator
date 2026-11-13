@@ -121,3 +121,7 @@
 ^render_pdf\.py:.*SpellCheck.*`s`
 # "an option that reads its export" is the possessive; ItsContraction misfires.
 ^usage\.md:.*ItsContraction
+# "a header that names the seven columns" is a relative clause, not a comparison.
+^raw\.md:.*ThatThan
+# "a header with every name wrong look alike" uses the verb "look alike".
+^csv_columns\.py:.*CompoundNouns

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal
+import re
 import sys
 from typing import TYPE_CHECKING
 
@@ -300,8 +301,16 @@ def test_read_eri_raw_reports_a_half_filled_row(tmp_path: Path) -> None:
             ),
             f"USD,1.23,{VALID_ISIN},01/02/2024\n",
         ),
+        # Spaces around a name are not part of it, but those inside are.
+        (
+            (
+                "currency, ISIN ,excess of reporting income over distribution,"
+                "FUND REPORTING PERIOD END DATE\n"
+            ),
+            f"USD,{VALID_ISIN},1.23,01/02/2024\n",
+        ),
     ],
-    ids=["documented column order", "another column order"],
+    ids=["documented column order", "another column order", "another letter case"],
 )
 def test_read_eri_raw_parses_valid_row(tmp_path: Path, header: str, row: str) -> None:
     """Parse a well-formed ERI CSV row, reading each value by its column name."""
@@ -336,29 +345,41 @@ def test_read_eri_raw_raises_on_invalid_isin(tmp_path: Path) -> None:
         pytest.param(
             "Foo,ISIN,Bar,Fund Reporting Period End Date,Currency,"
             "Excess of reporting income over distribution",
-            "Unknown columns: Bar, Foo",
-            id="unknown columns, in alphabetical order",
+            "\nUnknown columns: 'Foo', 'Bar'.\n",
+            id="unknown columns, in the header's order",
         ),
         pytest.param(
             "ISIN,Fund Reporting Period End Date,Currency",
-            "Missing columns: Excess of reporting income over distribution",
+            "\nMissing columns: 'Excess of reporting income over distribution'.\n",
             id="a column missing",
         ),
         pytest.param(
             HEADER.strip() + ",Currency",
-            "Repeated columns: Currency",
+            "\nRepeated columns: 'Currency'.\n",
             id="a column named twice",
         ),
         pytest.param(
             "ISIN,Currency,Currency,Excess of reporting income over distribution",
-            "Missing columns: Fund Reporting Period End Date",
+            "\nMissing columns: 'Fund Reporting Period End Date'. Repeated "
+            "columns: 'Currency'.\n",
             id="one column named twice in place of another",
         ),
-        # The blank line is taken for the header, so every column is missing.
+        # An inner space is part of the name.
+        pytest.param(
+            "ISIN,Fund  Reporting Period End Date,Currency,"
+            "Excess of reporting income over distribution",
+            "\nMissing columns: 'Fund Reporting Period End Date'. Unknown "
+            "columns: 'Fund  Reporting Period End Date'.\n",
+            id="two spaces inside a name",
+        ),
+        # The blank line is where the header belongs, so it is refused as blank.
         pytest.param(
             "\n" + HEADER.strip(),
-            "Missing columns: ISIN, Fund Reporting Period End Date, Currency, "
-            "Excess of reporting income over distribution",
+            "This line must be the header, but it is blank. If the header is on a "
+            "later line, delete the blank lines above it; otherwise put this "
+            "header line in its place, with the names in the order of the values "
+            "in each row:\n  ISIN,Fund Reporting Period End Date,Currency,Excess "
+            "of reporting income over distribution",
             id="a blank line above the header",
         ),
     ],
@@ -372,7 +393,7 @@ def test_read_eri_raw_refuses_a_wrong_header(
         f"{header}\n{VALID_ISIN},01/02/2024,USD,1.23\n", encoding="utf8"
     )
 
-    with pytest.raises(ParsingError, match=match) as excinfo:
+    with pytest.raises(ParsingError, match=re.escape(match)) as excinfo:
         ERIRawParser.load_from_file(file_path)
 
     assert excinfo.value.row_index == 1

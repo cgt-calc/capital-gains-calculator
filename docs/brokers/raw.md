@@ -6,7 +6,7 @@ records; it is not the CSV that a broker supplies.
 
 ## Create the CSV
 
-Include this header exactly, in this order:
+Start the file with this header line:
 
 ```csv
 date,action,symbol,quantity,price,fees,currency
@@ -24,11 +24,15 @@ The columns are:
 | `fees`     | Positive fees deducted from the cash amount; leave blank or use `0` when there are none                                           |
 | `currency` | Three-letter currency code for the price, fees and resulting amount, such as `USD`                                                |
 
-The header is required. cgt-calc can infer it from a file without a header for compatibility, but
-warns because it then has to assume that the columns are in the order above.
+The header is required, because cgt-calc reads each value by the column the header names for it. The
+columns can come in any order, and letter case and spaces around a name do not matter; each row
+gives its values in the header's order. A file without the header, or with a column missing, named
+twice or not listed here, stops the run, and the message says what to change. The example rows on
+this page, and rows cgt-calc prints for you to add, follow the order above, so if your header lists
+the columns in another order, put each value under its column.
 
-Two optional columns, `broker` and then `replaces`, can follow the seven when a row has to join a
-broker export or correct one of its rows. See
+Two optional columns, `broker` and `replaces`, can be added when a row has to join a broker export
+or correct one of its rows. See
 [Correct a row in a broker export](#correct-a-row-in-a-broker-export).
 
 A space before or after a value is ignored, so you can leave one after each comma.
@@ -249,15 +253,15 @@ file stops the run.
 
 ## Correct a row in a broker export
 
-Two optional columns let a RAW row correct a broker export without editing it. Add them after the
-seven, in this order:
+Two optional columns let a RAW row correct a broker export without editing it. Add them to the
+header, usually after the seven:
 
 ```csv
 date,action,symbol,quantity,price,fees,currency,broker,replaces
 ```
 
-You can stop after `broker` if no row replaces another. A file that uses either column needs the
-header. Leave both cells blank on a row that does not use them.
+You can add `broker` alone if no row replaces another. Leave both cells blank on a row that does not
+use them.
 
 ### Add a row to a broker's records
 
@@ -349,7 +353,7 @@ cgt-calc recognises a RAW file from its header row. `--year 2024` means 6 April 
 2025. Follow [Generate a report](../usage.md) to find and check the output.
 
 You can also pass the file with `--raw-file raw_data.csv`, which reads it as a RAW file without
-recognising it first. A file without its header row is read only that way.
+recognising it first.
 
 Include cash deposits and withdrawals if your records contain them so the balance check can detect
 an incomplete conversion. If the source genuinely has no cash history, use `--no-balance-check` only
@@ -501,7 +505,7 @@ Leave `price` at `0`, since a gift has no sale price. Put any fee you paid to ma
 No broker export marks these, so you add the row yourself. You do not have to convert your whole
 history to the RAW format to do it: pass a small RAW file of just the transfers, under the
 [header row](#create-the-csv), alongside your broker export. If you already use a RAW file, add the
-rows to it instead: cgt-calc reads only one.
+rows to it instead, each value under its column: cgt-calc reads only one.
 
 ```shell
 cgt-calc --year 2024 transactions.csv transfers.csv
@@ -513,15 +517,18 @@ for each: see
 [Gifts that all went to your spouse or civil partner](schwab.md#gifts-that-all-went-to-your-spouse-or-civil-partner).
 
 The report and the PDF show the base cost that passes to the recipient, and the text report prints
-the exact RAW row to give them. Under each transfer, the PDF lists the matching rules that applied,
-with the shares and base cost each one covers, as it does for a sale: see
-[Labels in the PDF](../usage.md#labels-in-the-pdf).
+the exact RAW row to give them, with the header line it goes under. Under each transfer, the PDF
+lists the matching rules that applied, with the shares and base cost each one covers, as it does for
+a sale: see [Labels in the PDF](../usage.md#labels-in-the-pdf).
 
 ### If you received the shares
 
 Record them arriving with `TRANSFER_FROM_SPOUSE`, with the base cost per unit as the `price`. The
-transferor's report prints the row ready to use. The shares enter your Section 104 pool at that
-cost, acquired on the transfer date, and no money is added to your cash balance.
+transferor's report prints the row ready to use, with the header line that starts a new RAW file. To
+add it to a RAW file whose header lists the columns in another order or has the optional columns,
+put each value under its column, with a blank cell for any other column. The shares enter your
+Section 104 pool at that cost, acquired on the transfer date, and no money is added to your cash
+balance.
 
 ```csv
 2024-03-16,TRANSFER_FROM_SPOUSE,META,21.5,95.60,0.00,GBP
@@ -638,12 +645,14 @@ and put the full amount in `price`: positive for money received and negative for
 
 ### A header or column-count error
 
-Use the seven columns from [Create the CSV](#create-the-csv), in that order, and keep every comma,
-including the empty `symbol` field in a cash row. With the optional
-[`broker` and `replaces` columns](#correct-a-row-in-a-broker-export), the header names them after
-the seven, and every row has as many cells as the header, blank where a row does not use them. Save
-the file as UTF-8 CSV rather than converting a PDF or pasting a formatted currency value such as
-`£1,000` into one field.
+Start the file with a header that names the seven columns from [Create the CSV](#create-the-csv),
+each once and in any order, and the optional
+[`broker` and `replaces` columns](#correct-a-row-in-a-broker-export) if you use them. If the message
+lists a missing or unknown name, correct that name where it stands rather than pasting a new header
+over it. Every row has as many cells as the header, blank where a row does not use them, and gives
+its values in the header's order, so keep every comma, including the empty `symbol` field in a cash
+row. Save the file as UTF-8 CSV rather than converting a PDF or pasting a formatted currency value
+such as `£1,000` into one field.
 
 ### `Reached a negative balance` for broker `Unknown`
 

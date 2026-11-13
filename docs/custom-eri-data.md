@@ -6,7 +6,7 @@ reporting period you need.
 
 ## ERI_RAW format
 
-Create a CSV with this exact header and one row for each share class and reporting period:
+Create a CSV with this header and one row for each share class and reporting period:
 
 ```csv
 ISIN,Fund Reporting Period End Date,Currency,Excess of reporting income over distribution
@@ -21,7 +21,8 @@ The row is only an example of the format. Replace it with values from the fund's
 - **Excess of reporting income over distribution:** the ERI amount per unit, without multiplying it
     by the number of units you held
 
-Keep the four column names unchanged and do not add other columns.
+Name each of the four columns once, in any order; letter case and spaces around a name do not
+matter. Do not add other columns, and give each row's values in the order of its header.
 
 Add `--eri-raw-file` to your normal cgt-calc command. For example, with a Schwab transaction file:
 

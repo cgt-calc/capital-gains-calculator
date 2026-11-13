@@ -6,7 +6,6 @@ import datetime as dt
 import logging
 import os
 from pathlib import Path
-import re
 import sys
 
 import pytest
@@ -75,39 +74,74 @@ def test_spin_offs_file_skips_a_blank_row(tmp_path: Path, blank: str) -> None:
     assert SpinOffHandler(spin_offs_file).cache == {"NEW": "OLD"}
 
 
+def test_spin_offs_file_reads_its_columns_by_name(tmp_path: Path) -> None:
+    """The header names the two columns in any order and letter case.
+
+    A space around a name is not part of it. Read by position, the row would
+    record ACME as spun off from NEWCO.
+    """
+    spin_offs_file = tmp_path / "spin_offs.csv"
+    spin_offs_file.write_text("SRC,dst \nACME,NEWCO\n", encoding="utf8")
+
+    assert SpinOffHandler(spin_offs_file).cache == {"NEWCO": "ACME"}
+
+
+_WRONG_COLUMNS = (
+    "This line must be the header, but it does not name the right columns:\n  "
+)
+_FIX_COLUMNS = (
+    "Correct each name where it stands, so every value stays under its name; if "
+    "this line is a row of data, add a header line above it instead. The header "
+    "names these columns, once each, in any order:\n  dst,src"
+)
+
+
 @pytest.mark.parametrize(
-    ("content", "found"),
+    ("content", "message"),
     [
         # Not read as a header with no rows under it, which is an empty file.
-        pytest.param("NEW,OLD\n", "NEW,OLD", id="one mapping and no header"),
+        pytest.param(
+            "NEW,OLD\n",
+            "This line must be the header, but it names none of the columns:\n"
+            "  'NEW,OLD'\n"
+            "If it is a row of data, add this header line above it, with the "
+            "names in the order of its values. If it is the header, correct each "
+            "name where it stands:\n  dst,src",
+            id="one mapping and no header",
+        ),
         # The header is the error, not the rows it makes too long.
-        pytest.param("dst\nNEW,OLD\n", "dst", id="header with a column missing"),
+        pytest.param(
+            "dst\nNEW,OLD\n",
+            f"{_WRONG_COLUMNS}'dst'\nMissing columns: 'src'.\n{_FIX_COLUMNS}",
+            id="header with a column missing",
+        ),
         # Not accepted with the last column of that name deciding the source.
         pytest.param(
-            "dst,src,src\nNEW,OLD,OTHER\n", "dst,src,src", id="column named twice"
+            "dst,src,src\nNEW,OLD,OTHER\n",
+            f"{_WRONG_COLUMNS}'dst,src,src'\nRepeated columns: 'src'.\n{_FIX_COLUMNS}",
+            id="column named twice",
         ),
-        # Quoted, or the line shown would look like the header it must be.
-        pytest.param("dst,src \nNEW,OLD\n", "dst,src ", id="space after a name"),
-        # Escaped, for the same reason: a zero-width space cannot be seen.
+        # Escaped, or the line shown would look like the header it must be: a
+        # zero-width space cannot be seen, and is not a space to ignore.
         pytest.param(
-            "dst,src\u200b\nNEW,OLD\n", "dst,src\\u200b", id="unseen character"
+            "dst,src\u200b\nNEW,OLD\n",
+            f"{_WRONG_COLUMNS}'dst,src\\u200b'\nMissing columns: 'src'. Unknown "
+            f"columns: 'src\\u200b'.\n{_FIX_COLUMNS}",
+            id="unseen character",
         ),
     ],
 )
 def test_spin_offs_file_reports_a_wrong_first_line(
-    tmp_path: Path, content: str, found: str
+    tmp_path: Path, content: str, message: str
 ) -> None:
     """The first line is checked as the header before any row is read."""
     spin_offs_file = tmp_path / "spin_offs.csv"
     spin_offs_file.write_text(content, encoding="utf8")
 
-    with pytest.raises(
-        ParsingError,
-        match=re.escape(f"must be the header 'dst,src', but it is:\n  '{found}'"),
-    ) as excinfo:
+    with pytest.raises(ParsingError) as excinfo:
         SpinOffHandler(spin_offs_file)
 
-    assert excinfo.value.row_index == 1
+    assert str(excinfo.value) == f"While parsing {spin_offs_file}, row 1: {message}"
 
 
 def test_an_empty_spin_offs_file_holds_no_mappings(tmp_path: Path) -> None:

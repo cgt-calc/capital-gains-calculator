@@ -21,12 +21,12 @@ from typing import TYPE_CHECKING
 from colorama import Fore
 
 from cgt_calc.args_validators import STDIN_PATH
-from cgt_calc.currency_converter import is_comment, is_exchange_rates_header
+from cgt_calc.currency_converter import EXCHANGE_RATES_COLUMNS, is_comment
 from cgt_calc.exceptions import CgtError, ParsingError, not_text_in
-from cgt_calc.isin_converter import is_isin_translation_header
+from cgt_calc.isin_converter import ISIN_TRANSLATION_COLUMNS
 from cgt_calc.logging import style_text
-from cgt_calc.share_prices import is_share_prices_header
-from cgt_calc.spin_off_handler import is_spin_offs_header
+from cgt_calc.share_prices import SHARE_PRICES_COLUMNS
+from cgt_calc.spin_off_handler import SPIN_OFFS_COLUMNS
 from cgt_calc.transaction_dumper import DUMP_FIELDS
 
 from .base_parsers import BaseDirParser, PlainInput, read_input, read_text
@@ -68,7 +68,7 @@ def _first_row(text: str, *, skipinitialspace: bool = False) -> list[str]:
 def _is_exchange_rates(text: str) -> bool:
     lines = [line for line in io.StringIO(text) if not is_comment(line)]
     header = next(csv.reader(lines), None)
-    return header is not None and is_exchange_rates_header(header)
+    return header is not None and EXCHANGE_RATES_COLUMNS.matches(header)
 
 
 # Files cgt-calc reads with another option, or writes: each is named, with the
@@ -83,14 +83,14 @@ OTHER_FILES: tuple[tuple[str, str | None, Callable[[str, Path], bool]], ...] = (
     (
         "an ISIN translation file",
         "--isin-translation-file",
-        lambda text, _: is_isin_translation_header(
+        lambda text, _: ISIN_TRANSLATION_COLUMNS.matches(
             _first_row(text, skipinitialspace=True)
         ),
     ),
     (
         "a share prices file",
         "--prices-file",
-        lambda text, _: is_share_prices_header(_first_row(text)),
+        lambda text, _: SHARE_PRICES_COLUMNS.matches(_first_row(text)),
     ),
     (
         "an exchange rates cache",
@@ -100,7 +100,7 @@ OTHER_FILES: tuple[tuple[str, str | None, Callable[[str, Path], bool]], ...] = (
     (
         "a spin-offs file",
         "--spin-offs-file",
-        lambda text, _: is_spin_offs_header(_first_row(text)),
+        lambda text, _: SPIN_OFFS_COLUMNS.matches(_first_row(text)),
     ),
     (
         "the --dump-transactions output of cgt-calc",

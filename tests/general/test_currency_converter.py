@@ -64,6 +64,25 @@ def test_read_exchange_rates_skips_blank_rows(tmp_path: Path) -> None:
     assert cache[february] == {CurrencyCode("EUR"): Decimal("1.10")}
 
 
+def test_read_exchange_rates_reads_its_columns_by_name(tmp_path: Path) -> None:
+    """The header names the columns in any order and letter case.
+
+    Spaces around a name are not part of it, and comment lines above the
+    header are skipped as before.
+    """
+    rates_file = tmp_path / "rates.csv"
+    rates_file.write_text(
+        "# typed by hand\nRate, Currency ,MONTH\n1.2700,USD,2024-01-01\n",
+        encoding="utf8",
+    )
+
+    converter = CurrencyConverter(exchange_rates_file=rates_file)
+
+    assert converter.cache == {
+        dt.date(2024, 1, 1): {CurrencyCode("USD"): Decimal("1.2700")}
+    }
+
+
 def test_read_exchange_rates_accepts_a_byte_order_mark(tmp_path: Path) -> None:
     """A rates file saved as Excel's "CSV UTF-8" still has a month column."""
     rates_file = tmp_path / "marked.csv"
@@ -109,7 +128,9 @@ def test_read_exchange_rates_accepts_a_byte_order_mark(tmp_path: Path) -> None:
         ),
         pytest.param(
             "month,currency,rate,extra\n2024-01-01,USD,1.25,x\n",
-            "must be the header 'month,currency,rate'",
+            re.escape(
+                "columns:\n  'month,currency,rate,extra'\nUnknown columns: 'extra'.\n"
+            ),
             id="unexpected columns",
         ),
         pytest.param(
@@ -125,19 +146,26 @@ def test_read_exchange_rates_accepts_a_byte_order_mark(tmp_path: Path) -> None:
         # The header is the error, not the rows it makes too long.
         pytest.param(
             "month,currency\n2024-01-01,USD,1.25\n",
-            re.escape("but it is:\n  'month,currency'"),
+            re.escape("columns:\n  'month,currency'\nMissing columns: 'rate'.\n"),
             id="header shorter than its rows",
         ),
         # Not read as a header with no rows under it, which is an empty file.
         pytest.param(
             "2024-01-01,USD,1.25\n",
-            re.escape("but it is:\n  '2024-01-01,USD,1.25'"),
+            re.escape(
+                "names none of the columns:\n  '2024-01-01,USD,1.25'\nIf it is a "
+                "row of data, add this header line above it, with the names in "
+                "the order of its values. If it is the header, correct each name "
+                "where it stands:\n  month,currency,rate"
+            ),
             id="one rate and no header",
         ),
         # Not accepted with the last column of that name deciding the rate.
         pytest.param(
             "month,currency,rate,rate\n2024-01-01,USD,1.25,1.30\n",
-            re.escape("but it is:\n  'month,currency,rate,rate'"),
+            re.escape(
+                "columns:\n  'month,currency,rate,rate'\nRepeated columns: 'rate'.\n"
+            ),
             id="column named twice",
         ),
         pytest.param(

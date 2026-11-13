@@ -7,9 +7,9 @@ import datetime as dt
 from decimal import Decimal
 from enum import StrEnum
 import io
-import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, overload, override
 
+from cgt_calc.csv_columns import CsvColumns
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import (
     ActionType,
@@ -22,7 +22,7 @@ from cgt_calc.util import is_blank_row, parse_decimal
 from .base_parsers import BaseSingleFileParser, read_csv_rows
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Mapping
     from pathlib import Path
 
 
@@ -36,15 +36,19 @@ class RawColumn(StrEnum):
     PRICE = "price"
     FEES = "fees"
     CURRENCY = "currency"
-    # Optional, in this order after the seven, and read only when the header
-    # names them: a file without a header has the seven alone.
+    # Optional: read only when the header names them.
     BROKER = "broker"
     REPLACES = "replaces"
 
 
-ALL_COLUMNS: Final[list[str]] = [column.value for column in RawColumn]
-CSV_COLUMNS_NUM: Final = 7
-COLUMNS: Final[list[str]] = ALL_COLUMNS[:CSV_COLUMNS_NUM]
+_OPTIONAL_COLUMNS: Final = (RawColumn.BROKER, RawColumn.REPLACES)
+# The seven every header names, in the order the guide gives them.
+COLUMNS: Final[list[str]] = [
+    column.value for column in RawColumn if column not in _OPTIONAL_COLUMNS
+]
+RAW_COLUMNS: Final = CsvColumns(
+    tuple(COLUMNS), tuple(column.value for column in _OPTIONAL_COLUMNS)
+)
 # The ledger of a row that names no broker.
 UNKNOWN_BROKER: Final = "Unknown"
 # The rows that can stand in for one in a broker export: nothing their export
@@ -52,7 +56,6 @@ UNKNOWN_BROKER: Final = "Unknown"
 REPLACEABLE_ACTIONS: Final = frozenset(
     {ActionType.DIVIDEND_TAX, ActionType.STOCK_ACTIVITY}
 )
-LOGGER = logging.getLogger(__name__)
 
 
 def _parse_date(value: str, column: RawColumn, file: Path) -> dt.date:
@@ -113,6 +116,7 @@ class RawTransaction(BrokerTransaction):
     """Represents a single raw transaction.
 
     Example format:
+    date,action,symbol,quantity,price,fees,currency
     2023-02-09,DIVIDEND,OPRA,4200,0.80,0.0,USD
     2022-11-14,SELL,META,19,116.00,0.05,USD
     2022-08-15,BUY,META,105,180.50,0.00,USD
@@ -131,16 +135,22 @@ class RawTransaction(BrokerTransaction):
         self,
         row: list[str],
         file: Path,
-        width: int = CSV_COLUMNS_NUM,
+        columns: Mapping[str, int],
     ):
-        """Create transaction from CSV row, `width` columns wide as its header."""
-        if len(row) != width:
-            raise UnexpectedColumnCountError(row, width, file)
+        """Create transaction from CSV row, read by its header's `columns`.
+
+        `columns` maps each column the header names to its index, as
+        `RAW_COLUMNS.positions` gives it.
+        """
+        if len(row) != len(columns):
+            raise UnexpectedColumnCountError(row, len(columns), file)
 
         # A space typed beside a comma is not part of the value: kept on a
         # symbol, it would make a holding of its own.
         row_values: dict[RawColumn, str] = {
-            column: value.strip() for column, value in zip(RawColumn, row, strict=False)
+            column: row[columns[column]].strip()
+            for column in RawColumn
+            if column in columns
         }
 
         date = _parse_date(row_values[RawColumn.DATE], RawColumn.DATE, file)
@@ -251,55 +261,16 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
     )
     deprecated_flags: ClassVar[list[str]] = ["--raw"]
 
-    @staticmethod
-    def _validate_header(header: list[str], file: Path) -> None:
-        """Validate optional header row.
-
-        The seven columns, optionally followed by `broker`, or by `broker`
-        and `replaces`.
-        """
-
-        if not CSV_COLUMNS_NUM <= len(header) <= len(ALL_COLUMNS):
-            # Name the nearest width a header can have.
-            nearest = min(max(len(header), CSV_COLUMNS_NUM), len(ALL_COLUMNS))
-            raise UnexpectedColumnCountError(header, nearest, file, row_index=1)
-
-        normalized = [value.strip().lower() for value in header]
-        for index, (exp, act) in enumerate(
-            zip(ALL_COLUMNS, normalized, strict=False), start=1
-        ):
-            if exp != act:
-                raise ParsingError(
-                    file,
-                    f"Expected column {index} to be '{exp}' but found '{header[index - 1]}'",
-                    row_index=1,
-                )
-
-    @staticmethod
-    def _has_header(first_row: list[str]) -> bool:
-        """Return True if the first row is likely a RAW header."""
-
-        if not first_row:
-            return False
-        return all(
-            value.strip() != "" and value.strip().isalpha() for value in first_row
-        )
-
     @classmethod
     @override
     def recognise(cls, text: str, file_path: Path) -> list[str]:
         """Name the file when its first row passes the reader's header check.
 
         Read as `read_transactions` reads it. A file without its header row is
-        read only with the option: no row of data can tell it from another
-        broker's, and none passes the header check.
+        refused by both: no row of data passes the header check.
         """
         first_row = next(csv.reader(io.StringIO(text), skipinitialspace=True), [])
-        try:
-            cls._validate_header(first_row, file_path)
-        except ParsingError:
-            return []
-        return ["a RAW format file"]
+        return ["a RAW format file"] if RAW_COLUMNS.matches(first_row) else []
 
     @classmethod
     @override
@@ -313,32 +284,19 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
         if all(is_blank_row(row) for row in lines):
             raise ParsingError(file_path, "RAW CSV file is empty")
 
-        data_rows = lines
-        start_index = 1
-        width = CSV_COLUMNS_NUM
-        if cls._has_header(lines[0]):
-            cls._validate_header(lines[0], file_path)
-            data_rows = lines[1:]
-            start_index = 2
-            width = len(lines[0])
-        else:
-            LOGGER.warning(
-                "RAW CSV file %s is missing header row. The header is required but will be inferred for now.",
-                file_path,
-            )
-
+        columns = RAW_COLUMNS.positions(lines[0], file_path)
         transactions: list[RawTransaction] = []
         # Symbols are matched exactly, so `foo` and `FOO` would be two holdings
         # and a sale of one would not be matched with the other's purchases.
         # A symbol written in two letter cases is refused, not folded into one.
         # Maps each case-folded symbol to its first spelling and row.
         spellings: dict[str, tuple[str, int]] = {}
-        for index, row in enumerate(data_rows, start=start_index):
+        for index, row in enumerate(lines[1:], start=2):
             # Skip harmless blank rows left by editors or tooling.
             if is_blank_row(row):
                 continue
             try:
-                transaction = RawTransaction(row, file_path, width)
+                transaction = RawTransaction(row, file_path, columns)
             except ParsingError as err:
                 err.add_row_context(index)
                 raise

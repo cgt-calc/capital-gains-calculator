@@ -6,7 +6,6 @@ import csv
 import datetime as dt
 from decimal import Decimal
 import io
-import logging
 from pathlib import Path
 import re
 import subprocess
@@ -28,6 +27,7 @@ from cgt_calc.model import (
     TransactionSource,
 )
 from cgt_calc.parsers.raw import COLUMNS, RawParser
+from cgt_calc.transaction_dumper import DUMP_FIELDS
 from tests.general.test_calc import create_calculator, get_report
 from tests.utils import (
     assert_stdout_matches,
@@ -383,84 +383,146 @@ def test_read_raw_transactions_transfer_to_spouse(tmp_path: Path) -> None:
     assert transaction.quantity == Decimal("21.5")
 
 
-def test_read_raw_transactions_without_header(
-    tmp_path: Path,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Parse RAW rows without a header."""
+def test_a_raw_file_without_its_header_stops_the_run(tmp_path: Path) -> None:
+    """A file that starts with a transaction is refused, with the header to add.
 
-    raw_file = tmp_path / "raw_without_header.csv"
-    rows = [
-        [
-            "2024-01-03",
-            "SELL",
-            "XYZ",
-            "5",
-            "3.00",
-            "0.00",
-            "USD",
-        ],
-    ]
-    _write_csv(raw_file, rows)
-
-    with caplog.at_level(logging.WARNING, logger="cgt_calc.parsers.raw"):
-        transactions = RawParser().load_from_file(raw_file)
-
-    assert len(transactions) == 1
-    transaction = transactions[0]
-    assert transaction.action == ActionType.SELL
-    assert transaction.amount == Decimal("15.00")
-    assert "missing header row" in caplog.text.lower()
-
-
-def test_read_raw_transactions_invalid_header(tmp_path: Path) -> None:
-    """Fail fast when header columns do not match expected schema."""
-
-    raw_file = tmp_path / "raw_bad_header.csv"
-    bad_header = ["date", "action", "ticker", *COLUMNS[3:]]
-    _write_csv(raw_file, [bad_header])
-
-    with pytest.raises(ParsingError) as exc:
-        RawParser().load_from_file(raw_file)
-
-    assert "Expected column 3" in str(exc.value)
-
-
-def test_read_raw_transactions_with_broker_and_replaces_columns(
-    tmp_path: Path,
-) -> None:
-    """A header may go on with `broker`, then `replaces`, read like the seven.
-
-    A blank broker is the RAW file's own ledger, `Unknown`, as every row was
-    before the column; a blank `replaces` adds the row rather than replacing.
+    Since 2.0.0 such a file was read, with a warning that the header would be
+    required. A row of data names none of the columns, so the advice also
+    covers a header whose every name is wrong.
     """
     raw_file = tmp_path / "raw.csv"
-    _write_csv(
-        raw_file,
-        [
-            [*COLUMNS, " Broker ", "REPLACES"],
+    _write_csv(raw_file, [["2024-01-03", "SELL", "XYZ", "5", "3.00", "0.00", "USD"]])
+
+    result = subprocess.run(
+        build_cmd("--year", "2023", "--raw-file", str(raw_file), "--no-report"),
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert result.stderr.endswith(
+        f"\nERROR: While parsing {raw_file}, row 1: This line must be the header, "
+        "but it names none of the columns:\n"
+        "  '2024-01-03,SELL,XYZ,5,3.00,0.00,USD'\n"
+        "If it is a row of data, add this header line above it, with the names "
+        "in the order of its values. If it is the header, correct each name "
+        "where it stands:\n"
+        "  date,action,symbol,quantity,price,fees,currency\n\n"
+    )
+
+
+# Two rows, each value given by its column: the header decides the order.
+_ROWS_BY_COLUMN = [
+    {
+        "date": "2023-06-15",
+        "action": "STOCK_ACTIVITY",
+        "symbol": "ZQX",
+        "quantity": "60",
+        "price": "22.00",
+        "fees": "1.50",
+        "currency": "USD",
+        "broker": "Charles Schwab",
+        "replaces": "2023-06-12",
+    },
+    {
+        "date": "2024-01-03",
+        "action": "BUY",
+        "symbol": "ACME",
+        "quantity": "100",
+        "price": "7.50",
+        "fees": "5.00",
+        "currency": "GBP",
+        "broker": "",
+        "replaces": "",
+    },
+]
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        pytest.param([*COLUMNS, "broker", "replaces"], id="documented order"),
+        pytest.param(
             [
-                "2024-06-03",
-                "DIVIDEND_TAX",
-                "FOO",
-                "1",
-                "-5.00",
-                "0",
-                "USD",
-                "Charles Schwab",
-                "2024-06-27",
+                " Replaces ",
+                "CURRENCY",
+                "broker",
+                "Fees",
+                "price",
+                "quantity",
+                "symbol",
+                "action",
+                "Date",
             ],
-            ["2024-06-04", "DIVIDEND", "FOO", "1", "1.00", "0", "USD", "Freetrade", ""],
-            ["2024-06-05", "TRANSFER", "", "1", "2.00", "0", "USD", "", ""],
-        ],
+            id="reversed, in mixed case and with spaces",
+        ),
+        pytest.param(["replaces", "broker", *COLUMNS], id="optional columns first"),
+    ],
+)
+def test_read_raw_transactions_with_broker_and_replaces_columns(
+    tmp_path: Path, header: list[str]
+) -> None:
+    """Each value is read under the column the header names for it.
+
+    The header names the seven and `broker` and `replaces` in any order and
+    letter case. A blank broker is the RAW file's own ledger, `Unknown`, as
+    every row was before the column; a blank `replaces` adds the row rather
+    than replacing.
+
+    Quantity, price and fees differ in every row, so reading one in place of
+    another changes a figure even where it leaves the amount alone:
+
+    - the activity row: 60 x 22.00 - 1.50 fees = 1,318.50;
+    - the purchase: -(100 x 7.50) - 5.00 fees = -755.00.
+    """
+    raw_file = tmp_path / "raw.csv"
+    names = [cell.strip().lower() for cell in header]
+    _write_csv(
+        raw_file, [header, *([row[name] for name in names] for row in _ROWS_BY_COLUMN)]
     )
 
     transactions = RawParser().load_from_file(raw_file)
 
-    assert [(row.broker, row.replaces) for row in transactions] == [
-        ("Charles Schwab", dt.date(2024, 6, 27)),
-        ("Freetrade", None),
-        ("Unknown", None),
+    assert [
+        (
+            row.date,
+            row.action,
+            row.symbol,
+            row.quantity,
+            row.price,
+            row.fees,
+            row.amount,
+            row.currency,
+            row.broker,
+            row.replaces,
+        )
+        for row in transactions
+    ] == [
+        (
+            dt.date(2023, 6, 15),
+            ActionType.STOCK_ACTIVITY,
+            "ZQX",
+            Decimal(60),
+            Decimal("22.00"),
+            Decimal("1.50"),
+            Decimal("1318.50"),
+            CurrencyCode("USD"),
+            "Charles Schwab",
+            dt.date(2023, 6, 12),
+        ),
+        (
+            dt.date(2024, 1, 3),
+            ActionType.BUY,
+            "ACME",
+            Decimal(100),
+            Decimal("7.50"),
+            Decimal("5.00"),
+            Decimal("-755.00"),
+            CurrencyCode("GBP"),
+            "Unknown",
+            None,
+        ),
     ]
 
 
@@ -483,56 +545,150 @@ def test_read_raw_transactions_with_a_broker_column_alone(tmp_path: Path) -> Non
 _TAX_ROW = ["2024-06-03", "DIVIDEND_TAX", "FOO", "1", "-5.00", "0", "USD"]
 
 
-@pytest.mark.parametrize(
-    "row",
-    [
-        pytest.param(_TAX_ROW, id="seven columns"),
-        pytest.param([*_TAX_ROW, "Charles Schwab", "2024-06-27"], id="nine columns"),
-    ],
+_SEVEN = "date,action,symbol,quantity,price,fees,currency"
+_NO_COLUMN_NAMED = (
+    "This line must be the header, but it names none of the columns:\n  {line!r}\n"
+    "If it is a row of data, add this header line above it, with the names in "
+    "the order of its values. If it is the header, correct each name where it "
+    "stands:\n  {header}"
 )
-def test_a_first_row_of_data_is_not_a_raw_header(
-    tmp_path: Path, row: list[str]
-) -> None:
-    """The header check refuses a row of data, whatever its width.
-
-    It is the one check that tells a RAW header from a first row of data, so
-    a file without a header is never taken for one that has it, with or
-    without the optional columns.
-    """
-    with pytest.raises(
-        ParsingError, match="Expected column 1 to be 'date' but found '2024-06-03'"
-    ):
-        RawParser._validate_header(row, tmp_path / "raw.csv")  # noqa: SLF001
+_WRONG_COLUMNS = (
+    "This line must be the header, but it does not name the right columns:\n"
+    "  {line!r}\n{problems}\n"
+    "Correct each name where it stands, so every value stays under its name; if "
+    "this line is a row of data, add a header line above it instead. The header "
+    "names these columns, once each, in any order:\n  {header}\n"
+    "Optional columns: 'broker', 'replaces'."
+)
 
 
 @pytest.mark.parametrize(
     ("rows", "message"),
     [
+        # The header shown is as wide as the row, with the optional columns
+        # it would need, so the names line up with the values.
+        pytest.param(
+            [[*_TAX_ROW, "Charles Schwab", "2024-06-27"]],
+            _NO_COLUMN_NAMED.format(
+                line="2024-06-03,DIVIDEND_TAX,FOO,1,-5.00,0,USD,Charles Schwab,"
+                "2024-06-27",
+                header=f"{_SEVEN},broker,replaces",
+            ),
+            id="no header, nine columns",
+        ),
         pytest.param(
             [[*_TAX_ROW, "Charles Schwab"]],
-            "row 1: This row has 8 columns, not 7",
+            _NO_COLUMN_NAMED.format(
+                line="2024-06-03,DIVIDEND_TAX,FOO,1,-5.00,0,USD,Charles Schwab",
+                header=f"{_SEVEN},broker",
+            ),
             id="no header, eight columns",
         ),
         pytest.param(
-            [[*COLUMNS, "account"]],
-            "row 1: Expected column 8 to be 'broker' but found 'account'",
-            id="eighth column misnamed",
+            [[], COLUMNS, _TAX_ROW],
+            "This line must be the header, but it is blank. If the header is on a "
+            "later line, delete the blank lines above it; otherwise put this "
+            "header line in its place, with the names in the order of the values "
+            f"in each row:\n  {_SEVEN}",
+            id="a blank line above the header",
         ),
         pytest.param(
             [COLUMNS[:6]],
-            "row 1: This row has 6 columns, not 7",
-            id="header of six columns",
+            _WRONG_COLUMNS.format(
+                line="date,action,symbol,quantity,price,fees",
+                problems="Missing columns: 'currency'.",
+                header=_SEVEN,
+            ),
+            id="a column missing",
         ),
+        # The suggestion is the set of names, not a line to paste: pasted over
+        # this header, it would put the prices under quantity.
+        pytest.param(
+            [["date", "action", "symbol", "price", "quantty", "fees", "currency"]],
+            _WRONG_COLUMNS.format(
+                line="date,action,symbol,price,quantty,fees,currency",
+                problems="Missing columns: 'quantity'. Unknown columns: 'quantty'.",
+                header=_SEVEN,
+            ),
+            id="a misspelt column in another order",
+        ),
+        # The optional columns the header names are in the names to use.
         pytest.param(
             [[*COLUMNS, "broker", "replaces", "note"]],
-            "row 1: This row has 10 columns, not 9",
-            id="header of ten columns",
+            _WRONG_COLUMNS.format(
+                line=f"{_SEVEN},broker,replaces,note",
+                problems="Unknown columns: 'note'.",
+                header=f"{_SEVEN},broker,replaces",
+            ),
+            id="a column of notes",
         ),
+        # Letter case does not tell two columns apart.
         pytest.param(
-            [[*COLUMNS, "replaces", "broker"]],
-            "row 1: Expected column 8 to be 'broker' but found 'replaces'",
-            id="optional columns out of order",
+            [[*COLUMNS, "Date"]],
+            _WRONG_COLUMNS.format(
+                line=f"{_SEVEN},Date",
+                problems="Repeated columns: 'date'.",
+                header=_SEVEN,
+            ),
+            id="a column named twice",
         ),
+        # A spreadsheet saves an empty column as a comma at the end.
+        pytest.param(
+            [[*COLUMNS, ""]],
+            _WRONG_COLUMNS.format(
+                line=f"{_SEVEN},",
+                problems="Unknown columns: (no name).",
+                header=_SEVEN,
+            ),
+            id="a column with no name",
+        ),
+        # A row of data with a value that is a column name is still refused.
+        pytest.param(
+            [["2024-01-03", "BUY", "PRICE", "100", "7.50", "5.00", "GBP"]],
+            _WRONG_COLUMNS.format(
+                line="2024-01-03,BUY,PRICE,100,7.50,5.00,GBP",
+                problems="Missing columns: 'date', 'action', 'symbol', 'quantity', "
+                "'fees', 'currency'. Unknown columns: '2024-01-03', 'BUY', '100', "
+                "'7.50', '5.00', 'GBP'.",
+                header=_SEVEN,
+            ),
+            id="no header, a ticker that is a column name",
+        ),
+        # Read as RAW, its amounts would be worked out again and its own lost.
+        pytest.param(
+            [list(DUMP_FIELDS)],
+            _WRONG_COLUMNS.format(
+                line=",".join(DUMP_FIELDS),
+                problems="Unknown columns: 'description', 'amount', 'isin', "
+                "'foreign_fees', 'ambiguous_quantity', 'option_contract', "
+                "'written_option_tax', 'capital_adjustments', "
+                "'affects_cash_balance', 'market', 'source'.",
+                header=f"{_SEVEN},broker",
+            ),
+            id="the --dump-transactions output",
+        ),
+    ],
+)
+def test_read_raw_transactions_refuses_a_wrong_header(
+    tmp_path: Path, rows: list[list[str]], message: str
+) -> None:
+    """The first line is the header, naming each column once, in any order.
+
+    Each message shows the line, says what is wrong with it and gives the
+    names to use, without assuming whether the line is a header or a row.
+    """
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(raw_file, rows)
+
+    with pytest.raises(ParsingError) as exc:
+        RawParser().load_from_file(raw_file)
+
+    assert str(exc.value) == f"While parsing {raw_file}, row 1: {message}"
+
+
+@pytest.mark.parametrize(
+    ("rows", "message"),
+    [
         pytest.param(
             [[*COLUMNS, "broker", "replaces"], [*_TAX_ROW, "Charles Schwab"]],
             "row 2: This row has 8 columns, not 9",
@@ -586,11 +742,10 @@ def test_a_first_row_of_data_is_not_a_raw_header(
 def test_read_raw_transactions_refuses_a_bad_broker_or_replaces_column(
     tmp_path: Path, rows: list[list[str]], message: str
 ) -> None:
-    """Each optional-column rule refuses the row or header that breaks it.
+    """Each optional-column rule refuses the row that breaks it.
 
-    Only a header names the optional columns, so a file without one keeps
-    to the seven. Naming a broker does not lift the refusal of positive tax:
-    only a row replacing an export row with that same amount may be positive.
+    Naming a broker does not lift the refusal of positive tax: only a row
+    replacing an export row with that same amount may be positive.
     """
     raw_file = tmp_path / "raw.csv"
     _write_csv(raw_file, rows)
