@@ -518,3 +518,30 @@ def test_rows_that_show_nothing_stay_under_the_old_ticker(tmp_path: Path) -> Non
             "https://cgt-calc.uk/extra-data-and-options/#ticker-renames"
         )
     ]
+
+
+def test_rows_beside_another_security_alone_join_it_without_a_warning(
+    tmp_path: Path,
+) -> None:
+    """A RAW RMG row marked US says what the run's RMG is, and it is not Royal Mail.
+
+    1. 2 June 2020: buy 100 RMG at 10 dollars, marked US.
+    2. 1 October 2020: buy 50 more, market blank.
+
+    Nothing names Royal Mail under RMG, so the blank row joins the US
+    holding as one 150 RMG holding, as it would without the rename, and
+    there is nothing to warn about.
+    """
+    raw = _write(
+        tmp_path / "raw.csv",
+        [
+            RAW_HEADER,
+            "2020-06-02,BUY,RMG,100,10,0,USD,US",
+            "2020-10-01,BUY,RMG,50,12,0,USD,",
+        ],
+    )
+
+    result = _run("--year", "2020", "--raw-file", str(raw))
+
+    assert _holdings(result.stdout) == {"RMG": "150.00"}
+    assert stderr_alerts(result.stderr) == []
