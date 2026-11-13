@@ -11,6 +11,7 @@ from colorama import Fore
 
 from .args_parser import (
     create_parser,
+    parse_arguments,
     reject_duplicate_stdin,
     reject_schwab_file_and_dir,
     resolve_reporting_period,
@@ -205,7 +206,7 @@ def main() -> int:
         parser.print_help()
         return 0
 
-    args = parser.parse_args()
+    args = parse_arguments(parser, sys.argv[1:])
     reject_duplicate_stdin(parser, args)
     reject_schwab_file_and_dir(parser, args)
     resolve_reporting_period(parser, args)

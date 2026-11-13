@@ -28,6 +28,15 @@ SHARE_PRICES_HEADER: Final = ["date", "symbol", "price"]
 SHARE_PRICES_COLUMNS_NUM: Final = len(SHARE_PRICES_HEADER)
 
 
+def is_share_prices_header(header: list[str]) -> bool:
+    """Say whether the first row is the header, in any letter case.
+
+    The file is read only with a header, so this is also how a plain INPUT
+    is known to be a share prices file and not a broker export.
+    """
+    return [cell.strip().lower() for cell in header] == SHARE_PRICES_HEADER
+
+
 @dataclass
 class SharePricesEntry:
     """Entry from a share prices file."""
@@ -127,7 +136,7 @@ class SharePrices:
         file = self.prices_file or Path("resources") / SHARE_PRICES_RESOURCE
         # Skipped unread, the first line of a file with no header would be a
         # price dropped without a word.
-        if lines and [cell.strip().lower() for cell in lines[0]] != SHARE_PRICES_HEADER:
+        if lines and not is_share_prices_header(lines[0]):
             raise UnexpectedHeaderError(lines[0], SHARE_PRICES_HEADER, file)
         lines = lines[1:]
         # The ticker each price was written under, to name an earlier one.

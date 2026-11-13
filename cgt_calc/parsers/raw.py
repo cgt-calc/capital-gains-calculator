@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import csv
 import datetime as dt
 from decimal import Decimal
 from enum import StrEnum
+import io
 import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, overload, override
 
@@ -282,6 +284,22 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
         return all(
             value.strip() != "" and value.strip().isalpha() for value in first_row
         )
+
+    @classmethod
+    @override
+    def recognise(cls, text: str, file_path: Path) -> list[str]:
+        """Name the file when its first row passes the reader's header check.
+
+        Read as `read_transactions` reads it. A file without its header row is
+        read only with the option: no row of data can tell it from another
+        broker's, and none passes the header check.
+        """
+        first_row = next(csv.reader(io.StringIO(text), skipinitialspace=True), [])
+        try:
+            cls._validate_header(first_row, file_path)
+        except ParsingError:
+            return []
+        return ["a RAW format file"]
 
     @classmethod
     @override

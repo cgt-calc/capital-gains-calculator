@@ -168,10 +168,25 @@ def next_account_token(name: str) -> str:
     return f"{name} #{next(_ACCOUNT_COUNTER)}"
 
 
+@dataclasses.dataclass(frozen=True)
+class PlainInput:
+    """A file given as a plain INPUT, and what recognition found it to be."""
+
+    path: Path
+    # One of the descriptions the parser's `recognise` returns.
+    kind: str
+    # Standard input cannot be read twice, so what recognition read is kept.
+    text: str | None = None
+
+
 class BaseParser(ABC):
     """Base parser from which all brokers are derived."""
 
     pretty_name: str
+    full_arg: str
+    # Kinds `recognise` names that this broker exports and cgt-calc does not
+    # read: a plain INPUT holding one is skipped, as its directory option skips it.
+    skipped_kinds: ClassVar[frozenset[str]] = frozenset()
 
     @classmethod
     @abstractmethod
@@ -182,6 +197,41 @@ class BaseParser(ABC):
     @abstractmethod
     def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
         """Load broker data from parsed arguments."""
+
+    @classmethod
+    def recognise(cls, text: str, file_path: Path) -> list[str]:  # noqa: ARG003
+        """Name each kind of this broker's export that `text` is.
+
+        A parser answers with the checks it makes itself when the file comes
+        through its option, so that recognising a plain INPUT and reading an
+        option's file cannot disagree on what the file is. Every parser in the
+        registry answers; the award reader is reached through Schwab's.
+        """
+        raise AssertionError(f"{cls.__name__} does not say which files are its own")
+
+    @classmethod
+    def given_options(cls, args: argparse.Namespace) -> list[tuple[str, Path]]:
+        """List each of this broker's options the run gives, with its path."""
+        path = getattr(args, cls.full_arg.replace("-", "_"), None)
+        return [(f"--{cls.full_arg}", path)] if path else []
+
+    @classmethod
+    def option_fills(cls, option: str, kind: str) -> bool:  # noqa: ARG003
+        """Say whether `option` gives the input a `kind` file would fill."""
+        return True
+
+    @classmethod
+    def takes_several(cls, kind: str) -> bool:  # noqa: ARG003
+        """Say whether several `kind` files are read together as one account."""
+        return False
+
+    @classmethod
+    def plain_inputs(cls, args: argparse.Namespace) -> list[PlainInput]:
+        """Return the plain INPUTs recognised as this broker's."""
+        plain: dict[type[BaseParser], list[PlainInput]] = getattr(
+            args, "plain_inputs", {}
+        )
+        return plain.get(cls, [])
 
 
 class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
@@ -238,11 +288,21 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
     def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
         """Load broker data from parsed arguments."""
         file_path = getattr(args, cls.full_arg.replace("-", "_"))
+        # list is invariant, so widen explicitly rather than return list[T].
+        transactions: list[BrokerTransaction] = []
         if file_path:
-            # list is invariant, so widen explicitly rather than return list[T].
-            transactions: list[BrokerTransaction] = list(cls.load_from_file(file_path))
-            return transactions
-        return []
+            transactions += cls.load_from_file(file_path)
+        # Recognition refuses a second file, and a file next to the option.
+        for plain in cls.plain_inputs(args):
+            transactions += cls.load_plain(plain)
+        return transactions
+
+    @classmethod
+    def load_plain(cls, plain: PlainInput) -> list[T]:
+        """Load a plain INPUT as a file given with the option is loaded."""
+        if plain.text is None:
+            return cls.load_from_file(plain.path)
+        return cls.load_from_stream(io.StringIO(plain.text), plain.path)
 
     @classmethod
     def encoding_of(cls, file_path: Path) -> str:  # noqa: ARG003
@@ -377,6 +437,15 @@ class BaseSingleFileParser[T: BrokerTransaction](BaseParser):
         return transactions
 
 
+def missing_columns(required: Iterable[str], header: Iterable[str]) -> set[str]:
+    """Return the required columns a header lacks.
+
+    None missing is what makes a file a broker's, whether it comes as a plain
+    INPUT or with the broker's option, so both ask this one question.
+    """
+    return set(required) - set(header)
+
+
 def _column_names(columns: set[str]) -> str:
     """List column names for an error, in an order that is the same on every run.
 
@@ -397,11 +466,31 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
     # its columns, which takes a cgt-calc update, rather than an edited file.
     header_mismatch_needs_update: ClassVar[bool] = False
 
+    # What a plain INPUT this parser reads is recognised as.
+    kind: ClassVar[str]
+
+    @classmethod
+    def header_line(cls, text: str) -> str | None:
+        """Return the line the header is on, if the text has one.
+
+        The first line, unless the export puts something above its table.
+        """
+        return next(iter(io.StringIO(text)), None)
+
+    @classmethod
+    @override
+    def recognise(cls, text: str, file_path: Path) -> list[str]:
+        """Name the export when its header holds every required column."""
+        line = cls.header_line(text)
+        if line is None or missing_columns(cls.columns, next(csv.reader([line]))):
+            return []
+        return [cls.kind]
+
     @classmethod
     def _validate_header(cls, header: Sequence[str], file_path: Path) -> None:
         """Validate the header has required columns and no unexpected ones."""
         header_set = set(header)
-        missing = cls.columns - header_set
+        missing = missing_columns(cls.columns, header)
         extra = header_set - cls.columns - cls.optional_columns
         if missing or extra:
             raise ParsingError(
@@ -508,6 +597,9 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
     # Whether a transaction that two files of the directory both hold stops
     # the load. A parser that clears it says why.
     refuses_transaction_in_two_files: ClassVar[bool] = True
+    # While plain INPUTs load, the kind each was recognised as, for a parser
+    # that otherwise tells its reports apart by their names.
+    recognised_kinds: ClassVar[dict[Path, str]] = {}
 
     @override
     def __init_subclass__(cls, **kwargs: object) -> None:
@@ -544,11 +636,25 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
     def load_from_args(cls, args: argparse.Namespace) -> list[BrokerTransaction]:
         """Load broker data from parsed arguments."""
         dir_path = getattr(args, cls.full_arg.replace("-", "_"))
+        # list is invariant, so widen explicitly rather than return list[T].
+        transactions: list[BrokerTransaction] = []
         if dir_path:
-            # list is invariant, so widen explicitly rather than return list[T].
-            transactions: list[BrokerTransaction] = list(cls.load_from_dir(dir_path))
-            return transactions
-        return []
+            transactions += cls.load_from_dir(dir_path)
+        # Recognition refuses plain INPUTs next to the option. Every plain
+        # file of this broker is one account, as a directory is.
+        if plain := cls.plain_inputs(args):
+            transactions += cls.load_from_files(
+                [item.path for item in plain],
+                ", ".join(str(item.path) for item in plain),
+                kinds={item.path: item.kind for item in plain},
+            )
+        return transactions
+
+    @classmethod
+    @override
+    def takes_several(cls, kind: str) -> bool:
+        """Read several files together, as the directory option does."""
+        return True
 
     @classmethod
     def load_from_dir(cls, dir_path: Path) -> list[T]:
@@ -557,10 +663,33 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
         One directory is one declared account boundary, so every file in it
         is loaded under the same token.
         """
-        account = next_account_token(cls.pretty_name)
-        transactions: list[T] = []
-        for file_path in sorted(dir_path.glob(cls.glob_dir, case_sensitive=False)):
-            if cls.file_path_filter(file_path):
+        files = sorted(dir_path.glob(cls.glob_dir, case_sensitive=False))
+        return cls.load_from_files(
+            [file_path for file_path in files if cls.file_path_filter(file_path)],
+            f"directory {dir_path}",
+        )
+
+    @classmethod
+    def load_from_files(
+        cls,
+        files: Sequence[Path],
+        where: str,
+        *,
+        kinds: dict[Path, str] | None = None,
+    ) -> list[T]:
+        """Load files as one declared account boundary.
+
+        A directory option and a broker's plain INPUTs both come here, so the
+        checks across its files apply to both. `where` names the files in the
+        warning that none holds a transaction. `kinds` gives the export each
+        plain INPUT was recognised as; a file from the directory option has
+        none, and its parser goes by its name, as it always has.
+        """
+        cls.recognised_kinds = kinds or {}
+        try:
+            account = next_account_token(cls.pretty_name)
+            transactions: list[T] = []
+            for file_path in files:
                 loaded = cls.load_from_file(
                     file_path, warn_on_empty=False, account=account
                 )
@@ -569,10 +698,12 @@ class BaseDirParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                         loaded, transactions, file_path
                     )
                 transactions += loaded
+        finally:
+            cls.recognised_kinds = {}
         if not transactions:
             LOGGER.warning(
-                "No transactions detected in directory %s for broker %s",
-                dir_path,
+                "No transactions detected in %s for broker %s",
+                where,
                 cls.pretty_name,
             )
         return cls.finalize_transactions(cls.post_process_transactions(transactions))

@@ -195,6 +195,13 @@ def existing_file_or_stdin_type(value: str) -> Path:
     return _existing_path_type(value, require_dir=False)
 
 
+def existing_input_type(value: str) -> Path:
+    """Validate an INPUT: an existing file or directory, or '-' for stdin."""
+    if value == "-":
+        return STDIN_PATH
+    return _existing_path_type(value, require_dir=_expand_user(value).is_dir())
+
+
 def existing_file_type(value: str) -> Path:
     """Validate that provided value points to an existing file.
 

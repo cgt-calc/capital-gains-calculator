@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
+import io
 import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
@@ -32,6 +33,11 @@ if TYPE_CHECKING:
 STOCK_ACTIVITY_COMMENT_MARKER: Final[str] = "Stock Activity"
 INCOME_REPORT: Final[str] = "Taxable Income Report*.csv"
 TRADE_REPORT: Final[str] = "All Trades Report*.csv"
+# The first cell of the row that opens each section the income report is read for.
+LOCAL_INCOME: Final = "Local Income"
+FOREIGN_INCOME: Final = "Foreign Income"
+INCOME_KIND: Final = "a Sharesight Taxable Income Report"
+TRADES_KIND: Final = "a Sharesight All Trades Report"
 LOGGER = logging.getLogger(__name__)
 
 
@@ -207,14 +213,44 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
 
     @classmethod
     @override
+    def recognise(cls, text: str, file_path: Path) -> list[str]:
+        """Name each report the rows show, by the rows each reader looks for."""
+        rows = list(csv.reader(io.StringIO(text)))
+        kinds = []
+        if any(cls._starts_trades(row) for row in rows):
+            kinds.append(TRADES_KIND)
+        if any(row and row[0] in {LOCAL_INCOME, FOREIGN_INCOME} for row in rows):
+            kinds.append(INCOME_KIND)
+        return kinds
+
+    @staticmethod
+    def _starts_trades(row: list[str]) -> bool:
+        """Say whether the row holds the headings the trades list starts with."""
+        return (
+            "Code" in row
+            and "Type" in row
+            and ("Market" in row or "Market Code" in row)
+        )
+
+    @classmethod
+    @override
     def read_transactions(
         cls, file: TextIO, file_path: Path
     ) -> list[SharesightTransaction]:
-        """Parse Sharesight transactions from reports."""
-        if file_path.match(INCOME_REPORT, case_sensitive=False):
+        """Parse Sharesight transactions from reports.
+
+        A plain INPUT is the report it was recognised as; the directory option
+        goes by the name.
+        """
+        kind = cls.recognised_kinds.get(file_path)
+        if kind == INCOME_KIND or (
+            kind is None and file_path.match(INCOME_REPORT, case_sensitive=False)
+        ):
             return list(cls._parse_income_report(file, file_path))
 
-        if file_path.match(TRADE_REPORT, case_sensitive=False):
+        if kind == TRADES_KIND or (
+            kind is None and file_path.match(TRADE_REPORT, case_sensitive=False)
+        ):
             return list(cls._parse_trade_report(file, file_path))
         raise AssertionError(f"file_path_filter let through {file_path}")
 
@@ -405,9 +441,9 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
         rows_iter = RowIterator(rows)
         try:
             for row in rows_iter:
-                if row[0] == "Local Income":
+                if row[0] == LOCAL_INCOME:
                     yield from cls._parse_local_income(rows_iter, file_path)
-                elif row[0] == "Foreign Income":
+                elif row[0] == FOREIGN_INCOME:
                     yield from cls._parse_dividend_payments(
                         FOREIGN_DIVIDEND_SCHEMA, rows_iter, file_path
                     )
@@ -550,11 +586,7 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
         type_column = 0
         for row in rows_iter:
             # Skip everything until we find the header
-            if (
-                "Code" in row
-                and "Type" in row
-                and ("Market" in row or "Market Code" in row)
-            ):
+            if cls._starts_trades(row):
                 header = row
                 try:
                     yield from cls._parse_trades(header, rows_iter, file_path)

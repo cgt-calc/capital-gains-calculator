@@ -7,17 +7,19 @@ brokerage accounts.
 
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass
 import datetime as dt
 from decimal import Decimal
 from enum import StrEnum
+import io
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 from cgt_calc.util import parse_decimal
 
-from .base_parsers import BaseDirParser, StandardCSVParser
+from .base_parsers import BaseDirParser, StandardCSVParser, missing_columns
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -60,6 +62,39 @@ class WithdrawalColumn(StrEnum):
 
 COLUMNS_RELEASE: Final[list[str]] = [column.value for column in ReleaseColumn]
 COLUMNS_WITHDRAWAL: Final[list[str]] = [column.value for column in WithdrawalColumn]
+
+RELEASES_REPORT: Final = "a Morgan Stanley Releases Report"
+WITHDRAWALS_REPORT: Final = "a Morgan Stanley Withdrawals Report"
+UNREAD_REPORT: Final = "a Morgan Stanley report cgt-calc does not read"
+# The headings of the two other reports in Morgan Stanley's download, the
+# Releases Net Shares Report and the Withdrawal Wire Report. `--mssb-dir`
+# skips them by name; a plain INPUT is skipped by these exact headings.
+UNREAD_HEADERS: Final = (
+    [
+        "Date",
+        "Order Number",
+        "Plan",
+        "Type",
+        "Order Status",
+        "Price",
+        "Quantity",
+        "Net Share Proceeds",
+        "Net Share Proceeds",
+        "Tax Payment Method",
+    ],
+    [
+        "Date",
+        "Order Number",
+        "Symbol",
+        "Type",
+        "Order Status",
+        "Price",
+        "Quantity",
+        "Net Cash Proceeds",
+        "Net Share Proceeds",
+        "Tax Payment Method",
+    ],
+)
 
 # These can be potentially wired through as a flag
 KNOWN_SYMBOL_DICT: Final[dict[str, str]] = {
@@ -112,10 +147,40 @@ class MSSBParser(
     # case, on a file system that tells them apart, are read as two copies
     # of one report, and counted twice.
     refuses_transaction_in_two_files: ClassVar[bool] = False
+    skipped_kinds: ClassVar[frozenset[str]] = frozenset({UNREAD_REPORT})
 
-    @staticmethod
-    def _is_withdrawals_report(file_path: Path) -> bool:
-        """Return whether the path is a withdrawals report."""
+    @classmethod
+    @override
+    def recognise(cls, text: str, file_path: Path) -> list[str]:
+        """Name the report by its headings, as the reader checks them."""
+        header = next(csv.reader(io.StringIO(text)), [])
+        kinds = [
+            kind
+            for kind, columns in (
+                (RELEASES_REPORT, COLUMNS_RELEASE),
+                (WITHDRAWALS_REPORT, COLUMNS_WITHDRAWAL),
+            )
+            if not missing_columns(columns, header)
+        ]
+        if header in UNREAD_HEADERS:
+            kinds.append(UNREAD_REPORT)
+        return kinds
+
+    @classmethod
+    @override
+    def takes_several(cls, kind: str) -> bool:
+        """Read one report of each kind: the two never hold one transaction."""
+        return False
+
+    @classmethod
+    def _is_withdrawals_report(cls, file_path: Path) -> bool:
+        """Return whether the file is a withdrawals report.
+
+        A plain INPUT is the report it was recognised as. The directory option
+        goes by the name, which is all it has ever gone by.
+        """
+        if kind := cls.recognised_kinds.get(file_path):
+            return kind == WITHDRAWALS_REPORT
         return file_path.name.casefold() == WITHDRAWALS_REPORT_FILENAME.casefold()
 
     @classmethod

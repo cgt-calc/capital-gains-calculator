@@ -44,13 +44,29 @@ from .resources import RESOURCES_PACKAGE
 from .util import exclusive_lock, is_blank_row, open_with_parents, save_csv
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Sequence
 
     from .model import BrokerTransaction
 
 LOGGER = logging.getLogger(__name__)
 
 EXCHANGE_RATES_HEADER: Final = ["month", "currency", "rate"]
+
+
+def is_comment(line: str) -> bool:
+    """Say whether a line of the rates cache is a comment, which is skipped."""
+    return line.lstrip().startswith("#")
+
+
+def is_exchange_rates_header(header: Sequence[str]) -> bool:
+    """Say whether the first row after the comments is the header.
+
+    The cache is read only with a header, so this is also how a plain INPUT
+    is known to be the exchange rates cache and not a broker export.
+    """
+    return sorted(header) == sorted(EXCHANGE_RATES_HEADER)
+
+
 NEW_ENDPOINT_FROM_YEAR: Final = 2021
 # The first month HMRC's legacy endpoint has a file for at the address used.
 # Nothing is asked for an earlier date, and a row in the rates file for one was
@@ -112,7 +128,7 @@ class CurrencyConverter:
         kept = [
             (number, line)
             for number, line in enumerate(fin, start=1)
-            if not line.lstrip().startswith("#")
+            if not is_comment(line)
         ]
         line_numbers = [number for number, _ in kept]
         csv_reader = csv.DictReader(line for _, line in kept)
@@ -122,7 +138,7 @@ class CurrencyConverter:
             return cache
         # Checked before any row: a file of one rate and no header has no row
         # left to check, and would be read as empty.
-        if sorted(header) != sorted(EXCHANGE_RATES_HEADER):
+        if not is_exchange_rates_header(header):
             raise UnexpectedHeaderError(
                 header,
                 EXCHANGE_RATES_HEADER,

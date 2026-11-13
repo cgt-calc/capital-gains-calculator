@@ -4,6 +4,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
+import io
 from itertools import chain
 from pathlib import Path
 import re
@@ -53,6 +54,7 @@ class HargreavesLansdownParser(
     format_name = "CSV and PDF"
     glob_dir = "*.csv"
     encoding = "windows-1252"
+    kind: ClassVar[str] = "a Hargreaves Lansdown Transaction Summary"
 
     columns: ClassVar[set[str]] = {
         "Trade date",
@@ -155,13 +157,24 @@ class HargreavesLansdownParser(
         # Also drops the byte-order mark that Excel's "CSV UTF-8" writes.
         return "utf-8-sig"
 
+    @staticmethod
+    def _starts_table(line: str) -> bool:
+        """Say whether the transactions table starts on this line."""
+        return line.strip().startswith("Trade date")
+
+    @classmethod
+    @override
+    def header_line(cls, text: str) -> str | None:
+        """Return the line the transactions table starts on, below the preamble."""
+        return next(filter(cls._starts_table, io.StringIO(text)), None)
+
     @classmethod
     @override
     def pre_reading(cls, file: TextIO, file_path: Path) -> tuple[Iterable[str], int]:
         """Skip the preamble and retain the header's physical line."""
         lines = iter(file)
         for row, line in enumerate(lines, start=1):
-            if line.strip().startswith("Trade date"):
+            if cls._starts_table(line):
                 return chain([line], lines), row
 
         raise ParsingError(file_path, "Could not find the 'Trade date' header.")

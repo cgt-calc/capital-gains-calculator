@@ -4,6 +4,11 @@ Choose your broker below to find the export instructions and command to use. Exp
 history from the account's first transaction when possible, not only the tax year you are
 calculating. Earlier purchases or employer-share awards can establish the cost of shares sold later.
 
+Pass each export, or the folder that holds a broker's exports, straight to cgt-calc: it recognises
+the broker from the file's contents, as described in
+[Generate the report](../usage.md#generate-the-report). The option in the table reads the file as
+that broker's without recognising it first.
+
 If your shares came from an employer, check the broker guide carefully. Schwab supports only the
 award-export formats described in its guide, Morgan Stanley support is limited to Alphabet's GSU
 plan, and Sharesight requires equity grants to be recorded in a particular way.

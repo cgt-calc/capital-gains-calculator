@@ -1510,11 +1510,25 @@ def test_one_directory_is_one_account_boundary(tmp_path: Path) -> None:
     assert apart[0].source.account not in accounts
 
 
-def test_read_trading212_transactions_missing_time_column(tmp_path: Path) -> None:
-    """Raise ParsingError when neither Time column is present."""
+def test_read_trading212_transactions_missing_time(tmp_path: Path) -> None:
+    """Raise ParsingError for a row whose time is blank.
 
-    header = ["Action", "Total", "Currency (Total)", "ID"]
-    rows = [header, ["Deposit", "100.00", "GBP", "deposit-no-time"]]
+    The header has the column, so this is the row's own check, not the
+    header's.
+    """
+
+    rows = [
+        HEADER_2024,
+        _make_row(
+            HEADER_2024,
+            {
+                Trading212Column.ACTION: "Deposit",
+                Trading212Column.TOTAL: "100.00",
+                Trading212Column.CURRENCY_TOTAL: "GBP",
+                Trading212Column.TRANSACTION_ID: "deposit-no-time",
+            },
+        ),
+    ]
     folder = _prepare_file(tmp_path, rows)
 
     with pytest.raises(ParsingError) as exc:

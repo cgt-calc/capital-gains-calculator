@@ -119,3 +119,5 @@
 ^render_pdf\.py:.*AnA
 # "`output_path`'s" - Harper splits the possessive after the backticks.
 ^render_pdf\.py:.*SpellCheck.*`s`
+# "an option that reads its export" is the possessive; ItsContraction misfires.
+^usage\.md:.*ItsContraction

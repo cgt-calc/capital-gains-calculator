@@ -19,6 +19,7 @@ from .exceptions import (
 from .util import is_blank_row, save_csv
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     import datetime as dt
     from pathlib import Path
 
@@ -27,6 +28,15 @@ if TYPE_CHECKING:
 CHOICES_TO_SHOW: Final = 10
 SPIN_OFFS_HEADER: Final = ["dst", "src"]
 LOGGER = logging.getLogger(__name__)
+
+
+def is_spin_offs_header(header: Sequence[str]) -> bool:
+    """Say whether the first row is the header, its columns in any order.
+
+    The file is read only with a header, so this is also how a plain INPUT
+    is known to be a spin-offs file and not a broker export.
+    """
+    return sorted(header) == sorted(SPIN_OFFS_HEADER)
 
 
 class SpinOffHandler:
@@ -53,7 +63,7 @@ class SpinOffHandler:
             header = csv_reader.fieldnames
             # Checked before any row: a file of one mapping and no header has
             # no row left to check, and would be read as empty.
-            if header is not None and sorted(header) != sorted(SPIN_OFFS_HEADER):
+            if header is not None and not is_spin_offs_header(header):
                 raise UnexpectedHeaderError(
                     header, SPIN_OFFS_HEADER, self.spin_offs_file
                 )

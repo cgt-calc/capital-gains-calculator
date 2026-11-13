@@ -1230,10 +1230,14 @@ class SchwabAwardTransaction(BrokerTransaction):
             self.price = round_decimal(self.price / multiplier, ROUND_DIGITS)
 
 
-def _read_json_transactions(
+def read_json_transactions(
     content: str, file_path: Path
 ) -> tuple[list[JsonRowType], FieldNames]:
-    """Decode a Schwab Equity Awards JSON export and say which schema it is."""
+    """Decode a Schwab Equity Awards JSON export and say which schema it is.
+
+    Whether this succeeds is what makes a JSON file an Equity Awards export,
+    for a plain INPUT and for a file given with `--schwab-award-file` alike.
+    """
     try:
         data = json.loads(content, parse_float=Decimal, parse_int=Decimal)
     except json.decoder.JSONDecodeError as exception:
@@ -1318,7 +1322,7 @@ def lapse_only_rows(
         # lapse pricing is on record, and the price CSV that does carry it is
         # read by schwab.py before anything reaches this parser.
         return None
-    rows, names = _read_json_transactions(content, file_path)
+    rows, names = read_json_transactions(content, file_path)
     # Classification is by action rather than by an empty transaction list: an
     # export that yields nothing is not necessarily one that holds nothing but
     # lapses, and pricing a complete history from its lapses would apply this
@@ -1647,7 +1651,7 @@ class SchwabEquityAwardsParser(BaseSingleFileParser[SchwabAwardTransaction]):
         content = file.read().lstrip("\ufeff \t\r\n")
         fields = FieldNames()
         if content.startswith("{"):
-            rows, fields = _read_json_transactions(content, file_path)
+            rows, fields = read_json_transactions(content, file_path)
         else:
             rows = _read_csv_transactions(content, file_path)
 
