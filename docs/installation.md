@@ -5,12 +5,11 @@
 Type the commands on this page in a terminal: **Terminal** on macOS, which is in Applications >
 Utilities, or **PowerShell** on Windows, which you can open from the Start menu.
 
-- **With uv** you need only [uv itself](https://docs.astral.sh/uv/getting-started/installation/). If
-    your computer has no Python, uv downloads one when it installs cgt-calc. If uv finds a Python
-    older than 3.12, it can use that instead and install an old release of cgt-calc without an
-    error. To avoid this, add `--python 3.12` to the uv command you use, as in
-    `uv tool install --python 3.12 cgt-calc` or `uvx --python 3.12 cgt-calc`: uv then uses Python
-    3.12 and downloads it if needed. Adding it does no harm if you are not sure.
+- **With uv** you need only [uv itself](https://docs.astral.sh/uv/getting-started/installation/).
+    Add `--python 3.12` to each uv command that installs or runs cgt-calc, such as
+    `uv tool install --python 3.12 cgt-calc` or `uvx --python 3.12 cgt-calc`; uv downloads Python
+    3.12 if needed. Without it, uv may use an older Python it finds and install an old release of
+    cgt-calc without an error.
 - **With pipx or pip** you need **Python 3.12** or newer installed first. cgt-calc is tested on
     Python 3.12, 3.13 and 3.14.
 
