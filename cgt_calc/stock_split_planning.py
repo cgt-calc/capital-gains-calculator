@@ -10,7 +10,6 @@ from fractions import Fraction
 import logging
 from typing import TYPE_CHECKING, Final, Literal
 
-from .const import BED_AND_BREAKFAST_DAYS
 from .exceptions import (
     CalculationError,
     InvalidTransactionError,
@@ -922,44 +921,42 @@ def isins_joined_at_known_splits(
     makes known_splits_crossed() check the joined holding for its split row,
     and a run with no row under the new ISIN has nothing to join.
 
-    Nor are they joined when a sale of the ticker before the split is
-    followed by a purchase of it on or after the split day, within 30 days
-    of the sale, from any input. The sale may then be matched with that
-    purchase across the split, and when nothing is held going into the split
-    day, the known-split check does not look and no split row can state the
-    split. The pattern is refused without working out whether that match is
-    made.
+    A sale before the split matched with a purchase after it is left to the
+    30-day match, which refuses it when nothing is held going into the split
+    day, as for every other split in the table.
     """
-    window = dt.timedelta(days=BED_AND_BREAKFAST_DAYS)
     joined: dict[Isin, Isin] = {}
     for split in KNOWN_TRADING212_SPLITS:
         if split.new_isin is None:
             continue
         rows = [row for row in transactions if row.isin in split.isins]
-        # Every row of the ticker: a purchase with no ISIN is matched too.
-        traded = [row for row in transactions if row.symbol == split.symbol]
-        if (
-            any(
-                row.isin == split.new_isin and quantity_sign(row.action) != 0
-                for row in rows
-            )
-            and all(
-                isinstance(row, Trading212Transaction)
-                and row.symbol == split.symbol
-                and (row.isin == split.new_isin) == (row.date >= split.date)
-                for row in rows
-            )
-            and not any(
-                quantity_sign(sold.action) < 0
-                and quantity_sign(bought.action) > 0
-                and sold.date < split.date <= bought.date <= sold.date + window
-                for sold in traded
-                for bought in traded
-            )
+        if any(
+            row.isin == split.new_isin and quantity_sign(row.action) != 0
+            for row in rows
+        ) and all(
+            isinstance(row, Trading212Transaction)
+            and row.symbol == split.symbol
+            and (row.isin == split.new_isin) == (row.date >= split.date)
+            for row in rows
         ):
             (old,) = split.isins - {split.new_isin}
             joined[old] = split.new_isin
     return joined
+
+
+def _traded_at_trading212(split: KnownSplit, transaction: BrokerTransaction) -> bool:
+    """Say whether a row is a Trading 212 trade shown to be this split's share.
+
+    A row counts by the ISIN it was exported with: one without an ISIN
+    cannot be shown to be this security, and a refusal telling the holder of
+    another one that its split is missing would have no correct remedy.
+    """
+    return (
+        isinstance(transaction, Trading212Transaction)
+        and transaction.symbol == split.symbol
+        and quantity_sign(transaction.action) != 0
+        and transaction.isin in split.isins
+    )
 
 
 def known_splits_crossed(
@@ -967,21 +964,34 @@ def known_splits_crossed(
 ) -> list[KnownSplit]:
     """Return the known splits this run's Trading 212 rows trade across.
 
-    Read once the tickers are canonical. A row counts by the ISIN it was
-    exported with: one without an ISIN cannot be shown to be this security,
-    and a refusal telling the holder of another one to add a split would
-    have no correct remedy.
+    Read once the tickers are canonical.
     """
     return [
         split
         for split in KNOWN_TRADING212_SPLITS
         if any(
-            isinstance(transaction, Trading212Transaction)
-            and transaction.symbol == split.symbol
-            and transaction.date >= split.date
-            and quantity_sign(transaction.action) != 0
-            and transaction.isin in split.isins
+            transaction.date >= split.date and _traded_at_trading212(split, transaction)
             for transaction in transactions
+        )
+    ]
+
+
+def known_splits_traded(
+    transactions: Iterable[BrokerTransaction],
+) -> list[KnownSplit]:
+    """Return the known splits of shares this run trades at Trading 212.
+
+    A trade on either side of the split counts: a sale before it matched
+    with a purchase after it under the 30-day rule crosses the split from
+    any input once the share is shown to be the one that split. Read once
+    the tickers are canonical. Includes every split known_splits_crossed()
+    returns.
+    """
+    return [
+        split
+        for split in KNOWN_TRADING212_SPLITS
+        if any(
+            _traded_at_trading212(split, transaction) for transaction in transactions
         )
     ]
 
@@ -1240,4 +1250,43 @@ def _wrong_known_split_message(
         f"{split.ratio}-for-1 split that day: the history records "
         f"{transformation.event.describe()}. The day's split rows are:\n"
         f"{listed}\n{advice} See {_OTHER_SPLIT_ROW_DOCS}"
+    )
+
+
+def unconverted_known_split_message(
+    split: KnownSplit,
+    transformation: SplitTransformation | None,
+    symbol: str,
+    disposal_date: dt.date,
+    acquisition_date: dt.date,
+) -> str:
+    """Explain a 30-day match across a known split entered with nothing held.
+
+    ``transformation`` is the split the history records that day, if any,
+    whose ratio is not the known one.
+    """
+    if transformation is None:
+        recorded = (
+            f"The history holds no {split.symbol} going into that day and "
+            "records no split there that establishes the conversion for this "
+            "match, so cgt-calc cannot establish compatible units for the "
+            "disposal and acquisition."
+        )
+    else:
+        recorded = (
+            f"The history holds no {split.symbol} going into that day, and the "
+            f"split it records that day, {transformation.event.describe()}, is "
+            "not that split, so cgt-calc cannot establish that the disposal and "
+            "the acquisition are counted in the same units."
+        )
+    return (
+        f"Cannot compute the disposal of {symbol} on {disposal_date}: it is "
+        "identified under the 30-day rule against the acquisition on "
+        f"{acquisition_date}, and {split.symbol} traded at a new count from "
+        f"{split.date} after a {split.ratio}-for-1 split. {recorded} If the "
+        "disposal is counted in shares from before the split and the "
+        "acquisition in shares from after it, matching them share for share "
+        "would give each share disposed of the cost of 1 share acquired "
+        f"instead of {split.ratio}. Work this disposal out by hand (consider "
+        f"professional advice). See {_NO_SPLIT_ROW_DOCS}"
     )

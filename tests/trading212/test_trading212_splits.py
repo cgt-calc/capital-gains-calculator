@@ -2039,13 +2039,13 @@ def _trade(
     )
 
 
-def _deposit(time: str) -> list[str]:
+def _deposit(time: str, total: str = "1000.00") -> list[str]:
     return _make_row(
         HEADER_2026,
         {
             Trading212Column.ACTION: "Deposit",
             Trading212Column.TIME: time,
-            Trading212Column.TOTAL: "1000.00",
+            Trading212Column.TOTAL: total,
             Trading212Column.CURRENCY_TOTAL: "GBP",
             Trading212Column.TRANSACTION_ID: f"deposit-{time}",
         },
@@ -2561,8 +2561,8 @@ def test_a_stock_split_row_on_another_date_gets_the_trading_212_advice(
                 _deposit("2024-06-01 09:00:00"),
                 _trade("Market buy", "2024-06-03 14:00:00", "2", "400.00"),
                 _trade("Market sell", "2024-06-05 14:00:00", "2", "390.00"),
-                _trade("Market buy", "2024-06-11 14:00:00", "1", "40.00"),
-                _trade("Market sell", "2024-06-12 14:00:00", "1", "41.00"),
+                _trade("Market buy", "2024-07-08 14:00:00", "1", "40.00"),
+                _trade("Market sell", "2024-07-09 14:00:00", "1", "41.00"),
             ],
             id="sold out before the split",
         ),
@@ -2607,12 +2607,14 @@ def test_a_history_the_check_cannot_prove_needs_the_split_runs(
 ) -> None:
     """Each history lacks one thing the refusal needs, so nothing is refused.
 
-    Respectively: nothing held going into 10 June; no Trading 212 row
-    changing the holding after it; a Leverage Shares ETP whose ISIN is not
-    Super Micro Computer's; and rows that cannot show which security they
-    are. The figures are not asserted. The ETP did not split, so no split
-    is right for it; the dividend and blank-ISIN histories are calculated
-    as before, without the split, which is the stated limit.
+    Respectively: nothing held going into 10 June, with the share bought
+    again on 8 July, 33 days after the sale, so no 30-day match crosses the
+    split; no Trading 212 row changing the holding after it; a Leverage
+    Shares ETP whose ISIN is not Super Micro Computer's; and rows that cannot
+    show which security they are. The figures are not asserted. The ETP did
+    not split, so no split is right for it; the dividend and blank-ISIN
+    histories are calculated as before, without the split, which is the
+    stated limit.
     """
     result = run_cli(_known_split_cmd(tmp_path, rows))
 
@@ -3325,10 +3327,509 @@ def test_a_dividend_alone_under_the_new_isin_is_refused(tmp_path: Path) -> None:
     assert "ERROR: " + _two_isins("LRCX", LRCX_ISIN_BEFORE, LRCX_ISIN_AFTER) in stderr
 
 
+# ===== a sale before a known split matched with a purchase after it =====
+#
+# A sale is matched with a purchase on any of the 30 days after it (TCGA 1992
+# s.106A). A purchase on or after a known split's day makes that match cross
+# the split. When nothing is held going into the split day, only a split
+# recorded that day with the known ratio shows the two counts are in the same
+# units. Most histories below sell 2 shares for GBP 900 and buy back 2 x ratio
+# for GBP 46 each. Matched share for share, the 2 sold would take the cost of
+# 2 of the shares bought, which for NVIDIA's 10-for-1 split is 920 x 2/20 = 92
+# and a gain of 900 - 92 = 808, where 2 old shares are all 20 new ones and the
+# result is a loss of 900 - 920 = 20.
+
+
+def _unconverted(
+    symbol: str,
+    sold: str,
+    bought: str,
+    split_day: str,
+    ratio: int,
+    recorded: str | None = None,
+) -> str:
+    """Return the refusal of a 30-day match across a split entered empty.
+
+    ``recorded`` describes the split the history records that day, when it
+    records one with another ratio.
+    """
+    if recorded is None:
+        held = (
+            f"The history holds no {symbol} going into that day and records no "
+            "split there that establishes the conversion for this match, so "
+            "cgt-calc cannot establish compatible units for the disposal and "
+            "acquisition."
+        )
+    else:
+        held = (
+            f"The history holds no {symbol} going into that day, and the split "
+            f"it records that day, {recorded}, is not that split, so cgt-calc "
+            "cannot establish that the disposal and the acquisition are counted "
+            "in the same units."
+        )
+    return (
+        f"Cannot compute the disposal of {symbol} on {sold}: it is identified "
+        f"under the 30-day rule against the acquisition on {bought}, and "
+        f"{symbol} traded at a new count from {split_day} after a {ratio}-for-1 "
+        f"split. {held} If the disposal is counted in shares from before the "
+        "split and the acquisition in shares from after it, matching them share "
+        "for share would give each share disposed of the cost of 1 share "
+        f"acquired instead of {ratio}. Work this disposal out by hand (consider "
+        f"professional advice). See {NO_ROWS_DOCS}"
+    )
+
+
+# Every split cgt-calc knows, written from the sources cited in its table
+# rather than read from it: the ticker, the first day of split-adjusted
+# trading, the ratio, and the ISINs before and after it. Super Micro
+# Computer's and Lam Research's changed with their CUSIPs.
+ALL_KNOWN_SPLITS = [
+    pytest.param("AAPL", "2020-08-31", 4, "US0378331005", None, id="AAPL 2020"),
+    pytest.param("TSLA", "2020-08-31", 5, "US88160R1014", None, id="TSLA 2020"),
+    pytest.param("NVDA", "2021-07-20", 4, NVDA_ISIN, None, id="NVDA 2021"),
+    pytest.param("AMZN", "2022-06-06", 20, "US0231351067", None, id="AMZN"),
+    pytest.param("DXCM", "2022-06-13", 4, "US2521311074", None, id="DXCM"),
+    pytest.param("SHOP", "2022-06-29", 10, "CA82509L1076", None, id="SHOP"),
+    pytest.param("GOOGL", "2022-07-18", 20, "US02079K3059", None, id="GOOGL"),
+    pytest.param("GOOG", "2022-07-18", 20, "US02079K1079", None, id="GOOG"),
+    pytest.param("TSLA", "2022-08-25", 3, "US88160R1014", None, id="TSLA 2022"),
+    pytest.param("PANW", "2022-09-14", 3, "US6974351057", None, id="PANW"),
+    pytest.param("NVO", "2023-09-20", 2, "US6701002056", None, id="NVO"),
+    pytest.param("WMT", "2024-02-26", 3, "US9311421039", None, id="WMT"),
+    pytest.param(
+        "NVDA", "2024-06-10", 10, NVDA_ISIN, None, id="NVDA 2024, the reported history"
+    ),
+    pytest.param("CMG", "2024-06-26", 50, "US1696561059", None, id="CMG"),
+    pytest.param("AVGO", "2024-07-15", 10, "US11135F1012", None, id="AVGO"),
+    pytest.param("MSTR", "2024-08-08", 10, "US5949724083", None, id="MSTR"),
+    pytest.param("CTAS", "2024-09-12", 4, "US1729081059", None, id="CTAS"),
+    pytest.param("DECK", "2024-09-17", 6, "US2435371073", None, id="DECK"),
+    pytest.param(
+        "SMCI", "2024-10-01", 10, SMCI_ISIN_BEFORE, SMCI_ISIN_AFTER, id="SMCI"
+    ),
+    pytest.param(
+        "LRCX", "2024-10-03", 10, LRCX_ISIN_BEFORE, LRCX_ISIN_AFTER, id="LRCX"
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("symbol", "split_day", "ratio", "isin", "new_isin"), ALL_KNOWN_SPLITS
+)
+def test_a_sale_matched_across_a_known_split_entered_empty_is_refused(
+    tmp_path: Path,
+    symbol: str,
+    split_day: str,
+    ratio: int,
+    isin: str,
+    new_isin: str | None,
+) -> None:
+    """2 bought a week before the split are sold 3 days before it.
+
+    2 x ratio are bought back 2 days after it, under the new ISIN where the
+    split changed it. For NVIDIA in 2024 that is the reported history: 2
+    bought on 3 June for GBP 800, sold on 7 June for GBP 900, and 20 bought
+    on 12 June for GBP 920, which cgt-calc reported as a gain of 808.
+    """
+    day = date.fromisoformat(split_day)
+    sold, bought = day - timedelta(days=3), day + timedelta(days=2)
+    rows = [
+        # Enough for Chipotle's 100 shares at GBP 46.
+        _deposit(f"{day - timedelta(days=7)} 09:00:00", total="5000.00"),
+        _trade(
+            "Market buy",
+            f"{day - timedelta(days=7)} 14:00:00",
+            "2",
+            "400.00",
+            ticker=symbol,
+            isin=isin,
+        ),
+        _trade(
+            "Market sell", f"{sold} 14:00:00", "2", "450.00", ticker=symbol, isin=isin
+        ),
+        _trade(
+            "Market buy",
+            f"{bought} 14:00:00",
+            str(2 * ratio),
+            "46.00",
+            ticker=symbol,
+            isin=new_isin or isin,
+        ),
+    ]
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows))
+
+    expected = _unconverted(symbol, str(sold), str(bought), split_day, ratio)
+    assert "ERROR: " + expected + "\n" in stderr
+
+
+def _nvidia_sold_out(*, bought: str = "2024-06-03") -> list[list[str]]:
+    """Buy 2 NVDA for GBP 800 and sell both on 7 June 2024 for GBP 900."""
+    return [
+        _deposit(f"{bought} 09:00:00"),
+        _trade("Market buy", f"{bought} 14:00:00", "2", "400.00"),
+        _trade("Market sell", "2024-06-07 14:00:00", "2", "450.00"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("rows", "raw_rows", "symbol", "sold", "bought", "split_day"),
+    [
+        pytest.param(
+            _nvidia_sold_out(),
+            (
+                "2024-06-12,TRANSFER,,1,920.00,0.00,GBP",
+                "2024-06-12,BUY,NVDA,20,46.00,0.00,GBP",
+            ),
+            "NVDA",
+            "2024-06-07",
+            "2024-06-12",
+            "2024-06-10",
+            id="NVDA bought back in a RAW row",
+        ),
+        pytest.param(
+            [
+                _deposit("2024-08-30 09:00:00"),
+                _trade(
+                    "Market buy",
+                    "2024-08-30 14:00:00",
+                    "2",
+                    "400.00",
+                    ticker="LRCX",
+                    isin=LRCX_ISIN_BEFORE,
+                ),
+                _trade(
+                    "Market sell",
+                    "2024-09-30 14:00:00",
+                    "2",
+                    "450.00",
+                    ticker="LRCX",
+                    isin=LRCX_ISIN_BEFORE,
+                ),
+            ],
+            (
+                "2024-10-07,TRANSFER,,1,920.00,0.00,GBP",
+                "2024-10-07,BUY,LRCX,20,46.00,0.00,GBP",
+            ),
+            "LRCX",
+            "2024-09-30",
+            "2024-10-07",
+            "2024-10-03",
+            id="LRCX bought back in a RAW row",
+        ),
+        pytest.param(
+            [
+                _deposit("2024-06-01 09:00:00"),
+                _trade("Market buy", "2024-06-12 14:00:00", "20", "46.00"),
+            ],
+            (
+                "2024-06-03,TRANSFER,,1,1000.00,0.00,GBP",
+                "2024-06-03,BUY,NVDA,2,400.00,0.00,GBP",
+                "2024-06-07,SELL,NVDA,2,450.00,0.00,GBP",
+            ),
+            "NVDA",
+            "2024-06-07",
+            "2024-06-12",
+            "2024-06-10",
+            id="NVDA sold in a RAW row",
+        ),
+    ],
+)
+def test_a_trade_from_another_input_matched_across_the_split_is_refused(
+    tmp_path: Path,
+    rows: list[list[str]],
+    raw_rows: tuple[str, ...],
+    symbol: str,
+    sold: str,
+    bought: str,
+    split_day: str,
+) -> None:
+    """One Trading 212 trade with the ISIN shows which share the ticker is.
+
+    The 2 sold for GBP 900 are matched with the 20 bought for GBP 920 across
+    the split, whichever input has the sale or the purchase. In the first
+    two, the purchase is the only row after the split and has no ISIN; in
+    the third, the sale has none and the Trading 212 purchase is the only
+    row with one.
+    """
+    stderr = _refusal(_known_split_cmd(tmp_path, rows, raw_rows=raw_rows))
+
+    expected = _unconverted(symbol, sold, bought, split_day, 10)
+    assert "ERROR: " + expected + "\n" in stderr
+
+
+def _held_across(
+    symbol: str, isin: str, new_isin: str, *, bought: str, sold: str, rebought: str
+) -> list[list[str]]:
+    """Buy 3 for GBP 1,200, sell 2 for GBP 900 and buy 20 for GBP 920."""
+    return [
+        _deposit(f"{bought} 09:00:00", total="2000.00"),
+        _trade(
+            "Market buy", f"{bought} 14:00:00", "3", "400.00", ticker=symbol, isin=isin
+        ),
+        _trade(
+            "Market sell", f"{sold} 14:00:00", "2", "450.00", ticker=symbol, isin=isin
+        ),
+        _trade(
+            "Market buy",
+            f"{rebought} 14:00:00",
+            "20",
+            "46.00",
+            ticker=symbol,
+            isin=new_isin,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("symbol", "rows", "split_row"),
+    [
+        pytest.param(
+            "NVDA",
+            _held_across(
+                "NVDA",
+                NVDA_ISIN,
+                NVDA_ISIN,
+                bought="2024-06-03",
+                sold="2024-06-07",
+                rebought="2024-06-12",
+            ),
+            "2024-06-10,STOCK_SPLIT,NVDA,9,0.00,0.00,GBP",
+            id="NVDA",
+        ),
+        pytest.param(
+            "LRCX",
+            _held_across(
+                "LRCX",
+                LRCX_ISIN_BEFORE,
+                LRCX_ISIN_AFTER,
+                bought="2024-09-23",
+                sold="2024-09-30",
+                rebought="2024-10-07",
+            ),
+            "2024-10-03,STOCK_SPLIT,LRCX,9,0.00,0.00,GBP",
+            id="LRCX",
+        ),
+    ],
+)
+def test_a_match_across_a_split_supplied_for_a_held_holding_is_converted(
+    tmp_path: Path, symbol: str, rows: list[list[str]], split_row: str
+) -> None:
+    """1 old share is held into the split, and its row adds 9 to make 10.
+
+    The 2 old shares sold for GBP 900 are 20 new ones, so they are matched
+    with all 20 bought back: a cost of 920 and a loss of 900 - 920 = 20. The
+    3 old shares bought stay in the pool, as 30 new ones at GBP 1,200.
+    """
+    result = run_cli(_known_split_cmd(tmp_path, rows, raw_rows=(split_row,)))
+
+    assert re.search(r"Allowable costs:\s+£920\.00\n", result.stdout), result.stdout
+    assert re.search(r"\n  Loss:\s+£20\.00\n", result.stdout), result.stdout
+    assert f"  {symbol}: 30.00, £1,200.00\n" in result.stdout, result.stdout
+
+
+def _split_day_purchase(
+    symbol: str, isin: str, later_isin: str, *, bought: str, sold: str
+) -> list[list[str]]:
+    """Buy 2 for GBP 800, sell them for GBP 900 and buy 1 in mid-November."""
+    return [
+        _deposit(f"{bought} 09:00:00"),
+        _trade(
+            "Market buy", f"{bought} 14:00:00", "2", "400.00", ticker=symbol, isin=isin
+        ),
+        _trade(
+            "Market sell", f"{sold} 14:00:00", "2", "450.00", ticker=symbol, isin=isin
+        ),
+        _trade(
+            "Market buy",
+            "2024-11-15 14:00:00",
+            "1",
+            "46.00",
+            ticker=symbol,
+            isin=later_isin,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("symbol", "rows", "sold", "split_day"),
+    [
+        pytest.param(
+            "NVDA",
+            _split_day_purchase(
+                "NVDA", NVDA_ISIN, NVDA_ISIN, bought="2024-06-03", sold="2024-06-07"
+            ),
+            "2024-06-07",
+            "2024-06-10",
+            id="NVDA",
+        ),
+        pytest.param(
+            "LRCX",
+            _split_day_purchase(
+                "LRCX",
+                LRCX_ISIN_BEFORE,
+                LRCX_ISIN_AFTER,
+                bought="2024-09-23",
+                sold="2024-09-30",
+            ),
+            "2024-09-30",
+            "2024-10-03",
+            id="LRCX",
+        ),
+    ],
+)
+def test_a_split_row_with_another_ratio_does_not_convert_the_match(
+    tmp_path: Path, symbol: str, rows: list[list[str]], sold: str, split_day: str
+) -> None:
+    """A RAW file buys 20 on the split day and then adds 20 to them: 2-for-1.
+
+    Nothing is held going into the split day, so the row restates only the
+    shares bought ahead of it that day, and its ratio of 40/20 = 2 is not
+    the known 10. Applied, it would match the 2 sold with 4 of the 40, a cost
+    of 920 x 4/40 = 92.
+    """
+    raw_rows = (
+        f"{split_day},TRANSFER,,1,920.00,0.00,GBP",
+        f"{split_day},BUY,{symbol},20,46.00,0.00,GBP",
+        f"{split_day},STOCK_SPLIT,{symbol},20,0.00,0.00,GBP",
+    )
+
+    stderr = _refusal(_known_split_cmd(tmp_path, rows, raw_rows=raw_rows))
+
+    recorded = f"{symbol} on {split_day} (20 -> 40 units, ratio 2)"
+    expected = _unconverted(symbol, sold, split_day, split_day, 10, recorded)
+    assert "ERROR: " + expected + "\n" in stderr
+
+
+def test_a_split_row_with_the_known_ratio_converts_the_match(tmp_path: Path) -> None:
+    """A RAW file buys 2 for GBP 920 on 10 June and then adds 18: 10-for-1.
+
+    The row restates the 2 bought ahead of it as 20, so the 2 sold on 7 June
+    are matched with those 20: a cost of 920 and a loss of 900 - 920 = 20.
+    The 2 bought on 3 June stay in the pool and become 20 at GBP 800, and
+    the 1 bought in November for 46 makes 21 at 846.
+    """
+    rows = _split_day_purchase(
+        "NVDA", NVDA_ISIN, NVDA_ISIN, bought="2024-06-03", sold="2024-06-07"
+    )
+    raw_rows = (
+        "2024-06-10,TRANSFER,,1,920.00,0.00,GBP",
+        "2024-06-10,BUY,NVDA,2,460.00,0.00,GBP",
+        "2024-06-10,STOCK_SPLIT,NVDA,18,0.00,0.00,GBP",
+    )
+
+    result = run_cli(_known_split_cmd(tmp_path, rows, raw_rows=raw_rows))
+
+    assert re.search(r"Allowable costs:\s+£920\.00\n", result.stdout), result.stdout
+    assert re.search(r"\n  Loss:\s+£20\.00\n", result.stdout), result.stdout
+    assert "  NVDA: 21.00, £846.00\n" in result.stdout, result.stdout
+
+
+@pytest.mark.parametrize(
+    ("rows", "costs", "gain"),
+    [
+        pytest.param(
+            [
+                _deposit("2024-06-07 09:00:00"),
+                _trade("Market buy", "2024-06-07 10:00:00", "2", "400.00"),
+                _trade("Market sell", "2024-06-07 14:00:00", "2", "450.00"),
+                _trade("Market buy", "2024-06-12 14:00:00", "20", "46.00"),
+            ],
+            "800.00",
+            "100.00",
+            id="the sale matched the same day",
+        ),
+        pytest.param(
+            [
+                *_nvidia_sold_out(),
+                _trade("Market buy", "2024-06-12 14:00:00", "20", "46.00"),
+                _trade("Market sell", "2024-06-12 15:00:00", "20", "47.00"),
+            ],
+            "1,720.00",
+            "120.00",
+            id="the purchase matched with its own day's sale",
+        ),
+    ],
+)
+def test_a_sale_not_matched_across_the_split_is_calculated(
+    tmp_path: Path, rows: list[list[str]], costs: str, gain: str
+) -> None:
+    """Nothing is held going into 10 June, but no match crosses the split.
+
+    First, the 2 sold on 7 June are the 2 bought that morning: a cost of 800
+    and a gain of 900 - 800 = 100.
+
+    Second, the 20 bought on 12 June go to that day's sale of 20 for GBP 940,
+    a gain of 940 - 920 = 20, leaving the sale on 7 June to the pool, a gain
+    of 900 - 800 = 100: costs of 800 + 920 = 1,720 and gains of 120.
+    """
+    result = run_cli(_known_split_cmd(tmp_path, rows))
+
+    costs_line = re.escape(f"£{costs}")
+    assert re.search(rf"Allowable costs:\s+{costs_line}\n", result.stdout), (
+        result.stdout
+    )
+    assert re.search(rf"\n  Gain:\s+£{re.escape(gain)}\n", result.stdout), result.stdout
+
+
+def test_award_shares_matched_across_the_split_are_not_refused(
+    tmp_path: Path,
+) -> None:
+    """The Equity Awards export's counts are all at the new count already.
+
+    30 NVDA vested on 1 May are sold on 3 June, which Schwab writes as 3 at
+    USD 1,150 and cgt-calc restates as 30, and 10 vest on 15 June. The sale
+    is matched with that vest with no conversion. No Trading 212 trade shows
+    the ticker is NVIDIA's, so the check does not apply. The figures are
+    not asserted: the contract is that the run is not refused.
+    """
+    sale: dict[str, object] = {
+        "Date": "06/03/2024",
+        "Action": "Sale",
+        "Symbol": "NVDA",
+        "Quantity": "3",
+        "Description": "Share Sale",
+        "FeesAndCommissions": "$0.00",
+        "DisbursementElection": "Cash",
+        "Amount": "$3,450.00",
+        "TransactionDetails": [
+            {
+                "Details": {
+                    "Type": "RS",
+                    "Shares": "3",
+                    "SalePrice": "$1,150.00",
+                    "GrossProceeds": "$3,450.00",
+                    "VestDate": "05/01/2024",
+                    "VestFairMarketValue": "$850.00",
+                    "TotalCostBasis": "$2,550.00",
+                    "RealizedGainLoss": "$900.00",
+                    "DispositionType": "Short",
+                    "HoldingPeriod": "Short",
+                }
+            }
+        ],
+    }
+    awards = _award_export(
+        tmp_path,
+        [
+            _award_vest("05/01/2024", "NVDA", "30", "$85.00"),
+            sale,
+            _award_vest("06/15/2024", "NVDA", "10", "$130.00"),
+        ],
+    )
+    cmd = _known_split_cmd(
+        tmp_path,
+        [_deposit("2024-06-01 09:00:00")],
+        extra=("--schwab-award-file", awards),
+    )
+
+    result = run_cli(cmd)
+
+    assert "Cannot compute the disposal" not in result.stderr
+
+
 # Lam Research held from 30 August 2024 and sold out before its split on 3
-# October, then bought again. A sale is matched with a purchase on any of the
-# 30 days after it (TCGA 1992 s.106A), and a purchase on or after the split
-# day makes that match cross the split with nothing held going into it.
+# October, then bought again.
 
 
 def _sold_out(sold: str) -> list[list[str]]:
@@ -3367,16 +3868,20 @@ def _bought_back(day: str, shares: str = "20") -> list[str]:
 
 
 @pytest.mark.parametrize(
-    ("rows", "raw_rows"),
+    ("rows", "raw_rows", "sold", "bought"),
     [
         pytest.param(
             [*_sold_out("2024-09-04"), _bought_back("2024-10-04")],
             (),
+            "2024-09-04",
+            "2024-10-04",
             id="on the 30th day after the sale",
         ),
         pytest.param(
             [*_sold_out("2024-10-02"), _bought_back("2024-10-03")],
             (),
+            "2024-10-02",
+            "2024-10-03",
             id="on the split day",
         ),
         pytest.param(
@@ -3385,28 +3890,31 @@ def _bought_back(day: str, shares: str = "20") -> list[str]:
                 "2024-10-07,TRANSFER,,1,920.00,0.00,GBP",
                 "2024-10-07,BUY,LRCX,20,46.00,0.00,GBP",
             ),
+            "2024-09-30",
+            "2024-10-07",
             id="in a RAW row with no ISIN",
         ),
     ],
 )
 def test_a_sale_matched_with_a_purchase_across_the_split_is_refused(
-    tmp_path: Path, rows: list[list[str]], raw_rows: tuple[str, ...]
+    tmp_path: Path,
+    rows: list[list[str]],
+    raw_rows: tuple[str, ...],
+    sold: str,
+    bought: str,
 ) -> None:
     """The 20 bought back for GBP 920 are matched with the 2 sold for 900.
 
     Respectively: sold on 4 September and bought on 4 October, the 30th
     day; sold the day before the split and bought on the split day; and
     sold on 30 September with the 20 bought on 7 October in a RAW row,
-    while a later Trading 212 purchase shows the new ISIN. Matched without
-    the split, the 2 old shares sold would take the cost of 2 of the 20 new
-    ones, 920 x 2/20 = 92, a gain of 900 - 92 = 808, where 2 old shares are
-    all 20 new ones and the result is a loss of 900 - 920 = 20. No split row
-    can state a split of nothing, so the two ISINs stay apart and the run
-    stops.
+    while a later Trading 212 purchase shows the new ISIN. The two ISINs
+    are one holding, and nothing is held going into the split day.
     """
     stderr = _refusal(_known_split_cmd(tmp_path, rows, raw_rows=raw_rows))
 
-    assert "ERROR: " + _two_isins("LRCX", LRCX_ISIN_BEFORE, LRCX_ISIN_AFTER) in stderr
+    expected = _unconverted("LRCX", sold, bought, "2024-10-03", 10)
+    assert "ERROR: " + expected + "\n" in stderr
 
 
 def test_a_sale_more_than_30_days_before_the_purchase_is_joined(
@@ -3562,8 +4070,10 @@ def test_a_history_not_carried_across_august_2020_runs(
 
     Each history also buys 1 and sells it after the split, so a Trading 212
     row trades the share on or after 31 August either way, and only the
-    empty holding keeps it from being refused. The figures are not asserted:
-    no split applies to them.
+    empty holding keeps it from being refused. That purchase, on 28
+    September, is 31 days after the sale on 28 August, so no 30-day match
+    crosses the split. The figures are not asserted: no split applies to
+    them.
     """
     rows = [
         _deposit(f"{bought} 09:00:00"),
@@ -3574,11 +4084,11 @@ def test_a_history_not_carried_across_august_2020_runs(
             "Market sell", f"{sold} 14:00:00", "2", "400.00", ticker=symbol, isin=isin
         ),
         _trade(
-            "Market buy", "2020-09-03 14:00:00", "1", "100.00", ticker=symbol, isin=isin
+            "Market buy", "2020-09-28 14:00:00", "1", "100.00", ticker=symbol, isin=isin
         ),
         _trade(
             "Market sell",
-            "2020-09-04 14:00:00",
+            "2020-09-29 14:00:00",
             "1",
             "101.00",
             ticker=symbol,

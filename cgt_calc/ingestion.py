@@ -61,6 +61,7 @@ from .rename_planning import (
 from .stock_split_planning import (
     check_known_split,
     known_splits_crossed,
+    known_splits_traded,
     plan_stock_splits,
     source_account,
 )
@@ -1779,12 +1780,17 @@ class TransactionIngester:
         days: dict[dt.date, list[BrokerTransaction]],
         planned: set[dt.date],
         known_splits: list[KnownSplit],
+        crossed: list[KnownSplit],
     ) -> None:
         """Plan the day's reorganisations, and note where units came from.
 
-        ``known_splits`` is what `known_splits_crossed` found and this run
-        has not reached yet. Each is checked on the first date on or after
-        it, against the pool as that day opens, and then dropped.
+        ``known_splits`` is what `known_splits_traded` found and this run
+        has not reached yet. Each is read on the first date on or after it,
+        against the pool as that day opens, and then dropped. No row dated
+        from the split up to that date has been read, so that pool is the
+        holding going into the split day. A split entered empty is recorded
+        for the 30-day match, and one in ``crossed`` is checked for its
+        split row.
         """
         if transaction.date not in planned:
             planned.add(transaction.date)
@@ -1821,7 +1827,10 @@ class TransactionIngester:
             plan_stock_splits(self.state, transaction.date, days[transaction.date])
             for split, quantity in zip(due, held_at_open, strict=True):
                 known_splits.remove(split)
-                check_known_split(self.state, split, quantity, days)
+                if quantity <= 0:
+                    self.history.empty_known_splits[split.date][split.symbol] = split
+                if split in crossed:
+                    check_known_split(self.state, split, quantity, days)
         if quantity_sign(transaction.action) > 0 and transaction.symbol:
             self.history.holding_sources[transaction.symbol].add(
                 source_account(transaction)
@@ -1877,7 +1886,8 @@ class TransactionIngester:
         transactions = self._resolve_gifts(transactions)
         # After add_from_transactions, so that a row exported under an alias
         # such as NVD is read under the ticker the pool and RAW rows use.
-        known_splits = known_splits_crossed(transactions)
+        known_splits = known_splits_traded(transactions)
+        crossed = known_splits_crossed(transactions)
         # The cash balance is judged once a day is complete rather than after
         # every row. Within one day the row order is not consistently reliable
         # for sequencing cash: a RAW file records it deliberately, a broker
@@ -1920,7 +1930,9 @@ class TransactionIngester:
         )
 
         for i, transaction in enumerate(transactions):
-            self._open_transaction_day(transaction, days, planned, known_splits)
+            self._open_transaction_day(
+                transaction, days, planned, known_splits, crossed
+            )
             self._convert_foreign_fees(transaction)
             if transaction.action == ActionType.EXCESS_REPORTED_INCOME:
                 self.add_eri(transaction, run_renames)
