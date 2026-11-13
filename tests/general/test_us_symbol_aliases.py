@@ -18,25 +18,24 @@ Every history here is invented and in pounds:
 
 from __future__ import annotations
 
-import re
 import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.utils import build_cmd, run_cli, stderr_alerts
+from tests.utils import (
+    SEPARATE_RUNS,
+    T212_HEADER,
+    build_cmd,
+    final_portfolio,
+    run_cli,
+    stderr_alerts,
+    summary_figure,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-SEPARATE_RUNS = (
-    "https://cgt-calc.uk/extra-data-and-options/#two-securities-in-separate-runs"
-)
-T212_HEADER = (
-    "Action,Time (UTC),ISIN,Ticker,Name,No. of shares,Price / share,"
-    "Currency (Price / share),Exchange rate,Result,Currency (Result),Total,"
-    "Currency (Total),ID"
-)
 GOLD_MINERS_UCITS_ISIN = "IE00BQQP9F84"
 # The alias, the ticker it is reported under, its table entry's ISIN and the
 # name Trading 212 gives the security.
@@ -100,18 +99,6 @@ def _args(export: Path, raw: Path) -> list[str]:
     )
 
 
-def _holdings(stdout: str) -> dict[str, str]:
-    """Return the final portfolio as ticker to quantity."""
-    block = stdout.split("Final portfolio\n", 1)[1].split("\n\n", 1)[0]
-    return dict(line.strip().split(": ") for line in block.splitlines())
-
-
-def _figure(stdout: str, label: str) -> str:
-    match = re.search(rf"^  {label}:\s+£([\d,.]+)$", stdout, re.MULTILINE)
-    assert match is not None, stdout
-    return match.group(1)
-
-
 @pytest.mark.parametrize(("alias", "reported", "isin", "name"), PAIRS)
 def test_a_us_row_under_an_alias_is_another_security(
     tmp_path: Path, alias: str, reported: str, isin: str, name: str
@@ -125,7 +112,7 @@ def test_a_us_row_under_an_alias_is_another_security(
     - RAW: proceeds 50 x 35 = 1,750, cost 50 x 30 = 1,500, gain 250.
     - Total gain 350, no loss.
 
-    Pooled, as `main` had them before: 105 shares for 4,000. The sale of 2
+    Pooled, as before this change: 105 shares for 4,000. The sale of 2
     costs 4,000 x 2 / 105 = 76.19, a gain of 423.81; the sale of 50 costs
     3,923.81 x 50 / 103 = 1,904.76, a loss of 154.76.
     """
@@ -142,9 +129,9 @@ def test_a_us_row_under_an_alias_is_another_security(
     result = run_cli(_args(export, raw))
 
     assert stderr_alerts(result.stderr) == []
-    assert _holdings(result.stdout) == {reported: "3.00", alias: "50.00"}
-    assert _figure(result.stdout, "Gain") == "350.00"
-    assert _figure(result.stdout, "Loss") == "0.00"
+    assert final_portfolio(result.stdout) == {reported: "3.00", alias: "50.00"}
+    assert summary_figure(result.stdout, "Gain") == "350.00"
+    assert summary_figure(result.stdout, "Loss") == "0.00"
 
 
 @pytest.mark.parametrize(
@@ -209,7 +196,8 @@ def test_a_london_row_under_an_alias_joins_only_a_london_line(
         gains 3,000 - 2,400 = 600. The RAW sale of 10 gains 10 x (260 -
         235) = 250. Total 850.
 
-    `main` stopped on the two Trading 212 listings: `does not match`.
+    Before this change the run stopped on the two Trading 212 listings:
+    `does not match`.
     """
     export, raw = _inputs(
         tmp_path,
@@ -224,9 +212,9 @@ def test_a_london_row_under_an_alias_joins_only_a_london_line(
     result = run_cli(_args(export, raw))
 
     assert stderr_alerts(result.stderr) == []
-    assert _holdings(result.stdout) == holdings
-    assert _figure(result.stdout, "Gain") == gain
-    assert _figure(result.stdout, "Loss") == "0.00"
+    assert final_portfolio(result.stdout) == holdings
+    assert summary_figure(result.stdout, "Gain") == gain
+    assert summary_figure(result.stdout, "Loss") == "0.00"
 
 
 def test_a_market_on_one_row_covers_the_tickers_other_rows(tmp_path: Path) -> None:
@@ -251,8 +239,8 @@ def test_a_market_on_one_row_covers_the_tickers_other_rows(tmp_path: Path) -> No
     result = run_cli(_args(export, raw))
 
     assert stderr_alerts(result.stderr) == []
-    assert _holdings(result.stdout) == {"SMGB": "3.00", "SMH": "10.00"}
-    assert _figure(result.stdout, "Gain") == "850.00"
+    assert final_portfolio(result.stdout) == {"SMGB": "3.00", "SMH": "10.00"}
+    assert summary_figure(result.stdout, "Gain") == "850.00"
 
 
 @pytest.mark.parametrize(
@@ -275,9 +263,9 @@ def test_a_row_with_no_isin_or_market_under_an_alias_is_refused(
     """Nothing says which of the two securities a bare RAW row is.
 
     The RAW file has no market column: 15 April 2024, buy 100 at 30; 1
-    October 2024, sell 50 at 35. Beside the alias alone, `main` pooled them
-    with Trading 212's holding with no error; beside both listings, it
-    stopped on the listings with `does not match`. The run stops at the RAW
+    October 2024, sell 50 at 35. Before this change they were pooled with
+    Trading 212's holding with no error beside the alias alone, and the run
+    stopped on the listings with `does not match` beside both. It stops at the RAW
     purchase, the first row it cannot place, and shows the Trading 212 row
     that exported the alias.
     """
@@ -363,5 +351,5 @@ def test_a_row_with_no_isin_beside_trading_212s_london_gdx_fund_joins_it(
     result = run_cli(_args(export, raw))
 
     assert stderr_alerts(result.stderr) == []
-    assert _holdings(result.stdout) == {"GDX": "13.00"}
-    assert _figure(result.stdout, "Gain") == "760.00"
+    assert final_portfolio(result.stdout) == {"GDX": "13.00"}
+    assert summary_figure(result.stdout, "Gain") == "760.00"

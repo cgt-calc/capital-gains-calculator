@@ -261,9 +261,12 @@ ERI_TAX_DATE_DELTA: Final = relativedelta(months=6)
 # security uses as its ticker on an exchange a supported broker offers would
 # pool another broker's holding of that security with this one, with no error.
 # An alias that is another security's US symbol is listed in
-# ALIASES_THAT_ARE_US_SYMBOLS too, which keeps such rows apart or refuses them.
-# Leave out an alias another security uses on any other exchange. `NVD` is
-# also a fund in the US and is not listed there, so it carries that risk.
+# ALIASES_THAT_ARE_US_SYMBOLS too, with the market of the alias's own listing,
+# or None where that is neither US nor London. A row without an ISIN joins only
+# when its market is that one, stays apart under any other market, and is
+# refused with no market at all. Leave out an alias another security uses on an
+# exchange other than the US or London, which no row's market can name. `NVD`
+# is also a fund in the US and is not listed there, so it carries that risk.
 # The reported ticker is not held to that rule, though `TSLA`, `AMZN` and
 # `NVDA` also name trackers and depositary receipts on other exchanges. A row
 # with no ISIN under `TSLA` joins a Trading 212 `TSLA` holding without this

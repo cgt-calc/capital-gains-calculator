@@ -395,10 +395,10 @@ Four refusals protect a holding from being pooled with another security:
     ticker, such as `RMG`, and the rest of your files show both that company and another security
     under it. See
     [Renames kept to one market](../extra-data-and-options.md#renames-kept-to-one-market).
-- **`has no ISIN on this row and no market`**: a row with a blank market, where no other row gives
-    the ticker one, uses `GDX`, `SMH`, `WCLD` or `DFNS`, which another export, such as Trading
-    212's, gives to General Dynamics or a fund's London line, and which is also another security's
-    US symbol. See
+- **`has no ISIN on this row and no market`**: a row with a blank market uses `GDX`, `SMH`, `WCLD`
+    or `DFNS`, and no other row gives the ticker a market. Another export, such as Trading 212's,
+    gives the ticker to General Dynamics or a fund's London line, while in the US it is another
+    security's symbol. See
     [`has no ISIN on this row and no market`](../extra-data-and-options.md#has-no-isin-on-this-row-and-no-market).
 
 ## Generate the report

@@ -125,8 +125,8 @@ excess reported income and warns. See
 for the row that settles it.
 
 Trades under `GDX`, `SMH`, `WCLD` or `DFNS` stop the run when another export, such as Trading 212's,
-uses the ticker for General Dynamics or a fund's London line, and no RAW row gives the ticker a
-market. See
+uses the ticker for General Dynamics or a fund's London line, and no other row in your files, such
+as a RAW or Charles Schwab row, gives the ticker a market. See
 [`has no ISIN on this row and no market`](../extra-data-and-options.md#has-no-isin-on-this-row-and-no-market).
 
 Without an ISIN or reference mapping, tickers can remain separate without an error. If your report
