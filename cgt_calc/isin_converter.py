@@ -126,9 +126,10 @@ class IsinConverter:
         # puts the ISIN in a dividend description but not in a trade one -
         # identifies the rest of them through this.
         self.exported_isins: dict[str, Isin] = {}
-        # The new ISIN each old one continues as, where this run's rows cross
-        # a known split that changed it. Both checks below read a row under
-        # the old ISIN as the new one.
+        # The new ISIN each old one continues as, for each known split that
+        # changed it and that no row of this run contradicts. The checks below
+        # read the old ISIN as the new one, whether a row or reference data
+        # gives it.
         self.joined_isins: dict[Isin, Isin] = {}
         self.validate_data(self._read_isin_translation_data())
 
@@ -395,7 +396,7 @@ class IsinConverter:
             )
 
         owner = self.transaction_isins.get(symbol) or self._isin_for_symbol(symbol)
-        if owner is not None and owner != isin:
+        if owner is not None and self.joined_isins.get(owner, owner) != isin:
             raise InvalidTransactionError(
                 transaction,
                 f"Ticker {symbol} is already used for ISIN {owner}, so it "

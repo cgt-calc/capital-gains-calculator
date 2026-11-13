@@ -10,6 +10,7 @@ from fractions import Fraction
 import logging
 from typing import TYPE_CHECKING, Final, Literal
 
+from .const import BED_AND_BREAKFAST_DAYS
 from .exceptions import (
     CalculationError,
     InvalidTransactionError,
@@ -907,25 +908,38 @@ def isins_joined_at_known_splits(
 ) -> dict[Isin, Isin]:
     """Return the new ISIN each old one continues as, for the splits it joins.
 
-    A Trading 212 export lists Super Micro Computer and Lam Research under
-    the old ISIN before their splits and the new one from them, and those
-    rows are one holding. A split's two ISINs are joined only when every row
-    carrying either of them is a Trading 212 row under the split's ticker,
-    with the old ISIN dated before the split and the new one on or after it.
-    Any other row with either ISIN, such as one changing on another day, is
-    not shown to be this split, so the run keeps the two ISINs apart and a
-    ticker exported for both is refused as two securities.
+    Super Micro Computer and Lam Research changed ISIN at their splits, so a
+    Trading 212 export can list one under the old ISIN before the split and
+    the new one from it, and those rows are one holding. A split's two ISINs
+    are joined only when every row carrying either of them is a Trading 212
+    row under the split's ticker, with the old ISIN dated before the split
+    and the new one on or after it. Any other row with either ISIN, such as
+    one changing on another day, is not shown to be this split, so the run
+    keeps the two ISINs apart and a ticker exported for both is refused as
+    two securities.
+
+    Nor are they joined when a sale before the split is matched with a
+    purchase in the 30 days after it. Matching them needs the split, and
+    when nothing is held going into the split day, the known-split check
+    does not look and no split row can state it.
     """
+    window = dt.timedelta(days=BED_AND_BREAKFAST_DAYS)
     joined: dict[Isin, Isin] = {}
     for split in KNOWN_TRADING212_SPLITS:
         if split.new_isin is None:
             continue
+        rows = [row for row in transactions if row.isin in split.isins]
         if all(
-            isinstance(transaction, Trading212Transaction)
-            and transaction.symbol == split.symbol
-            and (transaction.isin == split.new_isin) == (transaction.date >= split.date)
-            for transaction in transactions
-            if transaction.isin in split.isins
+            isinstance(row, Trading212Transaction)
+            and row.symbol == split.symbol
+            and (row.isin == split.new_isin) == (row.date >= split.date)
+            for row in rows
+        ) and not any(
+            quantity_sign(sold.action) < 0
+            and quantity_sign(bought.action) > 0
+            and sold.date < split.date <= bought.date <= sold.date + window
+            for sold in rows
+            for bought in rows
         ):
             (old,) = split.isins - {split.new_isin}
             joined[old] = split.new_isin
