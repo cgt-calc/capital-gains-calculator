@@ -334,7 +334,8 @@ from your share plan:
 
 Pass either one without an option, or with `--schwab-award-file`: cgt-calc reads the contents and
 works out which one it has. What changes is what cgt-calc does with the file, described in the two
-sections below.
+sections below. If you have neither, see
+[Vests without an award file](#vests-without-an-award-file).
 
 ### Price-only export
 
@@ -407,6 +408,120 @@ split over more than one posting date, and a posting date can carry shares from 
 date, so a posting-date total need not equal an award-date total. Investigate anything that does not
 line up rather than assuming the nearest date is right: two awards a few days apart with the same
 net quantity but different prices both satisfy the lookup, and only one of them is your vest.
+
+### Vests without an award file
+
+If you cannot get an award export, a [RAW](raw.md) row can give a vest the date and value the main
+CSV leaves out. Use it only when your own records establish both: the day you became entitled to the
+shares, and their market value that day. [Dates containing `as of`](#dates-containing-as-of)
+explains why that day decides the date and the cost, and not the day Schwab posted the shares.
+
+For each `Stock Plan Activity` row with a blank `Price`, add a `STOCK_ACTIVITY` row to a RAW file
+that [replaces it](raw.md#replace-a-row-of-the-export):
+
+- `date`: the day you acquired the shares.
+- `quantity`: the quantity of the `Stock Plan Activity` row, unchanged.
+- `price`: the market value of one share that day, in US dollars, above zero.
+- `fees` `0.00`, `currency` `USD` and `broker` `Charles Schwab`.
+- `replaces`: the first date in the row's `Date` column, the day Schwab posted the shares, written
+    `YYYY-MM-DD`.
+
+For 60 shares that Schwab posted on 18 August 2023, which your records show you acquired on 15
+August at 22 dollars a share:
+
+```csv
+date,action,symbol,quantity,price,fees,currency,broker,replaces
+2023-08-15,STOCK_ACTIVITY,ZQX,60,22.00,0.00,USD,Charles Schwab,2023-08-18
+```
+
+Every vest without a price needs the award file or a row like this. A vest left without either stops
+the run with [`Cannot price a vest`](#cannot-price-a-vest), even if `--prices-file` has a price for
+the day Schwab posted it, because that is not the day you acquired the shares. If you add the award
+file later, cgt-calc dates the vest from it instead, so change `replaces` to the `Date` of the
+vest's `Lapse` row. A row that replaces no vest stops the run.
+
+cgt-calc also stops the run, naming your row, when the row has no price, a zero price, another
+currency or fees. It does the same when a split or consolidation of the share falls on either date
+or between them, if your main history records it or cgt-calc already knows of it, and when Schwab
+posted two vests of the same quantity on the same day. See
+[When cgt-calc refuses a replacement](raw.md#when-cgt-calc-refuses-a-replacement).
+
+#### Keep the evidence
+
+cgt-calc uses the date and value you enter as they are and cannot check them: the row records your
+claim, not proof of it. Keep the records it rests on with your tax papers:
+
+- the award statement or agreement, and anything from your employer or the plan administrator that
+    shows when you became entitled to the shares;
+- the record of the market value you used, with its date, currency and share units.
+
+The day Schwab posted the shares does not establish when you acquired them, and neither does a
+payslip on its own. If your payroll taxed a different amount as income, resolve that separately:
+cgt-calc does not work out or correct your employment income.
+
+#### What this covers
+
+Use it for awards of shares you received free and without restrictions, valued in US dollars. It is
+not designed for restricted shares, ESPP purchases, options you paid to exercise or income your
+employer apportioned between countries: for those, the cost is not simply the market value on one
+day. Ask a tax adviser before relying on a result for them.
+
+### Correct several vests
+
+To change the date or value of more than one vest, work from the dates cgt-calc reads rather than
+from the CSV. This works with or without an award file.
+
+1. Run cgt-calc with your Schwab files and
+    [`--dump-transactions`](../usage.md#inspect-parsed-transactions):
+
+    ```shell
+    cgt-calc --year 2023 schwab_transactions.csv schwab_awards.csv --dump-transactions parsed.csv
+    ```
+
+    Without an award file, the run then stops with `Cannot price a vest`, but the file is saved
+    first, because it is written before the calculation.
+
+2. Find each vest: its rows have the action `STOCK_ACTIVITY`. Their `date` is the one to put in
+    `replaces`. With an award file, it is the `Date` of the vest's `Lapse` row, with its
+    `FairMarketValuePrice` as the `price`. Without one, it is the day Schwab posted the shares, and
+    `price` is empty.
+
+3. For each vest you change, add one `STOCK_ACTIVITY` row to a RAW file, with the date and value
+    your records support, and [keep the evidence](#keep-the-evidence). With an award file, a vest
+    you leave out keeps the file's date and price. Without one, every vest needs a row.
+
+4. Run again with the RAW file added. The run names each row it uses in place of a vest. The dump
+    cannot show this: it is what cgt-calc read, saved before the replacements.
+
+For example, your main CSV has two vests, posted on 15 June and 18 August 2023. With the award file,
+the dump shows them on their `Lapse` dates (other columns left out):
+
+| date       | symbol | quantity | price |
+| ---------- | ------ | -------- | ----- |
+| 2023-06-12 | ZQX    | 60       | 20.00 |
+| 2023-08-15 | ZQX    | 40       | 24.00 |
+
+Your employer taxed the June vest as the award file shows, and the August one on 18 August, the day
+the shares were issued, at 24.80 dollars a share. Only the August vest needs a row:
+
+```csv
+date,action,symbol,quantity,price,fees,currency,broker,replaces
+2023-08-18,STOCK_ACTIVITY,ZQX,40,24.80,0.00,USD,Charles Schwab,2023-08-15
+```
+
+Save it as `corrections.csv` and pass it with the other two files:
+
+```shell
+cgt-calc --year 2023 schwab_transactions.csv schwab_awards.csv corrections.csv
+```
+
+```text
+Using RAW row 2 (STOCK_ACTIVITY ZQX on 2023-08-18) in place of the Charles Schwab row dated 2023-08-15 (row 2 of schwab_transactions.csv)
+```
+
+The June vest keeps the award file's date and price. Without the award file, the dump would show the
+two vests on 15 June and 18 August with no price, and each would need a row, with `replaces` dates
+of `2023-06-15` and `2023-08-18`.
 
 ### Complete transaction export
 
@@ -582,6 +697,11 @@ The named `Stock Plan Activity` has no price in the main CSV. Export the Equity 
 pass it alongside the main CSV. Either layout of the price-only export will do: the award-price CSV,
 or the JSON export whose every row is a `Lapse`. If you already did, check that it contains the same
 ticker and a `FairMarketValuePrice` dated no more than six days before the activity.
+
+If you cannot get an award export but your records establish the day you acquired the shares and
+their value that day, a RAW row can supply both: see
+[Vests without an award file](#vests-without-an-award-file). A price in `--prices-file` does not
+help here, because it would be for the day Schwab posted the shares.
 
 If its JSON holds `Lapse` rows together with cash rows such as `Journal` or `Wire Transfer`,
 cgt-calc will not read prices from it. Export the same history as the award-price CSV, which reads

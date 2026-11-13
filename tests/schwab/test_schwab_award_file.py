@@ -9,6 +9,7 @@ and deliberately not about the extension.
 
 from __future__ import annotations
 
+import datetime as dt
 import io
 import logging
 from pathlib import Path
@@ -233,13 +234,20 @@ def test_a_header_only_price_csv_is_read_as_a_price_csv(tmp_path: Path) -> None:
     """The header decides, not whether the file went on to price anything.
 
     Inferring the layout from an empty result would report this as an
-    unrecognised file instead of the empty price list it is.
+    unrecognised file instead of the empty price list it is. Read as a
+    complete export, it would stop at the vest it cannot price. Read as the
+    empty price list, it leaves the vest unpriced on the day Schwab posted
+    it, for a RAW row to replace.
     """
     award_file = tmp_path / "awards.csv"
     award_file.write_text(PRICE_HEADER, encoding="utf-8")
 
-    with pytest.raises(ParsingError, match="Cannot price a vest"):
-        load_via_cli(schwab_file=str(MAIN_HISTORY), schwab_award_file=str(award_file))
+    transactions = load_via_cli(
+        schwab_file=str(MAIN_HISTORY), schwab_award_file=str(award_file)
+    )
+
+    vests = [t for t in transactions if t.action is ActionType.STOCK_ACTIVITY]
+    assert [(vest.date, vest.price) for vest in vests] == [(dt.date(2023, 8, 18), None)]
 
 
 def test_a_header_only_complete_export_is_read_as_a_complete_export(

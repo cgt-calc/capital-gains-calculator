@@ -21,27 +21,43 @@ from tests.utils import (
 )
 
 
-def test_missing_award_file_reports_the_vest_it_cannot_price() -> None:
+def test_missing_award_file_reports_the_vest_it_cannot_price(tmp_path: Path) -> None:
     """A vest without a price is the only thing the award file is needed for.
 
     The runs below parse files that never need it and stay silent; this one
-    reaches a Stock Plan Activity row and has nothing to price it with.
+    reaches a Stock Plan Activity row and has nothing to price it with. The
+    run stops even though --prices-file has a price for 18 August: that is
+    the day Schwab posted the shares, not the day they were acquired. The
+    row is named, so it can be found in the statement.
     """
     path = Path("tests") / "schwab" / "data" / "rsu_settlement" / "transactions.csv"
-    SchwabParser.awards_prices = AwardPrices(award_prices={})
+    prices = tmp_path / "prices.csv"
+    prices.write_text('date,symbol,price\n"Aug 18, 2023",BAR,140.35\n')
 
-    with (
-        path.open(encoding="utf-8") as csv_file,
-        pytest.raises(ParsingError) as exc_info,
-    ):
-        SchwabParser.read_transactions(csv_file, path)
+    result = subprocess.run(
+        build_cmd(
+            "--year",
+            "2023",
+            "--schwab-file",
+            str(path),
+            "--prices-file",
+            str(prices),
+            "--no-report",
+        ),
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
 
-    message = str(exc_info.value)
-    assert "no Schwab Award file was provided" in message
-    assert "--schwab-award-file" in message
-    # The row that needs the file is named, so it can be found in the statement.
-    assert "BAR" in message
-    assert "2023-08-18" in message
+    assert result.returncode != 0
+    assert (
+        f"ERROR: While parsing {path}, row 3: Cannot price a vest: the BAR stock "
+        "activity of 200 on 2023-08-18 has no price of its own, and no Schwab "
+        "Award file was provided. Pass the Equity Awards transaction history "
+        "with --schwab-award-file. If you know the day you acquired the shares "
+        "and their market value that day instead, a RAW row can replace the "
+        "vest: see https://cgt-calc.uk/brokers/raw/#correct-a-row-in-a-broker-export\n"
+    ) in result.stderr
 
 
 def _read_award_file(award_file: Path) -> AwardPrices:

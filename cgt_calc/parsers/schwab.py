@@ -286,6 +286,10 @@ def _parse_decimal(
 class SchwabTransaction(BrokerTransaction):
     """Represent single Schwab transaction."""
 
+    # Why a vest is left without a price, which stops the run unless a RAW
+    # row replaces it. None on every other row.
+    unpriced: str | None = None
+
     def __init__(
         self,
         row_dict: OrderedDict[str, str],
@@ -405,6 +409,16 @@ class SchwabTransaction(BrokerTransaction):
                     f"the {symbol} stock activity of {transaction.quantity} "
                     f"on {transaction.date} has no price of its own"
                 )
+                if not awards_prices and not awards_prices.from_complete_export:
+                    # A RAW row can still replace the vest with its own date
+                    # and price, so the refusal waits for the replacements:
+                    # refuse_unpriced_vests() raises it for a vest left.
+                    transaction.unpriced = (
+                        f"Cannot price a vest: {context}, and no Schwab Award "
+                        "file was provided. Pass the Equity Awards transaction "
+                        "history with --schwab-award-file."
+                    )
+                    return transaction
                 if awards_prices.from_complete_export:
                     reason = (
                         f"the file given {awards_prices.given} is a complete "
@@ -413,11 +427,6 @@ class SchwabTransaction(BrokerTransaction):
                         "--schwab-award-file instead, or import the complete "
                         "export on its own if it holds everything the "
                         "calculation needs."
-                    )
-                elif not awards_prices:
-                    reason = (
-                        "no Schwab Award file was provided. Pass the Equity "
-                        "Awards transaction history with --schwab-award-file."
                     )
                 else:
                     reason = (
