@@ -6,12 +6,13 @@ Type the commands on this page in a terminal: **Terminal** on macOS, which is in
 Utilities, or **PowerShell** on Windows, which you can open from the Start menu.
 
 - **With uv** you need only [uv itself](https://docs.astral.sh/uv/getting-started/installation/).
-    Add `--python 3.12` to each uv command that installs or runs cgt-calc, such as
-    `uv tool install --python 3.12 cgt-calc` or `uvx --python 3.12 cgt-calc`; uv downloads Python
-    3.12 if needed. Without it, uv may use an older Python it finds and install an old release of
-    cgt-calc without an error.
-- **With pipx or pip** you need **Python 3.12** or newer installed first. cgt-calc is tested on
-    Python 3.12, 3.13 and 3.14.
+    The uv commands on this page include `--python 3.12`, so uv uses Python 3.12 and downloads it if
+    needed. Keep it if you type a command yourself: without it, uv may use an older Python it finds
+    and install an old release of cgt-calc without an error.
+- **With pipx or pip** you need **Python 3.12** or newer installed first. Check with
+    `python3 --version`, or `python --version` on Windows. With an older Python, pipx and pip also
+    install an old release of cgt-calc without an error. cgt-calc is tested on Python 3.12, 3.13 and
+    3.14.
 
 cgt-calc creates the PDF report itself. You do not need LaTeX or any other program to create it.
 
@@ -20,7 +21,7 @@ cgt-calc creates the PDF report itself. You do not need LaTeX or any other progr
 Install the calculator with [uv](https://docs.astral.sh/uv/getting-started/installation/):
 
 ```shell
-uv tool install cgt-calc
+uv tool install --python 3.12 cgt-calc
 ```
 
 Alternatively, install it with [pipx](https://pipx.pypa.io/latest/how-to/install-pipx.html):
@@ -39,7 +40,7 @@ python -m pip install cgt-calc
 Or run it directly without installing:
 
 ```shell
-uvx cgt-calc
+uvx --python 3.12 cgt-calc
 ```
 
 If you already use Docker, you can instead run the published [Docker image](docker.md), which
@@ -62,8 +63,14 @@ Run:
 cgt-calc --version
 ```
 
-If you use `uvx` instead of installing cgt-calc, run `uvx cgt-calc --version`. Once the command
-prints a version, choose your [broker](brokers/index.md) and follow the [report guide](usage.md).
+If you use `uvx` instead of installing cgt-calc, run `uvx --python 3.12 cgt-calc --version`.
+
+If the version starts with `1.`, cgt-calc was installed with a Python older than 3.12 and is an old
+release without later fixes. With uv, run `uv tool install --python 3.12 cgt-calc`, which replaces
+it. With pipx or pip, install Python 3.12 or newer, then install cgt-calc again with it.
+
+Once the command prints a version of 2.0.0 or later, choose your [broker](brokers/index.md) and
+follow the [report guide](usage.md).
 
 ### If the command is not found
 
@@ -87,8 +94,8 @@ Use the same method you used to install it:
 | [pip](https://pip.pypa.io/en/stable/cli/pip_install/#examples), in the original virtual environment | `python -m pip install --upgrade cgt-calc` |
 
 Run `cgt-calc --version` afterwards to check the installed version. If you use `uvx`, run
-`uvx cgt-calc@latest --version` to fetch and check the latest release, then use
-`uvx cgt-calc@latest` with your usual report options. Docker users should follow
+`uvx --python 3.12 cgt-calc@latest --version` to fetch and check the latest release, then use
+`uvx --python 3.12 cgt-calc@latest` with your usual report options. Docker users should follow
 [Updating the image](docker.md#updating-the-image).
 
 If you installed the unreleased version, use
@@ -107,7 +114,7 @@ virtual environment.
 With uv:
 
 ```shell
-uv tool install git+https://github.com/cgt-calc/capital-gains-calculator
+uv tool install --python 3.12 git+https://github.com/cgt-calc/capital-gains-calculator
 ```
 
 With pipx:
@@ -125,7 +132,7 @@ python -m pip install git+https://github.com/cgt-calc/capital-gains-calculator
 Or run it without installing. `uvx` fetches the latest `main` each time:
 
 ```shell
-uvx --from git+https://github.com/cgt-calc/capital-gains-calculator cgt-calc
+uvx --python 3.12 --from git+https://github.com/cgt-calc/capital-gains-calculator cgt-calc
 ```
 
 `cgt-calc --version` shows which code you have. For example, `cgt-calc 3.0.0.post13+g327ebae` is 13
@@ -152,7 +159,7 @@ commit ID in the
 
 | Install method                           | Command                                            |
 | ---------------------------------------- | -------------------------------------------------- |
-| uv                                       | `uv tool install cgt-calc@latest`                  |
+| uv                                       | `uv tool install --python 3.12 cgt-calc@latest`    |
 | pipx                                     | `pipx install --force cgt-calc`                    |
 | pip, in the original virtual environment | `python -m pip install --force-reinstall cgt-calc` |
 
@@ -161,7 +168,7 @@ unreleased version. pip needs `--force-reinstall`: the unreleased version counts
 release it follows, so `python -m pip install --upgrade cgt-calc` would keep it. `--force-reinstall`
 also reinstalls cgt-calc's dependencies.
 
-If you used `uvx --from`, run `uvx cgt-calc@latest` instead. After that,
+If you used `uvx --from`, run `uvx --python 3.12 cgt-calc@latest` instead. After that,
 [upgrade cgt-calc](#upgrade-cgt-calc) as usual.
 
 ## Shell completions (optional)
