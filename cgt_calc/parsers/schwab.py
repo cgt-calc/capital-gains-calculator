@@ -142,7 +142,7 @@ class AwardPrices:
         # Award dates may go back a few days, depending on
         # holidays or weekends, so we do a linear search
         # in the past to find the award price
-        symbol = current_ticker(symbol, date)
+        symbol = current_ticker(symbol, date, market=US_MARKET)
         for i in range(7):
             to_search = date - dt.timedelta(days=i)
 
@@ -372,6 +372,9 @@ class SchwabTransaction(BrokerTransaction):
             currency,
             broker,
             option_contract=option_contract,
+            # From the start, so that a rename held to the US applies while
+            # the parser still compares tickers.
+            market=US_MARKET,
         )
 
     @staticmethod
@@ -936,7 +939,7 @@ def _award_prices_from_lines(
                 schwab_award_transactions_file, str(err), row_index=row_index + 1
             ) from err
         if symbol is not None and price is not None:
-            symbol = current_ticker(symbol, date)
+            symbol = current_ticker(symbol, date, market=US_MARKET)
             initial_prices[date][symbol] = price
     return AwardPrices(award_prices=dict(initial_prices))
 

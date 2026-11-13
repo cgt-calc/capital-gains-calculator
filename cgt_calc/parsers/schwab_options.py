@@ -17,6 +17,7 @@ from decimal import Decimal
 import re
 from typing import TYPE_CHECKING, Final
 
+from cgt_calc.const import US_MARKET
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import (
     ActionType,
@@ -119,7 +120,7 @@ def parse_option_contract(symbol: str, date: dt.date) -> OptionContract | None:
         return None
 
     return OptionContract(
-        underlying=current_ticker(underlying, date),
+        underlying=current_ticker(underlying, date, market=US_MARKET),
         expiry=expiry,
         strike=strike,
         option_type=option_type,

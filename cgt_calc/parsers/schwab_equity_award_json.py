@@ -29,6 +29,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, Final, TextIO, override
 
+from cgt_calc.const import US_MARKET
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import (
     ActionType,
@@ -1166,6 +1167,8 @@ class SchwabAwardTransaction(BrokerTransaction):
             amount,
             currency,
             broker,
+            # From the start, so that a rename held to the US applies to it.
+            market=US_MARKET,
         )
 
         history = SPLITS.get(symbol or "")
@@ -1392,7 +1395,7 @@ def _lapse_price(
     date = _row_date(row, names.date, where, file_path)
     # AwardPrices.get renames the symbol it is asked for, so an entry filed
     # under the old spelling would never be found.
-    symbol = current_ticker(symbol, date)
+    symbol = current_ticker(symbol, date, market=US_MARKET)
 
     detail_rows = row.get(names.transac_details) or []
     if not isinstance(detail_rows, list):
