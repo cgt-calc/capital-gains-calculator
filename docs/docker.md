@@ -6,13 +6,13 @@ silicon).
 
 Open a terminal in the directory containing your transaction files, then start the container:
 
-On native Linux, add `--user "$(id -u):$(id -g)"` immediately after `docker run` in the commands
-below so generated files are owned by you.
-
 ```shell
 cd ~/Taxes/Transactions
 docker run --rm -it -v "$PWD":/data ghcr.io/cgt-calc/capital-gains-calculator
 ```
+
+On native Linux, add `--user "$(id -u):$(id -g)"` immediately after `docker run` in this command and
+the ones below so generated files are owned by you.
 
 The container opens a shell in `/data`, which is the directory you started from. Run cgt-calc there
 using the normal [report instructions](usage.md). For example:

@@ -1,4 +1,4 @@
-# RAW Format
+# RAW format
 
 cgt-calc reads a simple seven-column CSV when your broker is not supported or when you need to add a
 supported event that its export does not identify. You write this file yourself from the broker's
@@ -212,7 +212,7 @@ the pool” is 0, one of the three cases above applies, and the cost can end up 
 under either ticker.
 
 This is for a fund based in the UK. For an accumulating fund or ETF based elsewhere, such as an
-Irish one, see [Offshore Funds (ERI)](../offshore-funds.md).
+Irish one, see [Offshore funds (ERI)](../offshore-funds.md).
 
 ## Known limitations
 
@@ -574,7 +574,7 @@ the `TRANSFER_TO_SPOUSE` action.
 ```
 
 Leave `price` at `0`, since a gift has no sale price. Put any fee you paid to make the transfer in
-`fees` — it is added to the base cost the recipient inherits.
+`fees`: it is added to the base cost the recipient inherits.
 
 No broker export marks these, so you add the row yourself. You do not have to convert your whole
 history to the RAW format to do it: pass a small RAW file of just the transfers, under the
@@ -614,8 +614,8 @@ of your export rather than let it be read as a purchase at nothing.
 !!! warning "Check that you qualify"
 
     No gain / no loss applies if you were living together at some point in the tax year of the
-    transfer, and since 6 April 2023 for a period after separating as well — see
-    [CG22420](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22420). If you do not
+    transfer, and since 6 April 2023 for a period after separating as well
+    ([CG22420](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22420)). If you do not
     qualify, or the shares went to anyone else, record a [gift](#gifts-to-anyone-else) instead.
 
 Buying the same shares within 30 days of a transfer changes the figure. The transfer is matched
@@ -633,7 +633,7 @@ had sold them for what they were worth on the day, although no money changed han
 the `GIFT` action. The `price` is the market value of the gift divided by its units. Market value
 has its own rules ([s272](https://www.legislation.gov.uk/ukpga/1992/12/section/272)): for shares
 quoted on an exchange it follows the day's quoted prices, while unquoted shares need a defensible
-open-market valuation of the holding you gave away — the size of the holding changes the value per
+open-market valuation of the holding you gave away. The size of the holding changes the value per
 share ([CG59562](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg59562)), and HMRC
 can check a valuation after the disposal (form CG34). If the count has been restated for a later
 split (Schwab's export does this), divide the value of the whole gift by the restated count. A
@@ -644,12 +644,12 @@ Gifts to connected persons made within six years of each other are valued as a s
 ([s19](https://www.legislation.gov.uk/ukpga/1992/12/section/19),
 [CG14650](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg14650)): when the pieces
 are worth more together than apart, each gift's consideration becomes its share of the value of
-everything given, and each later gift enlarges the series, which can revise the earlier gifts —
-already-filed years included. A typical holding of quoted shares is unaffected, since every share
-has the same price, but for unquoted shares given in stages enter the s19-apportioned value as the
-`price`, and amend the earlier years yourself when a later gift revises them. A transfer to your
-spouse stays no gain / no loss, but it still counts towards the series when the same holding is
-split between a spouse and someone else
+everything given, and each later gift enlarges the series, which can revise the earlier gifts,
+including those in years already filed. A typical holding of quoted shares is unaffected, since
+every share has the same price, but for unquoted shares given in stages enter the s19-apportioned
+value as the `price`, and amend the earlier years yourself when a later gift revises them. A
+transfer to your spouse stays no gain / no loss, but it still counts towards the series when the
+same holding is split between a spouse and someone else
 ([CG14710](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg14710)).
 
 ```csv
@@ -663,17 +663,17 @@ The same identification rules as a sale apply, and a gain counts like any other.
 relatives (brothers, sisters, parents, grandparents, children, grandchildren) and their spouses,
 your spouse's relatives and their spouses, your business partners and their spouses and relatives,
 trustees of a settlement you or a connected person set up, companies you control alone or with
-connected persons, and people acting together to control a company — among others, so read the
-section if in doubt. If the recipient is not a connected person, a friend say, use
-`GIFT_UNCONNECTED` instead; the only difference is what happens to a loss, and when unsure `GIFT` is
-the safe choice, since it can only overstate. A sale and a `GIFT` of the same shares on one day
-cannot be computed (they are one disposal under s105(1), and a loss on it could not be split), while
-a sale and a `GIFT_UNCONNECTED` are one ordinary disposal, reported as a sale. Several `GIFT` rows
-for one symbol on one day must state the same value per unit, and they mean one gift to one person:
-their fees and their gain or loss merge into one result, which is right for one recipient and wrong
-for several, since a clogged loss to one person cannot net a gain to another. If a day's gifts went
-to different people, leave that symbol out of the input and work it out by hand, as with any day
-cgt-calc refuses.
+connected persons, and people acting together to control a company. That is not the whole
+definition, so read the section if in doubt. If the recipient is not a connected person, a friend
+say, use `GIFT_UNCONNECTED` instead; the only difference is what happens to a loss, and when unsure
+`GIFT` is the safe choice, since it can only overstate. A sale and a `GIFT` of the same shares on
+one day cannot be computed (they are one disposal under s105(1), and a loss on it could not be
+split), while a sale and a `GIFT_UNCONNECTED` are one ordinary disposal, reported as a sale. Several
+`GIFT` rows for one symbol on one day must state the same value per unit, and they mean one gift to
+one person: their fees and their gain or loss merge into one result, which is right for one
+recipient and wrong for several, since a clogged loss to one person cannot net a gain to another. If
+a day's gifts went to different people, leave that symbol out of the input and work it out by hand,
+as with any day cgt-calc refuses.
 
 cgt-calc works out the gain before any relief. Shares in a trading company that is not listed on a
 recognised stock exchange, or in your personal company, may qualify for
@@ -688,7 +688,7 @@ claim you and the recipient make on your returns; the report shows the gain in f
     [CG14561](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg14561)). HMRC calls
     this a clogged loss. cgt-calc shows it as "Losses on gifts" rather than in "Loss", and it does
     not reduce the gain. It is still a loss: keep a separate record of it and carry it forward with
-    your other losses — the SA108 notes cover this under "Transferring assets between connected
+    your other losses. The SA108 notes cover this under "Transferring assets between connected
     people". cgt-calc does not know who received which gift, so it never sets a clogged loss
     against a gain on another gift to the same person; if that applies to you, do that part by
     hand.

@@ -70,7 +70,7 @@ amounts and their tax at source are converted to GBP using the exported `Base FX
 Freetrade timestamps every transaction in UTC. cgt-calc converts each one to UK time, GMT in winter
 and BST in summer, before taking the date. The tax year boundary and the same-day and 30-day
 matching rules all run on UK calendar days, and the boundary always falls inside BST, so a
-transaction stamped after 23:00 UTC on 5 April belongs to the following tax year.
+transaction stamped at or after 23:00 UTC on 5 April belongs to the following tax year.
 
 ### Check for missing activity
 

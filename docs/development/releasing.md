@@ -1,4 +1,4 @@
-# Release Process
+# Release process
 
 (Maintainers only.)
 

@@ -106,12 +106,13 @@ The importer recognises these forms in the `Details` or `TransactionDetails` col
 | `NameChange: <OLD> replaced with <NEW>` in Investment Transactions | A rename between uppercase ticker codes             |
 
 For ordinary buys and sells in a full worksheet, the cash table supplies the total amount and the
-exported text supplies the quantity and symbol. cgt-calc treats the final text in parentheses as the
-symbol; if there is no text in parentheses, it uses the complete investment name. This is a simple
-text rule, not validation that the value is an exchange ticker. The importer records Vanguard
-account amounts in GBP and does not expose a separate dealing-fee field. For a cash-table trade, it
-derives the unit price from the total cash amount and quantity, so any dealing charge already
-included in that trade's `Amount` is folded into the derived price.
+exported text supplies the quantity and symbol. cgt-calc treats the text in parentheses at the end
+of an investment's name as the symbol; if the name does not end in text in parentheses, it uses the
+complete investment name. This is a simple text rule, not validation that the value is an exchange
+ticker. The importer records Vanguard account amounts in GBP and does not expose a separate
+dealing-fee field. For a cash-table trade, it derives the unit price from the total cash amount and
+quantity, so any dealing charge already included in that trade's `Amount` is folded into the derived
+price.
 
 Deposit and withdrawal wording is recognised through phrases such as `Regular Deposit`,
 `Cash transfer`, `Deposit via`, `Deposit for` and `Payment by`. Capitalisation and punctuation can
@@ -200,9 +201,9 @@ instead. Check the fund company in your fund documents if you are unsure.
     which the row does not identify, so cgt-calc refuses it instead of guessing.
 - The importer treats every transaction amount as GBP. Foreign-currency dividend text has not been
     validated and is not converted.
-- The final text in parentheses is always treated as the ticker. For example, an investment ending
-    in `(Accumulation)` is assigned the symbol `Accumulation`, which can silently combine different
-    funds in one holding.
+- The text in parentheses at the end of an investment's name is always treated as the ticker. For
+    example, an investment ending in `(Accumulation)` is assigned the symbol `Accumulation`, which
+    can silently combine different funds in one holding.
 - A row cgt-calc cannot place stops the import instead of being skipped, and the error names the
     file line. That covers a row with the wrong number of fields, a header that does not match the
     section title above it, a conflicting header or section title, a transaction row above the first

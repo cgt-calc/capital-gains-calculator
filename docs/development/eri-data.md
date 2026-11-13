@@ -1,8 +1,8 @@
-# Contributing ERI Data
+# Contributing ERI data
 
 Sharing compiled Excess Reported Income data saves significant time for other users holding the same
-funds. Where each provider publishes its reports — and how their columns map to the ERI_RAW format —
-is described in [Providing custom ERI data](../custom-eri-data.md#where-providers-publish-reports).
+funds. [Custom ERI data](../custom-eri-data.md#where-providers-publish-reports) describes where each
+provider publishes its reports and how their columns map to the ERI_RAW format.
 
 ## Importing provider reports
 

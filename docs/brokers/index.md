@@ -26,6 +26,9 @@ plan, and Sharesight requires equity grants to be recorded in a particular way.
 | [Vanguard](vanguard.md)                       | `--vanguard-file`                                        | Client Transactions Listing CSV                    |
 | [RAW format](raw.md)                          | `--raw-file`                                             | Generic fallback for other brokers                 |
 
+If your broker is not listed, try the [RAW format](raw.md). Contributions for new brokers are very
+welcome: see [Adding a broker](../development/adding-a-broker.md).
+
 ## Dates and time zones
 
 UK share matching and the tax year boundary run on UK calendar days. [Freetrade](freetrade.md),
@@ -33,6 +36,3 @@ UK share matching and the tax year boundary run on UK calendar days. [Freetrade]
 cgt-calc converts those to UK time before taking the date. Every other export above states a date
 with no time, so cgt-calc reads that date as the broker wrote it and cannot correct one that was
 recorded in another time zone.
-
-If your broker is not listed, try the [RAW format](raw.md). Contributions for new brokers are very
-welcome — see [Adding a broker](../development/adding-a-broker.md).
