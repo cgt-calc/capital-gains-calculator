@@ -141,8 +141,7 @@ class CurrentPriceFetcher:
         # Imported here because it loads pandas, and most runs fetch no price.
         import yfinance as yf  # noqa: PLC0415
 
-        failed = ClosingPriceRequestError(symbol, date)
-        with _asking_yahoo(failed):
+        with _asking_yahoo(ClosingPriceRequestError(symbol, date)):
             yf_ticker = yf.Ticker(symbol)
             prices = yf_ticker.history(
                 interval="1d",
@@ -150,6 +149,10 @@ class CurrentPriceFetcher:
                 auto_adjust=False,
                 actions=True,
             )
+            # Asked before the history is checked: once yfinance has cached the
+            # ticker's time zone, a failed history request comes back empty,
+            # and only this request reports the failure.
+            info = yf_ticker.info
         # With no end, Yahoo starts at the next day it has a price for: after
         # a day the market was shut, or at today's quote for a ticker it has
         # no history for.
@@ -159,7 +162,5 @@ class CurrentPriceFetcher:
         for ratio in prices["Stock Splits"].iloc[1:]:
             if ratio:
                 closing_price *= Decimal(format(ratio, ".15g"))
-        with _asking_yahoo(failed):
-            info = yf_ticker.info
         currency = info.get("currency") if info else None
         return self._convert_to_gbp(closing_price, currency, date)

@@ -44,12 +44,15 @@ OFFLINE = CurlConnectionError(
 class FailingTicker:
     """Stand-in for yf.Ticker whose info request raises `error`.
 
-    Given `history`, its price history answers, as when Yahoo starts refusing
-    partway through; otherwise the history request fails first, as offline.
+    Without `history`, the history request fails first, as offline. Given one,
+    it answers: as when Yahoo starts refusing partway through, or with no rows
+    as yfinance answers offline once it has cached the ticker's time zone.
     """
 
     def __init__(
-        self, error: Exception, history: FakeHistoryTicker | None = None
+        self,
+        error: Exception,
+        history: FakeHistoryTicker | FakeEmptyHistoryTicker | None = None,
     ) -> None:
         """Store the error to raise and the history, if any, to answer with."""
         self._error = error
@@ -229,16 +232,18 @@ def test_symbol_without_a_quote_falls_back_to_london(
 def test_a_failed_isin_request_is_not_followed_by_the_symbol(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The symbol would answer, but it can be another security: no price."""
+    """The symbol would answer, but it can be another security: no price.
+
+    yfinance asks Yahoo which ticker an ISIN is when the ticker is made, so
+    that is where the request fails.
+    """
     lookups: list[str] = []
 
-    def ticker(name: str) -> FakeTicker | FailingTicker:
+    def ticker(name: str) -> FakeTicker:
         lookups.append(name)
-        return (
-            FailingTicker(OFFLINE)
-            if name == "IE0005042456"
-            else FakeTicker(PENCE_QUOTE)
-        )
+        if name == "IE0005042456":
+            raise OFFLINE
+        return FakeTicker(PENCE_QUOTE)
 
     monkeypatch.setattr("yfinance.Ticker", ticker)
     with pytest.raises(CurrentPriceRequestError, match="IE0005042456"):
@@ -288,7 +293,12 @@ def test_portfolio_entry_passes_the_transactions_isin() -> None:
 class FakeEmptyHistoryTicker:
     """Stand-in for yf.Ticker with no historical data."""
 
-    def history(self, **kwargs: str) -> pd.DataFrame:
+    @property
+    def info(self) -> dict[str, float | str]:
+        """Return no details, as for a ticker Yahoo does not know."""
+        return {}
+
+    def history(self, **kwargs: object) -> pd.DataFrame:
         """Return an empty price history."""
         return pd.DataFrame()
 
@@ -506,6 +516,9 @@ def _run_main(
     ("error", "history"),
     [
         pytest.param(OFFLINE, None, id="offline"),
+        pytest.param(
+            OFFLINE, FakeEmptyHistoryTicker(), id="offline-with-the-time-zone-cached"
+        ),
         pytest.param(YFRateLimitError(), None, id="rate-limited"),
         pytest.param(
             YFRateLimitError(),
@@ -519,7 +532,7 @@ def test_a_failed_request_for_a_spin_off_price_stops_with_what_to_do(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     error: Exception,
-    history: FakeHistoryTicker | None,
+    history: FakeHistoryTicker | FakeEmptyHistoryTicker | None,
 ) -> None:
     """The price divides the cost, so the run stops, saying why and what to do.
 
@@ -585,6 +598,7 @@ def test_failed_requests_for_today_s_prices_are_named_in_one_warning(
         "2024-05-01,BUY,CCC,10,4.00,0,GBP\n",
         ticker,
         "--unrealized-gains",
+        "--spin-offs-file=",
     )
 
     assert status == 0
