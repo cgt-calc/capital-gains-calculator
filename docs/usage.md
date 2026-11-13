@@ -110,14 +110,14 @@ it. Interest is grouped monthly per broker, even if your broker pays it daily.
 Use `--output` to choose a different PDF location:
 
 ```shell
-cgt-calc --year 2024 --schwab-file transactions.csv --output reports/2024-25.pdf
+cgt-calc --year 2024 transactions.csv --output reports/2024-25.pdf
 ```
 
 The summary is written to **stdout** and progress messages and warnings are written to **stderr**.
 This means you can save the text summary without mixing in progress messages:
 
 ```shell
-cgt-calc --year 2024 --schwab-file transactions.csv > report.txt
+cgt-calc --year 2024 transactions.csv > report.txt
 ```
 
 Redirecting stdout does not change where the PDF is saved.
@@ -125,7 +125,7 @@ Redirecting stdout does not change where the PDF is saved.
 Use `--no-report` instead of `--output` to print the terminal summary without creating a PDF:
 
 ```shell
-cgt-calc --year 2024 --schwab-file transactions.csv --no-report
+cgt-calc --year 2024 transactions.csv --no-report
 ```
 
 The PDF shows holding names written with Latin, Greek or Cyrillic letters, digits, common
@@ -225,7 +225,7 @@ Use `--dump-transactions` to save the parsed transactions as CSV before calculat
 compare exports or check what cgt-calc read from a broker file:
 
 ```shell
-cgt-calc --year 2024 --schwab-file transactions.csv --dump-transactions parsed-transactions.csv
+cgt-calc --year 2024 transactions.csv --dump-transactions parsed-transactions.csv
 ```
 
 cgt-calc confirms the saved file on **stderr**, then continues with the calculation:
@@ -260,7 +260,7 @@ Excess reported income (ERI) records loaded for funds you hold appear with the a
 so `quantity` and `amount` stay empty until the calculation works them out. See the
 [offshore funds guide](offshore-funds.md).
 
-The dump is not [RAW format](brokers/raw.md) and cannot be used with `--raw-file`. Its `source`
+The dump is not [RAW format](brokers/raw.md), and cgt-calc does not read it back. Its `source`
 column includes input paths and, where recorded, row numbers. Check these before sharing the file;
 see the [privacy notes](privacy.md).
 
@@ -279,7 +279,7 @@ the following reports sales and other disposals on or after 30 October 2024 for 
 [HMRC 2024/25 Capital Gains Tax adjustment](https://www.gov.uk/guidance/work-out-your-capital-gains-tax-adjustment-for-the-2024-to-2025-tax-year):
 
 ```shell
-cgt-calc --from 2024-10-30 --to 2025-04-05 --schwab-file schwab_transactions.csv
+cgt-calc --from 2024-10-30 --to 2025-04-05 schwab_transactions.csv
 ```
 
 2010/11 has a similar split: gains on or after 23 June 2010 could be charged at 28% rather than 18%

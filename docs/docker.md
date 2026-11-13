@@ -18,7 +18,7 @@ The container opens a shell in `/data`, which is the directory you started from.
 using the normal [report instructions](usage.md). For example:
 
 ```shell
-cgt-calc --year 2024 --schwab-file schwab_transactions.csv
+cgt-calc --year 2024 schwab_transactions.csv
 ```
 
 The generated `out/` directory remains on your computer after the container stops. Run `exit` when
@@ -28,7 +28,7 @@ You can also run a single command directly:
 
 ```shell
 docker run --rm -v "$PWD":/data ghcr.io/cgt-calc/capital-gains-calculator -lc \
-  "cgt-calc --year 2024 --schwab-file schwab_transactions.csv"
+  "cgt-calc --year 2024 schwab_transactions.csv"
 ```
 
 ## Available tags

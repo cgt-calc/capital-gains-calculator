@@ -39,11 +39,15 @@ You can compare the file's structure with the
 For the 2025/26 tax year, run:
 
 ```shell
-cgt-calc --year 2025 --interactive-brokers-file U12345678.TRANSACTIONS.20240101.20260505.csv
+cgt-calc --year 2025 U12345678.TRANSACTIONS.20240101.20260505.csv
 ```
 
-`--year 2025` means 6 April 2025 to 5 April 2026. Follow [Generate a report](../usage.md) to find
-and check the output.
+cgt-calc recognises the Transaction History from the headings its table starts with. `--year 2025`
+means 6 April 2025 to 5 April 2026. Follow [Generate a report](../usage.md) to find and check the
+output.
+
+You can also pass the file with `--interactive-brokers-file`, which reads it as a Transaction
+History without recognising it first.
 
 The Transaction History export contains cash deposits and withdrawals, so a complete export should
 normally pass the balance check. Do not add `--no-balance-check` simply to bypass an error; first

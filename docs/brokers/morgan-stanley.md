@@ -19,10 +19,14 @@ Place the downloaded report files in one directory. Keep at least these files un
 - `Releases Report.csv`
 - `Withdrawals Report.csv`
 
-Their names are required, although matching is case-insensitive, including the `.csv` extension.
-Other CSV files in the directory are ignored. In particular, cgt-calc does not read the
-`Releases Net Shares Report.csv` or `Withdrawal Wire Report.csv` files found in the original example
-export.
+cgt-calc recognises the two reports from their column headings, so a copy saved under another name,
+such as `Withdrawals Report (1).csv`, is still read. It skips the `Releases Net Shares Report.csv`
+and `Withdrawal Wire Report.csv` files found in the original example export, with a line saying so.
+Keep other files out of the directory: cgt-calc stops at a CSV or JSON file it does not recognise.
+
+With `--mssb-dir`, the two names are required instead, although matching is case-insensitive,
+including the `.csv` extension. That option reads only those two files and ignores every other file
+in the directory.
 
 Export from the first award or transaction through today, or at least 30 days after the end of the
 tax year you are calculating. Earlier vesting establishes the cost and quantity of shares sold
@@ -36,11 +40,14 @@ You can compare the two recognised files with the
 For the 2025/26 tax year, run:
 
 ```shell
-cgt-calc --year 2025 --mssb-dir morgan_stanley/
+cgt-calc --year 2025 morgan_stanley/
 ```
 
-`--year 2025` means 6 April 2025 to 5 April 2026. Pass the directory containing the two CSV files,
-not either file itself. Follow [Generate a report](../usage.md) to find and check the output.
+You can pass the directory of the download or the two CSV files themselves. `--year 2025` means 6
+April 2025 to 5 April 2026. Follow [Generate a report](../usage.md) to find and check the output.
+
+You can also pass the directory with `--mssb-dir morgan_stanley/`, which reads the two reports by
+name without recognising them first. That option takes the directory itself, not either file.
 
 ## Supported activity
 
@@ -69,8 +76,8 @@ July 2022.
 - Autosale releases are not supported. They can put a non-zero `Net Cash Proceeds` in the releases
     report while recording the actual sale in a separate Autosale report that cgt-calc does not
     parse. The import deliberately stops rather than silently losing either the vest or sale.
-- Only the report names and row values listed above are recognised. Other report files are ignored;
-    another type, status, header layout or price currency stops the import.
+- Only the two reports and the row values listed above are read. The download's other two reports
+    are skipped; another type, status, header layout or price currency stops the import.
 - Dividends, interest, wires, transfers of shares, and other corporate actions are not imported from
     this report directory. Add any relevant missing activity through another supported export or the
     [RAW format](raw.md), after verifying its date, amount and UK tax treatment.
@@ -98,9 +105,9 @@ version, the complete error, and sanitised copies of the failing release row and
 Autosale record.
 
 If you can independently reconstruct and verify every Morgan Stanley acquisition, sale, fee and cash
-movement, you can instead convert the complete history to the [RAW format](raw.md) and omit
-`--mssb-dir`. Do not combine a partial RAW replacement with the failing report: cgt-calc will still
-reject the report, and overlapping inputs can duplicate transactions.
+movement, you can instead convert the complete history to the [RAW format](raw.md) and leave out the
+Morgan Stanley reports. Do not combine a partial RAW replacement with the failing report: cgt-calc
+will still reject the report, and overlapping inputs can duplicate transactions.
 
 ### `Unknown plan`, `Unknown type`, `Unknown status` or `Unknown price currency`
 

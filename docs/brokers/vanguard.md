@@ -59,11 +59,15 @@ remain available. See [Automatic sales to pay fees](#automatic-sales-to-pay-fees
 For the 2025/26 tax year, run:
 
 ```shell
-cgt-calc --year 2025 --vanguard-file vanguard.csv
+cgt-calc --year 2025 vanguard.csv
 ```
 
-`--year 2025` means 6 April 2025 to 5 April 2026. Pass the CSV, not the original Excel workbook.
-Follow [Generate a report](../usage.md) to find and check the output.
+cgt-calc recognises the report from the headings of its Cash Transactions or Investment Transactions
+table. `--year 2025` means 6 April 2025 to 5 April 2026. Pass the CSV, not the original Excel
+workbook. Follow [Generate a report](../usage.md) to find and check the output.
+
+You can also pass the file with `--vanguard-file vanguard.csv`, which reads it as a Vanguard report
+without recognising it first.
 
 Run with the balance check enabled. Do not add `--no-balance-check` merely to bypass an error; first
 reconcile the file and any unsupported activity as described under
@@ -134,8 +138,7 @@ existing ISIN replaces its bundled symbol set, so retain every verified alias on
 not copy that ISIN for another share class. Pass your verified mapping when generating the report:
 
 ```shell
-cgt-calc --year 2025 --vanguard-file vanguard.csv \
-  --isin-translation-file vanguard-isins.csv
+cgt-calc --year 2025 vanguard.csv --isin-translation-file vanguard-isins.csv
 ```
 
 This option selects a read/write cache, not a read-only input. cgt-calc may create or rewrite the

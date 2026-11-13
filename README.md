@@ -22,10 +22,11 @@ generate a report for a tax year:
 
 ```shell
 uv tool install cgt-calc
-cgt-calc --year 2025 --schwab-file schwab_transactions.csv
+cgt-calc --year 2025 schwab_transactions.csv
 ```
 
-Replace the Schwab option with the one for your broker. See
+Pass your broker's export, or the folder of exports: cgt-calc recognises the broker from each file's
+contents. The broker options, such as `--schwab-file`, still work. See
 [Installation](https://cgt-calc.uk/installation/), [Brokers](https://cgt-calc.uk/brokers/), and
 [Generate a report](https://cgt-calc.uk/usage/) for the complete steps.
 

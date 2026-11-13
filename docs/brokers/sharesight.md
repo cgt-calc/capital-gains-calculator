@@ -47,14 +47,15 @@ sharesight/
 └── Taxable Income Report.csv
 ```
 
-Use the filenames shown above when saving the CSV files. cgt-calc does not read the original `.xlsx`
-files or search subdirectories.
-
-cgt-calc reads every CSV in the directory whose name starts with `All Trades Report` or
-`Taxable Income Report`. An All Trades report exported **Since inception** repeats the trades of
-every earlier export, so move an older All Trades file out of the directory when you add a new one.
-cgt-calc stops when two files hold the same transaction; see
+cgt-calc recognises each report from its contents, whatever its name, and does not read the original
+`.xlsx` files or search subdirectories. Keep other files out of the directory: cgt-calc stops at a
+CSV or JSON file it does not recognise. An All Trades report exported **Since inception** repeats
+the trades of every earlier export, so move an older All Trades file out of the directory when you
+add a new one. cgt-calc stops when two files hold the same transaction; see
 [`Two files in the directory hold this transaction`](#two-files-in-the-directory-hold-this-transaction).
+
+With `--sharesight-dir`, use the filenames shown above: that option reads only the CSV files whose
+names start with `All Trades Report` or `Taxable Income Report`, and ignores every other file.
 
 Do not rename or delete columns when converting the worksheets. In addition to the legacy headings,
 cgt-calc accepts aliases including `Market Code`, `Qty`, `Instrument Currency` and `Exch. Rate`. You
@@ -66,12 +67,16 @@ can compare the legacy structure with the
 For the 2024/25 tax year, run:
 
 ```shell
-cgt-calc --year 2024 --sharesight-dir sharesight/ --no-balance-check
+cgt-calc --year 2024 sharesight/ --no-balance-check
 ```
 
-`--year 2024` means 6 April 2024 to 5 April 2025. `--no-balance-check` is needed because these two
-reports do not contain the complete cash activity required to reconcile a broker balance. Follow
+You can pass the two CSV files themselves instead of the directory. `--year 2024` means 6 April 2024
+to 5 April 2025. `--no-balance-check` is needed because these two reports do not contain the
+complete cash activity required to reconcile a broker balance. Follow
 [Generate a report](../usage.md) to find and check the output.
+
+You can also pass the directory with `--sharesight-dir sharesight/`, which reads the two reports by
+name without recognising them first.
 
 ## Supported activity
 
@@ -121,8 +126,8 @@ these markers.
 ### No transactions are detected
 
 Check that you converted the spreadsheet worksheet to CSV: `.xlsx` files are not read. Confirm that
-both files are directly inside the directory passed to `--sharesight-dir`, and that their filenames
-start with `All Trades Report` and `Taxable Income Report`. Filenames are matched
+both files are directly inside the directory you passed. With `--sharesight-dir`, also check that
+their filenames start with `All Trades Report` and `Taxable Income Report`. Filenames are matched
 case-insensitively; additional text after `Report` and uppercase `.CSV` extensions are accepted.
 
 ### `Missing expected columns`

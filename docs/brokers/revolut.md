@@ -42,11 +42,15 @@ transaction and cannot detect when another tax treatment is needed.
 For the 2025/26 tax year, run:
 
 ```shell
-cgt-calc --year 2025 --revolut-file revolut.csv
+cgt-calc --year 2025 revolut.csv
 ```
 
-The filename does not matter. `--year 2025` means 6 April 2025 to 5 April 2026. Follow the
-[report guide](../usage.md) to find and check the output.
+cgt-calc recognises the account statement from its column headings, so the filename does not matter.
+`--year 2025` means 6 April 2025 to 5 April 2026. Follow the [report guide](../usage.md) to find and
+check the output.
+
+You can also pass the file with `--revolut-file revolut.csv`, which reads it as a Revolut statement
+without recognising it first.
 
 ## Supported activity
 
@@ -129,13 +133,13 @@ To put the tax into the report:
     **Dividend**. Revolut shows the withholding tax in the transaction details
     ([Revolut dividend guide](https://help.revolut.com/help/wealth/stocks/corporate-events/receiving-dividends/)).
 
-2. For each dividend that had tax withheld, add two rows to the [RAW file](raw.md) you already pass
-    with `--raw-file`, or start one if you do not use one yet. cgt-calc reads only one RAW file, so
-    do not write a separate one for these rows. If cgt-calc warned about a dividend tax correction
-    for the ticker, read [Tax corrections](#tax-corrections) first. Give both rows the ticker, the
-    currency and the [UK date](#dates-and-time-zones) of the `DIVIDEND` row. Enter the tax as a
-    positive `DIVIDEND` and as a negative `DIVIDEND_TAX`. For USD 6.67 withheld from a QCOM dividend
-    on 18 December 2025:
+2. For each dividend that had tax withheld, add two rows to the [RAW file](raw.md) you already pass,
+    or start one if you do not use one yet. cgt-calc reads only one RAW file, so do not write a
+    separate one for these rows. If cgt-calc warned about a dividend tax correction for the ticker,
+    read [Tax corrections](#tax-corrections) first. Give both rows the ticker, the currency and the
+    [UK date](#dates-and-time-zones) of the `DIVIDEND` row. Enter the tax as a positive `DIVIDEND`
+    and as a negative `DIVIDEND_TAX`. For USD 6.67 withheld from a QCOM dividend on 18 December
+    2025:
 
     ```csv
     date,action,symbol,quantity,price,fees,currency
@@ -150,7 +154,7 @@ To put the tax into the report:
 3. Pass the export and your RAW file:
 
     ```shell
-    cgt-calc --year 2025 --revolut-file revolut.csv --raw-file raw_data.csv
+    cgt-calc --year 2025 revolut.csv raw_data.csv
     ```
 
 cgt-calc adds the RAW `DIVIDEND` to the dividend in the export, which makes it the dividend before
@@ -216,9 +220,10 @@ columns are still `Date`, `Ticker`, `Type`, `Quantity`, `Price per share`, `Tota
 
 ### `missing header row`
 
-cgt-calc warns when the first row does not look like the column names, and then assumes the columns
-are in the standard order. Re-export the statement rather than relying on the guess, because a file
-whose columns were reordered or removed would be read incorrectly.
+With `--revolut-file`, cgt-calc warns when the first row does not look like the column names, and
+then assumes the columns are in the standard order. Without the option, such a file is not
+recognised. Re-export the statement rather than relying on the guess, because a file whose columns
+were reordered or removed would be read incorrectly.
 
 ### `Reached a negative balance`
 
