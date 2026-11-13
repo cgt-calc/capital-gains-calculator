@@ -71,6 +71,8 @@ class EriLineView:
     """Excess reported income added to the cost of one acquisition."""
 
     cost: Decimal
+    # The units sold, matched with the acquisition, that carry the income.
+    units: Decimal
     unit_price: Decimal
     date: dt.date
 
@@ -315,11 +317,12 @@ def _build_line(entry: CalculationEntry, kind: EventKind) -> LineView:
         spin_off_source=spin_off.source if shows_spin_off and spin_off else None,
         eris=tuple(
             EriLineView(
-                cost=round_decimal(eri.price * entry.quantity, 2),
+                cost=round_decimal(eri.price * units, 2),
+                units=units,
                 unit_price=round_decimal(eri.price, 4),
                 date=eri.date,
             )
-            for eri in entry.eris
+            for eri, units in entry.eri_units.items()
         )
         if is_acquisition
         else (),

@@ -51,6 +51,7 @@ def _entry(
     spin_off: SpinOff | None = None,
     dividend: Dividend | None = None,
     eris: list[ExcessReportedIncome] | None = None,
+    eri_units: dict[ExcessReportedIncome, Decimal] | None = None,
     renamed_to: str | None = None,
 ) -> CalculationEntry:
     """Build a calculation entry from strings, so the decimals stay exact."""
@@ -67,6 +68,7 @@ def _entry(
         spin_off=spin_off,
         dividend=dividend,
         eris=eris,
+        eri_units=eri_units,
         renamed_to=renamed_to,
     )
 
@@ -321,14 +323,24 @@ def test_excess_reported_income_prices_a_unit_to_four_places() -> None:
 
 
 def test_an_acquisition_carries_the_income_added_to_its_cost() -> None:
-    """Each ERI on an acquisition line is priced and dated for the report."""
+    """Each ERI on an acquisition line is priced, counted and dated for the report."""
     (event,) = _events(
-        {"buy$FOO": [_entry(quantity="3", amount="-30", eris=[ERI], spin_off=SPIN_OFF)]}
+        {
+            "buy$FOO": [
+                _entry(
+                    quantity="3",
+                    amount="-30",
+                    eri_units={ERI: Decimal(2)},
+                    spin_off=SPIN_OFF,
+                )
+            ]
+        }
     )
     (line,) = event.lines
     assert line.spin_off_source == "FOO"
-    assert [(eri.cost, eri.unit_price, eri.date) for eri in line.eris] == [
-        (Decimal("1.50"), Decimal("0.5000"), DAY)
+    # Two of the line's three units carry the income: 2 x £0.50 = £1.00.
+    assert [(eri.cost, eri.units, eri.unit_price, eri.date) for eri in line.eris] == [
+        (Decimal("1.00"), Decimal(2), Decimal("0.5000"), DAY)
     ]
 
 

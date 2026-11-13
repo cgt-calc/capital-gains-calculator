@@ -451,14 +451,14 @@ class Matcher:
                     new_pool_cost=position.amount + bnb_acquisition.amount,
                     fees=bed_and_breakfast_fees,
                     allowable_cost=shares_cost,
-                    eris=bnb_acquisition.eris,
+                    eri_units=bnb_acquisition.eri_units,
                 )
             )
         # A pool bought into from nothing no longer carries the ERI it had,
         # unless a 30-day repurchase brings back the cost a disposal took.
         if position.quantity == 0 and bnb_acquisition.quantity == 0:
             self.run.pool_eris.pop(symbol, None)
-        for eri in bnb_acquisition.eris:
+        for eri in bnb_acquisition.eri_units:
             self._carry_eri(symbol, eri)
         self.run.portfolio[symbol] += Position(
             acquisition.quantity,
@@ -959,7 +959,9 @@ class Matcher:
                         consumed_acquisition_units,
                         amount_delta + total_dist_amount,
                         Decimal(0),
-                        matched_eris,
+                        # The units this disposal adds to each ERI, the same
+                        # count `total_dist_amount` was worked out from.
+                        dict.fromkeys(matched_eris, available_quantity),
                     )
                     ctx.calculation_entries.append(
                         CalculationEntry(

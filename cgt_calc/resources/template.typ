@@ -137,7 +137,7 @@
               [ \ Cost basis calculated based on cost of #line.spin_off_source share pool from which #event.symbol shares were spun off]
             }
             if event.is_acquisition {
-              for eri in line.eris [ \ Cost basis increased by £#eri.cost #box[(£#eri.unit_price/unit)], due to excess reported income on #box[#eri.date]]
+              for eri in line.eris [ \ Cost basis increased by £#eri.cost #box[(#eri.units #if eri.is_one_unit [unit] else [units] at £#eri.unit_price/unit)], due to excess reported income on #box[#eri.date]]
             }
           }.
           #for eri in line.pending_eris [ \ The cost of this disposal includes the excess reported income for the period ending #box[#eri.period_end], whose fund distribution date, #box[#eri.distribution_date], comes after the disposal. This calculation adds it to the cost at the same pound amount as the income, converted at the rate for its fund distribution date (Offshore Funds (Tax) Regulations 2009, regulation 99). The regulations do not say whether the rate for the disposal date should be used instead.]
