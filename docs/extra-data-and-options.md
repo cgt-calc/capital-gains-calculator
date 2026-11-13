@@ -450,8 +450,8 @@ If nothing in your files says which security the rows with neither are, they kee
 and cgt-calc warns `Rows under <ticker> name no ISIN or market`. They may be the company's or the
 other security's. If they are the company's and in your RAW file, write the market in their `market`
 column. A broker export's rows cannot be given a market. If the report then shows the company under
-both tickers, or stops with `Tried to sell`, the holding is split: see the last paragraph of this
-section.
+both tickers, or stops with `Tried to sell`, the holding is split: see the end of
+[Limitations of ticker renames](#limitations-of-ticker-renames).
 
 If your files show both the company and another security under the old ticker, a row with neither
 cannot be placed, and cgt-calc stops with `Ticker <ticker> names no ISIN or market on this row`. The
