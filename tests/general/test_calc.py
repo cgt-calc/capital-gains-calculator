@@ -1260,7 +1260,7 @@ def test_eri_reached_by_a_30_day_repurchase_is_marked_while_estimated(
 
 
 @pytest.mark.parametrize(
-    ("trades", "allowable_costs"),
+    ("trades", "allowable_costs", "units"),
     [
         # Sold on 25 March 2025, before the period end, for £200, and bought
         # back on 1 April, after it, for £100: both in 2024/25, so the 2025/26
@@ -1274,6 +1274,7 @@ def test_eri_reached_by_a_30_day_repurchase_is_marked_while_estimated(
                 buy_transaction(dt.date(2025, 4, 1), "VWRL", 10, 10, 0, -100),
             ],
             "0",
+            10,
             id="period end between the sale and the repurchase",
         ),
         # Sold on 31 March 2025, the period end itself, and bought back on
@@ -1288,7 +1289,85 @@ def test_eri_reached_by_a_30_day_repurchase_is_marked_while_estimated(
                 buy_transaction(dt.date(2025, 4, 1), "VWRL", 10, 10, 0, -100),
             ],
             "0",
+            10,
             id="sale on the period end",
+        ),
+        # Sold on 25 March for £200 and bought back on 31 March, the period
+        # end itself, for USD 100, £50 at that day's rate of 2. The repurchase
+        # is in the same period as the sale, so reg 94(3A) does not apply: the
+        # ten units bought are held at the end of the period (reg 94(3)), and
+        # their ERI counts once, 10 x £2 = £20. The repurchase takes on the
+        # sold units' £100, so the pool is £120, not £140.
+        pytest.param(
+            [
+                sell_transaction(dt.date(2025, 3, 25), "VWRL", 10, 20, 0, 200),
+                buy_transaction(dt.date(2025, 3, 31), "VWRL", 10, 10, 0, -100),
+            ],
+            "0",
+            10,
+            id="repurchase on the period end",
+        ),
+        # As above, but only five units are bought back on 31 March, for
+        # USD 50. Five of the units sold are matched with them and the other
+        # five with the pool, which keeps five units and £50 of its £100. Only
+        # the five bought back are held at the period end: 5 x £2 = £10 of
+        # income, and a pool of £50 + £10 = £60.
+        pytest.param(
+            [
+                sell_transaction(dt.date(2025, 3, 25), "VWRL", 10, 20, 0, 200),
+                buy_transaction(dt.date(2025, 3, 31), "VWRL", 5, 10, 0, -50),
+            ],
+            "0",
+            5,
+            id="part bought back on the period end",
+        ),
+        # All ten sold on 25 March, for £200, and bought back in two halves:
+        # five units on 31 March, the period end, and five on 1 April, in the
+        # next period. The five bought on 31 March are held at the period end
+        # (reg 94(3)), and the five sold units matched with 1 April's purchase
+        # count as held then too (reg 94(3A)). So each of the ten carries its
+        # £2 once, £20, and the pool keeps its ten units and £100, plus the £20.
+        pytest.param(
+            [
+                sell_transaction(dt.date(2025, 3, 25), "VWRL", 10, 20, 0, 200),
+                buy_transaction(dt.date(2025, 3, 31), "VWRL", 5, 10, 0, -50),
+                buy_transaction(dt.date(2025, 4, 1), "VWRL", 5, 10, 0, -50),
+            ],
+            "0",
+            10,
+            id="repurchase split across the period end",
+        ),
+        # Five of the ten units sold on 25 March, for £100, and bought back on
+        # 31 March, the period end. The sale is matched with that repurchase,
+        # so the pool keeps its ten units and £100, and all ten are held at
+        # the period end: £20 of ERI, counted once, and a pool of £120.
+        pytest.param(
+            [
+                sell_transaction(dt.date(2025, 3, 25), "VWRL", 5, 20, 0, 100),
+                buy_transaction(dt.date(2025, 3, 31), "VWRL", 5, 10, 0, -50),
+            ],
+            "0",
+            10,
+            id="part sold and bought back on the period end",
+        ),
+        # Five units sold on 20 March and five on 25 March, £100 each time.
+        # The earlier sale is matched first, with the five bought on 31 March,
+        # the period end, which are held at the end of the period (reg 94(3)).
+        # That purchase is then used up, so the later sale is matched with the
+        # five bought on 1 April, in the next period, and the five it sold
+        # count as held at the period end (reg 94(3A)). So each of the ten
+        # carries its £2 once, £20, and the pool keeps its ten units and £100,
+        # plus the £20.
+        pytest.param(
+            [
+                sell_transaction(dt.date(2025, 3, 20), "VWRL", 5, 20, 0, 100),
+                sell_transaction(dt.date(2025, 3, 25), "VWRL", 5, 20, 0, 100),
+                buy_transaction(dt.date(2025, 3, 31), "VWRL", 5, 10, 0, -50),
+                buy_transaction(dt.date(2025, 4, 1), "VWRL", 5, 10, 0, -50),
+            ],
+            "0",
+            10,
+            id="earlier sale takes the period end's purchase",
         ),
         # Held over the period end, so the pool is £100 + £20 = £120. One unit
         # is sold on 1 June for £20 and bought back on 10 June for £10: the
@@ -1302,12 +1381,13 @@ def test_eri_reached_by_a_30_day_repurchase_is_marked_while_estimated(
                 buy_transaction(dt.date(2025, 6, 10), "VWRL", 1, 10, 0, -10),
             ],
             "10",
+            10,
             id="sale and repurchase after the period end",
         ),
     ],
 )
 def test_a_30_day_match_adds_eri_only_for_a_period_end_between_its_trades(
-    trades: list[BrokerTransaction], allowable_costs: str
+    trades: list[BrokerTransaction], allowable_costs: str, units: int
 ) -> None:
     """A 30-day match adds ERI only for a period end between its sale and repurchase.
 
@@ -1316,8 +1396,12 @@ def test_a_30_day_match_adds_eri_only_for_a_period_end_between_its_trades(
     distributed on 30 September 2025, in 2025/26. At the rate for that date,
     5, that is £2 a unit, both the income and the cost added (Offshore Funds
     (Tax) Regulations 2009, regs 94(3) and 99(3)); at the period-end rate, 2,
-    it would be £5. Each case below ends with 10 x £2 = £20 of income in the
-    2025/26 report, and ten units in the pool costing £100 + £20 = £120.
+    it would be £5. Each case below ends with £2 of income in the 2025/26
+    report for each of `units`, the units held, or treated as held under
+    reg 94(3A), at the period end, and those units in the pool at their £10
+    cost plus £2, £12 each. The 2024/25 report's entries, which the PDF
+    prints, say the period end's ERI added that same £2 a unit to the cost,
+    once.
     """
     period_end = dt.date(2025, 3, 31)
     distribution_date = period_end + ERI_TAX_DATE_DELTA
@@ -1335,11 +1419,27 @@ def test_a_30_day_match_adds_eri_only_for_a_period_end_between_its_trades(
 
     report = calculator.calculate(transactions)
 
-    assert report.total_eri_amount(is_interest=False) == Decimal(20)
+    assert report.total_eri_amount(is_interest=False) == 2 * units
     assert report.allowable_costs == Decimal(allowable_costs)
     assert [(p.symbol, p.quantity, p.amount) for p in report.portfolio] == [
-        ("VWRL", Decimal(10), Decimal(120))
+        ("VWRL", Decimal(units), Decimal(12 * units))
     ]
+    log = (
+        _eri_calculator(rates, distribution_date, tax_year=2024)
+        .calculate(transactions)
+        .calculation_log
+    )
+    assert (
+        sum(
+            eri.price * entry.quantity
+            for day in log.values()
+            for entries in day.values()
+            for entry in entries
+            for eri in entry.eris
+            if eri.date == period_end
+        )
+        == 2 * units
+    )
 
 
 @pytest.mark.parametrize(

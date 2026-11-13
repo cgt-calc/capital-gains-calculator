@@ -752,6 +752,9 @@ class Matcher:
 
                 # ERI is distributed annually, but when a fund closes we might have
                 # multiple ERI distributions in close succession
+                # Found before the checks below can skip the day: a repurchase
+                # in the next period still needs this period end's ERI when
+                # the day's own purchase is already used (reg 94(3A)).
                 eri = self.get_eri(effective_symbol, search_index)
                 if eri:
                     eris.append(eri)
@@ -901,8 +904,13 @@ class Matcher:
                     # ERI needs to be reported when doing bed and breakfast as if you
                     # held the stocks at the reporting end date.
                     # https://www.rawknowledge.ltd/eri-explained-four-tricky-questions-answered/
+                    # Only for a period end before the repurchase day: units
+                    # bought on the period end itself are in the same period,
+                    # and the end-of-day ERI counts them if still held then
+                    # (regs 94(3) and 94(3A)).
+                    matched_eris = [eri for eri in eris if eri.date < search_index]
                     total_dist_amount = Decimal(0)
-                    for eri in eris:
+                    for eri in matched_eris:
                         eri_distribution = ExcessReportedIncomeDistribution(
                             price=eri.price,
                             amount=available_quantity * eri.price,
@@ -951,7 +959,7 @@ class Matcher:
                         consumed_acquisition_units,
                         amount_delta + total_dist_amount,
                         Decimal(0),
-                        eris,
+                        matched_eris,
                     )
                     ctx.calculation_entries.append(
                         CalculationEntry(
