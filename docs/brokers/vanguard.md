@@ -22,8 +22,9 @@ records, but save the complete General Account worksheet as a CSV for cgt-calc.
         [Transactions are missing without an error](#transactions-are-missing-without-an-error).
     - cgt-calc takes the text in parentheses at the end of an investment's name as its ticker. A
         name ending in `(Accumulation)` gets the ticker `Accumulation`, which can combine different
-        funds in one holding. Check that each holding in the report is a single fund. If one is not,
-        do not rely on the gains for those funds: work them out by hand.
+        funds in one holding. Check that the text in parentheses at the end of each investment name
+        in your export is that fund's own ticker. If two funds end in the same text, do not rely on
+        the gains for those funds: work them out by hand.
 
 ## Export the complete history
 
