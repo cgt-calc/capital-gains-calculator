@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Final
 from .exceptions import ParsingError
 from .model import ActionType, BrokerTransaction
 from .parsers.raw import UNKNOWN_BROKER, RawTransaction
+from .parsers.schwab import SchwabTransaction
 from .parsers.schwab_equity_award_json import (
     SPLITS as SCHWAB_AWARD_SPLITS,
     SchwabAwardTransaction,
@@ -111,6 +112,86 @@ def _restated_split(target: BrokerTransaction, row: RawTransaction) -> str | Non
         "and price in a working copy of the Equity Awards export instead, "
         f"keeping its quantity. See {DOCS}"
     )
+
+
+def _unpriced(row: BrokerTransaction) -> bool:
+    """Say whether `row` is a Schwab vest left without a price."""
+    return isinstance(row, SchwabTransaction) and row.unpriced is not None
+
+
+def _unpriced_refusal(
+    target: BrokerTransaction,
+    row: RawTransaction,
+    transactions: list[BrokerTransaction],
+) -> str | None:
+    """Explain why a RAW row cannot replace a vest Schwab did not price.
+
+    The RAW row is then all there is to say what the vest cost, so it has to
+    state a price, in the vest's currency, with no fees. Its count is the
+    vest's, which is in the units of the vest's own date: a split or
+    consolidation on either date or between them may put it in the wrong
+    units for the RAW row's.
+    """
+    vest = (
+        f"Cannot replace the {target.symbol} vest of {target.quantity} dated "
+        f"{target.date}, which has no price in the Schwab history"
+    )
+    if row.price is None or row.price <= 0:
+        return (
+            f"{vest}, with a row that does not state a positive price. Give "
+            "the market value of one share on the day you acquired the "
+            f"shares. See {DOCS}"
+        )
+    if row.currency != target.currency:
+        return (
+            f"{vest}, with a row in {row.currency}. Give the price in "
+            f"{target.currency}, as the history does. See {DOCS}"
+        )
+    if row.fees:
+        return (
+            f"{vest}, with a row that has fees. A vest costs no fees: leave "
+            f"them at 0. See {DOCS}"
+        )
+    first, last = sorted((row.date, target.date))
+    splits = [
+        other.date
+        for other in transactions
+        if other.action is ActionType.STOCK_SPLIT and other.symbol == target.symbol
+    ]
+    history = SCHWAB_AWARD_SPLITS.get(target.symbol or "")
+    if history is not None:
+        splits += [date for date, _ in history.splits]
+    crossed = sorted(date for date in splits if first <= date <= last)
+    if crossed:
+        return (
+            f"{vest}, with a row dated {row.date}: {target.symbol} split or "
+            f"consolidated on {crossed[0]}, so cgt-calc cannot tell whether the "
+            f"vest's quantity is in the units of {row.date}. Edit the vest's "
+            "date, quantity and price in a working copy of the history "
+            f"instead. See {DOCS}"
+        )
+    return None
+
+
+def refuse_unpriced_vests(transactions: list[BrokerTransaction]) -> None:
+    """Refuse a Schwab vest left without a price that no RAW row replaced.
+
+    Runs right after the replacements, before anything can price the vest
+    some other way: a price from --prices-file is for the date Schwab
+    posted the shares, which is not the day they were acquired.
+    """
+    for row in transactions:
+        if isinstance(row, SchwabTransaction) and row.unpriced is not None:
+            assert row.source is not None
+            assert row.source.file is not None
+            raise ParsingError(
+                row.source.file,
+                f"{row.unpriced} If you know the day you acquired the shares "
+                "and their market value that day instead, a RAW row can "
+                "replace the vest: see "
+                "https://cgt-calc.uk/brokers/schwab/#vests-without-an-award-file",
+                row_index=row.source.row,
+            )
 
 
 def _no_match(row: RawTransaction, exported: list[BrokerTransaction]) -> str:
@@ -212,6 +293,17 @@ def resolve_raw_brokers(
                 f"{listed}\nEdit the row in a working copy of the export "
                 f"instead. See {DOCS}",
             )
+        if len(targets) > 1 and any(_unpriced(target) for target in targets):
+            # Equal only in what they lack: each may have vested on another
+            # day at another value, so neither stands in for the other.
+            listed = "\n".join(indent_entry(target) for target in targets)
+            raise _refuse(
+                rows[0],
+                f"Several {rows[0].broker} vests match this replacement and "
+                "none has a price, so cgt-calc cannot tell which one it "
+                f"replaces:\n{listed}\nEdit the vests in a working copy of the "
+                f"export instead. See {DOCS}",
+            )
         if not targets:
             raise _refuse(rows[0], _no_match(rows[0], exported))
         if len(rows) > len(targets):
@@ -227,6 +319,10 @@ def resolve_raw_brokers(
         for row, target in zip(rows, targets, strict=False):
             if (restated := _restated_split(target, row)) is not None:
                 raise _refuse(row, restated)
+            if _unpriced(target) and (
+                refusal := _unpriced_refusal(target, row, transactions)
+            ):
+                raise _refuse(row, refusal)
             if (
                 target.capital_adjustments
                 or not target.affects_cash_balance

@@ -93,8 +93,9 @@ def test_single_file_directory_matches_the_file_through_the_award_path(
     awards.csv, which the *.csv glob would read as transaction history and
     reject for missing Price and Fees & Comm.
 
-    That fixture's only Stock Plan Activity has a blank Price, so this raises
-    "Cannot price a vest" unless awards_prices reaches the row parser.
+    That fixture's only Stock Plan Activity has a blank Price, so the
+    directory's vest stays unpriced on the day Schwab posted it, unlike the
+    file's, unless awards_prices reaches the row parser.
     """
     fixture = Path("tests") / "schwab" / "data" / "rsu_settlement"
     directory = tmp_path / "schwab"

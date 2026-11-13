@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import datetime as dt
 from decimal import Decimal
 import logging
@@ -390,13 +391,24 @@ def test_an_equity_awards_tax_row_before_the_split_is_replaced(tmp_path: Path) -
     assert "\n  NVDA: 100.00, excluding 15.00 taxed at source (USD)\n" in result.stdout
 
 
-def test_a_main_history_vest_before_the_split_is_replaced(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("value", "cost"),
+    [
+        pytest.param("880.00,0.00,USD", "7,064.30", id="dollars"),
+        pytest.param("700.00,0.00,GBP", "7,000.00", id="pounds"),
+    ],
+)
+def test_a_main_history_vest_before_the_split_is_replaced(
+    tmp_path: Path, value: str, cost: str
+) -> None:
     """Only the Equity Awards export restates vests, so this one is replaced.
 
     The main history's vest of 10 NVDA on 3 May 2024 is before the split of 10
     June, and is in the units of its own date, as the RAW row is. Re-dated to
     2 May at 880 dollars, it costs 8,800 at the May 2024 rate of 1.2457
-    dollars to the pound, 7,064.30.
+    dollars to the pound, 7,064.30. At 700 pounds it costs 7,000.00: a vest
+    the history prices can be restated in another currency, as a payslip
+    states it, unlike one it leaves unpriced.
     """
     schwab = _write(
         tmp_path / "schwab.csv",
@@ -407,7 +419,7 @@ def test_a_main_history_vest_before_the_split_is_replaced(tmp_path: Path) -> Non
     )
     raw = _raw(
         tmp_path,
-        "2024-05-02,STOCK_ACTIVITY,NVDA,10,880.00,0.00,USD,Charles Schwab,2024-05-03",
+        f"2024-05-02,STOCK_ACTIVITY,NVDA,10,{value},Charles Schwab,2024-05-03",
     )
 
     result = run_cli(
@@ -427,7 +439,278 @@ def test_a_main_history_vest_before_the_split_is_replaced(tmp_path: Path) -> Non
         "Using RAW row 2 (STOCK_ACTIVITY NVDA on 2024-05-02) in place of the Charles "
         f"Schwab row dated 2024-05-03 (row 2 of {schwab})\n"
     ) in result.stderr
-    assert "\n  NVDA: 10.00, £7,064.30\n" in result.stdout
+    assert f"\n  NVDA: 10.00, £{cost}\n" in result.stdout
+
+
+UNPRICED_VEST = [
+    '"08/18/2023","Sell","ZQX","ZQX CORP","20","$23.00","","$460.00"',
+    '"08/18/2023","Stock Plan Activity","ZQX","ZQX CORP INC CLASS A","60","","",""',
+    '"07/31/2023","Stock Plan Activity","ZQX","ZQX CORP INC CLASS A","40","$18.00","",""',
+]
+UNPRICED_RAW = (
+    "2023-08-15,STOCK_ACTIVITY,ZQX,60,22.00,0.00,USD,Charles Schwab,2023-08-18"
+)
+
+
+def _unpriced_run(
+    tmp_path: Path, history: list[str], raw_row: str, year: str = "2023"
+) -> tuple[list[str], Path, Path]:
+    """Return the command for a Schwab history and RAW file, with no award file."""
+    schwab = _write(tmp_path / "schwab.csv", [SCHWAB_HEADER, *history])
+    raw = _raw(tmp_path, raw_row)
+    cmd = build_cmd(
+        "--year",
+        year,
+        "--schwab-file",
+        str(schwab),
+        "--raw-file",
+        str(raw),
+        "--no-report",
+    )
+    return cmd, schwab, raw
+
+
+def test_a_vest_without_a_price_is_replaced_without_an_award_file(
+    tmp_path: Path,
+) -> None:
+    """The RAW row gives the vest the history leaves unpriced its date and value.
+
+    No award file is given, so Schwab's vest of 60 posted on 18 August 2023
+    has no price. The RAW row dates it 15 August at 22 dollars. The vest of 40
+    on 31 July keeps the history's own 18 dollars. At the July 2023 rate of
+    1.2732 dollars to the pound and August's 1.2886, the pool of 100 costs
+    720 / 1.2732 + 1,320 / 1.2886 = 565.5042 + 1,024.3675 = 1,589.8718. The
+    sale of 20 on 18 August finds no acquisition that day or in the 30 after,
+    so it takes a fifth of the pool, 317.9744, against proceeds of
+    460 / 1.2886 = 356.9766. The gain is rounded once worked out, 39.0022 to
+    39.00, and the report states the cost as the proceeds less that gain,
+    356.9766 - 39.00 = 317.98. Left on Schwab's 18 August, the vest would have
+    been matched to the sale under the same-day rule instead, at
+    440 / 1.2886 = 341.46. The 80 left cost 1,589.8718 - 317.9744 = 1,271.90.
+
+    FOO's two-for-one split on 16 August falls between the vest's two dates,
+    but it is another share's, so it does not stop the replacement. ZQX's own
+    split on 25 September comes after both, so it does not either: it doubles
+    the 80 left to 160 at the same cost.
+    """
+    history = [
+        '"09/25/2023","Stock Split","ZQX","ZQX CORP","80","","",""',
+        *UNPRICED_VEST[:2],
+        '"08/16/2023","Stock Split","FOO","FOO CORP","10","","",""',
+        UNPRICED_VEST[2],
+        '"07/31/2023","Buy","FOO","FOO CORP","10","$5.00","","-$50.00"',
+        '"07/31/2023","MoneyLink Transfer","","Tfr BANK","","","","$50.00"',
+    ]
+    cmd, schwab, _ = _unpriced_run(tmp_path, history, UNPRICED_RAW)
+
+    result = run_cli(cmd)
+
+    assert stderr_alerts(result.stderr) == []
+    assert (
+        "Using RAW row 2 (STOCK_ACTIVITY ZQX on 2023-08-15) in place of the Charles "
+        f"Schwab row dated 2023-08-18 (row 4 of {schwab})\n"
+    ) in result.stderr
+    assert re.search(r"Disposal proceeds:\s+£356\.98\n", result.stdout)
+    assert re.search(r"Allowable costs:\s+£317\.98\n", result.stdout)
+    assert re.search(r"Gain:\s+£39\.00\n", result.stdout)
+    assert "\n  ZQX: 160.00, £1,271.90\n" in result.stdout
+
+
+def test_a_vest_without_a_price_after_a_known_split_is_replaced(
+    tmp_path: Path,
+) -> None:
+    """A split cgt-calc knows of before both dates leaves the units alone.
+
+    NVIDIA's splits of 20 July 2021 and 10 June 2024 are both before the vest
+    of 10 posted on 21 June 2024 and the RAW row's 15 June. At 120 dollars, at
+    the June 2024 rate of 1.2709 dollars to the pound, it costs
+    1,200 / 1.2709 = 944.21.
+    """
+    history = ['"06/21/2024","Stock Plan Activity","NVDA","NVIDIA CORP","10","","",""']
+    cmd, schwab, _ = _unpriced_run(
+        tmp_path,
+        history,
+        "2024-06-15,STOCK_ACTIVITY,NVDA,10,120.00,0.00,USD,Charles Schwab,2024-06-21",
+        year="2024",
+    )
+
+    result = run_cli(cmd)
+
+    assert stderr_alerts(result.stderr) == []
+    assert (
+        "Using RAW row 2 (STOCK_ACTIVITY NVDA on 2024-06-15) in place of the Charles "
+        f"Schwab row dated 2024-06-21 (row 2 of {schwab})\n"
+    ) in result.stderr
+    assert "\n  NVDA: 10.00, £944.21\n" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("history", "raw_row", "message"),
+    [
+        pytest.param(
+            UNPRICED_VEST,
+            "2023-08-15,STOCK_ACTIVITY,ZQX,60,,0.00,USD,Charles Schwab,2023-08-18",
+            "ZQX vest of 60 dated 2023-08-18, which has no price in the Schwab "
+            "history, with a row that does not state a positive price. Give the "
+            "market value of one share on the day you acquired the shares.",
+            id="no price",
+        ),
+        pytest.param(
+            UNPRICED_VEST,
+            "2023-08-15,STOCK_ACTIVITY,ZQX,60,0.00,0.00,USD,Charles Schwab,2023-08-18",
+            "ZQX vest of 60 dated 2023-08-18, which has no price in the Schwab "
+            "history, with a row that does not state a positive price. Give the "
+            "market value of one share on the day you acquired the shares.",
+            id="zero price",
+        ),
+        pytest.param(
+            UNPRICED_VEST,
+            "2023-08-15,STOCK_ACTIVITY,ZQX,60,22.00,0.00,GBP,Charles Schwab,2023-08-18",
+            "ZQX vest of 60 dated 2023-08-18, which has no price in the Schwab "
+            "history, with a row in GBP. Give the price in USD, as the history "
+            "does.",
+            id="another currency",
+        ),
+        pytest.param(
+            UNPRICED_VEST,
+            "2023-08-15,STOCK_ACTIVITY,ZQX,60,22.00,1.00,USD,Charles Schwab,2023-08-18",
+            "ZQX vest of 60 dated 2023-08-18, which has no price in the Schwab "
+            "history, with a row that has fees. A vest costs no fees: leave them "
+            "at 0.",
+            id="fees",
+        ),
+        pytest.param(
+            [
+                *UNPRICED_VEST,
+                '"08/15/2023","Stock Split","ZQX","ZQX CORP","40","","",""',
+            ],
+            UNPRICED_RAW,
+            "ZQX vest of 60 dated 2023-08-18, which has no price in the Schwab "
+            "history, with a row dated 2023-08-15: ZQX split or consolidated on "
+            "2023-08-15, so cgt-calc cannot tell whether the vest's quantity is "
+            "in the units of 2023-08-15. Edit the vest's date, quantity and "
+            "price in a working copy of the history instead.",
+            id="split on the replacing row's date",
+        ),
+        pytest.param(
+            [
+                UNPRICED_VEST[0],
+                '"08/18/2023","Stock Split","ZQX","ZQX CORP","40","","",""',
+                *UNPRICED_VEST[1:],
+            ],
+            UNPRICED_RAW,
+            "ZQX vest of 60 dated 2023-08-18, which has no price in the Schwab "
+            "history, with a row dated 2023-08-15: ZQX split or consolidated on "
+            "2023-08-18, so cgt-calc cannot tell whether the vest's quantity is "
+            "in the units of 2023-08-15. Edit the vest's date, quantity and "
+            "price in a working copy of the history instead.",
+            id="split on the vest's date",
+        ),
+        pytest.param(
+            [
+                '"08/25/2023","Stock Split","ZQX","ZQX CORP","40","","",""',
+                *UNPRICED_VEST,
+            ],
+            "2023-08-31,STOCK_ACTIVITY,ZQX,60,22.00,0.00,USD,Charles Schwab,2023-08-18",
+            "ZQX vest of 60 dated 2023-08-18, which has no price in the Schwab "
+            "history, with a row dated 2023-08-31: ZQX split or consolidated on "
+            "2023-08-25, so cgt-calc cannot tell whether the vest's quantity is "
+            "in the units of 2023-08-31. Edit the vest's date, quantity and "
+            "price in a working copy of the history instead.",
+            id="replacing row after the vest",
+        ),
+        pytest.param(
+            [
+                '"06/11/2024","Stock Plan Activity","NVDA","NVIDIA CORP","10","","",""',
+            ],
+            "2024-06-08,STOCK_ACTIVITY,NVDA,10,120.00,0.00,USD,Charles Schwab,2024-06-11",
+            "NVDA vest of 10 dated 2024-06-11, which has no price in the Schwab "
+            "history, with a row dated 2024-06-08: NVDA split or consolidated on "
+            "2024-06-10, so cgt-calc cannot tell whether the vest's quantity is "
+            "in the units of 2024-06-08. Edit the vest's date, quantity and "
+            "price in a working copy of the history instead.",
+            id="known split between the dates",
+        ),
+    ],
+)
+def test_a_replacement_of_a_vest_without_a_price_is_refused(
+    tmp_path: Path, history: list[str], raw_row: str, message: str
+) -> None:
+    """With no price to fall back on, the RAW row has to state the whole cost.
+
+    A missing or zero price, another currency or fees would each leave a cost
+    other than the vest's market value. A split on either date or between
+    them, from the history or one cgt-calc knows of (NVIDIA's of 10 June
+    2024), may leave the vest's count in units of the wrong date.
+    """
+    cmd, _, raw = _unpriced_run(tmp_path, history, raw_row)
+
+    stderr = _refused(cmd)
+
+    assert (
+        f"ERROR: While parsing {raw}, row 2: Cannot replace the {message} See {DOCS}\n"
+    ) in stderr
+
+
+@pytest.mark.parametrize("replaced", [True, False])
+def test_a_dump_writes_the_vest_without_a_price_as_parsed(
+    tmp_path: Path, replaced: bool
+) -> None:
+    """The dump is saved before the replacement, whether or not the run stops.
+
+    It shows the vest as Schwab posted it, on 18 August with no price, and the
+    RAW row beside it: what was read, not what the calculation used. That
+    posted date is the one the RAW row names in `replaces`.
+    """
+    raw_row = UNPRICED_RAW if replaced else "2023-08-15,BUY,ZQX,1,22.00,0.00,USD,,"
+    cmd, _, _ = _unpriced_run(tmp_path, UNPRICED_VEST, raw_row)
+    destination = tmp_path / "parsed.csv"
+
+    result = subprocess.run(
+        [*cmd, "--dump-transactions", str(destination)],
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    assert (result.returncode == 0) is replaced, result.stderr
+    assert ("Cannot price a vest" in result.stderr) is not replaced
+    with destination.open(encoding="utf-8", newline="") as dump:
+        rows = list(csv.DictReader(dump))
+    assert [
+        (row["date"], row["action"], row["quantity"], row["price"], row["broker"])
+        for row in rows
+    ] == [
+        ("2023-07-31", "STOCK_ACTIVITY", "40", "18.00", "Charles Schwab"),
+        (
+            ("2023-08-15", "STOCK_ACTIVITY", "60", "22.00", "Charles Schwab")
+            if replaced
+            else ("2023-08-15", "BUY", "1", "22.00", "Unknown")
+        ),
+        ("2023-08-18", "STOCK_ACTIVITY", "60", "", "Charles Schwab"),
+        ("2023-08-18", "SELL", "20", "23.00", "Charles Schwab"),
+    ]
+
+
+def test_alike_vests_without_a_price_are_refused(tmp_path: Path) -> None:
+    """Two vests of 60 posted the same day may have vested on different days.
+
+    Neither has a price to tell it apart, so the RAW row replaces neither.
+    """
+    history = [UNPRICED_VEST[1], *UNPRICED_VEST]
+    cmd, _, raw = _unpriced_run(tmp_path, history, UNPRICED_RAW)
+
+    stderr = _refused(cmd)
+
+    assert (
+        f"ERROR: While parsing {raw}, row 2: Several Charles Schwab vests match "
+        "this replacement and none has a price, so cgt-calc cannot tell which "
+        "one it replaces:\n"
+    ) in stderr
+    assert (
+        f"\nEdit the vests in a working copy of the export instead. See {DOCS}\n"
+    ) in stderr
+    assert stderr.count("read from row") == 2
 
 
 @pytest.mark.parametrize(

@@ -288,7 +288,9 @@ replaced:
     its price. Use it when your employer taxed the shares on another day than the one cgt-calc uses:
     see [Dates containing `as of`](schwab.md#dates-containing-as-of) in the Schwab guide. If the
     shares were split or consolidated between the two dates, the quantity is in the wrong units for
-    the new date and cgt-calc cannot tell: edit the vest in a working copy of the export instead.
+    the new date and cgt-calc cannot tell: edit the vest in a working copy of the export instead. A
+    row can also give a Schwab vest with no price its date and price when you have no award file:
+    see [Vests without an award file](schwab.md#vests-without-an-award-file).
 
 Say Schwab withheld a further 5 dollars of tax on 27 June 2024 that belongs to the dividend of 3
 June. Schwab's row is replaced by one dated on the dividend:
@@ -307,8 +309,11 @@ dates 12 June 2023 but your employer taxed on 15 June at 22 dollars a share:
 cgt-calc replaces the export row with the same broker, action and symbol, dated on the `replaces`
 date and with the same quantity (a vest) or the same amount and currency (tax). The date is the one
 cgt-calc uses for the row, which is not always the date in the file: for a Schwab vest priced from
-your award file it is the `Date` of the vest's `Lapse` row. To see every row with the date cgt-calc
-uses, run with [`--dump-transactions`](../usage.md#inspect-parsed-transactions).
+your award file it is the `Date` of the vest's `Lapse` row, and for one with no price it is the day
+Schwab posted it. To see every row with the date cgt-calc uses, run with
+[`--dump-transactions`](../usage.md#inspect-parsed-transactions). The dump is saved before any
+replacement, so it shows the export row and your RAW row side by side, not which one the calculation
+used. To correct several Schwab vests, see [Correct several vests](schwab.md#correct-several-vests).
 
 The run names each replacement:
 
@@ -340,6 +345,15 @@ The error names the RAW row:
     the split. A RAW row on that date would count the wrong number of shares. Edit the vest's date
     and price in a working copy of the Equity Awards export instead, keeping its quantity, and give
     the price per share in the units the export uses.
+- **`Cannot replace the ... vest ..., which has no price in the Schwab history`**: your row is all
+    cgt-calc has for the vest's cost, so it needs a `price` above zero, `USD` as its currency and no
+    fees. A split or consolidation of the share on either date or between them is refused as well,
+    if your main history records it or cgt-calc already knows of it: the vest's quantity may be in
+    the wrong units for your row's date. Edit the vest's date, quantity and price in a working copy
+    of the history instead.
+- **`Several ... vests match this replacement and none has a price`**: Schwab posted two vests of
+    the same quantity on the same day, and nothing tells them apart. Pass the award file, or edit
+    the vests in a working copy of the history.
 - **`The broker '...' is not the broker of any other input`**: correct the name, or leave it blank.
 - **`A row that replaces a row of a broker export names that broker`**: fill in `broker`.
 
