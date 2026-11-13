@@ -4267,11 +4267,11 @@ def _unheld(
         "rows for some splits. If it did, add that split as one STOCK_SPLIT "
         f"row in {where}, dated the first day {symbol} traded at the new "
         "count. The export cannot give you that date: take it from the "
-        f"company's announcement. If you did not buy or sell {symbol} between "
-        f"that day and {date}, the row's quantity is {quantity} ({stated} less "
-        f"{held}). If the company made no such change, the export is missing "
-        "rows: replace it with one complete export from your first "
-        f"{symbol} purchase. If you hold {symbol} under two tickers and each "
+        "company's announcement. If that split is the only thing missing, the "
+        f"row's quantity is {quantity} ({stated} less {held}). If the company "
+        "made no such change, the exports are missing rows: replace them with "
+        f"a complete history from your first {symbol} purchase, with no gaps "
+        f"between date ranges. If you hold {symbol} under two tickers and each "
         "has its own split rows, remove both sets of split rows from a copy "
         "of the export and add one STOCK_SPLIT row for the whole holding. Do "
         f"not add a row only to make the counts agree. See {UNHELD_DOCS}"
@@ -4300,6 +4300,22 @@ SPLIT_WITHOUT_ROWS = [
     *_pair("2024-07-15 07:00:00", "20", "40", "1000.00"),
     _trade(
         "Market sell", "2024-09-02 14:00:00", "20", "30.00", ticker="FOO", isin=FOO_ISIN
+    ),
+]
+# As CONSOLIDATED_WITHOUT_ROWS, with 5 more bought for 50 after the missing
+# consolidation: 10 + 5 = 15, so the pair states 15 -> 3, which are sold for
+# 300. The history holds 165, and 15 - 165 = -150 is still the missing row.
+BOUGHT_AFTER_THE_MISSING_SPLIT = [
+    _deposit("2024-03-01 09:00:00"),
+    _trade(
+        "Market buy", "2024-03-01 14:00:00", "160", "1.00", ticker="FOO", isin=FOO_ISIN
+    ),
+    _trade(
+        "Market buy", "2024-05-01 14:00:00", "5", "10.00", ticker="FOO", isin=FOO_ISIN
+    ),
+    *_pair("2024-07-15 07:00:00", "15", "3", "300.00"),
+    _trade(
+        "Market sell", "2024-09-02 14:00:00", "3", "100.00", ticker="FOO", isin=FOO_ISIN
     ),
 ]
 # 1 FOO bought for 30, then a 1-for-3 consolidation with no rows: Trading 212
@@ -4401,6 +4417,14 @@ def test_a_split_row_a_few_billionths_out_still_stops_the_run(tmp_path: Path) ->
             id="split",
         ),
         pytest.param(
+            BOUGHT_AFTER_THE_MISSING_SPLIT,
+            "2024-04-02,STOCK_SPLIT,FOO,-150,0.00,0.00,GBP",
+            "210",
+            "90",
+            None,
+            id="purchase after the missing split",
+        ),
+        pytest.param(
             THIRD_OF_A_SHARE,
             "2024-04-02,STOCK_SPLIT,FOO,-0.66666667,0.00,0.00,GBP",
             "30",
@@ -4424,7 +4448,10 @@ def test_the_row_the_refusal_gives_lets_the_history_run(
     sale of both for 200 takes all 160, a gain of 40, and leaves nothing.
     Split: 10 become 20 and the pair's 40, still costing 1,000, so the sale
     of 20 for 600 takes 1,000 x 20/40 = 500, a gain of 100, and leaves 20 at
-    a cost of 500. Corrected: -0.6666666667 less 0.0000000033 leaves the
+    a cost of 500. Purchase after the missing split: 160 become 10, and the 5
+    bought later make the pair's 15, costing 160 + 50 = 210, so the sale of
+    the 3 left for 300 takes all 210, a gain of 90, and leaves nothing.
+    Corrected: -0.6666666667 less 0.0000000033 leaves the
     pair's 0.33333333 of the 1 share, so the sale of all 0.03333333 for 50
     takes the whole 30, a gain of 20, and leaves nothing.
     """

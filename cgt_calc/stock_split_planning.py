@@ -708,8 +708,10 @@ def _unheld_pair_message(
     """Explain a pair stating a count its own account's rows do not give.
 
     Only the Trading 212 parser builds a pair. The row quantity it suggests,
-    stated less held, is the change to the holding only if nothing was
-    traded between the missing split and this one, so the message says so.
+    stated less held, is the missing split's change whatever was traded
+    after it, because both counts include those trades in the same units.
+    It is wrong only when something else is missing too, so the message
+    says so.
     """
     symbol, date = event.symbol, event.date
     stated = strip_zeros(event.before_quantity)
@@ -724,15 +726,15 @@ def _unheld_pair_message(
         f"that split as one STOCK_SPLIT row in {raw_file_to_add_to(raw_file)}, "
         f"dated the first day {symbol} traded at the new count. The export "
         "cannot give you that date: take it from the company's announcement. "
-        f"If you did not buy or sell {symbol} between that day and {date}, "
-        f"the row's quantity is {strip_zeros(event.before_quantity - held)} "
-        f"({stated} less {strip_zeros(held)}). If the company made no such "
-        "change, the export is missing rows: replace it with one complete "
-        f"export from your first {symbol} purchase. If you hold {symbol} "
-        "under two tickers and each has its own split rows, remove both sets "
-        "of split rows from a copy of the export and add one STOCK_SPLIT row "
-        "for the whole holding. Do not add a row only to make the counts "
-        f"agree. See {_UNHELD_PAIR_DOCS}"
+        "If that split is the only thing missing, the row's quantity is "
+        f"{strip_zeros(event.before_quantity - held)} ({stated} less "
+        f"{strip_zeros(held)}). If the company made no such change, the "
+        "exports are missing rows: replace them with a complete history from "
+        f"your first {symbol} purchase, with no gaps between date ranges. If "
+        f"you hold {symbol} under two tickers and each has its own split rows, "
+        "remove both sets of split rows from a copy of the export and add one "
+        "STOCK_SPLIT row for the whole holding. Do not add a row only to make "
+        f"the counts agree. See {_UNHELD_PAIR_DOCS}"
     )
 
 

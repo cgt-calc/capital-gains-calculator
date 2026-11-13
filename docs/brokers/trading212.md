@@ -353,11 +353,11 @@ The usual causes are:
     [A split with no rows in the export](#a-split-with-no-rows-in-the-export) describes. Check the
     company's announcements for a split or consolidation since you first bought the share. If there
     was one, add it as a `STOCK_SPLIT` row following the steps in that section, dated the first day
-    the shares traded at the new count, which the export cannot give you. If you did not buy or sell
-    the share between that day and the split rows, the row's number is the one the message gives:
-    the shares the split rows state less the shares the history holds. For example, 160 shares
-    consolidated 1-for-16 become 10, so the rows say 10 where the history holds 160, and the row's
-    number is -150.
+    the shares traded at the new count, which the export cannot give you. If it is the only thing
+    missing, the row's number is the one the message gives: the shares the split rows state less the
+    shares the history holds. Trades after it do not change that number, because both counts include
+    them. For example, 160 shares consolidated 1-for-16 become 10, so the rows say 10 where the
+    history holds 160, and the row's number is -150.
 - **Rows of the account are missing.** If the company made no such change, your exports are missing
     rows, for example because they start after your first purchase or leave a gap between date
     ranges. Replace them with a complete history from your first purchase of the share.
