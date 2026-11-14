@@ -111,8 +111,10 @@ but any other non-blank reference stops the import with `Unknown transaction typ
     investments, automatic reinvestment and sales made to cover fees. Those trades cannot be
     imported from the Transaction Summary alone.
 - The PDF reader expects the text-based HL contract-note layout and extracts only the field labelled
-    `Dealing charge`. Scanned PDFs, changed layouts, foreign-currency trades, stamp duty or other
-    charges have not been validated and can make the trade fail its amount checks.
+    `Dealing charge`. A PDF with no text, such as a scan, stops the run with a message naming the
+    PDF, as does one in which cgt-calc cannot find the stock code or the quantity and price.
+    Foreign-currency trades, stamp duty or other charges have not been validated and can make the
+    trade fail its amount checks.
 - The parser does not inspect the investment type. It has been tested with an ordinary GBP-priced
     ETF; do not rely on this importer for gilts, bonds, derivatives or another instrument whose UK
     tax treatment differs.
@@ -122,8 +124,9 @@ but any other non-blank reference stops the import with `Unknown transaction typ
     compare the reference or the settle date. It cannot detect a transaction that the two files
     state differently, and counts that one twice. Keep unrelated CSVs elsewhere and make each
     reporting period occur exactly once.
-- The action and trade date extracted from a PDF are not cross-checked with the CSV. The filename
-    reference is the link, so verify that each reference points to the correct note.
+- The action extracted from a PDF is not cross-checked with the CSV, and the trade date in a PDF is
+    not read: the CSV's is used. The filename reference is the link, so verify that each reference
+    points to the correct note.
 
 ## Troubleshooting
 

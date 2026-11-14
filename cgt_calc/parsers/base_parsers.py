@@ -581,7 +581,10 @@ class StandardCSVParser[T: BrokerTransaction](BaseSingleFileParser[T]):
                     )
                     transactions.append(transaction)
             except ParsingError as err:
-                err.add_row_context(index)
+                # The row is this file's: an error about another file a row
+                # led to, such as an HL contract note, is located by that file.
+                if err.file == file_path:
+                    err.add_row_context(index)
                 raise
             except (ValueError, TypeError, AttributeError) as err:
                 raise ParsingError(file_path, str(err), row_index=index) from err

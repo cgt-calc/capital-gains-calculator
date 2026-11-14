@@ -2,7 +2,7 @@
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
 import io
 from itertools import chain
@@ -11,14 +11,14 @@ import re
 from typing import ClassVar, TextIO, override
 
 import pdfplumber
+from pdfplumber.utils.exceptions import PdfminerException
 
 from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
 from cgt_calc.parsers.base_parsers import BaseDirParser, StandardCSVParser
 from cgt_calc.util import parse_decimal
 
-# PDF parser regexes
-DATE_REGEX = re.compile(r"Date[^\d]*(\d{2}/\d{2}/\d{4})", re.IGNORECASE)
+# PDF parser regexes. The note's date is not read: the CSV's trade date is used.
 ACTION_REGEX = re.compile(r"\*\*\s*(BOUGHT|SOLD)\s*\*\*", re.IGNORECASE)
 ISIN_TICKER_REGEX = re.compile(
     r"([A-Z]{2}[A-Z0-9]{9}\d)\s*STOCK CODE:\s*([A-Z0-9]+)", re.IGNORECASE
@@ -34,10 +34,9 @@ class HLPdfData:
     """Data extracted from a single HL Contract Note PDF."""
 
     file_name: str
-    date: date | None
     action: str | None
-    ticker: str | None
-    isin: Isin | None
+    ticker: str
+    isin: Isin
     quantity: Decimal
     price: Decimal
     consideration: Decimal
@@ -89,54 +88,72 @@ class HargreavesLansdownParser(
     def _parse_pdf(pdf_path: Path) -> HLPdfData:
         """Extract precise execution data from a single HL Contract Note PDF."""
         text = ""
-        with pdfplumber.open(pdf_path) as pdf:
-            for page in pdf.pages:
-                extracted = page.extract_text()
-                if extracted:
-                    text += extracted + "\n"
+        try:
+            with pdfplumber.open(pdf_path) as pdf:
+                for page in pdf.pages:
+                    extracted = page.extract_text()
+                    if extracted:
+                        text += extracted + "\n"
+        except PdfminerException as err:
+            # A download cut off part way, or a page saved under the note's name.
+            raise ParsingError(
+                pdf_path,
+                "this file is not a PDF cgt-calc can open. Download the contract "
+                "note again from HL.",
+            ) from err
+        if not text.strip():
+            raise ParsingError(
+                pdf_path,
+                "could not read the stock code, quantity and price from this "
+                "contract note: it has no text cgt-calc can read. Download it "
+                "again from HL; a scanned copy cannot be read.",
+            )
 
-        # 1. Tolerate any non-digit characters between "Date" and the actual date
-        date_match = DATE_REGEX.search(text)
         action_match = ACTION_REGEX.search(text)
         isin_ticker_match = ISIN_TICKER_REGEX.search(text)
 
-        # 2. Look for three sequential floats (Qty, Price, Consideration)
+        # Look for three sequential floats (Qty, Price, Consideration)
         # separated by any whitespace or optional pipes
         values_match = VALUES_REGEX.search(text)
 
-        # 3. Tolerate any non-digit characters between "Dealing charge" and its numeric value
+        # Tolerate any non-digit characters between "Dealing charge" and its numeric value
         fees_match = FEES_REGEX.search(text)
 
-        date_str = date_match.group(1) if date_match else None
-
-        quantity = price = consideration = Decimal(0)
-        if values_match:
-            quantity = Decimal(values_match.group(1).replace(",", ""))
-            price = Decimal(values_match.group(2).replace(",", ""))
-            consideration = Decimal(values_match.group(3).replace(",", ""))
+        if isin_ticker_match is None or values_match is None:
+            # Text, but not in the layout the patterns above expect.
+            missing = [
+                name
+                for name, match in (
+                    ("stock code", isin_ticker_match),
+                    ("quantity and price", values_match),
+                )
+                if match is None
+            ]
+            raise ParsingError(
+                pdf_path,
+                f"could not read the {', '.join(missing)} from this contract note.",
+                needs_update=True,
+            )
 
         fees = (
             Decimal(fees_match.group(1).replace(",", "")) if fees_match else Decimal(0)
         )
 
-        isin = None
-        if isin_ticker_match:
-            isin = Isin.parse(isin_ticker_match.group(1))
-            if isin is None:
-                raise ParsingError(
-                    pdf_path,
-                    f"Invalid ISIN in contract note: {isin_ticker_match.group(1)!r}",
-                )
+        isin = Isin.parse(isin_ticker_match.group(1))
+        if isin is None:
+            raise ParsingError(
+                pdf_path,
+                f"Invalid ISIN in contract note: {isin_ticker_match.group(1)!r}",
+            )
 
         return HLPdfData(
             file_name=pdf_path.name,
-            date=datetime.strptime(date_str, "%d/%m/%Y").date() if date_str else None,
             action=action_match.group(1).lower() if action_match else None,
-            ticker=isin_ticker_match.group(2) if isin_ticker_match else None,
+            ticker=isin_ticker_match.group(2),
             isin=isin,
-            quantity=quantity,
-            price=price,
-            consideration=consideration,
+            quantity=Decimal(values_match.group(1).replace(",", "")),
+            price=Decimal(values_match.group(2).replace(",", "")),
+            consideration=Decimal(values_match.group(3).replace(",", "")),
             fees=fees,
         )
 
@@ -255,7 +272,10 @@ class HargreavesLansdownParser(
             else:
                 raise ParsingError(
                     file_path,
-                    f"Cannot find contract note pdf for transaction {reference}",
+                    f"Cannot find contract note pdf for transaction {reference}. "
+                    "Download its contract note from HL into this CSV's folder. "
+                    "If HL issued none, as for some regular fund investments, "
+                    "cgt-calc cannot read this trade from the Transaction Summary.",
                 )
 
         return BrokerTransaction(
