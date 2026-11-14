@@ -611,10 +611,11 @@ A `Gift` row says that shares left the account but not who received them. cgt-ca
 and asks you to classify it:
 
 - For a spouse or civil partner, follow
-    [Transfers to a spouse or civil partner](raw.md#transfers-to-a-spouse-or-civil-partner) and add
-    the suggested `TRANSFER_TO_SPOUSE` row.
-- For anyone else, follow [Gifts to anyone else](raw.md#gifts-to-anyone-else) and add the suggested
-    `GIFT` or `GIFT_UNCONNECTED` row using a verified market value.
+    [Transfers to a spouse or civil partner](../transfers-gifts-and-fund-income.md#transfers-to-a-spouse-or-civil-partner)
+    and add the suggested `TRANSFER_TO_SPOUSE` row.
+- For anyone else, follow
+    [Gifts to anyone else](../transfers-gifts-and-fund-income.md#gifts-to-anyone-else) and add the
+    suggested `GIFT` or `GIFT_UNCONNECTED` row using a verified market value.
 
 The error prints the complete RAW line to copy into your RAW file. If you do not use one yet, put
 the line under the RAW header row in a small new CSV, and pass that file too; see
@@ -669,7 +670,7 @@ the transfers counted in the tax year you are reporting.
 Each of these transfers is matched in the same way as a `TRANSFER_TO_SPOUSE` row. A purchase of the
 same shares on the same day or within the next 30 days is matched to the transfer, and a sale and a
 transfer of the same shares on one day are refused when there is such a purchase. See
-[Transfers to a spouse or civil partner](raw.md#transfers-to-a-spouse-or-civil-partner).
+[Transfers to a spouse or civil partner](../transfers-gifts-and-fund-income.md#transfers-to-a-spouse-or-civil-partner).
 
 ## Known limitations
 

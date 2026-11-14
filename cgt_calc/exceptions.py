@@ -314,7 +314,7 @@ class UnclassifiedGiftError(CgtError):
             "that order, with a blank cell for each column a line does not use.\n"
             "\n"
             f"{mistyped}"
-            "See https://cgt-calc.uk/brokers/raw/#transfers-to-a-spouse-or-civil-partner"
+            "See https://cgt-calc.uk/transfers-gifts-and-fund-income/#transfers-to-a-spouse-or-civil-partner"
         )
         super().__init__(self.message)
 

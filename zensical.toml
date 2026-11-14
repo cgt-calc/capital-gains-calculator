@@ -35,6 +35,7 @@ nav = [
       # The generic fallback belongs after the named brokers.
       { "RAW format" = "brokers/raw.md" },
     ] },
+    { "Transfers, gifts and fund income" = "transfers-gifts-and-fund-income.md" },
     { "Offshore funds (ERI)" = "offshore-funds.md" },
     { "Custom ERI data" = "custom-eri-data.md" },
     { "Extra data and options" = "extra-data-and-options.md" },
@@ -58,6 +59,10 @@ extra_css = ["stylesheets/extra.css"]
 "development/contributing.md#upgrade-existing-dependencies" = "development/contributing.md#managing-dependencies"
 "development/contributing.md#manual-changes" = "development/contributing.md#managing-dependencies"
 "brokers/raw.md#amount-missing" = "brokers/raw.md#price-missing-or-quantity-missing"
+"brokers/raw.md#transfers-to-a-spouse-or-civil-partner" = "transfers-gifts-and-fund-income.md#transfers-to-a-spouse-or-civil-partner"
+"brokers/raw.md#if-you-received-the-shares" = "transfers-gifts-and-fund-income.md#if-you-received-the-shares"
+"brokers/raw.md#gifts-to-anyone-else" = "transfers-gifts-and-fund-income.md#gifts-to-anyone-else"
+"brokers/raw.md#income-reinvested-in-accumulation-units" = "transfers-gifts-and-fund-income.md#income-reinvested-in-accumulation-units"
 
 [project.theme]
 variant = "modern"

@@ -18,18 +18,17 @@ Depending on your investments, you may also need:
 - **Income kept by a UK accumulation fund, recorded by hand.** An accumulation share class, usually
     with “Acc” or “Accumulation” in its name, adds its income to the value of your units instead of
     paying it to you. That income is taxable, and it counts as an amount spent on your units.
-    Neither Vanguard nor Hargreaves Lansdown pays it into your account, and cgt-calc does not count
-    it from their exports. Add it in a small RAW file, as described in
-    [Income reinvested in accumulation units](brokers/raw.md#income-reinvested-in-accumulation-units),
-    and pass it alongside your export. Other brokers have not been checked. With another broker,
-    first run cgt-calc without the rows for this income: if the PDF lists a dividend from the fund
-    for that distribution under **Interest and Dividends Events**, cgt-calc already counts that
-    income, so do not add them.
+    cgt-calc does not count it from Vanguard or Hargreaves Lansdown exports, so add it in a small
+    RAW file as
+    [Income reinvested in accumulation units](transfers-gifts-and-fund-income.md#income-reinvested-in-accumulation-units)
+    describes, and pass it alongside your export. With another broker, cgt-calc may already count
+    the income: make the check that section gives before you add any rows, or the income is counted
+    twice.
 - **Extra income data for some funds outside the UK.** This can apply whether the fund pays income
     to you or reinvests it. Check the [offshore funds guide](offshore-funds.md).
 - **Transfers to or from a spouse or civil partner, recorded by hand.** No broker export marks
     these. Add them in a small RAW file using the
-    [`TRANSFER_TO_SPOUSE` or `TRANSFER_FROM_SPOUSE`](brokers/raw.md#transfers-to-a-spouse-or-civil-partner)
+    [`TRANSFER_TO_SPOUSE` or `TRANSFER_FROM_SPOUSE`](transfers-gifts-and-fund-income.md#transfers-to-a-spouse-or-civil-partner)
     action and pass it alongside your export.
 
 Put every row you record by hand in one RAW file: cgt-calc reads only one, and a second RAW file
@@ -175,12 +174,13 @@ Three other labels are not matching rules:
 - **OPTION:** the grant of an option you wrote, with its allowable cost and gain or loss. See
     [written equity options](brokers/schwab.md#written-equity-options).
 
-A [transfer to a spouse or civil partner](brokers/raw.md#transfers-to-a-spouse-or-civil-partner) is
-matched in the same way as a disposal, so a purchase on the same day or in the following 30 days can
-make the base cost that passes to the recipient differ from the average cost of your pooled holding.
-Its lines carry the same labels. Each line shows the shares matched under that rule and the base
-cost they pass on. A **BED AND BREAKFAST** line also gives the date the matched shares were bought
-or received. The lines add up to the base cost stated above them, apart from penny rounding.
+A
+[transfer to a spouse or civil partner](transfers-gifts-and-fund-income.md#transfers-to-a-spouse-or-civil-partner)
+is matched in the same way as a disposal, so a purchase on the same day or in the following 30 days
+can make the base cost that passes to the recipient differ from the average cost of your pooled
+holding. Its lines carry the same labels. Each line shows the shares matched under that rule and the
+base cost they pass on. A **BED AND BREAKFAST** line also gives the date the matched shares were
+bought or received. The lines add up to the base cost stated above them, apart from penny rounding.
 
 ## Use the figures
 

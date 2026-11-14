@@ -66,7 +66,7 @@ they leave out:
 - losses brought forward from earlier years
 - Business Asset Disposal Relief (formerly Entrepreneurs' Relief) and Investors' Relief
 - losses on gifts to connected people, shown as **Losses on gifts**, which can only reduce gains on
-    disposals to the [same person](brokers/raw.md#gifts-to-anyone-else)
+    disposals to the [same person](transfers-gifts-and-fund-income.md#gifts-to-anyone-else)
 
 The figures also tax a gain on an
 [offshore fund that was ever non-reporting](offshore-funds.md#unsupported-functionality) as a

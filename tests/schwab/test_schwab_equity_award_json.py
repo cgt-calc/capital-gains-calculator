@@ -1709,7 +1709,7 @@ def test_a_gift_refusal_names_the_raw_file_and_the_row_left_over(
         "RAW file's header lists its columns in another order, or also has "
         "broker or replaces, put each value under its column in that order, "
         "with a blank cell for each column a line does not use.\n\n"
-        "See https://cgt-calc.uk/brokers/raw/#transfers-to-a-spouse-or-civil-partner"
+        "See https://cgt-calc.uk/transfers-gifts-and-fund-income/#transfers-to-a-spouse-or-civil-partner"
     ) in refused.stderr
 
 
