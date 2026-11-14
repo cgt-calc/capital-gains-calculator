@@ -122,10 +122,9 @@ Identify any other named row in Freetrade before deciding what to do with it:
 - a transfer or corporate action may need the extra records described in
     [Check for missing activity](#check-for-missing-activity).
 
-If the row is an executed transaction not covered by [Supported activity](#supported-activity),
-first upgrade cgt-calc using the same method you used to install it. If it still fails, open a
-[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the complete
-error and a sanitised copy of the row.
+If the row is an executed transaction not covered by [Supported activity](#supported-activity) and
+the error remains after you [upgrade cgt-calc](../installation.md#upgrade-cgt-calc), follow
+[Reporting problems](../reporting-problems.md) and include that row.
 
 ### `Missing columns` or `Unknown columns`
 
@@ -133,24 +132,17 @@ Make sure the file is an unchanged Activity Feed CSV rather than a statement, di
 or a spreadsheet converted from PDF. cgt-calc accepts both the older and current names for the two
 total-amount columns, plus the additional stock-split columns in current exports.
 
-If an unchanged export still fails after upgrading cgt-calc, open a GitHub issue containing:
-
-- your cgt-calc version from `cgt-calc --version`;
-- the complete error message; and
-- the CSV header and a sanitised failing row.
-
-Do not upload an unredacted file: the export contains order identifiers, holdings and other
-sensitive financial information. For guidance on preparing a redacted example, see
-[Reporting problems](../reporting-problems.md).
+If an unchanged export still fails after you
+[upgrade cgt-calc](../installation.md#upgrade-cgt-calc), follow
+[Reporting problems](../reporting-problems.md) and include the CSV header with a failing row.
 
 ### `This row has ... columns, not ...`
 
 A row has more or fewer cells than the header line. This can happen after a CSV file is edited or
 saved by another program: a spreadsheet program can drop the empty cells at the end of a row when it
 saves a CSV file. Download the export again and use it unchanged. If a fresh export still fails,
-report it as described under
-[`Missing columns` or `Unknown columns`](#missing-columns-or-unknown-columns), with the header and a
-sanitised failing row. If you have to remove a row, delete the whole line in a text editor.
+follow [Reporting problems](../reporting-problems.md) and include the header with a failing row. If
+you have to remove a row, delete the whole line in a text editor.
 
 The message quotes the whole row. Remove the order identifier and anything else you would not
 publish before sharing it.
@@ -170,5 +162,5 @@ completeness another way.
 
 Check the terminal section headed “Portfolio at the end of … tax year” against your statement for 5
 April. Compare trade totals, stamp duty, FX fees, gross dividends and withholding with the contract
-notes and dividend confirmations. If a real exported row disagrees with the report, open a GitHub
-issue with sanitised values from that row.
+notes and dividend confirmations. If a real exported row disagrees with the report, follow
+[Reporting problems](../reporting-problems.md) and include that row.

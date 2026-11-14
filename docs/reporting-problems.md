@@ -1,7 +1,9 @@
 # Reporting problems
 
 Use this page when cgt-calc stops with an error you cannot resolve and you want to report it, for
-example when a run ends with **Unexpected error!** and a traceback.
+example when a run ends with **Unexpected error!** and a traceback. If there is no error but a
+figure in the report or a warning looks wrong, follow the same steps: in place of the error, say
+what the report shows and what you expected.
 
 !!! warning "Issues are public"
 

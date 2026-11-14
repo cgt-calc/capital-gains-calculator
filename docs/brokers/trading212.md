@@ -397,16 +397,15 @@ before the split, as long as shares at another broker kept the holding from empt
 history stops too. Tesla's 3-for-1 split of 25 August 2022 is checked like the others in the table.
 
 Work the holding out by hand (consider professional advice). To help cgt-calc support these splits,
-open a [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) that says
-what your export shows:
+open an issue as [Reporting problems](../reporting-problems.md) describes, but instead of an example
+say what your export shows:
 
 - whether your rows from before 31 August 2020 are at the price per share before the split: on 28
     August 2020, Apple closed at about 500 USD and Tesla at about 2,200 USD;
 - any split rows for the share, and their dates;
 - how the fraction closed for cash appears, for example as a sale or a deposit, and its date.
 
-Do not attach the export or post amounts or quantities: anyone can read an issue (see
-[Reporting problems](../reporting-problems.md)).
+Do not attach the export or post amounts or quantities: anyone can read an issue.
 
 ### Dates and time zones
 
@@ -461,9 +460,8 @@ Only confirmed pairs are rewritten. For any other pair:
     tickers if you have sold the other, so check your exports for one ISIN with two different
     tickers.
 
-In either case, please
-[open an issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the ISIN and
-both tickers.
+In either case, please open an issue as [Reporting problems](../reporting-problems.md) describes,
+with the ISIN and both tickers.
 
 ### Dividends and foreign tax
 
@@ -602,18 +600,10 @@ incorrect.
 
 ### `Unknown column(s)` or `Unknown action`
 
-Trading 212 occasionally changes its export format. First, upgrade cgt-calc using the same method
-you used to install it and try again. If the error remains, open a
-[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) containing:
-
-- your cgt-calc version from `cgt-calc --version`;
-- the complete error message;
-- the CSV header for an unknown column; or
-- a sanitised failing row for an unknown action.
-
-Do not upload an unredacted account export: it can contain transaction IDs and other financial
-information. For guidance on preparing a redacted example, see
-[Reporting problems](../reporting-problems.md).
+Trading 212 occasionally changes its export format. If the error remains after you
+[upgrade cgt-calc](../installation.md#upgrade-cgt-calc), follow
+[Reporting problems](../reporting-problems.md) and include the CSV header for an unknown column, or
+the failing row for an unknown action.
 
 ### A transaction is described differently by two exports
 
@@ -630,9 +620,9 @@ replace the older file, and run the calculation again.
 cgt-calc found an unusually large group of otherwise identical transactions within one second. It
 kept the correct number, so the totals are unchanged.
 
-Check that the rows in the named files are genuine. If they are, please
-[open an issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new); otherwise replace
-the affected exports with a fresh one.
+Check that the rows in the named files are genuine. If they are, please report them as
+[Reporting problems](../reporting-problems.md) describes; otherwise replace the affected exports
+with a fresh one.
 
 ### No transactions are detected
 

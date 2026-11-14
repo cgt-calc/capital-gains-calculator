@@ -204,16 +204,9 @@ the dividend was paid in full, enter no rows for it: the correction is already i
 
 ### `Unknown action`
 
-Revolut might add a new transaction type. First, upgrade cgt-calc using the same method you used to
-install it and try again. If the error remains, open a GitHub issue containing:
-
-- your cgt-calc version from `cgt-calc --version`;
-- the complete error message; and
-- a sanitised copy of the failing row.
-
-Do not upload an unredacted account statement: it contains your holdings and other financial
-information. For guidance on preparing a redacted example, see
-[Reporting problems](../reporting-problems.md).
+Revolut might add a new transaction type. If the error remains after you
+[upgrade cgt-calc](../installation.md#upgrade-cgt-calc), follow
+[Reporting problems](../reporting-problems.md) and include the failing row.
 
 ### `CSV header mismatch`
 
@@ -249,4 +242,4 @@ the terminal's **Final balance** list with your broker records.
 Check the terminal section headed “Portfolio at the end of … tax year” against your Revolut holdings
 on 5 April. Compare each dividend with the amount in the CSV, then add the tax withheld as
 [described above](#dividends-and-withholding-tax). If a real exported row disagrees with the report,
-open a GitHub issue with sanitised values from that row.
+follow [Reporting problems](../reporting-problems.md) and include that row.
