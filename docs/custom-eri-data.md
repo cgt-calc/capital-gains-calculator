@@ -168,8 +168,8 @@ start date** column; use the end date.
 - **Currency:** same name column
 - **Excess of reporting income over distribution:** Excess reported income per share column
 
-Some share classes HMRC lists for HSBC ETFs plc, such as the currency-hedged ones, are not in the
-report. If yours is missing, ask HSBC for its figures.
+Some share classes HMRC lists for HSBC ETFs plc, mostly currency-hedged ones, are not in the report.
+If yours is missing, ask HSBC for its figures.
 
 Funds of HSBC Global Funds ICAV have a separate report, with an added **Share class / Series**
 column. To download it, replace the ISIN in the link with your fund's ISIN. If a year's report does

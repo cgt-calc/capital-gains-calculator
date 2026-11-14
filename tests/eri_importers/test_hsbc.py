@@ -140,7 +140,8 @@ def _draw_overflowing_rows(canvas: Canvas) -> None:
         # drawn below in place of the centred one.
         (ISIN_E, "HSBC Close Reference UCITS ETF", -60, "HKD", "3.2500"),
     ]
-    for number, (isin, name, into_isin, currency, amount) in enumerate(rows, 3):
+    # Below the three lines the test's own rows take.
+    for number, (isin, name, into_isin, currency, amount) in enumerate(rows, 4):
         baseline = HEADING_BASELINE - number * LINE
         name_end = isin_left(isin) + into_isin
         canvas.drawString(name_end - stringWidth(name, FONT, SIZE), baseline, name)
@@ -199,11 +200,13 @@ def test_reads_excess_income_from_each_row(tmp_path: Path) -> None:
     """Each row gives its own period end, currency and per-share excess.
 
     The second fund closed on 19 February 2025, so its period ends then and
-    not on the report's 31 December. The amounts are the report's own figures
-    per share, so nothing is calculated.
+    not on the report's 31 December. A line between the rows with no ISIN and
+    no amount is not a row, and the rows after it are still read. The amounts
+    are the report's own figures per share, so nothing is calculated.
     """
     rows = [
         _row(ISIN_A, "31/12/2025", "GBP", "0.0150"),
+        ("(continued)", [""] * len(COLUMNS)),
         _row(ISIN_B, "19/02/2025", "USD", "0.2095"),
     ]
     report = _write_report(tmp_path / REPORT_NAME, rows=rows, overflowing_rows=True)

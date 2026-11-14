@@ -202,7 +202,9 @@ class HsbcImporter(ERIImporter):
                 for column, cell in colmap.items()
             }
             if not cells_words[ISIN_COLUMN]:
-                # A fund name continued on a second line has nothing else.
+                # Not a row: the page number, a heading's last words printed
+                # just below the heading line (2016), or a fund name's second
+                # line. Rows after it are still read.
                 if cells_words[ERI_COLUMN]:
                     raise ParsingError(
                         file,
