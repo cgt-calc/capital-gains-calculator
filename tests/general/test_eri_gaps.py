@@ -869,6 +869,16 @@ def test_units_bought_back_within_30_days_count_as_held(
 
 
 @pytest.mark.parametrize(
+    "reports",
+    [
+        pytest.param(
+            [_report(dt.date(2021, 4, 15)), _report(dt.date(2023, 4, 15))],
+            id="between two figures",
+        ),
+        pytest.param([_report(dt.date(2023, 4, 15))], id="before the only figure"),
+    ],
+)
+@pytest.mark.parametrize(
     ("year", "stops"),
     [
         pytest.param("2021", False, id="the report the sale is in"),
@@ -876,12 +886,14 @@ def test_units_bought_back_within_30_days_count_as_held(
     ],
 )
 def test_a_30_day_match_does_not_reach_a_period_after_the_report(
-    tmp_path: Path, year: str, stops: bool
+    tmp_path: Path, reports: list[str], year: str, stops: bool
 ) -> None:
     """A period ending after the report is not checked, even through a match.
 
-    Rows end 2021-04-15 and 2023-04-15, so the period ending around
-    2022-04-15 has no figure. All 10 units are sold on 2022-03-31, in
+    A row ends 2023-04-15, with or without one ending 2021-04-15, so the
+    period ending around 2022-04-15 is predicted either way: between two
+    rows, or before the only one. It has no figure. All 10 units are bought
+    on 2021-04-16, after any period ending 2021-04-15, sold on 2022-03-31, in
     2021/22, and bought back on 2022-04-20, within 30 days, so they count as
     held at 2022-04-15 (reg 94(3A)). The 30-day rule looks past the end of
     2021/22 to find the repurchase, but that period end is after the report,
@@ -895,7 +907,7 @@ def test_a_30_day_match_does_not_reach_a_period_after_the_report(
             "2022-03-31,SELL,EXAMPLE,10,110.00,5.00,GBP",
             "2022-04-20,BUY,EXAMPLE,10,105.00,5.00,GBP",
         ],
-        [_report(dt.date(2021, 4, 15)), _report(dt.date(2023, 4, 15))],
+        reports,
         "--year",
         year,
     )
