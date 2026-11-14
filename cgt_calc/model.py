@@ -9,7 +9,7 @@ from enum import Enum
 import re
 from typing import TYPE_CHECKING, Final, NamedTuple, Self, override
 
-from .exceptions import CalculationError
+from .exceptions import CalculationError, CurrencyMismatchError
 from .util import (
     approx_equal,
     display_str,
@@ -248,7 +248,7 @@ class ForeignCurrencyAmount:
             and amount.currency is not None
             and self.currency != amount.currency
         ):
-            raise CalculationError(
+            raise CurrencyMismatchError(
                 "Cannot combine amounts in different currencies: "
                 f"{self.currency} and {amount.currency}"
             )

@@ -193,9 +193,10 @@ Documentation: https://cgt-calc.uk/
         action="store_true",
         default=False,
         help=(
-            "accept the same dividend, or a dividend and its withholding tax, "
-            "reported in GBP and in one foreign currency, converting the foreign "
-            "amounts to GBP; two different foreign currencies are still an error"
+            "accept separate payments of the same dividend, or a dividend and its "
+            "withholding tax, reported in GBP and in one foreign currency, "
+            "converting the foreign amounts to GBP; two different foreign "
+            "currencies are still an error"
         ),
     )
     calc_group.add_argument(

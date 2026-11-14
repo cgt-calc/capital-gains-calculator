@@ -16,6 +16,7 @@ from colorama import Fore, Style
 from .const import (
     BALANCE_CHECK_CONTEXT_ROWS,
     ERI_TAX_DATE_DELTA,
+    INCOME_IN_TWO_CURRENCIES_DOCS,
     POOLING_RULES_START_DATE,
     PRE_POOLING_REFUSED_ACTIONS,
     REBASING_DATE,
@@ -25,6 +26,7 @@ from .exceptions import (
     AmountMissingError,
     CalculatedAmountDiscrepancyError,
     CalculationError,
+    CurrencyMismatchError,
     InvalidTransactionError,
     IsinMissingError,
     PriceMissingError,
@@ -221,6 +223,34 @@ def _first_history_date(
     for transaction in transactions:
         _refuse_unsupported_history(transaction)
     return min((t.date for t in transactions), default=None)
+
+
+def _dividend_in_two_currencies(
+    symbol: str, first: BrokerTransaction, second: BrokerTransaction
+) -> CalculationError:
+    """Name a dividend whose two rows are in currencies that cannot be added.
+
+    With GBP one of them, only the option being off refuses, so passing it is
+    the fix. Between two foreign currencies the option does not help.
+    """
+    if UK_CURRENCY in {first.currency, second.currency}:
+        advice = (
+            "If they are separate payments of this dividend, such as one to "
+            "each of two accounts, pass --autoconvert-currency to add them "
+            "together in pounds."
+        )
+    else:
+        advice = (
+            "--autoconvert-currency combines GBP with one foreign currency; it "
+            "does not convert between foreign currencies. Report these rows in "
+            "one currency."
+        )
+    return CalculationError(
+        "Cannot combine amounts in different currencies: "
+        f"{first.currency} and {second.currency}. The {symbol} dividend on "
+        f"{second.date} is reported in both:\n{first}\n{second}\n"
+        f"{advice} See {INCOME_IN_TWO_CURRENCIES_DOCS}"
+    )
 
 
 def _refuse_negative_price(transaction: BrokerTransaction) -> None:
@@ -1880,6 +1910,11 @@ class TransactionIngester:
         )
         dividends: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(Decimal)
         dividends_tax: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(Decimal)
+        # The first dividend row of each symbol, day and currency, to name
+        # beside a row in another currency that cannot be added to it.
+        first_dividend_rows: dict[
+            tuple[str, dt.date, CurrencyCode], BrokerTransaction
+        ] = {}
         interests: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(Decimal)
         interest_taxes: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(Decimal)
         balance_history: list[Decimal] = []
@@ -1997,14 +2032,28 @@ class TransactionIngester:
                 symbol = get_symbol_or_fail(transaction)
                 currency = transaction.currency
                 new_balance += amount
-                self.history.dividend_list[symbol, transaction.date] = (
-                    self.currency_converter.combine_amounts(
-                        self.history.dividend_list[symbol, transaction.date],
-                        ForeignCurrencyAmount(amount, currency),
-                        transaction.date,
-                        autoconvert=self.autoconvert_currency,
-                    )
+                total = self.history.dividend_list[symbol, transaction.date]
+                first_dividend_rows.setdefault(
+                    (symbol, transaction.date, currency), transaction
                 )
+                try:
+                    self.history.dividend_list[symbol, transaction.date] = (
+                        self.currency_converter.combine_amounts(
+                            total,
+                            ForeignCurrencyAmount(amount, currency),
+                            transaction.date,
+                            autoconvert=self.autoconvert_currency,
+                        )
+                    )
+                except CurrencyMismatchError as err:
+                    # The total is stated in the currency of a row already
+                    # read: with the option, a GBP row joins a foreign total.
+                    assert total.currency is not None
+                    raise _dividend_in_two_currencies(
+                        symbol,
+                        first_dividend_rows[symbol, transaction.date, total.currency],
+                        transaction,
+                    ) from err
                 self.history.dividend_dates[transaction.broker, symbol].add(
                     transaction.date
                 )

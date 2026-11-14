@@ -425,6 +425,10 @@ class CalculationError(CgtError):
     """Calculation error."""
 
 
+class CurrencyMismatchError(CalculationError):
+    """Two amounts in different currencies that cannot be added."""
+
+
 class ExchangeRateMissingError(CalculationError):
     """Exchange rate is missing error."""
 
