@@ -70,7 +70,8 @@ they leave out:
 
 The figures also tax a gain on an
 [offshore fund that was ever non-reporting](offshore-funds.md#unsupported-functionality) as a
-capital gain, although it can be taxed as income. Work out that disposal outside cgt-calc.
+capital gain, although it can be taxed as income. For a fund with HMRC's dates in the bundled data,
+cgt-calc stops instead. Work out that disposal outside cgt-calc.
 
 No tax figures are shown when the taxable gain is zero or when you use
 [`--from` and `--to`](usage.md#report-part-of-a-tax-year-advanced), even for a period that covers

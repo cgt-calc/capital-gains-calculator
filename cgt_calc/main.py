@@ -32,6 +32,7 @@ from .model import (
     PortfolioEntry,
     Position,
 )
+from .non_reporting import fund_statuses, report_non_reporting
 from .util import round_decimal
 
 if TYPE_CHECKING:
@@ -231,7 +232,20 @@ class CapitalGainsCalculator:
             self.ingester.non_uk_resident_periods,
             min(self.tax_year_end_date, self.ingester.today),
         )
+        self.run.fund_statuses = fund_statuses(
+            self.history.eri_fund_period_ends,
+            self.history.eri_fund_holdings,
+            self.history.ticker_only_eri_warnings,
+            self.isin_converter.get_symbol_to_isin_map(),
+        )
         walked = self.matcher.walk()
+        # Before the missing figures: taking the holding out, as a stop here
+        # asks, also takes out its missing periods.
+        report_non_reporting(
+            self.run.non_reporting_disposals,
+            self.run.non_reporting_marks,
+            self.tax_year,
+        )
         eri_missing = report_missing_eris(
             self.run.missing_eris,
             self.history.eri_fund_period_ends,
