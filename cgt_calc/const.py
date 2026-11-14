@@ -237,6 +237,10 @@ DIVIDEND_TAX_LEAD_DAYS: Final = 5
 
 UK_CURRENCY: Final = "GBP"
 
+# Where the guide explains income reported in two currencies and the option
+# that accepts it. One literal, so that the link check reads the whole address.
+INCOME_IN_TWO_CURRENCIES_DOCS: Final = "https://cgt-calc.uk/extra-data-and-options/#income-reported-in-more-than-one-currency"
+
 # Tax dates are UK calendar days, so timestamped transactions are read
 # in UK time (GMT in winter, BST in summer) and not in UTC.
 UK_TIMEZONE: Final = ZoneInfo("Europe/London")

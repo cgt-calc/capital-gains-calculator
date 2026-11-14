@@ -100,7 +100,7 @@ def test_nra_withhold_is_deducted_from_the_dividend(tmp_path: Path) -> None:
 def test_positive_nra_withhold_nets_against_the_earlier_deduction(
     tmp_path: Path,
 ) -> None:
-    """A later positive row returns part of the tax, as `NRA Tax Adj` does.
+    """A later positive row returns part of the tax, as a correction would.
 
     The sign carries the meaning for every label in this set, so a reversal
     needs no special handling: it leaves the difference as the tax paid.

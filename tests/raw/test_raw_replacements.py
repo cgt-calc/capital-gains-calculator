@@ -47,11 +47,11 @@ def _monthly_payer(tmp_path: Path, june_tax: str, correction: str | None) -> Pat
     """Write a Schwab history of a monthly payer, newest row first as Schwab does.
 
     100 FOO bought on 1 May 2024 with the 1,000 deposited. Dividends of 100 on
-    3 June and 200 on 30 June, each with tax withheld that day, and an
+    3 June and 200 on 30 June, each with tax withheld that day, and a later
     `NRA Tax Adj` on 27 June: 24 days after the first payment, inside the 30
-    days back a correction may lie, and 3 days before the second, inside the
+    days back its dividend may lie, and 3 days before the second, inside the
     5 days ahead. Either payment could claim it, so cgt-calc leaves it out.
-    The correction is row 4 of the file.
+    The made-up correction is row 4 of the file.
     """
     rows = [
         '"06/30/2024","NRA Withholding","FOO","FOO CORP","","","","-$30.00"',

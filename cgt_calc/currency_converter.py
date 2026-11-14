@@ -29,7 +29,7 @@ from .const import (
 from .csv_columns import CsvColumns
 from .dates import is_date
 from .exceptions import (
-    CalculationError,
+    CurrencyMismatchError,
     ExternalApiError,
     HmrcRateMissingError,
     ParsingError,
@@ -498,7 +498,7 @@ class CurrencyConverter:
             and first.currency != second.currency
         ):
             if UK_CURRENCY not in {first.currency, second.currency}:
-                raise CalculationError(
+                raise CurrencyMismatchError(
                     "Cannot combine amounts in different currencies: "
                     f"{first.currency} and {second.currency}. "
                     "--autoconvert-currency combines GBP with one foreign "

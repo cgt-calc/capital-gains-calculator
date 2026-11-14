@@ -13,6 +13,7 @@ from .const import (
     DIVIDEND_DOUBLE_TAXATION_RULES,
     DIVIDEND_TAX_LEAD_DAYS,
     DIVIDEND_TAX_MATCH_DAYS,
+    INCOME_IN_TWO_CURRENCIES_DOCS,
     ISIN_COUNTRY_CODE_LENGTH,
     UK_CURRENCY,
 )
@@ -235,10 +236,10 @@ class IncomeProcessor:
         """Attribute each withholding to the dividend it was taken from.
 
         Brokers do not always date a withholding, or a later correction of
-        one such as a Schwab ``NRA Tax Adj``, on the day of the payment it
-        belongs to, so tax is matched to a dividend of the same broker and
-        symbol nearby. Holding one symbol at two brokers therefore keeps
-        each broker's withholding with that broker's own payments.
+        one such as a Schwab Equity Awards ``Tax Reversal``, on the day of the
+        payment it belongs to, so tax is matched to a dividend of the same
+        broker and symbol nearby. Holding one symbol at two brokers therefore
+        keeps each broker's withholding with that broker's own payments.
 
         Tax is attributed only where one payment can claim it. Where two
         could, the export does not record which, and no arrangement of dates
@@ -326,10 +327,18 @@ class IncomeProcessor:
             if tax.amount and tax_currency != currency:
                 gbp_involved = UK_CURRENCY in {currency, tax_currency}
                 if not self.autoconvert_currency or not gbp_involved:
+                    # With GBP one of them, only the option being off refuses.
+                    advice = (
+                        "If both currencies are right, pass --autoconvert-currency."
+                        if gbp_involved
+                        else "--autoconvert-currency works only when one of the "
+                        "two is in GBP."
+                    )
                     raise CalculationError(
                         f"Dividend and withholding tax currencies do not match "
                         f"for {symbol} on {date}: dividend "
-                        f"{foreign_amount.currency}, tax {tax.currency}"
+                        f"{foreign_amount.currency}, tax {tax.currency}. "
+                        f"{advice} See {INCOME_IN_TWO_CURRENCIES_DOCS}"
                     )
                 LOGGER.debug(
                     "Converting the %s dividend and its %s tax for %s on %s "

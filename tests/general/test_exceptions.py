@@ -16,6 +16,7 @@ from cgt_calc.exceptions import (
     CalculationError,
     CgtError,
     ClosingPriceRequestError,
+    CurrencyMismatchError,
     CurrentPriceRequestError,
     ExchangeRateMissingError,
     ExternalApiError,
@@ -213,10 +214,14 @@ def test_every_exception_has_a_context_case() -> None:
     """
     bare_base_classes = {CgtError, CalculationError}
     # The Yahoo request errors are checked where raised, in
-    # test_current_price_fetcher.py.
+    # test_current_price_fetcher.py. A currency mismatch carries the text of
+    # the sum that refused it, checked in test_model.py and
+    # test_currency_converter.py, and what the command line prints of it in
+    # test_income_in_two_currencies.py.
     tested_directly = {
         ParsingError,
         ClosingPriceRequestError,
+        CurrencyMismatchError,
         CurrentPriceRequestError,
     }
     covered = (
