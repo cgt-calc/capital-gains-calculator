@@ -9,14 +9,14 @@ lookups below.
 
 The external services used are:
 
-- [**UK Trade Tariff API**](https://www.trade-tariff.service.gov.uk/exchange_rates) – to fetch
+- [**UK Trade Tariff API**](https://www.trade-tariff.service.gov.uk/exchange_rates): to fetch
     monthly GBP exchange rates for 2021 onwards
-- [**HMRC's legacy exchange-rate service**](https://www.hmrc.gov.uk/softwaredevelopers/2020-exrates.html)
-    – to fetch monthly GBP exchange rates for May 2016 to 2020. Nothing is requested for an earlier
+- [**HMRC's legacy exchange-rate service**](https://www.hmrc.gov.uk/softwaredevelopers/2020-exrates.html):
+    to fetch monthly GBP exchange rates for May 2016 to 2020. Nothing is requested for an earlier
     date: rates for April 2002 to April 2016 come with cgt-calc
-- [**Open FIGI API**](https://www.openfigi.com/api/overview) – to translate ISIN codes to tickers
+- [**Open FIGI API**](https://www.openfigi.com/api/overview): to translate ISIN codes to tickers
     when needed (only ISIN codes are queried)
-- [**Yahoo Finance**](https://uk.help.yahoo.com/kb/finance/privacy-policy-sln6177.html) – to fetch
+- [**Yahoo Finance**](https://uk.help.yahoo.com/kb/finance/privacy-policy-sln6177.html): to fetch
     current prices when you use `--unrealized-gains`, or historical prices when the transaction
     history contains a spin-off whose prices you have not given in a file passed with
     `--prices-file` (a current-price lookup queries the holding's ISIN, where known, and if needed

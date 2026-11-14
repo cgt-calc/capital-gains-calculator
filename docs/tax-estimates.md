@@ -128,8 +128,8 @@ cgt-calc cannot know the following, so allow for them in the figure you pass:
     [some cases](brokers/trading212.md#known-limitations), add that tax unless you have put it into
     the report.
 - **Dividends before 6 April 2016.** cgt-calc does not add them, because the amount taxed is not the
-    amount received (see [Choose the tax year](usage.md#choose-the-tax-year)). Add their taxable
-    amount yourself. The terminal reminds you when the report has such dividends.
+    amount received (see [Earlier tax years](usage.md#earlier-tax-years)). Add their taxable amount
+    yourself. The terminal reminds you when the report has such dividends.
 
 The Personal Allowance shrinks when income is over £100,000. That does not change the estimate: at
 that income all of the gain is taxed at the higher rate. For the same reason, when your income
