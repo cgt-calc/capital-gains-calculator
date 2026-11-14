@@ -288,6 +288,46 @@ def test_bundled_eri_of_closed_vanguard_funds_and_gaaa_first_period_reaches_hold
         assert allowable_costs in lines
 
 
+def test_bundled_eri_of_iucm_first_period_reaches_holders(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """IUCM's first bundled row is dated at the year end its report means.
+
+    iShares V's 2018 report prints IE00BDDRF478's first period as
+    "17/09/2018 to 30/05/2018", which ends before it starts. Its fund
+    distribution date, 31/05/2019, is the one the report's other 38 classes
+    give for their periods ending 30/11/2018, the umbrella's year end, so the
+    row is dated 30/11/2018. Dated as printed, it would reach no holder.
+
+    - IUCM (IE00BDDRF478): 10,000 bought on 01/11/2018 for 50,000.00 plus a
+      5.00 fee, held at 30/11/2018, sold on 01/05/2019 for 52,000.00 less a
+      5.00 fee. ERI 10,000 x 0.0014 USD = 14.00 USD, received on 30/05/2019
+      (cgt-calc's date, six months after the period end) at HMRC's rate of
+      1.3049: 14.00 / 1.3049 = 10.73. Allowable costs 50,005.00 + 5.00 +
+      10.73 = 50,020.73.
+    """
+    raw = tmp_path / "raw.csv"
+    raw.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2018-11-01,TRANSFER,,1,60000.00,0.00,GBP\n"
+        "2018-11-01,BUY,IUCM,10000,5.00,5.00,GBP\n"
+        "2019-05-01,SELL,IUCM,10000,5.20,5.00,GBP\n",
+        encoding="utf-8",
+    )
+
+    result = run_cli(
+        build_cmd(
+            "--year", "2019", "--raw-file", str(raw), "--output", report_path(request)
+        )
+    )
+
+    lines = [line.strip() for line in result.stdout.splitlines()]
+    assert [line for line in lines if line.endswith("(included as dividend)")] == [
+        "IUCM: £10.73 (included as dividend)"
+    ]
+    assert "Allowable costs:    £50,020.73" in lines
+
+
 def test_a_holding_with_euro_eri_sold_and_bought_back_within_30_days(
     tmp_path: Path, request: pytest.FixtureRequest
 ) -> None:

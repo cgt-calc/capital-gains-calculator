@@ -52,10 +52,12 @@ gains on disposals.
 cgt-calc currently bundles:
 
 - [Vanguard Funds plc 2018-2025 and Vanguard Investment Series plc 2021-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/vanguard_eri.csv)
-- [BlackRock Funds 2019-2026](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/blackrock_eri.csv)
-- [iShares Funds 2018-2026](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/ishares_eri.csv)
+- [BlackRock Strategic Funds 2019-2025 and other BlackRock Funds 2020-2026](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/blackrock_eri.csv)
+- [iShares Funds 2018-2026](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/ishares_eri.csv),
+    except iShares IV plc, which starts in 2019, and iShares V plc's year to 30 November 2019, which
+    iShares has not published
 - [Invesco Funds 2018-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/invesco_eri.csv)
-- [Xtrackers Funds 2024-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/xtrackers_eri.csv)
+- [Xtrackers (IE) Plc 2023-2025 and other Xtrackers Funds 2024-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/xtrackers_eri.csv)
 - [Amundi Smart Overnight Return (CSH2) 2015-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/amundi_eri.csv),
     entered by hand from KPMG Reporting Funds
 - [Legal & General UCITS ETF plc 2023-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/legal_and_general_eri.csv)
