@@ -315,7 +315,7 @@ def test_a_period_whose_report_is_not_due_yet(tmp_path: Path) -> None:
         pytest.param(
             ["2016-05-01,BUY,QDIV,10,30.00,0.00,GBP"],
             [],
-            ["--year", "2019", "--non-uk-resident-periods", "2019-06-01:"],
+            ["--year", "2018", "--non-uk-resident-periods", "2018-06-01:"],
             id="a share whose ticker is also a fund's",
         ),
         pytest.param(
@@ -343,12 +343,12 @@ def test_nothing_is_missing(
       period with its year end moved, not a period missed in between: 2021-06-30
       is within 31 days of it.
     - The RAW holding QDIV has no ISIN. cgt-calc's bundled list gives the
-      ticker to a fund (IE00BKM4H312, periods ending 31 October from 2019),
+      ticker to a fund (IE00BKM4H312, periods ending 31 October from 2018),
       but QDIV is also a US symbol, so the holding may not be that fund and is
       not checked. No report of the fund reaches the holding's cost: each is
-      nil or has its D in the non-residence period from 2019-06-01, which is
+      nil or has its D in the non-residence period from 2018-06-01, which is
       when that has to be known. Otherwise the period ending around
-      2018-10-31, with D on 2019-04-30, would stop the 2019/20 report. In
+      2017-10-31, with D on 2018-04-30, would stop the 2018/19 report. In
       sterling, so no exchange rate is needed.
     - The period a year after the last row ends after today, inside the tax
       year in progress, so its report is not missing yet.

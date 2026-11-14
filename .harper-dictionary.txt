@@ -244,6 +244,7 @@ pdfplumber
 PermissionError
 pipx
 plc
+plc's
 PLC0415
 png
 Podman
