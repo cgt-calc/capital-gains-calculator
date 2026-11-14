@@ -40,9 +40,9 @@ BUY_ROW = (
     'ETF 4563 @  3287.199","3,287.199","4,563","-150,006.84"\n'
 )
 
-# The text of that purchase's contract note, as _create_buy_pdf lays it out.
+# The lines of that purchase's contract note that cgt-calc reads, as
+# _create_buy_pdf writes them.
 BUY_NOTE_LINES = [
-    "**BOUGHT**",
     "ISIN: IE00BK5BQV03",
     "STOCK CODE: VHVG",
     "4,563.00 | 3287.199 | 149,994.89",

@@ -18,8 +18,8 @@ from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
 from cgt_calc.parsers.base_parsers import BaseDirParser, StandardCSVParser
 from cgt_calc.util import parse_decimal
 
-# PDF parser regexes. The note's date is not read: the CSV's trade date is used.
-ACTION_REGEX = re.compile(r"\*\*\s*(BOUGHT|SOLD)\s*\*\*", re.IGNORECASE)
+# PDF parser regexes. The note's date and action are not read: the CSV's trade
+# date and reference are used.
 ISIN_TICKER_REGEX = re.compile(
     r"([A-Z]{2}[A-Z0-9]{9}\d)\s*STOCK CODE:\s*([A-Z0-9]+)", re.IGNORECASE
 )
@@ -33,13 +33,10 @@ FEES_REGEX = re.compile(r"Dealing charge[^\d]*([\d,]+\.\d{2})", re.IGNORECASE)
 class HLPdfData:
     """Data extracted from a single HL Contract Note PDF."""
 
-    file_name: str
-    action: str | None
     ticker: str
     isin: Isin
     quantity: Decimal
     price: Decimal
-    consideration: Decimal
     fees: Decimal
 
 
@@ -109,11 +106,11 @@ class HargreavesLansdownParser(
                 "again from HL; a scanned copy cannot be read.",
             )
 
-        action_match = ACTION_REGEX.search(text)
         isin_ticker_match = ISIN_TICKER_REGEX.search(text)
 
         # Look for three sequential floats (Qty, Price, Consideration)
-        # separated by any whitespace or optional pipes
+        # separated by any whitespace or optional pipes; the consideration is
+        # not used
         values_match = VALUES_REGEX.search(text)
 
         # Tolerate any non-digit characters between "Dealing charge" and its numeric value
@@ -147,13 +144,10 @@ class HargreavesLansdownParser(
             )
 
         return HLPdfData(
-            file_name=pdf_path.name,
-            action=action_match.group(1).lower() if action_match else None,
             ticker=isin_ticker_match.group(2),
             isin=isin,
             quantity=Decimal(values_match.group(1).replace(",", "")),
             price=Decimal(values_match.group(2).replace(",", "")),
-            consideration=Decimal(values_match.group(3).replace(",", "")),
             fees=fees,
         )
 

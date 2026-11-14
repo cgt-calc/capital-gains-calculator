@@ -124,9 +124,8 @@ but any other non-blank reference stops the import with `Unknown transaction typ
     compare the reference or the settle date. It cannot detect a transaction that the two files
     state differently, and counts that one twice. Keep unrelated CSVs elsewhere and make each
     reporting period occur exactly once.
-- The action extracted from a PDF is not cross-checked with the CSV, and the trade date in a PDF is
-    not read: the CSV's is used. The filename reference is the link, so verify that each reference
-    points to the correct note.
+- The action and trade date in a PDF are not read: the CSV's reference and trade date are used. The
+    filename reference is the link, so verify that each reference points to the correct note.
 
 ## Troubleshooting
 
