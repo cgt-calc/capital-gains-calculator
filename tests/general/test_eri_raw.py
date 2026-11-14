@@ -297,13 +297,14 @@ def test_bundled_eri_of_iucm_first_period_reaches_holders(
     "17/09/2018 to 30/05/2018", which ends before it starts. Its fund
     distribution date, 31/05/2019, is the one the report's other 38 classes
     give for their periods ending 30/11/2018, the umbrella's year end, so the
-    row is dated 30/11/2018. Dated as printed, it reached no holder.
+    row is dated 30/11/2018. Dated as printed, it would reach no holder.
 
     - IUCM (IE00BDDRF478): 10,000 bought on 01/11/2018 for 50,000.00 plus a
       5.00 fee, held at 30/11/2018, sold on 01/05/2019 for 52,000.00 less a
-      5.00 fee. ERI 10,000 x 0.0014 USD = 14.00 USD, received on 30/05/2019 at
-      HMRC's rate of 1.3049: 14.00 / 1.3049 = 10.73. Allowable costs
-      50,005.00 + 5.00 + 10.73 = 50,020.73.
+      5.00 fee. ERI 10,000 x 0.0014 USD = 14.00 USD, received on 30/05/2019
+      (cgt-calc's date, six months after the period end) at HMRC's rate of
+      1.3049: 14.00 / 1.3049 = 10.73. Allowable costs 50,005.00 + 5.00 +
+      10.73 = 50,020.73.
     """
     raw = tmp_path / "raw.csv"
     raw.write_text(
