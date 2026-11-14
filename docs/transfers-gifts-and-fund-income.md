@@ -162,7 +162,10 @@ that value, so record the shares with a `STOCK_ACTIVITY` row, with the value per
     ([CG31140](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg31140)). If
     inheritance tax was payable and HMRC agreed the value of the shares for it, use that value
     ([s274](https://www.legislation.gov.uk/ukpga/1992/12/section/274),
-    [CG32224](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg32224)).
+    [CG32224](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg32224)). If the
+    deceased's holding was shared out between heirs, each heir's cost is a proportion of the whole
+    holding's value: enter that value divided by the holding's number of shares, not a value for
+    your part alone. Ask the executors for it if you do not have it.
 
 ```csv
 2023-06-01,STOCK_ACTIVITY,ACME,200,5.00,0.00,GBP
