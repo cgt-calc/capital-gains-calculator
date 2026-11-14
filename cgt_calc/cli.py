@@ -175,15 +175,24 @@ def calculate_cgt(args: argparse.Namespace) -> None:
     # is not written while any figure uses a stand-in exchange rate.
     if args.no_report:
         done_msg = "Done! Calculations complete (PDF generation skipped)."
-    elif report.eri_estimated_until is not None:
-        LOGGER.warning(
-            "The PDF report was not written: the excess reported income in "
-            "these figures is converted at the period-end rate until its fund "
-            "distribution date, so the figures are not final. Run cgt-calc "
-            "again on or after %s, when every rate they need is final, and the "
-            "PDF report will be written.",
-            report.eri_estimated_until,
-        )
+    elif report.eri_missing or report.eri_estimated_until is not None:
+        if report.eri_missing:
+            LOGGER.warning(
+                "The PDF report was not written: the income in this report lacks "
+                "the excess reported income listed above. A newer cgt-calc may "
+                "include these figures: upgrade first. Otherwise add each figure "
+                "with --eri-raw-file once the fund has published it, and run "
+                "cgt-calc again."
+            )
+        if report.eri_estimated_until is not None:
+            LOGGER.warning(
+                "The PDF report was not written: the excess reported income in "
+                "these figures is converted at the period-end rate until its fund "
+                "distribution date, so the figures are not final. Run cgt-calc "
+                "again on or after %s, when every rate they need is final, and "
+                "the PDF report will be written.",
+                report.eri_estimated_until,
+            )
         done_msg = "Done! Calculations complete (PDF report not written)."
     else:
         render_pdf(report, output_path=args.output)

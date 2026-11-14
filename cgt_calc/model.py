@@ -850,6 +850,9 @@ class CapitalGainsReport:
     # the period-end rate because that date had not come; None when every ERI
     # used its final rate. No PDF is written until this date.
     eri_estimated_until: dt.date | None = None
+    # Whether the income of this report, in a window still running, lacks an
+    # ERI figure the run has no row for. No PDF is written then either.
+    eri_missing: bool = False
 
     def period_label(self) -> str | None:
         """Label for a custom reporting period, None for a full tax year."""

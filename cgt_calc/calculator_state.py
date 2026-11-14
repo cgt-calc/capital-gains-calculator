@@ -22,6 +22,7 @@ if TYPE_CHECKING:
         ExcessReportedIncomeLog,
         ForeignAmountLog,
         HmrcTransactionLog,
+        Isin,
         OptionDisposalData,
         SpinOff,
     )
@@ -144,6 +145,14 @@ class PreparedHistory:
     # Every period end a report is supplied for, by holding, including the
     # reports `eris` leaves out for a nil amount or non-residence.
     eri_period_ends: set[tuple[dt.date, str]] = field(default_factory=set)
+    # The same period ends by fund, and the holdings the fund's reports reach,
+    # from which the period ends a fund has no report for are predicted.
+    eri_fund_period_ends: dict[Isin, set[dt.date]] = field(
+        default_factory=lambda: defaultdict(set)
+    )
+    eri_fund_holdings: dict[Isin, set[str]] = field(
+        default_factory=lambda: defaultdict(set)
+    )
     # The warning for each holding whose reports reach it only because the
     # bundled list gives a fund a ticker that is also a US symbol. Written when
     # the report is read, where the mapping is known, and printed by the walk
@@ -207,6 +216,10 @@ class RunState:
     # The reports whose provisional-rate warning this calculation has printed:
     # those above, and those only a holding's cost in the terminal shows.
     provisional_eri_warned: set[tuple[dt.date, str]] = field(default_factory=set)
+    # The period ends a fund should have a report for and has none, by day and
+    # holding, with the fund; and each one a holding had units at, with it.
+    predicted_eri_ends: dict[dt.date, dict[str, Isin]] = field(default_factory=dict)
+    missing_eris: dict[tuple[Isin, dt.date], str] = field(default_factory=dict)
     # The excess reported income in a foreign currency that each pool's cost
     # carries, so a disposal before its distribution date can be flagged.
     pool_eris: dict[str, list[ExcessReportedIncome]] = field(
