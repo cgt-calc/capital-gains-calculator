@@ -17,11 +17,13 @@ funds (ERI), extra data and options, and Docker.
 
 ## 🚀 Quick Start
 
-Install with [uv](https://docs.astral.sh/uv/getting-started/installation/) (or pipx/pip) and
-generate a report for a tax year:
+Install with [uv](https://docs.astral.sh/uv/getting-started/installation/) and generate a report for
+a tax year. `--python 3.12` makes uv use Python 3.12, which it downloads if needed. Without it, uv
+may use an older Python it finds and install an old release of cgt-calc without an error. pipx and
+pip also work, but need Python 3.12 or newer.
 
 ```shell
-uv tool install cgt-calc
+uv tool install --python 3.12 cgt-calc
 cgt-calc --year 2025 schwab_transactions.csv
 ```
 
