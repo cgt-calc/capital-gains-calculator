@@ -18,9 +18,9 @@ uv run python scripts/import_eri_reports.py /path/to/reports
 Replace `/path/to/reports` with your file or folder. The script recognises each report by its
 filename and imports the data into the matching resource CSV under
 [`cgt_calc/resources/eri/`](https://github.com/cgt-calc/capital-gains-calculator/tree/main/cgt_calc/resources/eri).
-Vanguard, BlackRock, iShares, Xtrackers, Invesco and Legal & General UCITS ETF plc reports are
-supported this way. The script does not update ISIN translations; add any needed mappings as
-described below.
+Vanguard, BlackRock, iShares, Xtrackers, Invesco, Legal & General UCITS ETF plc and HSBC ETFs plc
+reports are supported this way. The script does not update ISIN translations; add any needed
+mappings as described below.
 
 Check the messages for each file. **No ERI importer found** means the file was skipped; **found no
 transactions** means no rows were imported from it. The final **Import complete!** message alone
@@ -40,8 +40,8 @@ when its column headings differ from the ones the importer reads. Nothing is imp
 or from any file after it in the folder. Move the file out of the folder, run the script again for
 the other reports, and add its data manually as described below.
 
-Amundi reports, and Legal & General reports other than the UCITS ETF plc one, have no automatic
-importer; add their data manually as described below.
+Amundi reports, Legal & General reports other than the UCITS ETF plc one, and HSBC Global Funds ICAV
+reports have no automatic importer; add their data manually as described below.
 
 ## Manual additions and ISIN translations
 

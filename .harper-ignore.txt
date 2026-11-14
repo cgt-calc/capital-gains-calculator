@@ -133,3 +133,6 @@
 ^invesco\.py:.*ThatThan
 # "a header with every name wrong look alike" uses the verb "look alike".
 ^csv_columns\.py:.*CompoundNouns
+# HSBC's download names (`reportable income 2025-gb-en-hetf.pdf`, `...-hgfi.pdf`)
+# and two ISIN cells from its reports, quoted in the importer's comments.
+^hsbc\.py:.*SpellCheck.*`(gb|hetf|hgfi|IE00BKY59G90|ETFIE000XFORJ80)`

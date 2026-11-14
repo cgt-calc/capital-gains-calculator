@@ -18,6 +18,7 @@ from cgt_calc.exceptions import (
     PriceMissingError,
 )
 from cgt_calc.parsers.eri.importer.blackrock import BlackrockImporter
+from cgt_calc.parsers.eri.importer.hsbc import HsbcImporter
 from cgt_calc.parsers.eri.importer.invesco import InvescoImporter
 from cgt_calc.parsers.eri.importer.legal_and_general import LegalAndGeneralImporter
 from cgt_calc.parsers.eri.importer.vanguard import VanguardImporter
@@ -37,6 +38,7 @@ ERI_IMPORTERS: list[ERIImporter] = [
     VanguardImporter(),
     XtrackersImporter(),
     LegalAndGeneralImporter(),
+    HsbcImporter(),
 ]
 
 logging.basicConfig(level=logging.INFO)

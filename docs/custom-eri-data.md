@@ -153,6 +153,28 @@ second row under a shared **Reporting Period** heading.
 - **Currency:** Currency of calculation column
 - **Excess of reporting income over distribution:** Excess of reportable income per unit column
 
+### HSBC
+
+HSBC publishes one Reportable Income report a year for all the funds of HSBC ETFs plc. Download it
+from this link, changing the year at the end to the year the reporting period ends:
+<https://www.assetmanagement.hsbc.co.uk/api/v1/download/document/ie00b42tw061/gb/en/reportable%20income%202025>
+
+Read the first table, which has an **Excess reported income per share** column. The tables after it
+list the distributions paid, which are not ERI. Reports up to 2017 also have a **Reporting period
+start date** column; use the end date.
+
+- **ISIN:** same name column
+- **Fund Reporting Period End Date:** Reporting period end date column, for your share class
+- **Currency:** same name column
+- **Excess of reporting income over distribution:** Excess reported income per share column
+
+Some share classes HMRC lists for HSBC ETFs plc, such as the currency-hedged ones, are not in the
+report. If yours is missing, ask HSBC for its figures.
+
+Funds of HSBC Global Funds ICAV have a separate report, with an added **Share class / Series**
+column. To download it, replace the ISIN in the link with your fund's ISIN. If a year's report does
+not download, ask HSBC for it.
+
 ## Contributing data back
 
 If you compile ERI data for any fund, please contribute it so other holders of the same fund can
