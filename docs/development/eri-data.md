@@ -18,9 +18,9 @@ uv run python scripts/import_eri_reports.py /path/to/reports
 Replace `/path/to/reports` with your file or folder. The script recognises each report by its
 filename and imports the data into the matching resource CSV under
 [`cgt_calc/resources/eri/`](https://github.com/cgt-calc/capital-gains-calculator/tree/main/cgt_calc/resources/eri).
-Vanguard, BlackRock, iShares, Xtrackers, Invesco, Legal & General UCITS ETF plc and HSBC ETFs plc
-reports are supported this way. The script does not update ISIN translations; add any needed
-mappings as described below.
+Vanguard, BlackRock, iShares, Xtrackers, Invesco, Legal & General UCITS ETF plc, HSBC ETFs plc and
+SSGA SPDR ETFs Europe I and II plc reports are supported this way. The script does not update ISIN
+translations; add any needed mappings as described below.
 
 Check the messages for each file. **No ERI importer found** means the file was skipped; **found no
 transactions** means no rows were imported from it. The final **Import complete!** message alone
@@ -43,11 +43,10 @@ the other reports, and add its data manually as described below.
 Amundi reports, Legal & General reports other than the UCITS ETF plc one, and HSBC Global Funds ICAV
 reports have no automatic importer; add their data manually as described below.
 
-SSGA SPDR ETFs Europe I and II plc reports are supported too. For the years to 31 March 2020 to
-2023, import SSGA's revised reports: the importer refuses the originals. The scanned copy of the
-Europe I plc letter for the year to 31 March 2015
-(`ssga-spdr-i-investor-letter-authorised-2015.pdf`) has no text and stops the script; leave it out,
-as SSGA also publishes that letter as text.
+For SSGA's SPDR reports, import the revised reports for the years to 31 March 2020 to 2023: the
+importer refuses the originals. The scanned copy of the Europe I plc letter for the year to 31 March
+2015 (`ssga-spdr-i-investor-letter-authorised-2015.pdf`) has no text and stops the script; leave it
+out, as SSGA also publishes that letter as text.
 
 ## Manual additions and ISIN translations
 

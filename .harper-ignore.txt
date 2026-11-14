@@ -9,7 +9,7 @@
 # NO_COLOR is a standard environment variable (https://no-color.org/).
 ^logging\.py:.*`COLOR`
 # "in upper case" is the noun; "spdr" is the text SSGA's file names share.
-^spdr\.py:.*(CompoundNouns|SpellCheck.*`spdr`)
+^spdr\.py:.*(CompoundNouns.*uppercase|SpellCheck.*`spdr`)
 # "a share that fell that far" is correct; the FeelFell typo rule misfires.
 ^schwab\.md:.*FeelFell
 # "Section 106A" - Harper reads the trailing "A" as an indefinite article.

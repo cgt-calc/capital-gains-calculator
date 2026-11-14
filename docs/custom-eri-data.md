@@ -149,8 +149,9 @@ figures of some share classes.
 The table comes after the letter:
 
 - **ISIN:** ISIN / Identifier column (ISIN in reports up to 2019)
-- **Fund Reporting Period End Date:** the date in the table's title, "Reporting Period Ended 31
-    March" and the year. If a footnote says your fund terminated during the year, use that date.
+- **Fund Reporting Period End Date:** the date in the table's title, after "Reporting Period End" or
+    "Reporting Period Ended". If a footnote says your fund terminated during the year, use that
+    date.
 - **Currency:** Currency of Share Class column
 - **Excess of reporting income over distribution:** Per unit excess reportable income over
     distributions in respect of the reporting period column

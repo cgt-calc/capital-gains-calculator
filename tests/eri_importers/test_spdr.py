@@ -3,7 +3,7 @@
 Each test draws a synthetic report laid out like SSGA's: a letter page, then
 HMRC's template table with its title and notes above it, headings stacked over
 several lines, fund names wrapped over the lines above and below a row, and
-distributions on lines of their own. The reports up to 2019 print their text
+distributions on lines of their own. The reports up to 2017 print their text
 with no spaces between words; `run_together` draws that kind.
 """
 
@@ -277,7 +277,7 @@ def test_reads_excess_income_from_each_row(tmp_path: Path) -> None:
 def test_reads_run_together_report_and_dates_a_terminated_fund(
     tmp_path: Path,
 ) -> None:
-    """The 2015 to 2019 reports print no spaces between words.
+    """The 2015 to 2017 reports print no spaces between words.
 
     A fund that closed during the year is footnoted, and its period ended on
     the day it closed, not on the title's 31 March.
@@ -414,8 +414,8 @@ def _renamed(key: str, heading: list[tuple[int, str]]) -> list[Column]:
                 "rows": ROWS,
                 "footnotes": ("SPDR Other Fund UCITS ETF terminated 8 December 2014.",),
             },
-            "Page 2 says SPDROTHERFUNDUCITSETF terminated, but no row of the table "
-            "names it",
+            "No row of the table on page 2 names the fund in the footnote 'SPDR Other "
+            "Fund UCITS ETF terminated 8 December 2014.'",
             id="unmatched-termination",
         ),
         pytest.param({"rows": []}, "Could not extract any ERI data", id="no-rows"),

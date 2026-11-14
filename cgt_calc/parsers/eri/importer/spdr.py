@@ -32,7 +32,7 @@ LOGGER = logging.getLogger(__name__)
 # The shareholder notices published beside them hold no figures.
 REPORT_FILE_REGEX = re.compile(r"^(?!.*notice).*spdr.*\.pdf$", re.IGNORECASE)
 
-# Headings, compared in upper case without spaces: the reports up to 2019
+# Headings, compared in upper case without spaces: the reports up to 2017
 # print their text without spaces between words.
 TABLE_HEADING = "UMBRELLA"
 CURRENCY_COLUMN = "CURRENCYOF"
@@ -228,13 +228,12 @@ class SpdrImporter(ERIImporter):
         # A fund closed during the period is footnoted, for example
         # "SPDR Barclays Sterling Aggregate Bond UCITS ETF terminated 8 December
         # 2014.", and its period ended then.
-        terminated: dict[str, dt.date] = {}
+        terminated: dict[str, tuple[dt.date, str]] = {}
         for line in lines:
-            match = TERMINATED_REGEX.fullmatch(
-                _plain("".join(word["text"] for word in line))
-            )
+            footnote = " ".join(word["text"] for word in line)
+            match = TERMINATED_REGEX.fullmatch(_plain(footnote))
             if match:
-                terminated[match.group(1)] = _date(match.group(2))
+                terminated[match.group(1)] = (_date(match.group(2)), footnote)
         matched: set[str] = set()
 
         transactions = []
@@ -274,7 +273,7 @@ class SpdrImporter(ERIImporter):
                 )
             day = end
             plain = _plain(text)
-            for name, terminated_on in terminated.items():
+            for name, (terminated_on, _) in terminated.items():
                 if name in plain:
                     day = terminated_on
                     matched.add(name)
@@ -286,12 +285,16 @@ class SpdrImporter(ERIImporter):
                     currency=currency,
                 )
             )
-        unmatched = sorted(set(terminated) - matched)
+        unmatched = [
+            footnote
+            for name, (_, footnote) in terminated.items()
+            if name not in matched
+        ]
         if unmatched:
             raise ParsingError(
                 file,
-                f"Page {page_number} says {', '.join(unmatched)} terminated, but no "
-                "row of the table names it",
+                f"No row of the table on page {page_number} names the fund in the "
+                f"footnote {', '.join(map(repr, unmatched))}",
             )
         LOGGER.info("Read %d rows from page %d", len(transactions), page_number)
         return transactions, end
