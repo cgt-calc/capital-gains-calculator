@@ -237,12 +237,15 @@ cgt-calc does not support:
         until it leaves, and a closing fund's payout is often recorded a few days later, so cgt-calc
         calculates an ordinary capital gain. If the fund carried on without reporting status, the
         gain may be an offshore income gain. A rename in those 31 days is treated as a closure too.
+        This does not apply to units you held before the fund became a reporting fund: cgt-calc
+        stops on those.
     - **Such units you still hold, or gave to your spouse or civil partner:** cgt-calc warns. A
         transfer to a spouse or civil partner gives no gain, so this report is not affected, but a
         later disposal may be.
-    - **Units renamed into the fund from a name cgt-calc has no dates for, held since before the
-        fund became a reporting fund:** cgt-calc warns. If the earlier name is a fund in the bundled
-        data, add its ISIN to your ISIN translation file and cgt-calc checks it too.
+    - **Units held under a name cgt-calc has no dates for since before the fund became a reporting
+        fund, and renamed into the fund after that date:** cgt-calc warns. If the earlier name is a
+        fund in the bundled data, add its ISIN to your ISIN translation file and cgt-calc checks it
+        too.
 
     If the fund published a report for a period before HMRC's start date, or after its end date, add
     its figure with `--eri-raw-file`: cgt-calc then takes the report's dates over HMRC's.
@@ -253,11 +256,13 @@ cgt-calc does not support:
     being one and has reported its final period, you can elect to be treated as disposing of your
     units on that date, so that the gain up to then is a capital gain
     ([regulation 100](https://www.legislation.gov.uk/uksi/2009/3001/regulation/100)). Either
-    election goes in your tax return for the tax year in which the status changed. cgt-calc cannot
-    see an election, so it still stops on a later disposal.
+    election goes in your tax return for the tax year that includes the fund's last day under its
+    old status. cgt-calc does not include the gain or disposal an election gives, and cannot see an
+    election, so it still stops on a later disposal.
 
-    cgt-calc does not check a fund with only your own ERI figures, or a fund's status before June
-    2012, when older rules could still apply. It cannot tell whether HMRC's dates are right.
+    cgt-calc does not check a fund with only your own ERI figures, and does not use a start date on
+    or before 1 June 2012, when older rules could still apply. It cannot tell whether HMRC's dates
+    are right.
 
 - Full equalisation adjustments. Taxable fund income (cash distributions and/or ERI) and the
     acquisition cost used for CGT can be reduced. cgt-calc does not make these adjustments; use the

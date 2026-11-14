@@ -609,7 +609,7 @@ class Matcher:
         """Note a disposal in the report from a fund that may be non-reporting.
 
         A transfer to a spouse comes here too, as a no gain/no loss disposal.
-        The holding's mark is as the end of the day before left it.
+        The holding's mark is as the previous day's end left it.
         """
         if ctx.date_index < self.tax_year_start_date:
             return
@@ -1141,7 +1141,9 @@ class Matcher:
                 )
             )
 
-    def _carry_non_reporting(self, old: str, new: str, date_index: dt.date) -> None:
+    def _carry_non_reporting(
+        self, old: str, new: str, date_index: dt.date, quantity: Decimal
+    ) -> None:
         """Move a renamed holding's mark, noting a rename that closes its fund."""
         closure = carry_mark(
             date_index,
@@ -1150,6 +1152,7 @@ class Matcher:
             self.run.fund_statuses,
             self.run.non_reporting_marks,
             self.run.held_since,
+            moved=quantity > 0,
         )
         if closure is not None and date_index >= self.tax_year_start_date:
             self.run.non_reporting_disposals.append(closure)
@@ -2493,7 +2496,7 @@ class Matcher:
             if date_index in self.history.rename_list:
                 for old, new in self.history.rename_list[date_index].items():
                     entry = self.process_rename(old, new)
-                    self._carry_non_reporting(old, new, date_index)
+                    self._carry_non_reporting(old, new, date_index, entry.quantity)
                     if date_index >= tax_year_start_index:
                         calculation_log[date_index][f"rename${old}"] = [entry]
 

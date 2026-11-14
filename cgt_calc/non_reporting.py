@@ -18,6 +18,7 @@ import datetime as dt
 import logging
 from typing import TYPE_CHECKING, Literal, NamedTuple
 
+from .dates import get_tax_year_for_date
 from .eri_gaps import SLACK, reporting_dates, reporting_fund_dates
 from .exceptions import CalculationError
 
@@ -136,22 +137,26 @@ def carry_mark(
     statuses: Mapping[str, FundStatus],
     marks: dict[str, Mark],
     held_since: dict[str, dt.date],
+    *,
+    moved: bool,
 ) -> Disposal | None:
     """Move `old`'s mark to `new` with its units, or return the fund's closure.
 
-    A rename within 31 days after the old name's end date is taken as the
-    fund closing, as a disposal then is. Units renamed to a fund from a name
+    A rename that `moved` units within 31 days after the old name's end date
+    is taken as the fund closing, as a disposal then is, unless the units
+    were held since before the start. Units renamed to a fund from a name
     with no HMRC dates, held since before the fund's start, are marked as
     unchecked: the earlier name may have been another fund (reg 17(3A)).
     """
     mark = marks.pop(old, None)
     since = held_since.pop(old, None)
-    if since is None:
+    if since is None or not moved:
         return None
     held_since[new] = min(since, held_since.get(new, since))
     status = statuses.get(old)
     if (
-        status is not None
+        (mark is None or mark.kind == "end")
+        and status is not None
         and status.end is not None
         and status.end < day <= status.end + SLACK
     ):
@@ -184,9 +189,10 @@ def classify_disposal(
 
     A mark from before the start outranks a closure: a fund that became a
     reporting fund while the units were held taxes the gain as income even
-    while it is one (reg 17(3)).
+    while it is one (reg 17(3)). A disposal after the end date outranks an
+    unchecked mark: the fund was not a reporting fund at it (reg 17(2)).
     """
-    if mark is not None and mark.kind != "end":
+    if mark is not None and mark.kind == "start":
         return Disposal(day, holding, mark, spouse)
     if status is not None and status.end is not None and day > status.end:
         ended = Mark("end", holding, status.isin, status.end)
@@ -245,8 +251,7 @@ def _stop_message(disposal: Disposal) -> str:
     )
 
 
-def _held_message(mark: Mark, *, spouse: bool, window: tuple[dt.date, dt.date]) -> str:
-    window_start, window_end = window
+def _held_message(mark: Mark, *, spouse: bool, tax_year: int) -> str:
     if mark.kind == "start":
         status = (
             f"became a reporting fund on {mark.day}, and you have held units since "
@@ -254,10 +259,11 @@ def _held_message(mark: Mark, *, spouse: bool, window: tuple[dt.date, dt.date]) 
         )
         # The election's deemed disposal is on the last day before the start
         # (reg 48(8)), and is made in the return for that year (reg 48(6)).
-        election = window_start <= mark.day - dt.timedelta(days=1) <= window_end
+        election = get_tax_year_for_date(mark.day - dt.timedelta(days=1)) == tax_year
         election_text = (
             " An election to be taxed on the gain up to that date instead "
-            "(regulation 48) has to be made in your tax return for this year."
+            "(regulation 48) has to be made in your tax return for this year, and "
+            "cgt-calc does not include that gain."
         )
     else:
         status = (
@@ -265,17 +271,19 @@ def _held_message(mark: Mark, *, spouse: bool, window: tuple[dt.date, dt.date]) 
             "after that date."
         )
         # Its deemed disposal is on the end date (reg 100(6), (8)).
-        election = window_start <= mark.day <= window_end
+        election = get_tax_year_for_date(mark.day) == tax_year
         election_text = (
             " An election to be treated as disposing of your units on that date "
-            "(regulation 100) has to be made in your tax return for this year."
+            "(regulation 100) has to be made in your tax return for this year, and "
+            "cgt-calc does not include that disposal."
         )
     effect = (
         "Your transfer to your spouse or civil partner gives no gain, so this report "
         "is not affected."
         if spouse
-        else "This report has no disposal from the holding, so its gains are not "
-        "affected."
+        # A disposal that the dates make doubtful would have stopped the run;
+        # one before the end date, or on it, is an ordinary one.
+        else "No disposal in this report is affected."
     )
     return (
         f"HMRC's list shows {mark.name} (ISIN {mark.isin}) {status} {effect} A gain "
@@ -320,13 +328,15 @@ def _unchecked_message(mark: Mark) -> str:
 def report_non_reporting(
     disposals: Collection[Disposal],
     marks: Mapping[str, Mark],
-    window: tuple[dt.date, dt.date],
+    tax_year: int,
 ) -> None:
     """Warn about each holding that may not be in a reporting fund; stop on a sale.
 
     `disposals` are the report's, in order, and `marks` those the holdings
     still have at its end. A disposal from a marked holding stops the run, a
     closure warns, and a holding that is still held or went to a spouse warns.
+    An election is named in the report for its `tax_year`, which a report
+    covering part of the year shares.
     """
     stops = []
     stopped = set()
@@ -352,6 +362,6 @@ def report_non_reporting(
         LOGGER.warning("%s", _unchecked_message(mark))
     for holding, (mark, spouse) in held.items():
         if holding not in stopped:
-            LOGGER.warning("%s", _held_message(mark, spouse=spouse, window=window))
+            LOGGER.warning("%s", _held_message(mark, spouse=spouse, tax_year=tax_year))
     if stops:
         raise CalculationError("\n".join(stops))

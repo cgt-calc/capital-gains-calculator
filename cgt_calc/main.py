@@ -244,7 +244,7 @@ class CapitalGainsCalculator:
         report_non_reporting(
             self.run.non_reporting_disposals,
             self.run.non_reporting_marks,
-            (self.tax_year_start_date, self.tax_year_end_date),
+            self.tax_year,
         )
         eri_missing = report_missing_eris(
             self.run.missing_eris,
