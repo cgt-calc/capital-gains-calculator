@@ -94,11 +94,12 @@ Use the same method you used to install it:
 
 | Install method                                                                                      | Upgrade command                            |
 | --------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| [uv](https://docs.astral.sh/uv/guides/tools/#upgrading-tools)                                       | `uv tool upgrade cgt-calc`                 |
+| [uv](https://docs.astral.sh/uv/guides/tools/#upgrading-tools)                                       | `uv tool upgrade --python 3.12 cgt-calc`   |
 | [pipx](https://pipx.pypa.io/latest/how-to/manage-installed-apps.html#upgrade-one)                   | `pipx upgrade cgt-calc`                    |
 | [pip](https://pip.pypa.io/en/stable/cli/pip_install/#examples), in the original virtual environment | `python -m pip install --upgrade cgt-calc` |
 
-Run `cgt-calc --version` afterwards to check the installed version. If you use `uvx`, run
+Run `cgt-calc --version` afterwards to check the installed version. If it starts with `1.`, follow
+the steps in [Check the installation](#check-the-installation) to replace it. If you use `uvx`, run
 `uvx --python 3.12 cgt-calc@latest --version` to fetch and check the latest release, then use
 `uvx --python 3.12 cgt-calc@latest` with your usual report options. Docker users should follow
 [Updating the image](docker.md#updating-the-image).
