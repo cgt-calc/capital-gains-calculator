@@ -10,8 +10,7 @@ from pathlib import Path
 import re
 from typing import TYPE_CHECKING, Final
 
-from pyrate_limiter import limiter_factory
-from pyrate_limiter.abstracts.rate import Duration
+from pyrate_limiter import Duration, InMemoryBucket, Limiter, Rate, SingleBucketFactory
 from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
 from requests import exceptions as requests_exceptions
 
@@ -113,8 +112,14 @@ class IsinConverter:
     ):
         """Create the IsinConverter."""
         # https://www.openfigi.com/api/documentation#rate-limits
-        limiter = limiter_factory.create_inmemory_limiter(
-            rate_per_duration=24, duration=Duration.MINUTE
+        # Without schedule_leak=False the limiter starts a thread that holds an
+        # event loop and its descriptors open for as long as the limiter
+        # exists. The bucket counts only the requests inside the window, so the
+        # limit holds without it.
+        limiter = Limiter(
+            SingleBucketFactory(
+                InMemoryBucket([Rate(24, Duration.MINUTE)]), schedule_leak=False
+            )
         )
         self.session = RateLimitedRequestsSession(limiter)
         self.isin_translation_file = isin_translation_file

@@ -15,8 +15,7 @@ from typing import TYPE_CHECKING, Final, override
 
 from defusedxml import ElementTree as ET
 from defusedxml.common import DefusedXmlException
-from pyrate_limiter import limiter_factory
-from pyrate_limiter.abstracts.rate import Duration
+from pyrate_limiter import Duration, InMemoryBucket, Limiter, Rate, SingleBucketFactory
 from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
 from requests.adapters import HTTPAdapter, Retry
 
@@ -90,8 +89,14 @@ class CurrencyConverter:
 
         # Limit borrowed from the Companies House API guidance:
         # https://developer-specs.company-information.service.gov.uk/guides/rateLimiting
-        limiter = limiter_factory.create_inmemory_limiter(
-            rate_per_duration=600, duration=Duration.MINUTE * 5
+        # Without schedule_leak=False the limiter starts a thread that holds an
+        # event loop and its descriptors open for as long as the limiter
+        # exists. The bucket counts only the requests inside the window, so the
+        # limit holds without it.
+        limiter = Limiter(
+            SingleBucketFactory(
+                InMemoryBucket([Rate(600, Duration.MINUTE * 5)]), schedule_leak=False
+            )
         )
         self.session = RateLimitedRequestsSession(limiter)
         retries = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
