@@ -23,7 +23,8 @@ def _no_leaked_file_descriptors() -> Iterator[None]:
     """Fail a test that leaves a file, pipe, socket or thread's event loop open.
 
     One pytest worker runs thousands of tests, so a few descriptors left by
-    each soon pass 1024, the highest select() can watch. Windows has no /dev/fd.
+    each soon reach 1024, and select() cannot watch a descriptor numbered 1024
+    or more. Windows has no /dev/fd.
     """
     if sys.platform == "win32":
         yield

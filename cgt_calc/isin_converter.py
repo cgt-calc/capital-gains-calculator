@@ -10,8 +10,7 @@ from pathlib import Path
 import re
 from typing import TYPE_CHECKING, Final
 
-from pyrate_limiter import InMemoryBucket, Limiter, Rate, SingleBucketFactory
-from pyrate_limiter.abstracts.rate import Duration
+from pyrate_limiter import Duration, InMemoryBucket, Limiter, Rate, SingleBucketFactory
 from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
 from requests import exceptions as requests_exceptions
 

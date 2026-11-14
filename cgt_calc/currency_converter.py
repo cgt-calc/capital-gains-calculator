@@ -15,8 +15,7 @@ from typing import TYPE_CHECKING, Final, override
 
 from defusedxml import ElementTree as ET
 from defusedxml.common import DefusedXmlException
-from pyrate_limiter import InMemoryBucket, Limiter, Rate, SingleBucketFactory
-from pyrate_limiter.abstracts.rate import Duration
+from pyrate_limiter import Duration, InMemoryBucket, Limiter, Rate, SingleBucketFactory
 from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
 from requests.adapters import HTTPAdapter, Retry
 
