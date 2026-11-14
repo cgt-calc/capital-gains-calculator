@@ -124,7 +124,7 @@ def test_both_award_options_together_are_refused() -> None:
     no export has shown exists. The old option keeps a destination of its own
     so that this is refused, where sharing one would drop a file in silence.
     """
-    with pytest.raises(CgtError, match="were both given") as exc_info:
+    with pytest.raises(CgtError) as exc_info:
         load_via_cli(
             schwab_file=str(MAIN_HISTORY),
             schwab_award_file=str(PRICE_CSV),
@@ -132,7 +132,13 @@ def test_both_award_options_together_are_refused() -> None:
         )
 
     # Which file to keep depends on what each holds, and the guide says how.
-    assert "#combining-a-main-history-with-a-complete-export" in str(exc_info.value)
+    assert str(exc_info.value) == (
+        "--schwab-award-file and --schwab-equity-award-json were both given. "
+        "cgt-calc reads one Equity Awards export per run: pass it with "
+        "--schwab-award-file. --schwab-equity-award-json is the deprecated name "
+        "for the same option. To choose between the files, see "
+        "https://cgt-calc.uk/brokers/schwab/#combining-a-main-history-with-a-complete-export"
+    )
 
 
 @pytest.mark.parametrize("main", ["schwab_file", "schwab_dir"])
