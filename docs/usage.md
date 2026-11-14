@@ -30,6 +30,11 @@ Depending on your investments, you may also need:
     these. Add them in a small RAW file using the
     [`TRANSFER_TO_SPOUSE` or `TRANSFER_FROM_SPOUSE`](transfers-gifts-and-fund-income.md#transfers-to-a-spouse-or-civil-partner)
     action and pass it alongside your export.
+- **Gifts of shares to anyone else, recorded by hand.** A gift is usually taxed as if you had sold
+    the shares for their market value, and no broker export gives cgt-calc that value. Add the gift
+    in a small RAW file as
+    [Gifts to anyone else](transfers-gifts-and-fund-income.md#gifts-to-anyone-else) describes, and
+    pass it alongside your export.
 
 Put every row you record by hand in one RAW file: cgt-calc reads only one, and a second RAW file
 stops the run.
