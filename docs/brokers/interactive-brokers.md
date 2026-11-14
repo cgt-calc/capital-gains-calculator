@@ -187,17 +187,9 @@ The Transaction History page lets you configure its columns, while cgt-calc requ
 uses and rejects fields it does not recognise. Export the standard table without changing its
 columns. `Price Currency` and `Exchange Rate` are accepted optional columns.
 
-If an unchanged export still fails, first upgrade cgt-calc using the same method you used to install
-it. If the error remains, open a
-[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with:
-
-- your cgt-calc version from `cgt-calc --version`;
-- the complete error message; and
-- the CSV header and a sanitised failing row.
-
-Do not upload an unredacted file: the report contains account identifiers, holdings and other
-sensitive financial information. For guidance on preparing a redacted example, see
-[Reporting problems](../reporting-problems.md).
+If an unchanged export still fails after you
+[upgrade cgt-calc](../installation.md#upgrade-cgt-calc), follow
+[Reporting problems](../reporting-problems.md) and include the CSV header with a failing row.
 
 ### `Unknown type`
 

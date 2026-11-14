@@ -99,10 +99,9 @@ to reconstruct both the vest and the later sale safely. This history is not curr
 Keep the downloaded reports unchanged: do not delete the row, change its proceeds to zero or add
 guessed RAW transactions.
 
-First upgrade cgt-calc using the same method you used to install it. If the error remains, open a
-[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with your cgt-calc
-version, the complete error, and sanitised copies of the failing release row and its corresponding
-Autosale record.
+If the error remains after you [upgrade cgt-calc](../installation.md#upgrade-cgt-calc), follow
+[Reporting problems](../reporting-problems.md) and include the failing release row with its
+corresponding Autosale record.
 
 If you can independently reconstruct and verify every Morgan Stanley acquisition, sale, fee and cash
 movement, you can instead convert the complete history to the [RAW format](raw.md) and leave out the
@@ -115,19 +114,16 @@ Compare the named value with [Supported activity](#supported-activity). The expo
 another employer or may contain an unsupported transaction. Changing the text would not make the
 underlying activity equivalent to an Alphabet GSU release or sale.
 
-First upgrade cgt-calc using the same method you used to install it. If an unchanged supported
-export still fails, open a GitHub issue with your cgt-calc version, the complete error and a
-sanitised copy of the failing row.
+If an unchanged supported export still fails after you
+[upgrade cgt-calc](../installation.md#upgrade-cgt-calc), follow
+[Reporting problems](../reporting-problems.md) and include the failing row.
 
 ### `CSV header mismatch`
 
 Use the unchanged `Releases Report.csv` or `Withdrawals Report.csv` from the report download. Do not
 rename columns or convert a PDF or spreadsheet into CSV. If Morgan Stanley has changed an unchanged
-report's header, open a GitHub issue with the header and a sanitised row.
-
-Do not upload an unredacted report: it contains order identifiers, holdings and other sensitive
-financial information. For guidance on preparing a redacted example, see
-[Reporting problems](../reporting-problems.md).
+report's header, follow [Reporting problems](../reporting-problems.md) and include the header with a
+failing row.
 
 ### `Reached a negative balance` or `Tried to sell`
 

@@ -701,15 +701,16 @@ has no way to record them yet.
 
 ## Troubleshooting
 
+To report a problem with a RAW file, follow [Reporting problems](../reporting-problems.md) and
+redact the file as it describes.
+
 ### `Unknown action`
 
 Use an action from [Actions to use](#actions-to-use). Do not copy another name from the cgt-calc
 source code: some actions exist only for broker imports and a RAW row cannot supply their additional
 data. For a real event that the table does not cover, do not force it into the nearest-looking
-action; verify its UK tax treatment and open a
-[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) if cgt-calc should
-support it. For guidance on preparing a redacted example, see
-[Reporting problems](../reporting-problems.md).
+action. Verify its UK tax treatment and, if cgt-calc should support it, open an issue as
+[Reporting problems](../reporting-problems.md) describes.
 
 ### `Amount missing`
 
@@ -790,6 +791,3 @@ check still passes:
     deposit in the working copy of that export, and add a `TRANSFER` row on the same date taking
     them out of your RAW file. If that export has no row for a deposit, run with
     `--no-balance-check` instead, once you have checked that the shortfall is only those proceeds.
-
-Do not upload an unredacted RAW file to GitHub: it can contain dates, holdings, income and other
-sensitive financial information.

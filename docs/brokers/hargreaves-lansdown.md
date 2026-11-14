@@ -144,9 +144,8 @@ anything; it may be income, a transfer or a corporate action that affects the ca
 Keep the original export unchanged. For activity whose complete details and UK tax treatment you can
 independently verify, make a separate working copy without the unsupported row and add one
 equivalent transaction through another supported export or the [RAW format](raw.md). Make sure the
-activity appears exactly once. Otherwise, open a
-[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with your cgt-calc
-version, the complete error and a sanitised copy of the row.
+activity appears exactly once. Otherwise, follow [Reporting problems](../reporting-problems.md) and
+include that row.
 
 ### `Could not find the 'Trade date' header` or `CSV header mismatch`
 
@@ -167,12 +166,9 @@ Compare the row with the same row in the original download. Restore the missing 
 value, or remove the cell that was added. If you no longer have the original, download the
 Transaction Summary again.
 
-If a CSV you have not edited is refused, open a
-[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with your cgt-calc
-version, the complete error and a sanitised copy of the row. The column-count message quotes the
-whole row: remove references, account numbers and anything else you would not publish before sharing
-it. For guidance on preparing a redacted example, see
-[Reporting problems](../reporting-problems.md).
+If a CSV you have not edited is refused, follow [Reporting problems](../reporting-problems.md) and
+include that row. The column-count message quotes the whole row: remove references, account numbers
+and anything else you would not publish before sharing it.
 
 ### `Two files in the directory hold this transaction`
 
@@ -222,5 +218,6 @@ Compare the terminal section headed “Portfolio at the end of … tax year” w
 for 5 April. Also compare each imported quantity, unit price, total value and dealing charge with
 its contract note before relying on the calculation.
 
-Do not upload an unredacted CSV or PDF to GitHub: these files contain client numbers, transaction
-references, holdings and other sensitive financial information.
+To report a figure that differs from an unchanged contract note, follow
+[Reporting problems](../reporting-problems.md). Do not attach an unredacted contract note: like the
+CSV, it holds your client number, transaction references and holdings.

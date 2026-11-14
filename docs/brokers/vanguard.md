@@ -237,10 +237,9 @@ before changing anything.
 
 Keep the original export unchanged. A name-based `NameChange` row is unsupported even though a
 ticker-based rename is recognised. If the row is another real transaction not listed under
-[Supported activity](#supported-activity), first upgrade cgt-calc using the same method you used to
-install it. If it still fails, open a
-[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with your cgt-calc
-version, the complete error and a sanitised copy of the row.
+[Supported activity](#supported-activity) and the error remains after you
+[upgrade cgt-calc](../installation.md#upgrade-cgt-calc), follow
+[Reporting problems](../reporting-problems.md) and include that row.
 
 A row with the wrong number of fields stops the import too, with a different message naming its
 physical file line; check the source workbook as described below. A reversed purchase or disposal
@@ -253,12 +252,11 @@ or a cash movement only negates one exported amount, so cgt-calc reads those. Re
 instead has to be reconciled with the original trade, and the row does not say which purchase or
 disposal that is, so the share matching cannot be worked out from it.
 
-Keep the export unchanged, and please report the row with your cgt-calc version and a sanitised copy
-in a [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new). For guidance
-on preparing a redacted example, see [Reporting problems](../reporting-problems.md). No export
-containing a reversed trade has been examined, so what the row means is not established: it may
-cancel a trade that never stood, or record something that is itself a disposal. A real example is
-what would let cgt-calc handle it for you instead of stopping.
+Keep the export unchanged, and please report the row as
+[Reporting problems](../reporting-problems.md) describes. No export containing a reversed trade has
+been examined, so what the row means is not established: it may cancel a trade that never stood, or
+record something that is itself a disposal. A real example is what would let cgt-calc handle it for
+you instead of stopping.
 
 Do not simply delete the rows to get the import to run. Deleting the reversal alone leaves a trade
 in the pool that may have been cancelled; deleting it together with the original removes activity
@@ -296,8 +294,8 @@ transaction-shaped row above the first header or after a summary stop the import
 file line. Stray text inside a table stops the import for the same reason: a transaction that lost
 its separators arrives as a single cell and must not pass as a footer. A
 [reversed purchase or disposal](#a-reversed-purchase-or-disposal) stops the import too. Keep the
-original export unchanged and report an unchanged Vanguard row that behaves unexpectedly in a
-[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new).
+original export unchanged and report an unchanged Vanguard row that behaves unexpectedly as
+[Reporting problems](../reporting-problems.md) describes.
 
 ### `Reached a negative balance` or `Tried to sell`
 
@@ -316,5 +314,5 @@ against both transaction tables, and reconcile dividends with the Consolidated T
 any required ERI. If an investment name ends in parentheses, confirm that the text is a real ticker;
 cgt-calc otherwise uses it as the symbol and can combine unrelated funds.
 
-Do not upload an unredacted workbook or CSV to GitHub: it can contain account names, holdings,
-balances and other sensitive financial information.
+To report a figure that differs from the unchanged worksheet, follow
+[Reporting problems](../reporting-problems.md).

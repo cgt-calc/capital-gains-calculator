@@ -728,10 +728,10 @@ in your main history. Which way round to work depends on what each file holds:
     the two together.
 
 If neither file holds everything, cgt-calc cannot calculate from these exports: the complete export
-does not price the vests in the main history, and cgt-calc reads one award export per run. Open a
-[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) saying which kinds
-of row each file holds, without the figures, so the maintainers can decide whether to support that
-combination. Do not rename columns or invent a price merely to bypass the error.
+does not price the vests in the main history, and cgt-calc reads one award export per run. Open an
+issue as [Reporting problems](../reporting-problems.md) describes, but instead of an example say
+which kinds of row each file holds, without the figures, so the maintainers can decide whether to
+support that combination. Do not rename columns or invent a price merely to bypass the error.
 
 ### `Missing columns` or a row/column-count error
 
@@ -765,11 +765,9 @@ Compare the action named in the error with [Recognised activity](#recognised-act
 unsupported examples include `Journaled Shares`. Do not remove the row until you know whether it
 represents a trade, transfer or corporate action that must be recorded another way.
 
-First upgrade cgt-calc using the same method you used to install it. If an unchanged export still
-contains an unsupported action, open a
-[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the complete
-error and a sanitised copy of the row. For guidance on preparing a redacted example, see
-[Reporting problems](../reporting-problems.md).
+If an unchanged export still contains an unsupported action after you
+[upgrade cgt-calc](../installation.md#upgrade-cgt-calc), follow
+[Reporting problems](../reporting-problems.md) and include that row.
 
 ### An unmatched `Cancel Buy`
 
@@ -790,9 +788,8 @@ This complete-export error means the share count on a `Lapse` row disagrees with
 deposited and withheld counts after applying the split history currently known to cgt-calc. Download
 a fresh complete export, then compare the named lapse, its vest and the split history with the
 original award statement. cgt-calc stops rather than applying a split factor that may be wrong. If a
-fresh export still fails, cgt-calc may not yet know about a recent split; open a
-[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the error and a
-sanitised copy of the relevant records.
+fresh export still fails, cgt-calc may not yet know about a recent split: follow
+[Reporting problems](../reporting-problems.md) and include the relevant records.
 
 ### `ESPP purchase on ... bought ... shares but accounts for ...`
 
@@ -816,9 +813,8 @@ This check catches only a date it cannot read at all. A swapped day and month th
 MM/DD/YYYY date passes it: `12/06/2023` is read as 6 December whatever it was meant to be. That is
 why working from an unedited export matters more than correcting dates by hand.
 
-If an unchanged export still fails, open a
-[GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the complete
-error and a sanitised copy of the row.
+If an unchanged export still fails, follow [Reporting problems](../reporting-problems.md) and
+include that transaction.
 
 ### An export overlaps another one
 
@@ -849,5 +845,5 @@ Compare “Portfolio at the end of … tax year” with the Schwab account recor
 disposal quantity and proceeds, every employer-share vest and market value, dividends and tax,
 interest, bond face values, split-adjusted quantities and corporate-action warnings.
 
-Do not upload an unredacted Schwab export to GitHub. It contains account activity, holdings, award
-identifiers and other sensitive financial information.
+To report a figure that differs from the unchanged exports, follow
+[Reporting problems](../reporting-problems.md).
