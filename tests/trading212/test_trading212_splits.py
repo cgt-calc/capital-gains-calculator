@@ -2007,6 +2007,8 @@ NO_ROWS_DOCS = (
     "https://cgt-calc.uk/brokers/trading212/#a-split-with-no-rows-in-the-export"
 )
 OTHER_ROW_DOCS = "https://cgt-calc.uk/brokers/trading212/#a-split-row-on-another-day-or-with-another-ratio"
+# The section that says to work a 30-day match across a split out by hand.
+STOPS_DOCS = "https://cgt-calc.uk/brokers/trading212/#when-cgt-calc-stops-for-a-split-in-the-table"
 RAW_HEADER = "date,action,symbol,quantity,price,fees,currency"
 
 
@@ -3375,7 +3377,7 @@ def _unconverted(
         "split and the acquisition in shares from after it, matching them share "
         "for share would give each share disposed of the cost of 1 share "
         f"acquired instead of {ratio}. Work this disposal out by hand (consider "
-        f"professional advice). See {NO_ROWS_DOCS}"
+        f"professional advice). See {STOPS_DOCS}"
     )
 
 
