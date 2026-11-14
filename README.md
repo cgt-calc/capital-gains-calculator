@@ -78,3 +78,5 @@ consider consulting a suitably qualified tax adviser. The software is provided "
 warranty of any kind; see the [MIT License](LICENSE). The PDF report's Noto Sans fonts ship with
 cgt-calc under the
 [SIL Open Font License](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/fonts/noto-sans/OFL.txt).
+HMRC's reporting fund dates ship under the
+[Open Government Licence v3.0](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/reporting_funds_notice.txt).
