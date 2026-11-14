@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+from contextlib import closing
 import csv
 import datetime as dt
 from pathlib import Path
@@ -22,7 +23,7 @@ from cgt_calc.const import ERI_RESOURCE_FOLDER
 from cgt_calc.parsers.eri.raw import ERIRawParser
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Generator
 
 RESOURCES = Path(resources.__file__).parent
 OUTPUT_FILE = RESOURCES / "reporting_funds.csv"
@@ -33,7 +34,7 @@ NO_END = "no data"
 _TABLE = "{urn:oasis:names:tc:opendocument:xmlns:table:1.0}"
 
 
-def read_rows(ods: Path) -> Iterator[list[str]]:
+def read_rows(ods: Path) -> Generator[list[str]]:
     """Yield the text of each row of the spreadsheet's cells."""
     with zipfile.ZipFile(ods) as archive, archive.open("content.xml") as content:
         # The sheet is about 150 MB of XML, so read it a row at a time.
@@ -89,18 +90,19 @@ def merge(isin: str, entries: list[tuple[str, str]]) -> tuple[dt.date, dt.date |
 
 def build_rows(ods: Path, isins: set[str]) -> list[list[str]]:
     """Return a row of HMRC's dates for each of `isins` that HMRC dates."""
-    rows = read_rows(ods)
-    header = next(rows)
-    for column in COLUMNS:
-        if column not in header:
-            raise ValueError(f"HMRC's list has no '{column}' column.")
-    isin_at, start_at, end_at = (header.index(column) for column in COLUMNS)
     entries: defaultdict[str, list[tuple[str, str]]] = defaultdict(list)
-    for row in rows:
-        row += [""] * (len(header) - len(row))
-        # HMRC writes some ISINs in lower case or with spaces around them.
-        if (isin := row[isin_at].upper()) in isins:
-            entries[isin].append((row[start_at], row[end_at]))
+    # Closing the reader closes the file when a check stops it part-way.
+    with closing(read_rows(ods)) as rows:
+        header = next(rows)
+        for column in COLUMNS:
+            if column not in header:
+                raise ValueError(f"HMRC's list has no '{column}' column.")
+        isin_at, start_at, end_at = (header.index(column) for column in COLUMNS)
+        for row in rows:
+            row += [""] * (len(header) - len(row))
+            # HMRC writes some ISINs in lower case or with spaces around them.
+            if (isin := row[isin_at].upper()) in isins:
+                entries[isin].append((row[start_at], row[end_at]))
 
     output = []
     for isin in sorted(isins):
