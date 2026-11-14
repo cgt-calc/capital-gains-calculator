@@ -35,6 +35,12 @@ Depending on your investments, you may also need:
     in a small RAW file as
     [Gifts to anyone else](transfers-gifts-and-fund-income.md#gifts-to-anyone-else) describes, and
     pass it alongside your export.
+- **Shares you were given or inherited, recorded by hand.** Shares given to you by anyone other than
+    a spouse or civil partner, or inherited, usually cost you their market value on the day of the
+    gift or of the death, and no broker export gives cgt-calc that value. Add them in a small RAW
+    file as
+    [Shares you were given or inherited](transfers-gifts-and-fund-income.md#shares-you-were-given-or-inherited)
+    describes, and pass it alongside your export.
 
 Put every row you record by hand in one RAW file: cgt-calc reads only one, and a second RAW file
 stops the run.
