@@ -1001,12 +1001,25 @@ def test_read_vanguard_collapsed_row_above_first_header_is_rejected(
 
 @pytest.mark.parametrize(
     "metadata",
-    ["01/01/2022", "01/01/2022 - 31/12/2022", "Statement produced 01/01/2022"],
+    [
+        "01/01/2022",
+        "01/01/2022 - 31/12/2022",
+        "Statement produced 01/01/2022",
+        # A label and its value in two cells, as another layout or a re-save
+        # could write the same line.
+        "Report period,01/01/2022 - 31/12/2022",
+    ],
 )
 def test_read_vanguard_dated_metadata_above_header_is_accepted(
     tmp_path: Path, metadata: str
 ) -> None:
-    """Keep accepting the dated preamble an export prints above its table."""
+    """Keep accepting the dated preamble an export prints above its table.
+
+    Above the first header, a row with text in its second cell is taken for a
+    transaction only when its first cell is a DD/MM/YYYY date. "Report period"
+    is not one, so the two-cell row is ignored like the one-cell rows, and the
+    single deposit of 50 under the header is all that is read.
+    """
     vanguard_file = tmp_path / "dated_preamble.csv"
     vanguard_file.write_text(
         f"{metadata}\nDate,Details,Amount,Balance\n02/01/2022,Regular Deposit,50,150\n",
