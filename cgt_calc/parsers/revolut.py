@@ -20,7 +20,7 @@ from cgt_calc.model import (
     CurrencyCode,
     TransactionSource,
 )
-from cgt_calc.util import parse_decimal
+from cgt_calc.util import parse_decimal, parse_timestamp
 
 from .base_parsers import StandardCSVParser
 
@@ -60,10 +60,12 @@ def _parse_timestamp(value: str) -> dt.datetime:
     matching rules are counted.
     """
 
-    try:
-        timestamp = dt.datetime.fromisoformat(value)
-    except ValueError as err:
-        raise ValueError(f"Invalid timestamp: {value!r}") from err
+    timestamp = parse_timestamp(
+        value,
+        RevolutColumn.DATE.value,
+        broker="Revolut",
+        example="2021-01-04T14:39:38.123456Z",
+    )
     if timestamp.tzinfo is None:
         timestamp = timestamp.replace(tzinfo=dt.UTC)
     return timestamp.astimezone(dt.UTC)

@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator, Mapping
 import csv
 from dataclasses import dataclass
-from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 import io
@@ -23,11 +22,12 @@ from cgt_calc.model import (
     CurrencyCode,
     TransactionSource,
 )
-from cgt_calc.util import parse_decimal
+from cgt_calc.util import parse_date, parse_decimal
 
 from .base_parsers import BaseDirParser
 
 if TYPE_CHECKING:
+    from datetime import date
     from pathlib import Path
 
 STOCK_ACTIVITY_COMMENT_MARKER: Final[str] = "Stock Activity"
@@ -266,9 +266,15 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
     # ===== internal helpers =====
 
     @staticmethod
-    def _parse_date(val: str) -> date:
-        """Parse a Sharesight report date."""
-        return datetime.strptime(val, "%d/%m/%Y").date()
+    def _parse_date[Col: StrEnum](row_dict: Mapping[Col, str], column: Col) -> date:
+        """Parse a Sharesight report date, naming the column if it cannot be read."""
+        return parse_date(
+            row_dict[column],
+            column.value,
+            "%d/%m/%Y",
+            expected="DD/MM/YYYY",
+            example="01/09/2020",
+        )
 
     @staticmethod
     def _parse_decimal[Col: StrEnum](
@@ -360,7 +366,7 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
                     continue
                 row_dict[dividend_column] = value
 
-            dividend_date = cls._parse_date(row_dict[DividendColumn.DATE_PAID])
+            dividend_date = cls._parse_date(row_dict, DividendColumn.DATE_PAID)
             symbol = row_dict[DividendColumn.CODE]
             description = row_dict[DividendColumn.COMMENTS]
             broker = "Sharesight"
@@ -499,7 +505,7 @@ class SharesightParser(BaseDirParser[SharesightTransaction]):
 
             market = row_dict[TradeColumn.MARKET]
             symbol = f"{market}:{row_dict[TradeColumn.CODE]}"
-            trade_date = cls._parse_date(row_dict[TradeColumn.DATE])
+            trade_date = cls._parse_date(row_dict, TradeColumn.DATE)
             quantity = cls._parse_decimal(row_dict, TradeColumn.QUANTITY)
             price = cls._parse_decimal(row_dict, TradeColumn.PRICE)
             fees = cls._maybe_decimal(row_dict, TradeColumn.BROKERAGE) or Decimal(0)

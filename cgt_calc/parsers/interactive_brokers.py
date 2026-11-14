@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime as dt
 from decimal import Decimal
 from enum import StrEnum
 import io
@@ -12,7 +11,7 @@ from typing import TYPE_CHECKING, ClassVar, Final, override
 
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode, Isin
-from cgt_calc.util import parse_decimal
+from cgt_calc.util import parse_date, parse_decimal
 
 from .base_parsers import StandardCSVParser
 
@@ -145,8 +144,13 @@ class InteractiveBrokersTransaction(BrokerTransaction):
         file_path: Path,
     ):
         """Create transaction from CSV row."""
-        date_str = row[InteractiveBrokersColumn.DATE]
-        date = dt.datetime.strptime(date_str, "%Y-%m-%d").date()
+        date = parse_date(
+            row[InteractiveBrokersColumn.DATE],
+            InteractiveBrokersColumn.DATE.value,
+            "%Y-%m-%d",
+            expected="YYYY-MM-DD",
+            example="2025-11-03",
+        )
 
         action = _action_from_str(
             row[InteractiveBrokersColumn.TRANSACTION_TYPE], file_path

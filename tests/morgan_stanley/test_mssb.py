@@ -249,6 +249,66 @@ def test_read_mssb_withdrawal_invalid_decimal(tmp_path: Path) -> None:
     assert "Invalid decimal in column 'Quantity'" in message
 
 
+@pytest.mark.parametrize(
+    ("filename", "rows", "column"),
+    [
+        pytest.param(
+            RELEASES_REPORT_FILENAME,
+            [
+                COLUMNS_RELEASE,
+                [
+                    "2021-03-25",
+                    "ORDER-1",
+                    "GSU Class C",
+                    "Release",
+                    "Complete",
+                    "$10.00",
+                    "3.000",
+                    "$0.00",
+                    "3",
+                    "Fractional Shares",
+                ],
+            ],
+            "Vest Date",
+            id="Vest Date",
+        ),
+        pytest.param(
+            WITHDRAWALS_REPORT_FILENAME,
+            [
+                COLUMNS_WITHDRAWAL,
+                [
+                    "2021-03-25",
+                    "ORDER-3",
+                    "GSU Class C",
+                    "Sale",
+                    "Complete",
+                    "$105.70",
+                    "30",
+                    "$3,170.93",
+                    "0",
+                    "N/A",
+                ],
+            ],
+            "Execution Date",
+            id="Execution Date",
+        ),
+    ],
+)
+def test_read_mssb_date_in_another_format_names_its_column(
+    tmp_path: Path, filename: str, rows: list[list[str]], column: str
+) -> None:
+    """A spreadsheet's re-saved date is refused with the format both reports use."""
+    _write_csv(tmp_path / filename, rows)
+
+    with pytest.raises(ParsingError) as exc:
+        MSSBParser().load_from_dir(tmp_path)
+
+    assert str(exc.value) == (
+        f"While parsing {tmp_path / filename}, row 2: Invalid date in column "
+        f"'{column}': '2021-03-25', expected DD-Mon-YYYY, e.g. '25-Mar-2021'"
+    )
+
+
 def test_read_mssb_release_invalid_header(tmp_path: Path) -> None:
     """Error when release report header differs from expected schema."""
 

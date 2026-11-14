@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import csv
-from datetime import UTC, datetime
+from datetime import UTC
 from decimal import Decimal
 from enum import StrEnum
 import io
@@ -23,7 +23,7 @@ from cgt_calc.model import (
     Isin,
     TransactionSource,
 )
-from cgt_calc.util import is_blank_row, parse_decimal
+from cgt_calc.util import is_blank_row, parse_decimal, parse_timestamp
 
 from .base_parsers import BaseSingleFileParser, missing_columns, read_csv_rows
 
@@ -205,7 +205,12 @@ class FreetradeTransaction(BrokerTransaction):
 
         # The timestamp is in UTC, but the date that drives the tax year and
         # the matching rules is the UK one.
-        timestamp = datetime.fromisoformat(row[FreetradeColumn.TIMESTAMP])
+        timestamp = parse_timestamp(
+            row[FreetradeColumn.TIMESTAMP],
+            FreetradeColumn.TIMESTAMP.value,
+            broker="Freetrade",
+            example="2024-01-16T10:01:02.811Z",
+        )
         if timestamp.tzinfo is None:
             # The export states its times in UTC, so a value without a zone
             # is read as UTC too rather than as the machine's local time.

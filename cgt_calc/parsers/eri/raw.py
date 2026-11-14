@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import csv
-import datetime as dt
 from importlib import resources
 import io
 from typing import TYPE_CHECKING, Final, TextIO, override
@@ -21,7 +20,7 @@ from cgt_calc.exceptions import ParsingError, UnexpectedColumnCountError
 from cgt_calc.model import CurrencyCode, Isin, TransactionSource
 from cgt_calc.parsers.base_parsers import BaseSingleFileParser
 from cgt_calc.resources import RESOURCES_PACKAGE
-from cgt_calc.util import is_blank_row, parse_decimal
+from cgt_calc.util import is_blank_row, parse_date, parse_decimal
 
 from .model import ERITransaction
 
@@ -52,11 +51,18 @@ class ERIRaw(ERITransaction):
         isin = Isin.parse(isin_raw)
         if isin is None:
             raise ParsingError(file, f"Invalid ISIN value '{isin_raw}' in ERI data")
-        date_str = row["Fund Reporting Period End Date"]
+        column = "Fund Reporting Period End Date"
         try:
-            date = dt.datetime.strptime(date_str, RAW_DATE_FORMAT).date()
+            date = parse_date(
+                row[column],
+                column,
+                RAW_DATE_FORMAT,
+                expected="DD/MM/YYYY",
+                example="30/06/2024",
+            )
         except ValueError as err:
-            raise ParsingError(file, f"Invalid date '{date_str}' in ERI data") from err
+            # The loader adds the row only to a ParsingError.
+            raise ParsingError(file, str(err)) from err
         currency_raw = row["Currency"]
         currency = CurrencyCode.parse(currency_raw)
         if currency is None:

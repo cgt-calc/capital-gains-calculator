@@ -18,7 +18,7 @@ from cgt_calc.model import (
     CurrencyCode,
     TransactionSource,
 )
-from cgt_calc.util import is_blank_row, parse_decimal
+from cgt_calc.util import is_blank_row, parse_date, parse_decimal
 
 from .base_parsers import BaseSingleFileParser, read_csv_rows
 
@@ -138,6 +138,13 @@ def _parse_decimal(value: str, context: str) -> Decimal:
     return parse_decimal(value, context, strip=",")
 
 
+def _parse_date(value: str, column: str) -> dt.date:
+    """Parse a Vanguard date, naming the column if it cannot be read."""
+    return parse_date(
+        value, column, "%d/%m/%Y", expected="DD/MM/YYYY", example="08/03/2022"
+    )
+
+
 def _parse_details(
     details: str, action: ActionType, amount: Decimal
 ) -> tuple[str | None, Decimal | None, Decimal | None]:
@@ -226,7 +233,7 @@ class VanguardTransaction(BrokerTransaction):
 
         row = dict(zip(header, row_raw, strict=False))
 
-        date = dt.datetime.strptime(row[CashColumn.DATE], "%d/%m/%Y").date()
+        date = _parse_date(row[CashColumn.DATE], CashColumn.DATE.value)
         self.details_text, self.is_reversal = _strip_reversal(row[CashColumn.DETAILS])
         self.action = action_from_str(self.details_text, file)
         self.amount = _parse_decimal(row[CashColumn.AMOUNT], CashColumn.AMOUNT.value)
@@ -301,7 +308,7 @@ def _make_transaction_from_investment(
 ) -> VanguardTransaction | None:
     """Create a VanguardTransaction from an Investment row, or None for the NameChange zero-out half."""
     details, is_reversal = _strip_reversal(row[InvestmentColumn.TRANSACTION_DETAILS])
-    date = dt.datetime.strptime(row[InvestmentColumn.DATE], "%d/%m/%Y").date()
+    date = _parse_date(row[InvestmentColumn.DATE], InvestmentColumn.DATE.value)
     quantity = _parse_decimal(
         row[InvestmentColumn.QUANTITY], InvestmentColumn.QUANTITY.value
     )

@@ -128,6 +128,25 @@ Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quan
 
         assert excinfo.value.needs_update
 
+    def test_a_date_in_another_format_names_its_column(self, tmp_path: Path) -> None:
+        """A spreadsheet's re-saved date is refused with the format IBKR writes.
+
+        The header is line 10, so the row is 11.
+        """
+        csv_file = tmp_path / "transactions.csv"
+        csv_file.write_text(
+            self.base_header + "Transaction History,Data,03/11/2025,U***08040,"
+            "ISHARES NASDAQ 100 USD ACC,Buy,CNX1,1.0,1060.3,-1060.3,-3.0,-1063.3\n"
+        )
+
+        with pytest.raises(ParsingError) as excinfo:
+            InteractiveBrokersParser().load_from_file(csv_file)
+
+        assert str(excinfo.value) == (
+            f"While parsing {csv_file}, row 11: Invalid date in column 'Date': "
+            "'03/11/2025', expected YYYY-MM-DD, e.g. '2025-11-03'"
+        )
+
     def test_isin_is_read_from_the_description(self, tmp_path: Path) -> None:
         """Dividend rows name the security as TICKER(ISIN); trades do not."""
         csv_file = tmp_path / "transactions.csv"

@@ -473,8 +473,14 @@ def test_read_revolut_transactions_invalid_timestamp(tmp_path: Path) -> None:
     """A timestamp that is not a date and time surfaces with its row."""
     path = _write_csv(tmp_path, [_default_row({RevolutColumn.DATE: "02/11/2021"})])
 
-    with pytest.raises(ParsingError, match=", row 2: Invalid timestamp: '02/11/2021'"):
+    with pytest.raises(ParsingError) as exc:
         RevolutParser().load_from_file(path)
+
+    assert str(exc.value) == (
+        f"While parsing {path}, row 2: Invalid date and time in column 'Date': "
+        "'02/11/2021', expected the form Revolut exports, "
+        "e.g. '2021-01-04T14:39:38.123456Z'"
+    )
 
 
 def test_read_revolut_transactions_unknown_action(tmp_path: Path) -> None:

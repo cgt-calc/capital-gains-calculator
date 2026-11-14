@@ -3,6 +3,7 @@
 from collections.abc import Generator, Iterable
 from contextlib import contextmanager, suppress
 import csv
+import datetime as dt
 import decimal
 from decimal import Decimal, InvalidOperation
 import io
@@ -35,6 +36,40 @@ def parse_decimal(value: str, context: str, *, strip: str = "") -> Decimal:
     if not parsed.is_finite():
         raise ValueError(f"Invalid decimal in {context}: {value!r}")
     return parsed
+
+
+def parse_date(
+    value: str, column: str, fmt: str, *, expected: str, example: str
+) -> dt.date:
+    """Parse an exported date written in the given `strptime` format.
+
+    The error names the column and spells the format out as `expected`, such
+    as DD/MM/YYYY, with an `example` the parser accepts.
+    """
+    try:
+        return dt.datetime.strptime(value, fmt).date()
+    except ValueError as err:
+        raise ValueError(
+            f"Invalid date in column '{column}': {value!r}, expected {expected}, "
+            f"e.g. '{example}'"
+        ) from err
+
+
+def parse_timestamp(
+    value: str, column: str, *, broker: str, example: str
+) -> dt.datetime:
+    """Parse an exported ISO 8601 date and time.
+
+    The error names the column and gives an `example` of the form `broker`
+    exports, since the forms the parser accepts are too many to spell out.
+    """
+    try:
+        return dt.datetime.fromisoformat(value)
+    except ValueError as err:
+        raise ValueError(
+            f"Invalid date and time in column '{column}': {value!r}, expected the "
+            f"form {broker} exports, e.g. '{example}'"
+        ) from err
 
 
 def round_decimal(value: Decimal, digits: int = 0) -> Decimal:

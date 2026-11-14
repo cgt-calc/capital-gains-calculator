@@ -37,6 +37,7 @@ from cgt_calc.util import (
     is_blank_row,
     normalize_amount,
     parse_decimal,
+    parse_timestamp,
 )
 
 from .base_parsers import BaseDirParser, read_csv_rows
@@ -312,18 +313,17 @@ def last_digit(value: Decimal, coarsest: Decimal) -> Decimal:
     return min(Decimal(1).scaleb(exponent), coarsest)
 
 
-def datetime_from_str(value: str) -> datetime:
-    """Convert a timestamp to an aware UTC datetime.
+def datetime_from_str(value: str, column: str) -> datetime:
+    """Convert a timestamp from `column` to an aware UTC datetime.
 
     Exports have used whole seconds and milliseconds, and the column
     renamed to "Time (UTC)" may spell the zone out. Every export states
     its times in UTC, so a value without a zone is read as UTC too.
     """
 
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError as err:
-        raise ValueError(f"Invalid timestamp: {value!r}") from err
+    parsed = parse_timestamp(
+        value, column, broker="Trading 212", example="2024-01-01 16:10:05"
+    )
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
@@ -424,13 +424,13 @@ class Trading212Transaction(BrokerTransaction):
         }
 
         # Older exports call the column "Time", newer ones "Time (UTC)".
-        time_str = row.get(Trading212Column.TIME) or row.get(Trading212Column.TIME_UTC)
-        if not time_str:
+        time_column = next((column for column in TIME_COLUMNS if row.get(column)), None)
+        if time_column is None:
             raise ValueError(
                 f"Missing {Trading212Column.TIME.value} "
                 f"or {Trading212Column.TIME_UTC.value}"
             )
-        self.datetime = datetime_from_str(time_str)
+        self.datetime = datetime_from_str(row[time_column], time_column.value)
         # The instant is kept in UTC for ordering, but the date that drives
         # the tax year and the matching rules is the UK one.
         date = self.datetime.astimezone(UK_TIMEZONE).date()

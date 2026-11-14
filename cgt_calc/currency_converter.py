@@ -149,9 +149,10 @@ class CurrencyConverter:
             if extra is not None:
                 raise ParsingError(
                     exchange_rates_file,
-                    f"Too many values in exchange rate file at line {row_number}: "
+                    "Too many values in exchange rate file: "
                     f"expected {len(EXCHANGE_RATES_HEADER)}, found "
                     f"{len(EXCHANGE_RATES_HEADER) + len(extra)}",
+                    row_index=row_number,
                 )
 
             # Trim values so that whitespace-only cells count as empty.
@@ -171,8 +172,9 @@ class CurrencyConverter:
             if missing_fields:
                 raise ParsingError(
                     exchange_rates_file,
-                    "Missing data in exchange rate file at line "
-                    f"{row_number}: {', '.join(sorted(missing_fields))}",
+                    "Missing data in exchange rate file: "
+                    f"{', '.join(sorted(missing_fields))}",
+                    row_index=row_number,
                 )
 
             month = normalized_values["month"]
@@ -184,14 +186,17 @@ class CurrencyConverter:
             except ValueError as err:
                 raise ParsingError(
                     exchange_rates_file,
-                    f"Invalid date '{month}' at line {row_number}",
+                    f"Invalid date in column 'month': {month!r}, expected "
+                    "YYYY-MM-DD, e.g. '2024-05-01'",
+                    row_index=row_number,
                 ) from err
 
             currency = CurrencyCode.parse(currency_raw)
             if currency is None:
                 raise ParsingError(
                     exchange_rates_file,
-                    f"Invalid currency code '{currency_raw}' at line {row_number}",
+                    f"Invalid currency code '{currency_raw}'",
+                    row_index=row_number,
                 )
 
             try:
@@ -199,21 +204,22 @@ class CurrencyConverter:
             except (InvalidOperation, ValueError) as err:
                 raise ParsingError(
                     exchange_rates_file,
-                    f"Invalid rate '{rate_value}' at line {row_number}",
+                    f"Invalid rate '{rate_value}'",
+                    row_index=row_number,
                 ) from err
             if not rate.is_finite() or rate <= 0:
                 raise ParsingError(
                     exchange_rates_file,
-                    f"Exchange rate must be finite and positive at line "
-                    f"{row_number}: {rate_value!r}",
+                    f"Exchange rate must be finite and positive: {rate_value!r}",
+                    row_index=row_number,
                 )
 
             # Duplicates suggest conflicting data, so fail fast.
             if currency in cache[date]:
                 raise ParsingError(
                     exchange_rates_file,
-                    "Duplicate currency entry for "
-                    f"{currency} on {month} at line {row_number}",
+                    f"Duplicate currency entry for {currency} on {month}",
+                    row_index=row_number,
                 )
 
             cache[date][currency] = rate
