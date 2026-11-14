@@ -53,8 +53,52 @@ add them in your own translation file (default `out/isin_translation.csv`). Copy
 mappings into
 [`initial_isin_translation.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/initial_isin_translation.csv).
 
+## Reporting fund dates
+
+[`reporting_funds.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/reporting_funds.csv)
+records when each fund with bundled ERI data was a reporting fund, from HMRC's
+[list of approved offshore reporting funds](https://www.gov.uk/government/publications/approved-offshore-reporting-funds).
+Its `start` column is the list's "Reporting Fund, with effect from" date, and `end` is its "Ceased
+to be an RF on" date, left empty while the fund is still a reporting fund. Dates are written as
+YYYY-MM-DD. A fund HMRC lists more than once gets one row: the earliest start, and an end date only
+if every entry has one.
+
+Regenerate the file whenever you change the bundled ERI data:
+
+1. Download "List of reporting funds A to Z" from HMRC's page. It is an `.ods` spreadsheet, updated
+    every month.
+2. From the repository directory, run the script with the downloaded file:
+
+    ```shell
+    uv run python scripts/import_reporting_funds.py /path/to/Master-Weblist.ods
+    ```
+
+3. Check the **WARNING** lines. Each names a bundled fund that gets no row, because HMRC's list has
+    no start date for it or does not list it. Review the change with
+    `git diff -- cgt_calc/resources/reporting_funds.csv`.
+4. Run the script's tests:
+
+    ```shell
+    uv run pytest tests/eri_importers/test_import_reporting_funds.py
+    ```
+
+    `test_every_bundled_eri_fund_has_reporting_fund_dates` fails while a bundled fund other than
+    `IE00BYZNF849`, whose start HMRC gives as "To Be Confirmed", has no row. Look the fund up in
+    HMRC's list. If its start is not confirmed either, add its ISIN to the test's exceptions; if it
+    is not listed, check the ISIN in the ERI data.
+
+The script stops without changing the file when a date or column in HMRC's list is not in the form
+it expects. It also stops when HMRC lists a bundled fund twice with a gap between the date it ceased
+to be a reporting fund and the date it became one again, as one row cannot record that. Open an
+issue with the fund's ISIN and HMRC's entries for it.
+
+HMRC publishes the list under the
+[Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/).
+The dates file contains public sector information licensed under the Open Government Licence v3.0.
+
 ## Pull request checklist
 
 - Updated resource CSV(s) under `cgt_calc/resources/eri/`
 - Any new rows in `cgt_calc/resources/initial_isin_translation.csv`
+- [Regenerated `cgt_calc/resources/reporting_funds.csv`](#reporting-fund-dates)
 - Updated bundled-data list in [Offshore funds (ERI)](../offshore-funds.md#bundled-data)
