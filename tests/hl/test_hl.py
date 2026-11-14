@@ -167,9 +167,11 @@ def test_hl_parser_missing_pdf(request: pytest.FixtureRequest) -> None:
         report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
+    # The path as the program prints it, with this system's separator.
+    csv_file = Path("tests") / "hl" / "data" / "inputs" / "hl-transaction-summary.csv"
     assert result.returncode == 1
     assert result.stderr.endswith(
-        "\nERROR: While parsing tests/hl/data/inputs/hl-transaction-summary.csv, "
+        f"\nERROR: While parsing {csv_file}, "
         "row 9: Cannot find contract note pdf for transaction S302087055. "
         "Download its contract note from HL into this CSV's folder. If HL issued "
         "none, as for some regular fund investments, cgt-calc cannot read this "
