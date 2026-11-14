@@ -22,7 +22,7 @@ Depending on your investments, you may also need:
     RAW file as
     [Income reinvested in accumulation units](transfers-gifts-and-fund-income.md#income-reinvested-in-accumulation-units)
     describes, and pass it alongside your export. With another broker, cgt-calc may already count
-    the income: make the check that section gives before you add any rows, or the income is counted
+    the income: do the check in that section before you add any rows, or the income is counted
     twice.
 - **Extra income data for some funds outside the UK.** This can apply whether the fund pays income
     to you or reinvests it. Check the [offshore funds guide](offshore-funds.md).
