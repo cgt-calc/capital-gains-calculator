@@ -267,6 +267,7 @@ restkey
 restval
 Revolut
 Revolut's
+RF
 Rheinmetall
 RKT
 ROL
