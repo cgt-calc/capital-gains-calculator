@@ -701,6 +701,9 @@ has no way to record them yet.
 
 ## Troubleshooting
 
+To report a problem with a RAW file, follow [Reporting problems](../reporting-problems.md) and
+redact the file as it describes.
+
 ### `Unknown action`
 
 Use an action from [Actions to use](#actions-to-use). Do not copy another name from the cgt-calc
@@ -788,6 +791,3 @@ check still passes:
     deposit in the working copy of that export, and add a `TRANSFER` row on the same date taking
     them out of your RAW file. If that export has no row for a deposit, run with
     `--no-balance-check` instead, once you have checked that the shortfall is only those proceeds.
-
-To report a problem with a RAW file, follow [Reporting problems](../reporting-problems.md) and
-redact the file as it describes.

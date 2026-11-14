@@ -123,7 +123,7 @@ If an unchanged supported export still fails after you
 Use the unchanged `Releases Report.csv` or `Withdrawals Report.csv` from the report download. Do not
 rename columns or convert a PDF or spreadsheet into CSV. If Morgan Stanley has changed an unchanged
 report's header, follow [Reporting problems](../reporting-problems.md) and include the header with a
-row.
+failing row.
 
 ### `Reached a negative balance` or `Tried to sell`
 
