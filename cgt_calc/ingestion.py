@@ -1556,6 +1556,17 @@ class TransactionIngester:
         self.history.eri_period_ends.update(
             (transaction.date, symbol) for symbol in known | renamed if symbol
         )
+        # Also before them: a nil report or one for a period of non-residence
+        # is still a report, so its period end is not missing.
+        self.history.eri_fund_period_ends[transaction.isin].add(transaction.date)
+        self.history.eri_fund_holdings[transaction.isin].update(
+            symbol for symbol in known | renamed if symbol
+        )
+        # Before them too: a holding that a fund's reports reach only by a
+        # ticker that is also a US symbol is not checked for missing periods,
+        # even when every report is nil. Its warning prints only where a
+        # report changes the holding's cost.
+        self._note_ticker_only_reports(transaction.isin, known, renamed, renames)
 
         if any(
             period.includes(distribution_date)
@@ -1606,7 +1617,6 @@ class TransactionIngester:
                 is_interest=symbol.upper() in self.interest_fund_tickers,
                 currency=transaction.currency,
             )
-        self._note_ticker_only_reports(transaction.isin, known, renamed, renames)
 
     def _note_ticker_only_reports(
         self,

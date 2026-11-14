@@ -61,8 +61,10 @@ cgt-calc currently bundles:
 - [Legal & General UCITS ETF plc 2023-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/legal_and_general_eri.csv)
 
 Open the relevant file and check that it contains the exact ISIN and every reporting period you
-need. cgt-calc cannot detect a missing ERI row. If supplied ERI cannot be matched to the holding,
-check the ISIN-to-ticker mapping below. Do not assume that missing or unmatched data means zero ERI.
+need. cgt-calc warns about most missing periods, but not all; see
+[Missing reporting periods](#missing-reporting-periods). If supplied ERI cannot be matched to the
+holding, check the ISIN-to-ticker mapping below. Do not assume that missing or unmatched data means
+zero ERI.
 
 Bundled ERI data is indexed by ISIN. If your broker does not supply one, cgt-calc uses its
 ISIN-to-ticker mapping to match the holding. To check or override the mapping, see
@@ -74,6 +76,62 @@ holding is matched only when the mapping gives the fund's ISIN the symbol Schwab
 mapping does that for very few funds: a US fund it lists under its US symbol, such as `CHIQ`, and a
 fund based outside the US whose over-the-counter symbol it lists. For any other fund, add the row;
 see [Funds based outside the US](brokers/schwab.md#funds-based-outside-the-us).
+
+## Missing reporting periods
+
+A reporting fund reports on every reporting period
+([regulation 90](https://www.legislation.gov.uk/uksi/2009/3001/regulation/90)), and reports a period
+with no excess as nil
+([regulation 92](https://www.legislation.gov.uk/uksi/2009/3001/regulation/92)). So once cgt-calc has
+a fund's ERI figures, a period you held units through with no figure is a figure missing from the
+data, not a period with nothing to report.
+
+cgt-calc predicts the fund's period ends a year apart from the figures it has, and checks each one
+you held units at. Units you sold before a period end and bought back within 30 days after it count
+as held at it. A period that has not ended yet is not checked.
+
+For a fund in the bundled data, cgt-calc uses the dates HMRC's
+[list of reporting funds](https://www.gov.uk/government/publications/approved-offshore-reporting-funds)
+gives it. It predicts no period end before the fund became a reporting fund or after it stopped. The
+date it stopped is its last period end, unless a figure ends within 31 days of that date, or a
+figure ends after it, which shows the fund carried on. For any other fund, cgt-calc predicts no
+period end before 1 December 2010, a year after the reporting fund rules began.
+
+The bundled data starts in a different year for each provider; see [Bundled data](#bundled-data). If
+you held a fund before its bundled figures start, cgt-calc names those earlier periods on every run,
+and stops a report for one of those years, until you add their figures.
+
+What happens depends on when the missing period's income is taxed, six months after the period ends:
+
+- **In this report, and the tax year or `--from`/`--to` period has ended:** cgt-calc stops with an
+    error and prints no report, because the report would leave income out.
+- **In this report, and the tax year or `--from`/`--to` period is still running:** cgt-calc warns,
+    prints the report and writes no PDF report.
+- **Outside this report:** cgt-calc warns. Nothing was added to the cost of your units for that
+    period, so a gain on them may be shown too high.
+
+To fix a missing figure:
+
+1. [Upgrade cgt-calc](installation.md#upgrade-cgt-calc). A newer release may include the figure.
+2. If the latest release still lacks it, find the fund's report for the period and add the figure
+    with `--eri-raw-file`; see [Custom ERI data](custom-eri-data.md). If the report states the
+    excess as nil, enter 0. If the report leaves the figure blank, it is not 0.
+3. If the fund has not published a figure, ask the fund for it. If it cannot give one, take
+    professional advice before entering a figure. HMRC expects a best estimate in your return when a
+    fund reports late, and an amended return once the figure is published
+    ([HMRC's guidance on late reports](https://www.gov.uk/hmrc-internal-manuals/investment-funds/ifm13326)).
+
+cgt-calc predicts period ends, so it can name a period the fund never had. If the fund changed its
+year end, or its first period was longer than a year, add the row for the period end in its report:
+that moves the predictions. If the fund's reports show no period ending near the predicted date at
+all, add a row for that date with 0, which changes no figure. If the fund was not a reporting fund
+for the period, see [Unsupported functionality](#unsupported-functionality).
+
+cgt-calc does not check:
+
+- a fund it has no figure for at all, or a holding it cannot tie to an ISIN;
+- a holding it matches to a fund only through a ticker that is also a US symbol;
+- whether a figure is right, only that there is one.
 
 ## Exchange rate
 

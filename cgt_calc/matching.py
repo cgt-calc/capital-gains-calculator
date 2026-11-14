@@ -44,6 +44,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
     from .calculator_state import CalculatorState
+    from .model import Isin
     from .stock_split_planning import KnownSplit
     from .stock_splits import SplitTransformation
 
@@ -184,6 +185,38 @@ class Matcher:
                 return None
             self._eris_in_pounds[key] = self.eri_in_pounds(eri)
         return self._eris_in_pounds[key]
+
+    def _note_missing_end(
+        self, day: dt.date, symbol: str, missing_ends: list[tuple[dt.date, str, Isin]]
+    ) -> None:
+        """Collect a period end the fund held as `symbol` has no report for."""
+        isin = self.run.predicted_eri_ends.get(day, {}).get(symbol)
+        if isin is not None:
+            missing_ends.append((day, symbol, isin))
+
+    def _record_missing_eris(self, date_index: dt.date) -> None:
+        """Record each period end today the fund has no report for, if held.
+
+        Units held at the end of the day are the ones the day's ERI would have
+        counted.
+        """
+        for symbol, isin in self.run.predicted_eri_ends.get(date_index, {}).items():
+            position = self.run.portfolio.get(symbol)
+            if position is not None and position.quantity > 0:
+                self.run.missing_eris.setdefault((isin, date_index), symbol)
+
+    def _record_missing_eris_matched(
+        self, missing_ends: list[tuple[dt.date, str, Isin]], repurchase_day: dt.date
+    ) -> None:
+        """Record each period end before a repurchase the fund has no report for.
+
+        Units disposed of by a period end and identified with a repurchase
+        after it count as held at it (reg 94(3A)), so its figure is missing
+        for them too.
+        """
+        for day, symbol, isin in missing_ends:
+            if day < repurchase_day:
+                self.run.missing_eris.setdefault((isin, day), symbol)
 
     def _warn_ticker_only_eri(self, eri: ExcessReportedIncome) -> None:
         """Warn, once, that a report just added to a holding's cost may not be its.
@@ -686,11 +719,14 @@ class Matcher:
             eris: list[tuple[ExcessReportedIncome, Fraction]] = []
             # Every period end a report is supplied for, at any amount.
             period_ends: list[dt.date] = []
+            # And every period end the fund has no report for, with the fund.
+            missing_ends: list[tuple[dt.date, str, Isin]] = []
             eri = self.get_eri(ctx.symbol, ctx.date_index)
             if eri:
                 eris.append((eri, Fraction(1)))
             if (ctx.date_index, ctx.symbol) in self.history.eri_period_ends:
                 period_ends.append(ctx.date_index)
+            self._note_missing_end(ctx.date_index, ctx.symbol, missing_ends)
 
             # A reorganisation between the disposal and the repurchase
             # leaves the two counted in different units. The ratios compose
@@ -768,6 +804,7 @@ class Matcher:
                     eris.append((eri, cumulative_ratio))
                 if (search_index, effective_symbol) in self.history.eri_period_ends:
                     period_ends.append(search_index)
+                self._note_missing_end(search_index, effective_symbol, missing_ends)
                 # The shares are the same holding under either spelling, so
                 # reading only the name the day ends with would let a row's
                 # spelling decide whether this disposal is identified against it.
@@ -927,6 +964,9 @@ class Matcher:
                                 ctx, search_index, spanned
                             )
                         )
+                    # Only supplied period ends are refused above: a predicted
+                    # one is not an exact date.
+                    self._record_missing_eris_matched(missing_ends, search_index)
                     # The units sold, as they stood at the period end.
                     matched_eris = {
                         eri: scale_quantity(available_quantity, ratio)
@@ -2443,6 +2483,8 @@ class Matcher:
                         calculation_log[date_index][
                             f"excess-reported-income${symbol}"
                         ] = [maybe_entry]
+
+            self._record_missing_eris(date_index)
 
             self._note_eri_in_printed_pools(
                 date_index, calculation_log.get(date_index, {})

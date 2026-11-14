@@ -18,6 +18,7 @@ from .const import (
     FIRST_DIVIDEND_ALLOWANCE_YEAR,
 )
 from .dates import get_tax_year_end, get_tax_year_start, is_date
+from .eri_gaps import predict_missing_period_ends, report_missing_eris
 from .exceptions import CurrentPriceRequestError
 from .income import IncomeProcessor
 from .ingestion import TransactionIngester
@@ -222,7 +223,23 @@ class CapitalGainsCalculator:
         # rerun starts from nothing rather than adding to the last run.
         self.run.reset()
         self._warn_unmatched_cgt_exempt_tickers()
+        # A period that has not ended yet has no report missing.
+        self.run.predicted_eri_ends = predict_missing_period_ends(
+            self.history.eri_fund_period_ends,
+            self.history.eri_fund_holdings,
+            self.history.ticker_only_eri_warnings,
+            self.ingester.non_uk_resident_periods,
+            min(self.tax_year_end_date, self.ingester.today),
+        )
         walked = self.matcher.walk()
+        eri_missing = report_missing_eris(
+            self.run.missing_eris,
+            self.history.eri_fund_period_ends,
+            self.history.eri_fund_holdings,
+            self.history.disposal_list,
+            (self.tax_year_start_date, self.tax_year_end_date),
+            self.ingester.today,
+        )
 
         self.income.process_dividends()
         self.income.process_interests()
@@ -259,6 +276,7 @@ class CapitalGainsCalculator:
             exempt_disposal_proceeds=round_decimal(walked.exempt_disposal_proceeds, 2),
             dividends_carry_tax_credit=self.tax_year < FIRST_DIVIDEND_ALLOWANCE_YEAR,
             eri_estimated_until=max(self.run.provisional_eris.values(), default=None),
+            eri_missing=eri_missing,
         )
 
     def make_portfolio(self) -> list[PortfolioEntry]:

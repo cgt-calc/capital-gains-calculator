@@ -19,7 +19,9 @@ The row is only an example of the format. Replace it with values from the fund's
 - **Fund Reporting Period End Date:** the period end date in `DD/MM/YYYY` format
 - **Currency:** the three-letter currency code shown in the report
 - **Excess of reporting income over distribution:** the ERI amount per unit, without multiplying it
-    by the number of units you held
+    by the number of units you held. If the report states the excess as nil, enter 0: cgt-calc then
+    knows the period has a report. If the report leaves it blank, it gives no figure; do not
+    enter 0.
 
 Name each of the four columns once, in any order; letter case and spaces around a name do not
 matter. Do not add other columns, and give each row's values in the order of its header.

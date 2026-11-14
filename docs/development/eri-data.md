@@ -101,6 +101,22 @@ The dates file contains public sector information licensed under the Open Govern
 [`reporting_funds_notice.txt`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/reporting_funds_notice.txt)
 beside it carries this attribution into every package of cgt-calc.
 
+## Yearly refresh
+
+cgt-calc stops a report for a finished tax year when a fund the user held has no ERI figure for a
+period whose income falls in that year
+([Missing reporting periods](../offshore-funds.md#missing-reporting-periods)). It checks the data in
+the installed release, so the bundled data must not lag behind the funds' reports.
+
+Every April, before users report the tax year that has just ended:
+
+1. Import the reports for every reporting period that ended by the 5 October in that tax year. Their
+    income falls in the year, and their reports were due by 5 April.
+2. [Regenerate the reporting fund dates](#reporting-fund-dates) from HMRC's current list.
+3. Publish a release.
+
+Repeat the refresh in late summer for reports that came out late.
+
 ## Pull request checklist
 
 - Updated resource CSV(s) under `cgt_calc/resources/eri/`
