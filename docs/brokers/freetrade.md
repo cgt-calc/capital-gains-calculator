@@ -144,8 +144,10 @@ saves a CSV file. Download the export again and use it unchanged. If a fresh exp
 follow [Reporting problems](../reporting-problems.md) and include the header with a failing row. If
 you have to remove a row, delete the whole line in a text editor.
 
-The message quotes the whole row. Remove the order identifier and anything else you would not
-publish before sharing it.
+The message quotes the whole row, so redact it in the error as well as in the file: replace the
+order identifier and anything else you would not publish with made-up values of the same kind, as
+[What to redact](../reporting-problems.md#what-to-redact) describes. Keep every cell, including
+empty ones: a row with a cell missing no longer gives the same error.
 
 ### `Reached a negative balance`
 

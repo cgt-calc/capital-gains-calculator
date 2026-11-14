@@ -169,8 +169,10 @@ value, or remove the cell that was added. If you no longer have the original, do
 Transaction Summary again.
 
 If a CSV you have not edited is refused, follow [Reporting problems](../reporting-problems.md) and
-include that row. The column-count message quotes the whole row: remove references, account numbers
-and anything else you would not publish before sharing it.
+include that row. The column-count message quotes the whole row, so redact it in the error as well
+as in the file: replace the reference, any account number and anything else you would not publish
+with made-up values of the same kind, as [What to redact](../reporting-problems.md#what-to-redact)
+describes. Keep every cell: a missing cell or an empty reference can change or hide the error.
 
 ### `Two files in the directory hold this transaction`
 
