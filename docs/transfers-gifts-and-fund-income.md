@@ -54,15 +54,22 @@ transfer date, and no money is added to your cash balance.
 2024-03-16,TRANSFER_FROM_SPOUSE,META,21.5,95.60,0.00,GBP
 ```
 
-Your broker may show the shares arriving, but it does not know what they cost, so leave that row out
-of your export rather than let it be read as a purchase at nothing.
+Your broker may show the shares arriving, but it does not know what they cost. Leave that row out of
+your export: the `TRANSFER_FROM_SPOUSE` row records the shares instead. Write its `symbol` exactly
+as your own report names the holding: your broker may name it differently from your spouse's, and
+under another name the shares become a separate holding.
 
 !!! warning "Check that you qualify"
 
     No gain / no loss applies if you were living together at some point in the tax year of the
-    transfer, and since 6 April 2023 for a period after separating as well
-    ([CG22420](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22420)). If you do not
-    qualify, or the shares went to anyone else, record a [gift](#gifts-to-anyone-else) instead.
+    transfer. Since 6 April 2023 it also applies for a period after separating and, once a divorce
+    or dissolution has started, at any time under a divorce or separation agreement or a court order
+    ([CG22200](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22200),
+    [CG22420](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22420)). If you gave
+    the shares and do not qualify, or they went to anyone else, record a
+    [gift](#gifts-to-anyone-else) instead. If you received shares in a transfer that does not
+    qualify, record them as
+    [Shares you were given or inherited](#shares-you-were-given-or-inherited) describes.
 
 Buying the same shares within 30 days of a transfer changes the figure. The transfer is matched
 against that purchase in the same way a sale would be, so the recipient inherits the cost of those
@@ -150,9 +157,12 @@ has no way to record them yet.
 Shares given to you by anyone other than your spouse or civil partner, or left to you when someone
 died, usually cost you their market value on the day of the gift or of the death, although you paid
 nothing ([TCGA 1992 s17](https://www.legislation.gov.uk/ukpga/1992/12/section/17),
-[s62](https://www.legislation.gov.uk/ukpga/1992/12/section/62)). No broker export gives cgt-calc
-that value, so record the shares with a `STOCK_ACTIVITY` row, with the value per share as the
-`price`:
+[s62](https://www.legislation.gov.uk/ukpga/1992/12/section/62)). So do shares from your spouse or
+civil partner, or a former one, in a transfer that does not [qualify](#if-you-received-the-shares)
+for no gain / no loss
+([CG22420](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22420)). No broker export
+gives cgt-calc that value, so record the shares with a `STOCK_ACTIVITY` row, with the value per
+share as the `price`:
 
 - **A gift:** date the row on the day of the gift, at the market value that day
     ([CG66450](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg66450)).
@@ -166,6 +176,15 @@ that value, so record the shares with a `STOCK_ACTIVITY` row, with the value per
     deceased's holding was shared out between heirs, each heir's cost is a proportion of the whole
     holding's value: enter that value divided by the holding's number of shares, not a value for
     your part alone. Ask the executors for it if you do not have it.
+- **A transfer from your spouse or civil partner, or a former one, that does not qualify:** date the
+    row on the day the transfer counts as made, at the market value that day. Under a court order
+    that is usually the date of the order, or the date of the Final Order (decree absolute before 6
+    April 2022) if the order was made before it and the shares moved after it
+    ([CG22420](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22420)). Without a
+    court order it is the day the shares moved, unless you had already made a binding agreement to
+    transfer them: then
+    [CG22410](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22410) says which date
+    applies.
 
 ```csv
 2023-06-01,STOCK_ACTIVITY,ACME,200,5.00,0.00,GBP
