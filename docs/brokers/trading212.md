@@ -52,19 +52,10 @@ trading212/
 
 The base filenames do not matter. cgt-calc reads every CSV file directly inside the directory, but
 it does not search subdirectories. Do not add unrelated CSV files, and make sure there are no gaps
-between date ranges. Matching transactions in overlapping files are reconciled using their recorded
-contents and the number of copies in each export. For ordinary transactions, cgt-calc ignores
-fractional seconds when matching overlapping files, so older exports without milliseconds still
-match newer ones. Reorganisation rows use their exact times, because those times are needed to
-validate the event. IDs help distinguish otherwise identical fills, but are not treated as globally
-unique because Trading 212 can reuse one ID for different transactions. If overlapping files
-represent one split in both the older one-row form and the newer open/close form, cgt-calc refuses
-rather than risk applying it twice; replace them with one complete export covering the named dates.
-
-One overlap cannot be reconciled: if two exports give the same transaction different IDs, cgt-calc
-reads them as two separate fills and counts both. Reorganisation rows are refused rather than
-doubled when that happens, but an ordinary trade is not, so check the final portfolio against
-Trading 212 if you keep overlapping exports.
+between date ranges. Overlapping exports are reconciled, with one exception: if two exports give the
+same transaction different IDs, cgt-calc reads them as two separate fills and counts both.
+Reorganisation rows are refused rather than doubled when that happens, but an ordinary trade is not,
+so check the final portfolio against Trading 212 if you keep overlapping exports.
 
 You can compare the structure with this
 [sanitised example export](https://github.com/cgt-calc/capital-gains-calculator/blob/main/tests/trading212/data/2024/inputs/transactions.csv).
@@ -144,10 +135,13 @@ Trading 212 does not export `Stock split close` and `Stock split open` rows for 
 exports examined, they first appear in December 2024, and an earlier split has neither them nor the
 older single `Stock Split` row: NVIDIA's 10-for-1 split of 10 June 2024 is one. Your purchases
 before the split are then counted in old shares and your sales after it in new ones. For the splits
-listed below cgt-calc can stop instead, in the cases described there. It also stops at a later split
-or consolidation of the share that has rows in the export, when all your shares of it came from the
-export, as [Split rows that do not match your holding](#split-rows-that-do-not-match-your-holding)
-explains. Otherwise, it cannot tell that the split is missing:
+listed below cgt-calc can stop instead, in the cases that
+[When cgt-calc stops for a split in the table](#when-cgt-calc-stops-for-a-split-in-the-table)
+describes. If it stopped with **Cannot compute the disposal**, read that subsection before you add a
+split row. It also stops at a later split or consolidation of the share that has rows in the export,
+when all your shares of it came from the export, as
+[Split rows that do not match your holding](#split-rows-that-do-not-match-your-holding) explains.
+Otherwise, it cannot tell that the split is missing:
 
 - A sale of more shares than the old count holds stops the run with
     [`Tried to sell`](#tried-to-sell).
@@ -156,93 +150,16 @@ explains. Otherwise, it cannot tell that the split is missing:
 - A missing consolidation gives no error at all. Each sale takes too small a share of the cost, so
     the report overstates the gain.
 
-cgt-calc knows the splits in this table, all made before December 2024. The date is the first day
-the shares traded at the new count:
-
-| Share                                     | Ticker  | First day at the new count | Split    | ISIN                         |
-| ----------------------------------------- | ------- | -------------------------- | -------- | ---------------------------- |
-| NVIDIA                                    | `NVDA`  | 20 July 2021               | 4-for-1  | US67066G1040                 |
-| Amazon                                    | `AMZN`  | 6 June 2022                | 20-for-1 | US0231351067                 |
-| DexCom                                    | `DXCM`  | 13 June 2022               | 4-for-1  | US2521311074                 |
-| Shopify                                   | `SHOP`  | 29 June 2022               | 10-for-1 | CA82509L1076                 |
-| Alphabet Class A                          | `GOOGL` | 18 July 2022               | 20-for-1 | US02079K3059                 |
-| Alphabet Class C                          | `GOOG`  | 18 July 2022               | 20-for-1 | US02079K1079                 |
-| Tesla                                     | `TSLA`  | 25 August 2022             | 3-for-1  | US88160R1014                 |
-| Palo Alto Networks                        | `PANW`  | 14 September 2022          | 3-for-1  | US6974351057                 |
-| Novo Nordisk (American depositary shares) | `NVO`   | 20 September 2023          | 2-for-1  | US6701002056                 |
-| Walmart                                   | `WMT`   | 26 February 2024           | 3-for-1  | US9311421039                 |
-| NVIDIA                                    | `NVDA`  | 10 June 2024               | 10-for-1 | US67066G1040                 |
-| Chipotle Mexican Grill                    | `CMG`   | 26 June 2024               | 50-for-1 | US1696561059                 |
-| Broadcom                                  | `AVGO`  | 15 July 2024               | 10-for-1 | US11135F1012                 |
-| MicroStrategy (now Strategy)              | `MSTR`  | 8 August 2024              | 10-for-1 | US5949724083                 |
-| Cintas                                    | `CTAS`  | 12 September 2024          | 4-for-1  | US1729081059                 |
-| Deckers Outdoor                           | `DECK`  | 17 September 2024          | 6-for-1  | US2435371073                 |
-| Super Micro Computer                      | `SMCI`  | 1 October 2024             | 10-for-1 | US86800U1043 or US86800U3023 |
-| Lam Research                              | `LRCX`  | 3 October 2024             | 10-for-1 | US5128071082 or US5128073062 |
-
-cgt-calc stops when your history holds the share going into that day, a Trading 212 row with one of
-those ISINs buys or sells it on or after that day, and no split row dated that day gives the split's
-ratio. With no split row on that day, the message begins with the ticker and **traded at a new
-count**. With one that gives another ratio, it says the split **does not match** the split that day.
-It does not check other splits, a share you hold across the split without trading it at Trading 212
-afterwards, or rows without an ISIN, so the checks below still apply. Apple's and Tesla's splits of
-August 2020 are not in the table: cgt-calc stops at those for a holding with Trading 212 shares even
-with a split row, as [Apple and Tesla in August 2020](#apple-and-tesla-in-august-2020) explains.
-
-cgt-calc also stops, with a message that begins **Cannot compute the disposal**, when all of these
-apply:
-
-- You sold one of these shares before its split, or Apple or Tesla before 31 August 2020, and held
-    none of it going into the split day.
-- Under the 30-day rule, the sale is matched with shares you bought on or after the split day,
-    within 30 days of the sale.
-- No split row you supplied establishes the split's ratio for that match.
-
-cgt-calc then cannot establish that the shares sold and the shares bought are counted in the same
-units. Work that disposal out by hand (consider professional advice). Do not add a split row for it:
-a split row restates the shares held at that point, and with none held cgt-calc stops with **nothing
-to restate**. A purchase more than 30 days after the sale, or one the sale is not matched with, runs
-as usual. The check applies once your history has a Trading 212 purchase or sale of the share under
-one of its ISINs, and it then covers sales and purchases from all your inputs. That includes shares
-whose counts another export has already restated to the new count, such as NVIDIA or Alphabet award
-shares in a complete Schwab Equity Awards export: cgt-calc cannot tell those apart from counts that
-were not restated, so it stops for them too.
-
-cgt-calc reads NVIDIA and Alphabet (`GOOG` and `GOOGL`) shares in a complete Schwab Equity Awards
-export at the new count (see
-[Share splits in complete exports](schwab.md#share-splits-in-complete-exports)), so it does not
-check such a holding that the export has added shares to since the holding last ended a day empty.
-That stays true after those award shares are sold, while other shares keep the holding above zero. A
-split applies to the whole holding, and cgt-calc cannot restate only part of one: if such a holding
-also has Trading 212 shares bought before the split, the result may be wrong without an error. Work
-the split out by hand (consider professional advice). Do not add a split row for it: the row would
-restate the award shares too, and cgt-calc would not stop.
-
-Super Micro Computer's and Lam Research's ISINs changed with their splits. If your export lists the
-share under the first ISIN in the table before the split and the second from the split day on,
-cgt-calc reads the two as one holding and checks it for the split row like the other shares in the
-table. It stops earlier instead, with `is exported for ISIN`, in these cases:
-
-- A row has the first ISIN and is dated on or after the split day, has the second and is dated
-    before it, has another ticker or comes from another broker's export. cgt-calc cannot tell that
-    such a row is the same share.
-- No Trading 212 purchase or sale has the second ISIN, for example when only dividends do. Without
-    one, cgt-calc would not check the holding for the split row.
-
-If the export's own split rows change the ISIN, it stops with `changes the ISIN` while reading the
-export. A RAW row gets past none of these. Do not calculate the two ISINs in separate runs, as the
-first message suggests for two different securities: here they are one holding, and splitting it
-would give the wrong cost. Work the holding out by hand (consider professional advice).
-
-To find one that gave no error, compare the final portfolio cgt-calc prints with your holdings in
-the account you exported. The final portfolio is the position after the last row of your exports, so
-the two can be compared when the exports run to today. A share with fewer shares in the portfolio
-than you hold may have a missing split, and one with more a missing consolidation: check whether the
-company has split or consolidated its shares since you first bought them.
+To find a missing split or consolidation that gave no error, compare the final portfolio cgt-calc
+prints with your holdings in the account you exported. The final portfolio is the position after the
+last row of your exports, so the two can be compared when the exports run to today. A share with
+fewer shares in the portfolio than you hold may have a missing split, and one with more a missing
+consolidation: check whether the company has split or consolidated its shares since you first bought
+them.
 
 Add the split yourself in a [RAW file](raw.md):
 
-1. Find the first day the shares traded at the new count, from the table above or from the company's
+1. Find the first day the shares traded at the new count, from the table below or from the company's
     announcement of the split.
 2. Work out how many shares you held at the start of that day: add up `No. of shares` for your
     purchases before it and take off your sales before it. If an earlier split of the share has no
@@ -286,6 +203,87 @@ column of the header:
 cgt-calc reads every trade after that time as made at the new count. It still stops at a trade
 earlier that day; the entry linked above says what to do then.
 
+cgt-calc knows the splits in this table, all made before December 2024. The date is the first day
+the shares traded at the new count:
+
+| Share                                     | Ticker  | First day at the new count | Split    | ISIN                         |
+| ----------------------------------------- | ------- | -------------------------- | -------- | ---------------------------- |
+| NVIDIA                                    | `NVDA`  | 20 July 2021               | 4-for-1  | US67066G1040                 |
+| Amazon                                    | `AMZN`  | 6 June 2022                | 20-for-1 | US0231351067                 |
+| DexCom                                    | `DXCM`  | 13 June 2022               | 4-for-1  | US2521311074                 |
+| Shopify                                   | `SHOP`  | 29 June 2022               | 10-for-1 | CA82509L1076                 |
+| Alphabet Class A                          | `GOOGL` | 18 July 2022               | 20-for-1 | US02079K3059                 |
+| Alphabet Class C                          | `GOOG`  | 18 July 2022               | 20-for-1 | US02079K1079                 |
+| Tesla                                     | `TSLA`  | 25 August 2022             | 3-for-1  | US88160R1014                 |
+| Palo Alto Networks                        | `PANW`  | 14 September 2022          | 3-for-1  | US6974351057                 |
+| Novo Nordisk (American depositary shares) | `NVO`   | 20 September 2023          | 2-for-1  | US6701002056                 |
+| Walmart                                   | `WMT`   | 26 February 2024           | 3-for-1  | US9311421039                 |
+| NVIDIA                                    | `NVDA`  | 10 June 2024               | 10-for-1 | US67066G1040                 |
+| Chipotle Mexican Grill                    | `CMG`   | 26 June 2024               | 50-for-1 | US1696561059                 |
+| Broadcom                                  | `AVGO`  | 15 July 2024               | 10-for-1 | US11135F1012                 |
+| MicroStrategy (now Strategy)              | `MSTR`  | 8 August 2024              | 10-for-1 | US5949724083                 |
+| Cintas                                    | `CTAS`  | 12 September 2024          | 4-for-1  | US1729081059                 |
+| Deckers Outdoor                           | `DECK`  | 17 September 2024          | 6-for-1  | US2435371073                 |
+| Super Micro Computer                      | `SMCI`  | 1 October 2024             | 10-for-1 | US86800U1043 or US86800U3023 |
+| Lam Research                              | `LRCX`  | 3 October 2024             | 10-for-1 | US5128071082 or US5128073062 |
+
+##### When cgt-calc stops for a split in the table
+
+cgt-calc stops when your history holds the share going into the day the table gives, a Trading 212
+row with one of the share's ISINs in the table buys or sells it on or after that day, and no split
+row dated that day gives the split's ratio. With no split row on that day, the message begins with
+the ticker and **traded at a new count**. With one that gives another ratio, it says the split
+**does not match** the split that day. It does not check other splits, a share you hold across the
+split without trading it at Trading 212 afterwards, or rows without an ISIN, so the check of the
+final portfolio above still applies. Apple's and Tesla's splits of August 2020 are not in the table:
+cgt-calc stops at those for a holding with Trading 212 shares even with a split row, as
+[Apple and Tesla in August 2020](#apple-and-tesla-in-august-2020) explains.
+
+cgt-calc also stops, with a message that begins **Cannot compute the disposal**, when all of these
+apply:
+
+- You sold one of these shares before its split, or Apple or Tesla before 31 August 2020, and held
+    none of it going into the split day.
+- Under the 30-day rule, the sale is matched with shares you bought on or after the split day,
+    within 30 days of the sale.
+- No split row you supplied establishes the split's ratio for that match.
+
+cgt-calc then cannot establish that the shares sold and the shares bought are counted in the same
+units. Work that disposal out by hand (consider professional advice). Do not add a split row for it:
+a split row restates the shares held at that point, and with none held cgt-calc stops with **nothing
+to restate**. A purchase more than 30 days after the sale, or one the sale is not matched with, runs
+as usual. The check applies once your history has a Trading 212 purchase or sale of the share under
+one of its ISINs, and it then covers sales and purchases from all your inputs. That includes shares
+whose counts another export has already restated to the new count, such as NVIDIA or Alphabet award
+shares in a complete Schwab Equity Awards export: cgt-calc cannot tell those apart from counts that
+were not restated, so it stops for them too.
+
+cgt-calc reads NVIDIA and Alphabet (`GOOG` and `GOOGL`) shares in a complete Schwab Equity Awards
+export at the new count (see
+[Share splits in complete exports](schwab.md#share-splits-in-complete-exports)), so it does not
+check such a holding that the export has added shares to since the holding last ended a day empty.
+That stays true after those award shares are sold, while other shares keep the holding above zero. A
+split applies to the whole holding, and cgt-calc cannot restate only part of one: if such a holding
+also has Trading 212 shares bought before the split, the result may be wrong without an error. Work
+the split out by hand. Do not add a split row for it: the row would restate the award shares too,
+and cgt-calc would not stop.
+
+Super Micro Computer's and Lam Research's ISINs changed with their splits. If your export lists the
+share under the first ISIN in the table before the split and the second from the split day on,
+cgt-calc reads the two as one holding and checks it for the split row like the other shares in the
+table. It stops earlier instead, with `is exported for ISIN`, in these cases:
+
+- A row has the first ISIN and is dated on or after the split day, has the second and is dated
+    before it, has another ticker or comes from another broker's export. cgt-calc cannot tell that
+    such a row is the same share.
+- No Trading 212 purchase or sale has the second ISIN, for example when only dividends do. Without
+    one, cgt-calc would not check the holding for the split row.
+
+If the export's own split rows change the ISIN, it stops with `changes the ISIN` while reading the
+export. A RAW row gets past none of these. Do not calculate the two ISINs in separate runs, as the
+first message suggests for two different securities: here they are one holding, and splitting it
+would give the wrong cost. Work the holding out by hand.
+
 #### A split row on another day or with another ratio
 
 When cgt-calc stops for one of the splits in the table above, it names the share's split rows on
@@ -301,7 +299,7 @@ do depends on where the row is:
     has no time, so if you also traded the share on the split day, cgt-calc stops with
     [`cannot be placed either side of it`](raw.md#cannot-be-placed-either-side-of-it): take the row
     out of the RAW file and use a `Stock Split` row in a working copy of the export instead, as
-    described above.
+    [A split with no rows in the export](#a-split-with-no-rows-in-the-export) describes.
 - **A `Stock Split` row you added to a working copy of the export.** Correct its number of shares,
     or move its `Time` to the split day before your first trade at the new count. Move it only if no
     trade of the share falls between its old time and the new one; otherwise work the split out by
@@ -336,8 +334,38 @@ do depends on where the row is:
     broker's records. If it records this split and is dated another day, change its date to the
     split day in a working copy of that export, but only if no trade of the share falls between its
     date and the split day. If it gives another ratio, correct its number there. If a trade does
-    fall in between, or the row's time and order cannot be kept, work the split out by hand
-    (consider professional advice).
+    fall in between, or the row's time and order cannot be kept, work the split out by hand.
+
+#### Apple and Tesla in August 2020
+
+Apple's 4-for-1 split and Tesla's 5-for-1 split both took effect from 31 August 2020. At these two,
+Trading 212 did not split fractions of a share: it closed the fractional part of each holding for
+cash. cgt-calc does not know how an export shows that, so no split row can make the result right.
+cgt-calc stops when your holding of Apple (ISIN US0378331005) or Tesla (US88160R1014) going into 31
+August 2020 includes shares bought at Trading 212 since it was last empty, and a Trading 212 row
+with that ISIN buys or sells it on or after that day, even if you have added a split row. The
+message begins with the ticker and **traded at a new count**, and says that Trading 212 **closed any
+fraction of a share for cash**. A history that bought the share only after the split, or sold all of
+it before, runs as usual, unless that sale is matched with a purchase across the split under the
+30-day rule: cgt-calc then stops with **Cannot compute the disposal**, as
+[When cgt-calc stops for a split in the table](#when-cgt-calc-stops-for-a-split-in-the-table)
+describes. If the holding going into 31 August 2020 has no shares bought at Trading 212 since it was
+last empty, cgt-calc checks it like the splits in the table above, so it needs a split row dated 31
+August 2020. Trading 212 purchases after the split do not change that. Trading 212 shares count even
+if you sold them before the split, as long as shares at another broker kept the holding from
+emptying, so such a history stops too. Tesla's 3-for-1 split of 25 August 2022 is checked like the
+others in the table.
+
+Work the holding out by hand (consider professional advice). To help cgt-calc support these splits,
+open an issue as [Reporting problems](../reporting-problems.md) describes, but instead of an example
+say what your export shows:
+
+- whether your rows from before 31 August 2020 are at the price per share before the split: on 28
+    August 2020, Apple closed at about 500 USD and Tesla at about 2,200 USD;
+- any split rows for the share, and their dates;
+- how the fraction closed for cash appears, for example as a sale or a deposit, and its date.
+
+Do not attach the export or post amounts or quantities: anyone can read an issue.
 
 #### Split rows that do not match your holding
 
@@ -376,36 +404,6 @@ export or a purchase in your RAW file, since it last ended a day empty. It appli
 split rows to the whole holding instead, so a missing split there gives no error. Compare the final
 portfolio with your holdings, as
 [A split with no rows in the export](#a-split-with-no-rows-in-the-export) describes.
-
-#### Apple and Tesla in August 2020
-
-Apple's 4-for-1 split and Tesla's 5-for-1 split both took effect from 31 August 2020. At these two,
-Trading 212 did not split fractions of a share: it closed the fractional part of each holding for
-cash. cgt-calc does not know how an export shows that, so no split row can make the result right.
-cgt-calc stops when your holding of Apple (ISIN US0378331005) or Tesla (US88160R1014) going into 31
-August 2020 includes shares bought at Trading 212 since it was last empty, and a Trading 212 row
-with that ISIN buys or sells it on or after that day, even if you have added a split row. The
-message begins with the ticker and **traded at a new count**, and says that Trading 212 **closed any
-fraction of a share for cash**. A history that bought the share only after the split, or sold all of
-it before, runs as usual, unless that sale is matched with a purchase across the split under the
-30-day rule: cgt-calc then stops with **Cannot compute the disposal**, as
-[A split with no rows in the export](#a-split-with-no-rows-in-the-export) describes. If the holding
-going into 31 August 2020 has no shares bought at Trading 212 since it was last empty, cgt-calc
-checks it like the splits in the table above, so it needs a split row dated 31 August 2020. Trading
-212 purchases after the split do not change that. Trading 212 shares count even if you sold them
-before the split, as long as shares at another broker kept the holding from emptying, so such a
-history stops too. Tesla's 3-for-1 split of 25 August 2022 is checked like the others in the table.
-
-Work the holding out by hand (consider professional advice). To help cgt-calc support these splits,
-open an issue as [Reporting problems](../reporting-problems.md) describes, but instead of an example
-say what your export shows:
-
-- whether your rows from before 31 August 2020 are at the price per share before the split: on 28
-    August 2020, Apple closed at about 500 USD and Tesla at about 2,200 USD;
-- any split rows for the share, and their dates;
-- how the fraction closed for cash appears, for example as a sale or a deposit, and its date.
-
-Do not attach the export or post amounts or quantities: anyone can read an issue.
 
 ### Dates and time zones
 
@@ -538,9 +536,7 @@ cgt-calc does not treat the conversion as a disposal and reports no gain or loss
     security in two Trading 212 accounts, their exports cannot be combined in one run: a
     reorganisation of that security appears twice, and cgt-calc refuses rather than guess which half
     belongs to which account.
-- A reorganisation cgt-calc cannot pair is refused while the CSV is read, which is before the
-    calculator assembles the day. A RAW `STOCK_SPLIT` row, which overrides an unprovable
-    reorganisation from any other input, therefore cannot override this one.
+- A RAW `STOCK_SPLIT` row cannot override a reorganisation whose rows cgt-calc cannot pair.
 - The same reorganisation reported by two brokers cannot be told from two separate events, so
     cgt-calc refuses a day with more than one for the same security.
 - A known ticker change is supported because cgt-calc applies its built-in
@@ -551,10 +547,10 @@ cgt-calc does not treat the conversion as a disposal and reports no gain or loss
     relationship data the export does not carry.
 - A reorganisation of a very small holding can leave the ratio unrecoverable, because the exported
     counts are rounded. cgt-calc still calculates it exactly when your whole holding is the one the
-    export describes; otherwise it stops rather than guess the ratio. Ratios beyond about 1,000 to 1
-    are outside the range it searches, and one of those applied to a holding of around a
-    hundred-thousandth of a share is a narrow edge case where the nearest ratio within range may be
-    used instead of the event being reported as unrecoverable.
+    export describes; otherwise it stops rather than guess the ratio. Ratios above about 1,000 to 1
+    are outside the range cgt-calc searches: for one of those on a holding of around a
+    hundred-thousandth of a share, it may use the nearest ratio within that range instead of
+    stopping, and the result is then wrong with no error.
 - A trade of the same security stamped at or between the two halves of a reorganisation is refused:
     there is no telling whether its count is in the units before it or after it. The same applies to
     a same-day trade from another input that carries no comparable time.
@@ -573,28 +569,36 @@ cgt-calc does not treat the conversion as a disposal and reports no gain or loss
     [RAW actions](raw.md#actions-to-use) records it, you can remove its row from a working copy of
     the export and enter the distribution in the RAW file you pass, or start one if you do not use
     one yet; see [Combining RAW with a broker export](raw.md#combining-raw-with-a-broker-export). No
-    RAW action records a takeover paid in shares; see the next item.
-- A takeover paid in shares is not supported. Trading 212 exports the shares you gave up as a
-    `Market sell` with a price and a total of zero, and cgt-calc stops at a sale like that: read as
-    a sale, the row would report the whole cost of those shares as a loss you did not make. The new
-    shares arrive on a `Stock distribution` row or, for a takeover some years ago, on no row at all.
-    cgt-calc cannot calculate those two holdings. To calculate the rest of the account, leave both
-    out: in a working copy of the export, remove every row for the old shares and for the new ones
-    except their dividends, not only the row cgt-calc stopped at. The report and any tax it
-    estimates then leave out every gain and loss on those two holdings, including a later sale of
-    the new shares: work the two holdings out by hand (consider professional advice) and add their
-    gains and losses to the report's figures. The cash from the rows you remove is also missing from
-    the balance cgt-calc keeps. If that takes the balance below zero, the run stops with
-    `Reached a negative balance`; run it again with `--no-balance-check`, which turns the check off
-    for every input in the run.
+    RAW action records a takeover paid in shares; see
+    [A takeover paid in shares](#a-takeover-paid-in-shares).
+- A takeover paid in shares is not supported, and cgt-calc stops at the zero-price sale Trading 212
+    exports for it: see [A takeover paid in shares](#a-takeover-paid-in-shares).
 - The
     [export for a Trading 212 contract for difference account](https://helpcentre.trading212.com/hc/en-us/articles/36243765206301-How-to-export-the-trading-data-from-my-CFD-account)
     uses a different, record-based CSV format that this parser does not support.
 
 Do not delete an unsupported transaction from the export to make the calculation run, unless you
 record it in a RAW file as described above for share distributions, or leave both securities out as
-described above for a takeover. The missing activity could make the resulting holdings and gains
+described below for a takeover. The missing activity could make the resulting holdings and gains
 incorrect.
+
+### A takeover paid in shares
+
+A takeover paid in shares is not supported. Trading 212 exports the shares you gave up as a
+`Market sell` with a price and a total of zero, and cgt-calc stops at a sale like that: read as a
+sale, the row would report the whole cost of those shares as a loss you did not make. The new shares
+arrive on a `Stock distribution` row or, for a takeover some years ago, on no row at all. cgt-calc
+cannot calculate those two holdings.
+
+To calculate the rest of the account, leave both out: in a working copy of the export, remove every
+row for the old shares and for the new ones except their dividends, not only the row cgt-calc
+stopped at. The report and any tax it estimates then leave out every gain and loss on those two
+holdings, including a later sale of the new shares: work the two holdings out by hand (consider
+professional advice) and add their gains and losses to the report's figures.
+
+The cash from the rows you remove is also missing from the balance cgt-calc keeps. If that takes the
+balance below zero, the run stops with `Reached a negative balance`; run it again with
+`--no-balance-check`, which turns the check off for every input in the run.
 
 ## Troubleshooting
 
@@ -647,8 +651,8 @@ sale of exactly ten times the holding in the message, for example, points to a 1
 [A split with no rows in the export](#a-split-with-no-rows-in-the-export).
 
 If the shares came from a takeover paid in shares, the export may have no row for them: see
-[Known limitations](#known-limitations), and do not add a purchase for them to make the calculation
-run.
+[A takeover paid in shares](#a-takeover-paid-in-shares), and do not add a purchase for them to make
+the calculation run.
 
 ### A total does not match its shares and price
 
