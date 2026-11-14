@@ -1,10 +1,11 @@
 # Transfers, gifts and fund income
 
-Three kinds of event usually need a row you write yourself, because a broker export does not tell
+Four kinds of event usually need a row you write yourself, because a broker export does not tell
 cgt-calc enough about them:
 
 - shares you transfer to your spouse or civil partner, or receive from them;
 - shares you give to anyone else;
+- shares anyone else gives you, or that you inherit;
 - income that a UK accumulation fund keeps and adds to your units.
 
 You do not have to convert your whole history to the [RAW format](brokers/raw.md) for them. Pass a
@@ -143,6 +144,41 @@ loss, as are the other transfers listed in
 [CG12920](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg12920): to employee
 trusts, housing associations and the nation. They are not disposals at market value, and cgt-calc
 has no way to record them yet.
+
+## Shares you were given or inherited
+
+Shares given to you by anyone other than your spouse or civil partner, or left to you when someone
+died, usually cost you their market value on the day of the gift or of the death, although you paid
+nothing ([TCGA 1992 s17](https://www.legislation.gov.uk/ukpga/1992/12/section/17),
+[s62](https://www.legislation.gov.uk/ukpga/1992/12/section/62)). No broker export gives cgt-calc
+that value, so record the shares with a `STOCK_ACTIVITY` row, with the value per share as the
+`price`:
+
+- **A gift:** date the row on the day of the gift, at the market value that day
+    ([CG66450](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg66450)).
+    [Gifts to anyone else](#gifts-to-anyone-else) says how market value is worked out.
+- **An inheritance:** date the row on the date of death, even if the shares reached your account
+    later, at their market value that day
+    ([CG31140](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg31140)). If
+    inheritance tax was payable and HMRC agreed the value of the shares for it, use that value
+    ([s274](https://www.legislation.gov.uk/ukpga/1992/12/section/274),
+    [CG32224](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg32224)).
+
+```csv
+2023-06-01,STOCK_ACTIVITY,ACME,200,5.00,0.00,GBP
+```
+
+The shares join any you already hold under the same `symbol`, so write it exactly as the report
+names that holding. No money is added to your cash balance. Enter the value: cgt-calc accepts a
+`price` of `0`, which makes the shares cost nothing and overstates the gain on a later sale. Leave
+`fees` at `0`, because cgt-calc does not add a fee on this row to the cost. If your broker export
+shows the shares arriving, leave that row out of the export: this row records them instead.
+
+If the giver claimed [Gift Hold-over Relief](https://www.gov.uk/gift-holdover-relief), which you
+claim together with them, your cost is the market value less the gain held over
+([s165](https://www.legislation.gov.uk/ukpga/1992/12/section/165),
+[s260](https://www.legislation.gov.uk/ukpga/1992/12/section/260)). Enter that reduced cost per share
+as the `price`.
 
 ## Income reinvested in accumulation units
 
