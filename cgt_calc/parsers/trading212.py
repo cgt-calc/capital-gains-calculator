@@ -477,7 +477,7 @@ class Trading212Transaction(BrokerTransaction):
                 "as a sale. Trading 212 exports the shares given up in a takeover "
                 "paid in shares this way, and reading the row as a sale would "
                 "report their whole cost as a loss. See "
-                "https://cgt-calc.uk/brokers/trading212/#known-limitations"
+                "https://cgt-calc.uk/brokers/trading212/#a-takeover-paid-in-shares"
             )
 
         self.transaction_fee = Decimal(0)

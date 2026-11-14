@@ -2025,7 +2025,7 @@ def test_a_sale_at_a_price_and_a_total_of_zero_is_refused(tmp_path: Path) -> Non
         "sale. Trading 212 exports the shares given up in a takeover paid in "
         "shares this way, and reading the row as a sale would report their whole "
         "cost as a loss. See "
-        "https://cgt-calc.uk/brokers/trading212/#known-limitations"
+        "https://cgt-calc.uk/brokers/trading212/#a-takeover-paid-in-shares"
     )
 
     with pytest.raises(ParsingError, match=re.escape(message) + "$"):

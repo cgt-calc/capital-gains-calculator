@@ -950,6 +950,8 @@ _NO_SPLIT_ROW_DOCS: Final = (
 )
 # One literal each, so that the link check reads the whole address.
 _OTHER_SPLIT_ROW_DOCS: Final = "https://cgt-calc.uk/brokers/trading212/#a-split-row-on-another-day-or-with-another-ratio"
+# Where the guide says to work a 30-day match across a split out by hand.
+_UNCONVERTED_SPLIT_DOCS: Final = "https://cgt-calc.uk/brokers/trading212/#when-cgt-calc-stops-for-a-split-in-the-table"
 _CASHED_OUT_DOCS: Final = (
     "https://cgt-calc.uk/brokers/trading212/#apple-and-tesla-in-august-2020"
 )
@@ -1347,5 +1349,5 @@ def unconverted_known_split_message(
         "acquisition in shares from after it, matching them share for share "
         "would give each share disposed of the cost of 1 share acquired "
         f"instead of {split.ratio}. Work this disposal out by hand (consider "
-        f"professional advice). See {_NO_SPLIT_ROW_DOCS}"
+        f"professional advice). See {_UNCONVERTED_SPLIT_DOCS}"
     )
