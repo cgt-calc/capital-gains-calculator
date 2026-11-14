@@ -87,7 +87,9 @@ def predicted_period_ends(
     fund with them has none on or before its start date and none after its
     end date, and its end date is its final period end unless a row lies
     within 31 days of it. Any other fund has none before 1 December 2010. A
-    row after the end date outranks it: the fund did not end then.
+    row after the end date outranks it: the fund did not end then. None is
+    after `until`, wherever the rows are: the 30-day rule looks at days past
+    the report.
     """
     ends = sorted(rows)
     first, last = ends[0], ends[-1]
@@ -117,9 +119,9 @@ def predicted_period_ends(
         ):
             break
         predicted.append(day)
-    if end is not None and final and end <= until:
+    if end is not None and final:
         predicted.append(end)
-    return sorted(predicted)
+    return sorted(day for day in predicted if day <= until)
 
 
 def predict_missing_period_ends(

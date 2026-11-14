@@ -184,26 +184,36 @@ def test_income_missing_from_a_finished_report_stops_the_run(tmp_path: Path) -> 
     assert "Tax summary" not in result.stdout
 
 
+@pytest.mark.parametrize(
+    "ends_today",
+    [pytest.param(False, id="tax year"), pytest.param(True, id="--to today")],
+)
 def test_missing_income_in_a_report_still_running_holds_back_the_pdf(
-    tmp_path: Path,
+    tmp_path: Path, ends_today: bool
 ) -> None:
     """The same gap in the tax year in progress warns and writes no PDF.
 
     The dates are set from today. D is today, or the 27th of this month when
     today is later, so the report was due; the period ended six months before
     D, a year after the last row. D's tax year has not ended, so the income
-    may still be added: a warning, and the PDF waits.
+    may still be added: a warning, and the PDF waits. A --from/--to window
+    ending today has not ended either.
     """
     distribution = _recent(dt.date.today())
     period_end = distribution - relativedelta(months=6)
     last_row = period_end - relativedelta(months=12)
+    year = get_tax_year_for_date(distribution)
+    window = (
+        ("--from", str(get_tax_year_start(year)), "--to", str(dt.date.today()))
+        if ends_today
+        else ("--year", str(year))
+    )
     output = tmp_path / "report.pdf"
     result = _run(
         tmp_path,
         [f"{last_row - relativedelta(months=18)},BUY,EXAMPLE,10,100.00,5.00,GBP"],
         [_report(last_row - relativedelta(months=12)), _report(last_row)],
-        "--year",
-        str(get_tax_year_for_date(distribution)),
+        *window,
         "--output",
         str(output),
     )
@@ -488,11 +498,15 @@ TWO_GAP_ROWS = [_report(dt.date(2018, 6, 30)), _report(dt.date(2021, 6, 30))]
             id="sold in the report",
         ),
         pytest.param(
-            ["2018-01-10,BUY,EXAMPLE,10,100.00,5.00,GBP"],
+            [
+                "2018-01-10,BUY,EXAMPLE,10,100.00,5.00,GBP",
+                "2018-01-10,BUY,SHARE,10,50.00,5.00,GBP",
+                "2021-08-01,SELL,SHARE,10,60.00,5.00,GBP",
+            ],
             TWO_GAP_ROWS,
             ["2019-06-30", "2020-06-30"],
             False,
-            id="no disposal",
+            id="another holding sold in the report",
         ),
         pytest.param(
             [
@@ -533,7 +547,8 @@ def test_a_disposal_in_the_report_warns_of_an_income_gain(
 
     - Rows ending 2018-06-30 and 2021-06-30 leave the periods ending around
       2019-06-30 and 2020-06-30 missing, both before 2021/22. A sale on
-      2021-08-01 is in the report; one on 2021-03-01 is before it.
+      2021-08-01 is in the report; one on 2021-03-01 is before it. A sale of
+      another holding on 2021-08-01 is not a disposal of this fund.
     - Rows ending 2019-12-31 and 2020-12-31 leave the period from 2021-01-01
       to around 2021-12-31 missing, with its D, 2022-06-30, after 2021/22. A
       sale on 2021-05-01 is in the report and during that period.
@@ -645,6 +660,41 @@ def test_a_custom_window_that_has_ended_stops(tmp_path: Path) -> None:
         f"  EXAMPLE (ISIN XS0123456781): no figure for the reporting period "
         f"predicted to end around {period_end}, when you held units. Its income is "
         f"treated as received on {distribution}."
+    ) in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("start", "end"),
+    [
+        pytest.param("2023-06-30", "2024-04-05", id="D on the first day"),
+        pytest.param("2023-04-06", "2023-06-30", id="D on the last day"),
+    ],
+)
+def test_income_on_the_first_or_last_day_of_a_window_is_in_it(
+    tmp_path: Path, start: str, end: str
+) -> None:
+    """A window includes its first and last days.
+
+    Rows end 2020-12-31 and 2021-12-31, so the next period ends around
+    2022-12-31, and its D is 2023-06-30: the first day of a window from
+    2023-06-30 to 2024-04-05, and the last day of one from 2023-04-06 to
+    2023-06-30. Both windows have ended, so the run stops.
+    """
+    result = _run(
+        tmp_path,
+        ["2020-01-10,BUY,EXAMPLE,10,100.00,5.00,GBP"],
+        [_report(dt.date(2020, 12, 31)), _report(dt.date(2021, 12, 31))],
+        "--from",
+        start,
+        "--to",
+        end,
+    )
+
+    assert result.returncode == 1
+    assert (
+        "  EXAMPLE (ISIN XS0123456781): no figure for the reporting period "
+        "predicted to end around 2022-12-31, when you held units. Its income is "
+        "treated as received on 2023-06-30."
     ) in result.stderr
 
 
@@ -777,30 +827,32 @@ def test_a_yearly_period_end_just_before_the_end_date_is_not_a_second_one(
 
 
 @pytest.mark.parametrize(
-    ("bought_back", "stops"),
+    ("sold", "bought_back", "stops"),
     [
-        pytest.param("2022-07-05", True, id="within 30 days"),
-        pytest.param("2022-08-05", False, id="after 30 days"),
+        pytest.param("2022-06-20", "2022-07-05", True, id="within 30 days"),
+        pytest.param("2022-06-30", "2022-07-05", True, id="sold on the period end"),
+        pytest.param("2022-06-20", "2022-08-05", False, id="after 30 days"),
     ],
 )
 def test_units_bought_back_within_30_days_count_as_held(
-    tmp_path: Path, bought_back: str, stops: bool
+    tmp_path: Path, sold: str, bought_back: str, stops: bool
 ) -> None:
-    """Units sold before a period end and bought back after it count as held.
+    """Units sold by a period end and bought back after it count as held.
 
     A sale identified with a repurchase in the next period is treated as held
     at the period end (reg 94(3A)). All 10 units are sold on 2022-06-20, ten
-    days before the period predicted to end around 2022-06-30. Bought back on
-    2022-07-05, within 30 days, the sale is matched with them, the units count
-    as held, and the period's income, with D on 2022-12-30 in the finished
-    2022/23, is missing. Bought back on 2022-08-05, the sale is not matched,
-    and nothing was held at the period end.
+    days before the period predicted to end around 2022-06-30, or on that day
+    itself. Bought back on 2022-07-05, within 30 days of either sale, the sale
+    is matched with them, the units count as held, and the period's income,
+    with D on 2022-12-30 in the finished 2022/23, is missing. Bought back on
+    2022-08-05, the sale is not matched, and nothing was held at the period
+    end.
     """
     result = _run(
         tmp_path,
         [
             "2020-01-10,BUY,EXAMPLE,10,100.00,5.00,GBP",
-            "2022-06-20,SELL,EXAMPLE,10,110.00,5.00,GBP",
+            f"{sold},SELL,EXAMPLE,10,110.00,5.00,GBP",
             f"{bought_back},BUY,EXAMPLE,10,105.00,5.00,GBP",
         ],
         [_report(dt.date(2020, 6, 30)), _report(dt.date(2021, 6, 30))],
@@ -813,4 +865,41 @@ def test_units_bought_back_within_30_days_count_as_held(
         "no figure for the reporting period predicted to end around 2022-06-30"
         in result.stderr
     ) is stops
+    assert MISSING_FIGURE_WARNING not in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("year", "stops"),
+    [
+        pytest.param("2021", False, id="the report the sale is in"),
+        pytest.param("2022", True, id="the report the income is in"),
+    ],
+)
+def test_a_30_day_match_does_not_reach_a_period_after_the_report(
+    tmp_path: Path, year: str, stops: bool
+) -> None:
+    """A period ending after the report is not checked, even through a match.
+
+    Rows end 2021-04-15 and 2023-04-15, so the period ending around
+    2022-04-15 has no figure. All 10 units are sold on 2022-03-31, in
+    2021/22, and bought back on 2022-04-20, within 30 days, so they count as
+    held at 2022-04-15 (reg 94(3A)). The 30-day rule looks past the end of
+    2021/22 to find the repurchase, but that period end is after the report,
+    which says nothing about it. Its D, 2022-10-15, is in the finished
+    2022/23, whose report stops.
+    """
+    result = _run(
+        tmp_path,
+        [
+            "2021-04-16,BUY,EXAMPLE,10,100.00,5.00,GBP",
+            "2022-03-31,SELL,EXAMPLE,10,110.00,5.00,GBP",
+            "2022-04-20,BUY,EXAMPLE,10,105.00,5.00,GBP",
+        ],
+        [_report(dt.date(2021, 4, 15)), _report(dt.date(2023, 4, 15))],
+        "--year",
+        year,
+    )
+
+    assert result.returncode == (1 if stops else 0), result.stderr
+    assert ("predicted to end around 2022-04-15" in result.stderr) is stops
     assert MISSING_FIGURE_WARNING not in result.stderr

@@ -61,7 +61,7 @@ cgt-calc currently bundles:
 - [Legal & General UCITS ETF plc 2023-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/legal_and_general_eri.csv)
 
 Open the relevant file and check that it contains the exact ISIN and every reporting period you
-need. cgt-calc warns about most missing periods, but not all; see
+need. cgt-calc checks for most missing periods, but not all; see
 [Missing reporting periods](#missing-reporting-periods). If supplied ERI cannot be matched to the
 holding, check the ISIN-to-ticker mapping below. Do not assume that missing or unmatched data means
 zero ERI.
@@ -87,8 +87,10 @@ a fund's ERI figures, a period you held units through with no figure is a figure
 data, not a period with nothing to report.
 
 cgt-calc predicts the fund's period ends a year apart from the figures it has, and checks each one
-you held units at. Units you sold before a period end and bought back within 30 days after it count
-as held at it. A period that has not ended yet is not checked.
+you held units at. Units you sold on or before a period end and bought back after it, within 30 days
+of the sale, count as held at it
+([regulation 94(3A)](https://www.legislation.gov.uk/uksi/2009/3001/regulation/94)). A period that
+ends after the report, or has not ended yet, is not checked.
 
 For a fund in the bundled data, cgt-calc uses the dates HMRC's
 [list of reporting funds](https://www.gov.uk/government/publications/approved-offshore-reporting-funds)

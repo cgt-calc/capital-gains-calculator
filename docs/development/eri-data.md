@@ -110,7 +110,7 @@ the installed release, so the bundled data must not lag behind the funds' report
 
 Every April, before users report the tax year that has just ended:
 
-1. Import the reports for every reporting period that ended by the 5 October in that tax year. Their
+1. Import the reports for every reporting period that ended by 5 October in that tax year. Their
     income falls in the year, and their reports were due by 5 April.
 2. [Regenerate the reporting fund dates](#reporting-fund-dates) from HMRC's current list.
 3. Publish a release.
