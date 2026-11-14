@@ -187,7 +187,7 @@ def test_bundled_ishares_eri_reaches_holders_at_the_reports_real_period_ends(
     [
         pytest.param(
             "2019",
-            "2019-02-01,BUY,GAAA,10000,5.00,5.00,GBP\n"
+            "2019-01-03,BUY,GAAA,10000,5.00,5.00,GBP\n"
             "2019-10-01,SELL,GAAA,10000,5.10,5.00,GBP\n",
             ["GAAA: £295.96 (included as dividend)"],
             "Allowable costs:    £50,305.96",
@@ -196,7 +196,7 @@ def test_bundled_ishares_eri_reaches_holders_at_the_reports_real_period_ends(
         pytest.param(
             "2020",
             "2020-07-01,BUY,VX5E,10000,30.00,5.00,GBP\n"
-            "2020-08-27,SELL,VX5E,10000,30.50,0.00,GBP\n",
+            "2020-08-26,SELL,VX5E,10000,30.50,0.00,GBP\n",
             ["VX5E: £440.46 (included as dividend)"],
             "Allowable costs:    £300,445.46",
             id="vanguard-closed-on-2020-08-25",
@@ -207,10 +207,10 @@ def test_bundled_ishares_eri_reaches_holders_at_the_reports_real_period_ends(
             "2020-07-01,BUY,VVAL,1000,30.00,0.00,GBP\n"
             "2020-07-01,BUY,VMVL,1000,30.00,0.00,GBP\n"
             "2020-07-01,BUY,VLIQ,1000,30.00,0.00,GBP\n"
-            "2021-03-01,SELL,VMOM,1000,31.00,0.00,GBP\n"
-            "2021-03-01,SELL,VVAL,1000,31.00,0.00,GBP\n"
-            "2021-03-01,SELL,VMVL,1000,31.00,0.00,GBP\n"
-            "2021-03-01,SELL,VLIQ,1000,31.00,0.00,GBP\n",
+            "2021-02-26,SELL,VMOM,1000,31.00,0.00,GBP\n"
+            "2021-02-26,SELL,VVAL,1000,31.00,0.00,GBP\n"
+            "2021-02-26,SELL,VMVL,1000,31.00,0.00,GBP\n"
+            "2021-02-26,SELL,VLIQ,1000,31.00,0.00,GBP\n",
             [
                 "VLIQ: £302.03 (included as dividend)",
                 "VMOM: £110.79 (included as dividend)",
@@ -230,7 +230,7 @@ def test_bundled_eri_of_closed_vanguard_funds_and_gaaa_first_period_reaches_hold
     dividends: list[str],
     allowable_costs: str | None,
 ) -> None:
-    """Six bundled rows are dated at the period ends their reports give.
+    """Six bundled rows carry their corrected period ends.
 
     Vanguard Funds plc's report for the year to 30/06/2021 gives Euro STOXX 50
     (VX5E, IE00BF4R5F15) the period "01 July 2020 - 25 August 2020", and four
@@ -238,22 +238,28 @@ def test_bundled_eri_of_closed_vanguard_funds_and_gaaa_first_period_reaches_hold
     which are HMRC's end dates. Their rows were dated 30/06/2021, when nobody
     held units. iShares VI's 2019 report gives Global AAA-AA Govt Bond (GAAA,
     IE00BZ171348) "03/07/2018 to 01/04/2019" with the fund distribution date
-    30/09/2019, and its other classes' periods end on 31/03/2019. Its row was
-    dated 04/01/2019, the printed date read month first. Each holding below
-    starts after its old date or ends before it, so it got no ERI.
+    30/09/2019. Its row was dated 04/01/2019, the printed date read month
+    first. The new date, 31/03/2019, is the year end the report's other classes
+    and the distribution date imply.
 
-    - GAAA: 10,000 bought on 01/02/2019 for 50,000.00 plus a 5.00 fee, held at
-      31/03/2019, sold on 01/10/2019 for 51,000.00 less a 5.00 fee. ERI
-      10,000 x 0.0359 USD = 359.00 USD, received on 30/09/2019 at HMRC's rate
-      of 1.213: 359.00 / 1.213 = 295.96. Allowable costs 50,005.00 + 5.00 +
-      295.96 = 50,305.96.
+    GAAA is held across both its old and its new date, so a row at either date
+    shows: the old date alone gave 359.00 USD at July 2019's rate of 1.2632,
+    284.20, and both rows together give two lines. The Vanguard redemptions are
+    recorded the day after each closure, so a date even a day late gives no
+    line.
+
+    - GAAA: 10,000 bought on 03/01/2019 for 50,000.00 plus a 5.00 fee, held at
+      04/01/2019 and 31/03/2019, sold on 01/10/2019 for 51,000.00 less a 5.00
+      fee. ERI 10,000 x 0.0359 USD = 359.00 USD, received on 30/09/2019 at
+      HMRC's rate of 1.213: 359.00 / 1.213 = 295.96. Allowable costs
+      50,005.00 + 5.00 + 295.96 = 50,305.96.
     - VX5E: 10,000 bought on 01/07/2020, after the 30/06/2020 period end, for
       300,000.00 plus a 5.00 fee, held at 25/08/2020, redemption recorded on
-      27/08/2020. ERI 10,000 x 0.0496 EUR = 496.00 EUR, received on 25/02/2021
+      26/08/2020. ERI 10,000 x 0.0496 EUR = 496.00 EUR, received on 25/02/2021
       at HMRC's rate of 1.1261: 496.00 / 1.1261 = 440.46. Allowable costs
       300,005.00 + 440.46 = 300,445.46.
     - VMOM, VVAL, VMVL and VLIQ: 1,000 of each bought on 01/07/2020, held at
-      25/02/2021, redemptions recorded on 01/03/2021, in 2020/21. ERI received
+      25/02/2021, redemptions recorded on 26/02/2021, in 2020/21. ERI received
       on 25/08/2021, in 2021/22, at HMRC's rate of 1.3674: VMOM 151.50 USD /
       1.3674 = 110.79, VVAL 413.20 / 1.3674 = 302.18, VMVL 329.10 / 1.3674 =
       240.68, VLIQ 413.00 / 1.3674 = 302.03. The disposals fall in the year
