@@ -2,13 +2,24 @@
 
 Most users can generate a report from a supported broker export without these files or options.
 Start with your [broker guide](brokers/index.md). Return here only if cgt-calc asks for more
-information or one of the tax settings below applies to your investments.
+information or one of the options below applies to your investments. The page has four parts:
+
+- [Files cgt-calc keeps for you](#files-cgt-calc-keeps-for-you): the exchange rates it uses and
+    saves, how to add a missing rate, and the temporary files an interrupted save can leave.
+- [When cgt-calc asks for more](#when-cgt-calc-asks-for-more): a share price your broker files do
+    not give, and the old ticker a spin-off came from.
+- [Tickers and ISINs](#tickers-and-isins): how cgt-calc matches tickers to securities and follows
+    ticker renames, the messages it stops with when a ticker could stand for two securities, and how
+    to calculate two such securities in separate runs.
+- [Options for particular cases](#options-for-particular-cases): estimates at current prices,
+    bond-fund income, income reported in more than one currency, shares held before April 2008 and
+    CGT-exempt instruments.
 
 When you give cgt-calc a file described here, use its option rather than passing it beside your
 broker exports. A file passed that way, or found in a folder you pass, stops the run with a message
 naming the option to use.
 
-## Automatic data fetching
+## Files cgt-calc keeps for you
 
 cgt-calc creates and updates these local files itself. You do not need to create or select them for
 a normal calculation.
@@ -110,6 +121,76 @@ HMRC's rates up to 2014 are kept in the UK Government Web Archive:
 A month's table gives a “Date of change” and “New rate” where HMRC changed a rate during the month,
 and its “Weekly Rates of Exchange amendments” list every change.
 
+### Temporary cache files
+
+An interrupted save can leave a `.tmp` file beside `exchange_rates.csv`, `isin_translation.csv` or
+`spin_offs.csv`, such as `exchange_rates.csv.3f9a1c2b.tmp`. Once cgt-calc has stopped, you can
+delete that temporary file. An existing cache stays complete, though it may not include the latest
+run's updates.
+
+## When cgt-calc asks for more
+
+### Missing share prices
+
+cgt-calc sometimes needs a share's price on a date that your broker files do not give:
+
+- **A vest without a price.** A vest or other stock-plan acquisition needs a price per share to
+    establish its cost. Broker files usually provide it, and cgt-calc includes some historical USD
+    values in
+    [`share_prices.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/share_prices.csv).
+    If cgt-calc stops with a **No share price** error, give the missing price in the currency of the
+    transaction it is for.
+- **A spin-off.** cgt-calc splits the old holding's cost between the old and the new holding by
+    their market values on the date of the spin-off row, using each holding's closing price that day
+    from Yahoo Finance, as traded rather than adjusted for later dividends and splits. If it stops
+    with a **No market data found** error, for example because Yahoo lists the ticker differently
+    from your broker, give the closing prices of both holdings on that date as they traded then, not
+    the split-adjusted figures on Yahoo's history page. The file has no currency column, so write
+    both prices in the same currency; for London shares, do not mix pence and pounds. Prices you
+    give are used instead of Yahoo's, and giving only one of the two stops the run.
+
+Put the prices in a CSV file in the same format as `share_prices.csv`, under the tickers in your
+broker files, not Yahoo's, and pass it with `--prices-file`. Start it with the header line
+`date,symbol,price`. The header names each column once, in any order and letter case, and nothing
+else; each row gives its values in the header's order. For a spin-off of `NEWCO` from `ACME` on 1
+April 2024:
+
+```csv
+date,symbol,price
+"Apr 01, 2024",ACME,94.00
+"Apr 01, 2024",NEWCO,17.50
+```
+
+Your file replaces the bundled prices rather than adding to them, so copy in any bundled rows you
+still need. A row under a ticker the company has since changed, such as `FB`, counts for its current
+ticker, `META`, over the dates given under [Ticker renames](#ticker-renames): an `FB` row dated from
+26 June 2025 prices the security that has traded as `FB` since then, not Meta. If two rows give the
+same share different prices on one day, cgt-calc stops and asks you to remove one.
+
+### Spin-off source mappings
+
+A spin-off row may name the new holding without naming the old holding it came from. cgt-calc needs
+that link to divide the existing pooled cost between them. During an interactive run, it asks for
+the old ticker and saves the answer to `out/spin_offs.csv`.
+
+If the run cannot ask you for the old ticker, put the mapping in a file, pass that file with
+`--spin-offs-file`, and rerun. The file starts with the header line `dst,src`, in either order and
+any letter case. Each row gives the new ticker under `dst` and the ticker it was spun off from under
+`src`. For `NEWCO` spun off from `ACME`:
+
+```csv
+dst,src
+NEWCO,ACME
+```
+
+If two rows give the same new ticker different old tickers, cgt-calc stops and names both rows.
+
+An empty `--spin-offs-file` value disables the cache, so cgt-calc does not read or save spin-off
+mappings. See [Temporary cache files](#temporary-cache-files) if an interrupted run leaves a `.tmp`
+file.
+
+## Tickers and ISINs
+
 ### ISIN to ticker translation
 
 When an ERI row identifies a fund only by its ISIN, cgt-calc maps it to ticker symbols. It checks
@@ -180,7 +261,7 @@ whose `market` is `LSE` stops the run too when its London ticker belongs to a bu
 another transaction exports the ticker with a different ISIN; see
 [`is a London ticker on this row`](#is-a-london-ticker-on-this-row).
 
-#### Tickers that are also US symbols
+### Tickers that are also US symbols
 
 Some London tickers in the bundled list are also the symbols of other securities in the US. `OPEN`,
 for example, is an iShares fund in London and Opendoor in the US. A holding under one of these
@@ -215,204 +296,6 @@ The tickers that warn are the ones that were also US exchange symbols in Novembe
 a US symbol until October 2025. A US listing that takes one of the bundled tickers later, or a US
 over-the-counter symbol, does not warn. If the report shows fund income for a holding that is not a
 fund, take the ticker off that fund with a row as above.
-
-#### `already linked to ISIN`
-
-Two rows, or a row and the bundled list, give the same ticker to different ISINs. The error names
-your row and says where the other ISIN is: on another row, or in the bundled list. Correct the row
-that is wrong. If the ticker is right for your ISIN and the clash is with the bundled list, also
-give the bundled ISIN a row that leaves that ticker out. If that was its only ticker, write the ISIN
-followed by a comma, such as `IE00B42WWV65,`.
-
-If the error names no row, a lookup found a ticker that another ISIN already has. Add a row for the
-ISIN that was looked up, which is the second one in the error, with its correct ticker. If that
-ticker is the one in the error, also take it off the first ISIN: change its row if your file has
-one, or give it a row that leaves the ticker out.
-
-#### `is already used for ISIN`
-
-A transaction carries an ISIN, or takes one from another row under its ticker, and the ticker
-already stands for a different ISIN in this run: a row in your ISIN translation file, a lookup
-cgt-calc saved there, or another transaction gives it to that ISIN. cgt-calc would pool the two
-securities as one holding. If the row in your file is wrong, correct it, or give that ISIN a row
-that leaves the ticker out, as described under [`already linked to ISIN`](#already-linked-to-isin).
-If two of your exports really use one ticker for two securities, calculate them in
-[separate runs](#two-securities-in-separate-runs).
-
-#### `is a US symbol on another row`
-
-One transaction, such as a Charles Schwab one, uses the ticker as a US symbol. Another uses the same
-ticker and carries the ISIN of the London fund that the bundled list gives the ticker to. They are
-two securities, and cgt-calc would pool them as one holding. Calculate them in
-[separate runs](#two-securities-in-separate-runs).
-
-#### `is from market`
-
-Two transactions give one ticker different markets: RAW rows with
-[`market`](brokers/raw.md#say-which-market-a-ticker-is-from) `LSE` and `US`, or an `LSE` row and a
-Charles Schwab row, which is always US. The error shows both rows. If one market is wrong, correct
-it in the RAW file. If they really are two securities, cgt-calc would pool them as one holding:
-calculate them in [separate runs](#two-securities-in-separate-runs).
-
-#### `is a London ticker on this row`
-
-A RAW row's [`market`](brokers/raw.md#say-which-market-a-ticker-is-from) is `LSE` and its ticker is
-one the bundled list gives a London fund, such as `OPEN`. Another transaction exports the ticker
-with a different ISIN, for example a Trading 212 transaction. cgt-calc cannot tell whether the RAW
-row is the fund or the security the export names. If they are two securities, calculate them in
-[separate runs](#two-securities-in-separate-runs). If the RAW row is the security the export names,
-leave its market blank: it then takes that ISIN.
-
-#### `has no ISIN on this row and no market`
-
-A row without an ISIN, such as an Interactive Brokers trade or a RAW row whose
-[`market`](brokers/raw.md#say-which-market-a-ticker-is-from) is blank, uses `GDX`, `SMH`, `WCLD` or
-`DFNS`. Another transaction, usually a Trading 212 one, exports the ticker with the ISIN of General
-Dynamics or of a fund whose London dollar line it is. The same letters are also the US symbol of
-another security, such as the VanEck Gold Miners ETF, and no row in your files gives the ticker a
-market, so cgt-calc cannot tell which of the two the row is. The error shows the row that exported
-the ticker.
-
-If the row is in your RAW file, write its market: `US` for the security listed in the US under those
-letters, or `LSE` for the one listed in London. An `LSE` row under `SMH`, `WCLD` or `DFNS` joins the
-Trading 212 holding. A `GDX` row of either market stays a holding of its own, because `GDX` is a
-gold miners fund in both places. If the row is General Dynamics, write its ticker as `GD` instead. A
-market on one row applies to the ticker's rows with a blank market too. A row of another broker's
-export cannot be given a market: move those trades from a working copy of the export into your RAW
-file and write their market there, or, if they are another security, calculate the two in
-[separate runs](#two-securities-in-separate-runs).
-
-#### `is a Vanguard fund's on this row`
-
-A Vanguard transaction uses a ticker that the bundled list gives a Vanguard fund, such as `VERX`.
-Another transaction exports the same ticker with a different ISIN, such as Vertex's, or uses it as a
-US symbol, as a Charles Schwab one does. Vanguard sells only its own funds, so they are two
-securities, and cgt-calc would pool them as one holding. Calculate them in
-[separate runs](#two-securities-in-separate-runs).
-
-#### Two securities in separate runs
-
-Some errors, such as `is exported for ISIN` and `is a US symbol on another row`, stop a run that has
-two different securities under one ticker and ask you to calculate them in separate runs. cgt-calc
-can then calculate each security, but you need to choose each run's files with care and add up the
-two reports yourself.
-
-Do this only for two different securities. One security whose ISIN changed, as happens at some share
-splits, can also stop the run with `is exported for ISIN`, but it is one holding. Separate runs
-would split it and give the wrong cost, so work that holding out by hand (consider professional
-advice).
-
-cgt-calc pools and matches each security across all the files in a run, so every security, not only
-these two, needs all of its transactions in one run. Give one of the two securities a run of its
-own:
-
-- That run gets the security's transactions from every file that has any, whichever broker it comes
-    from.
-- The other run gets everything else.
-- Both runs need the same `--year` and tax settings, and the same extra data files, such as your
-    exchange rates file and any custom ERI file. Each needs its own `--output`, or the second run
-    replaces the first one's PDF.
-- The exception is a row in your ISIN translation file that gives the shared ticker to one of the
-    two securities. It also applies in the run that does not hold that security, so give that run a
-    copy of the file with `--isin-translation-file`, and in the copy take the ticker off that row.
-    Keep every other row, and leave the ISIN followed by a comma if the row had no other ticker.
-
-You can pass whole files when that already keeps every security in one run and the two securities
-apart: for example, the Charles Schwab export alone in one run, and the Vanguard export with all
-your other files in the other, when you hold none of the Schwab shares at another broker.
-
-Otherwise, keep the downloaded files unchanged and make two working copies of each file that holds
-the security with a run of its own and anything else. Delete that security's rows from the first
-copy, and every other row from the second. Pass the second copies to that security's run. That run
-then has none of the deposits that paid for the purchases, so it usually stops with
-`Reached a negative balance`: add `--no-balance-check` to it, which turns the check off for every
-file in that run. The first copies lose the cash of the deleted rows too. If money those rows
-brought in paid for later purchases, the other run stops the same way: use `--no-balance-check`
-there only once you have checked that the shortfall is only that money.
-
-To combine the reports for a tax year, add up the capital gains figures in their terminal summaries,
-from **Disposals** to **Total gain**. Deduct the annual exempt amount once, from the combined
-**Total gain**, and work out the tax on the rest, as
-[Tax estimates](tax-estimates.md#tax-at-the-basic-and-higher-rate) explains. Do not add the reports'
-**Taxable gain** or tax figures: each report deducts the whole annual exempt amount and taxes its
-gain as if it were your only one, so adding them counts the allowance twice.
-
-In 2010/11 and 2024/25 the rates changed during the year, so the tax also depends on how much of the
-combined **Gain** was made after the change. To find it, run each of the two again with
-`--no-report` for that part of the year, as
-[Report part of a tax year](usage.md#report-part-of-a-tax-year-advanced) shows, and add up their
-**Gain**.
-
-Add the dividend **Proceeds** and the interest figures as they are, but not the dividends' **Taxable
-proceeds**: each report deducts the whole dividend allowance from them.
-
-### Temporary cache files
-
-An interrupted save can leave a `.tmp` file beside `exchange_rates.csv`, `isin_translation.csv` or
-`spin_offs.csv`, such as `exchange_rates.csv.3f9a1c2b.tmp`. Once cgt-calc has stopped, you can
-delete that temporary file. An existing cache stays complete, though it may not include the latest
-run's updates.
-
-## When extra information is needed
-
-### Missing share prices
-
-cgt-calc sometimes needs a share's price on a date that your broker files do not give:
-
-- **A vest without a price.** A vest or other stock-plan acquisition needs a price per share to
-    establish its cost. Broker files usually provide it, and cgt-calc includes some historical USD
-    values in
-    [`share_prices.csv`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/share_prices.csv).
-    If cgt-calc stops with a **No share price** error, give the missing price in the currency of the
-    transaction it is for.
-- **A spin-off.** cgt-calc splits the old holding's cost between the old and the new holding by
-    their market values on the date of the spin-off row, using each holding's closing price that day
-    from Yahoo Finance, as traded rather than adjusted for later dividends and splits. If it stops
-    with a **No market data found** error, for example because Yahoo lists the ticker differently
-    from your broker, give the closing prices of both holdings on that date as they traded then, not
-    the split-adjusted figures on Yahoo's history page. The file has no currency column, so write
-    both prices in the same currency; for London shares, do not mix pence and pounds. Prices you
-    give are used instead of Yahoo's, and giving only one of the two stops the run.
-
-Put the prices in a CSV file in the same format as `share_prices.csv`, under the tickers in your
-broker files, not Yahoo's, and pass it with `--prices-file`. Start it with the header line
-`date,symbol,price`. The header names each column once, in any order and letter case, and nothing
-else; each row gives its values in the header's order. For a spin-off of `NEWCO` from `ACME` on 1
-April 2024:
-
-```csv
-date,symbol,price
-"Apr 01, 2024",ACME,94.00
-"Apr 01, 2024",NEWCO,17.50
-```
-
-Your file replaces the bundled prices rather than adding to them, so copy in any bundled rows you
-still need. A row under a ticker the company has since changed, such as `FB`, counts for its current
-ticker, `META`, over the dates given under [Ticker renames](#ticker-renames): an `FB` row dated from
-26 June 2025 prices the security that has traded as `FB` since then, not Meta. If two rows give the
-same share different prices on one day, cgt-calc stops and asks you to remove one.
-
-### Spin-off source mappings
-
-A spin-off row may name the new holding without naming the old holding it came from. cgt-calc needs
-that link to divide the existing pooled cost between them. During an interactive run, it asks for
-the old ticker and saves the answer to `out/spin_offs.csv`.
-
-If the run cannot ask you for the old ticker, put the mapping in a file, pass that file with
-`--spin-offs-file`, and rerun. The file starts with the header line `dst,src`, in either order and
-any letter case. Each row gives the new ticker under `dst` and the ticker it was spun off from under
-`src`. For `NEWCO` spun off from `ACME`:
-
-```csv
-dst,src
-NEWCO,ACME
-```
-
-If two rows give the same new ticker different old tickers, cgt-calc stops and names both rows.
-
-An empty `--spin-offs-file` value disables the cache, so cgt-calc does not read or save spin-off
-mappings. See [Temporary cache files](#temporary-cache-files) if an interrupted run leaves a `.tmp`
-file.
 
 ### Ticker renames
 
@@ -511,6 +394,143 @@ first upgrade cgt-calc using the same method you used to install it. If the prob
 [GitHub issue](https://github.com/cgt-calc/capital-gains-calculator/issues/new) with the old and new
 tickers, the ISIN and the dates involved. Do not edit a broker export to get past it. In a RAW file
 you write yourself, you can use the current ticker throughout instead.
+
+### Messages about a ticker or ISIN
+
+Each of these messages stops the run because a ticker could stand for two different securities. Each
+entry is named after part of the message.
+
+#### `already linked to ISIN`
+
+Two rows, or a row and the bundled list, give the same ticker to different ISINs. The error names
+your row and says where the other ISIN is: on another row, or in the bundled list. Correct the row
+that is wrong. If the ticker is right for your ISIN and the clash is with the bundled list, also
+give the bundled ISIN a row that leaves that ticker out. If that was its only ticker, write the ISIN
+followed by a comma, such as `IE00B42WWV65,`.
+
+If the error names no row, a lookup found a ticker that another ISIN already has. Add a row for the
+ISIN that was looked up, which is the second one in the error, with its correct ticker. If that
+ticker is the one in the error, also take it off the first ISIN: change its row if your file has
+one, or give it a row that leaves the ticker out.
+
+#### `is already used for ISIN`
+
+A transaction carries an ISIN, or takes one from another row under its ticker, and the ticker
+already stands for a different ISIN in this run: a row in your ISIN translation file, a lookup
+cgt-calc saved there, or another transaction gives it to that ISIN. cgt-calc would pool the two
+securities as one holding. If the row in your file is wrong, correct it, or give that ISIN a row
+that leaves the ticker out, as described under [`already linked to ISIN`](#already-linked-to-isin).
+If two of your exports really use one ticker for two securities, calculate them in
+[separate runs](#two-securities-in-separate-runs).
+
+#### `is a US symbol on another row`
+
+One transaction, such as a Charles Schwab one, uses the ticker as a US symbol. Another uses the same
+ticker and carries the ISIN of the London fund that the bundled list gives the ticker to. They are
+two securities, and cgt-calc would pool them as one holding. Calculate them in
+[separate runs](#two-securities-in-separate-runs).
+
+#### `is from market`
+
+Two transactions give one ticker different markets: RAW rows with
+[`market`](brokers/raw.md#say-which-market-a-ticker-is-from) `LSE` and `US`, or an `LSE` row and a
+Charles Schwab row, which is always US. The error shows both rows. If one market is wrong, correct
+it in the RAW file. If they really are two securities, cgt-calc would pool them as one holding:
+calculate them in [separate runs](#two-securities-in-separate-runs).
+
+#### `is a London ticker on this row`
+
+A RAW row's [`market`](brokers/raw.md#say-which-market-a-ticker-is-from) is `LSE` and its ticker is
+one the bundled list gives a London fund, such as `OPEN`. Another transaction exports the ticker
+with a different ISIN, for example a Trading 212 transaction. cgt-calc cannot tell whether the RAW
+row is the fund or the security the export names. If they are two securities, calculate them in
+[separate runs](#two-securities-in-separate-runs). If the RAW row is the security the export names,
+leave its market blank: it then takes that ISIN.
+
+#### `has no ISIN on this row and no market`
+
+A row without an ISIN, such as an Interactive Brokers trade or a RAW row whose
+[`market`](brokers/raw.md#say-which-market-a-ticker-is-from) is blank, uses `GDX`, `SMH`, `WCLD` or
+`DFNS`. Another transaction, usually a Trading 212 one, exports the ticker with the ISIN of General
+Dynamics or of a fund whose London dollar line it is. The same letters are also the US symbol of
+another security, such as the VanEck Gold Miners ETF, and no row in your files gives the ticker a
+market, so cgt-calc cannot tell which of the two the row is. The error shows the row that exported
+the ticker.
+
+If the row is in your RAW file, write its market: `US` for the security listed in the US under those
+letters, or `LSE` for the one listed in London. An `LSE` row under `SMH`, `WCLD` or `DFNS` joins the
+Trading 212 holding. A `GDX` row of either market stays a holding of its own, because `GDX` is a
+gold miners fund in both places. If the row is General Dynamics, write its ticker as `GD` instead. A
+market on one row applies to the ticker's rows with a blank market too. A row of another broker's
+export cannot be given a market: move those trades from a working copy of the export into your RAW
+file and write their market there, or, if they are another security, calculate the two in
+[separate runs](#two-securities-in-separate-runs).
+
+#### `is a Vanguard fund's on this row`
+
+A Vanguard transaction uses a ticker that the bundled list gives a Vanguard fund, such as `VERX`.
+Another transaction exports the same ticker with a different ISIN, such as Vertex's, or uses it as a
+US symbol, as a Charles Schwab one does. Vanguard sells only its own funds, so they are two
+securities, and cgt-calc would pool them as one holding. Calculate them in
+[separate runs](#two-securities-in-separate-runs).
+
+### Two securities in separate runs
+
+Some errors, such as `is exported for ISIN` and `is a US symbol on another row`, stop a run that has
+two different securities under one ticker and ask you to calculate them in separate runs. cgt-calc
+can then calculate each security, but you need to choose each run's files with care and add up the
+two reports yourself.
+
+Do this only for two different securities. One security whose ISIN changed, as happens at some share
+splits, can also stop the run with `is exported for ISIN`, but it is one holding. Separate runs
+would split it and give the wrong cost, so work that holding out by hand (consider professional
+advice).
+
+cgt-calc pools and matches each security across all the files in a run, so every security, not only
+these two, needs all of its transactions in one run. Give one of the two securities a run of its
+own:
+
+- That run gets the security's transactions from every file that has any, whichever broker it comes
+    from.
+- The other run gets everything else.
+- Both runs need the same `--year` and tax settings, and the same extra data files, such as your
+    exchange rates file and any custom ERI file. Each needs its own `--output`, or the second run
+    replaces the first one's PDF.
+- The exception is a row in your ISIN translation file that gives the shared ticker to one of the
+    two securities. It also applies in the run that does not hold that security, so give that run a
+    copy of the file with `--isin-translation-file`, and in the copy take the ticker off that row.
+    Keep every other row, and leave the ISIN followed by a comma if the row had no other ticker.
+
+You can pass whole files when that already keeps every security in one run and the two securities
+apart: for example, the Charles Schwab export alone in one run, and the Vanguard export with all
+your other files in the other, when you hold none of the Schwab shares at another broker.
+
+Otherwise, keep the downloaded files unchanged and make two working copies of each file that holds
+the security with a run of its own and anything else. Delete that security's rows from the first
+copy, and every other row from the second. Pass the second copies to that security's run. That run
+then has none of the deposits that paid for the purchases, so it usually stops with
+`Reached a negative balance`: add `--no-balance-check` to it, which turns the check off for every
+file in that run. The first copies lose the cash of the deleted rows too. If money those rows
+brought in paid for later purchases, the other run stops the same way: use `--no-balance-check`
+there only once you have checked that the shortfall is only that money.
+
+To combine the reports for a tax year, add up the capital gains figures in their terminal summaries,
+from **Disposals** to **Total gain**. Deduct the annual exempt amount once, from the combined
+**Total gain**, and work out the tax on the rest, as
+[Tax estimates](tax-estimates.md#tax-at-the-basic-and-higher-rate) explains. Do not add the reports'
+**Taxable gain** or tax figures: each report deducts the whole annual exempt amount and taxes its
+gain as if it were your only one, so adding them counts the allowance twice.
+
+In 2010/11 and 2024/25 the rates changed during the year, so the tax also depends on how much of the
+combined **Gain** was made after the change. To find it, run each of the two again with
+`--no-report` for that part of the year, as
+[Report part of a tax year](usage.md#report-part-of-a-tax-year-advanced) shows, and add up their
+**Gain**.
+
+Add the dividend **Proceeds** and the interest figures as they are, but not the dividends' **Taxable
+proceeds**: each report deducts the whole dividend allowance from them.
+
+## Options for particular cases
 
 ### Estimate unrealized gains
 
