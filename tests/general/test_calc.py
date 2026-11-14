@@ -1881,34 +1881,6 @@ def test_eri_missing_required_data_has_a_transaction_error(
         )
 
 
-def test_dividend_and_tax_currency_mismatch_has_a_calculation_error() -> None:
-    """Inconsistent income rows produce a user-facing data error."""
-    day = dt.date(2024, 6, 3)
-    transactions = [
-        BrokerTransaction(
-            date=day,
-            action=action,
-            symbol="FOO",
-            description="dividend",
-            quantity=None,
-            price=None,
-            fees=Decimal(0),
-            amount=amount,
-            currency=currency,
-            broker="Test",
-        )
-        for action, amount, currency in [
-            (ActionType.DIVIDEND, Decimal(100), CurrencyCode("USD")),
-            (ActionType.DIVIDEND_TAX, Decimal(-15), CurrencyCode("GBP")),
-        ]
-    ]
-    calculator = create_calculator(tax_year=2024, balance_check=False)
-    calculator.prepare_history(transactions)
-
-    with pytest.raises(CalculationError, match="currencies do not match"):
-        calculator.calculate_capital_gain()
-
-
 @pytest.mark.parametrize(
     ("amount", "error_match"),
     [

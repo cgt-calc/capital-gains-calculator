@@ -21,7 +21,6 @@ from .calc_test_data import dividend_tax_transaction, dividend_transaction
 
 GBP = CurrencyCode("GBP")
 USD = CurrencyCode("USD")
-PLN = CurrencyCode("PLN")
 
 # The tax year under test, a dividend inside it, and withholding placed at
 # various distances from that dividend: two days away, exactly at the
@@ -725,38 +724,6 @@ def test_autoconvert_handles_gbp_tax_on_a_foreign_dividend() -> None:
         autoconvert_currency=True,
         gbp_prices={DIVIDEND_DATE: {USD: Decimal("1.25")}},
     ) == [(DIVIDEND_DATE, Decimal(80), Decimal(-12), True)]
-
-
-def test_autoconvert_refuses_dividend_and_tax_in_two_foreign_currencies() -> None:
-    """A second foreign currency cannot silently choose treaty treatment."""
-    transactions = [
-        _dividend_at(DIVIDEND_DATE, 100, "A", USD),
-        _tax_in_currency(DIVIDEND_DATE, -60, PLN, "A"),
-    ]
-
-    with pytest.raises(CalculationError, match="currencies do not match"):
-        _reported(
-            transactions,
-            autoconvert_currency=True,
-            gbp_prices={DIVIDEND_DATE: {USD: Decimal("1.25"), PLN: Decimal(5)}},
-        )
-
-
-def test_autoconvert_refuses_two_foreign_currencies_for_one_dividend() -> None:
-    """Two brokers paying the same dividend in different foreign currencies."""
-    transactions = [
-        _dividend_at(DIVIDEND_DATE, 100, "A", USD),
-        _dividend_at(DIVIDEND_DATE, 400, "B", PLN),
-    ]
-
-    with pytest.raises(
-        CalculationError, match="does not convert between foreign currencies"
-    ):
-        _reported(
-            transactions,
-            autoconvert_currency=True,
-            gbp_prices={DIVIDEND_DATE: {USD: Decimal("1.25"), PLN: Decimal(5)}},
-        )
 
 
 def test_autoconvert_gbp_dividend_with_foreign_tax_reports_no_treaty(

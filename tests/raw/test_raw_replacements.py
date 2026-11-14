@@ -51,7 +51,7 @@ def _monthly_payer(tmp_path: Path, june_tax: str, correction: str | None) -> Pat
     `NRA Tax Adj` on 27 June: 24 days after the first payment, inside the 30
     days back its dividend may lie, and 3 days before the second, inside the
     5 days ahead. Either payment could claim it, so cgt-calc leaves it out.
-    The adjustment is row 4 of the file.
+    The made-up correction is row 4 of the file.
     """
     rows = [
         '"06/30/2024","NRA Withholding","FOO","FOO CORP","","","","-$30.00"',
