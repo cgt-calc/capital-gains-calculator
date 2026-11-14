@@ -37,9 +37,6 @@ REPORT_FILE_REGEX = re.compile(r"^(?!.*notice).*spdr.*\.pdf$", re.IGNORECASE)
 TABLE_HEADING = "UMBRELLA"
 CURRENCY_COLUMN = "CURRENCYOF"
 ERI_COLUMN = "PERUNITEXCESS"
-# The headings of the table reach no further below the line with
-# "UMBRELLA FUND NAME" than this many points.
-HEADING_REACH = 25
 
 TITLE_REGEX = re.compile(r"REPORTINGPERIODEND(?:ED)?(\d{1,2}[A-Z]+\d{4})(\(REVISED\))?")
 # SSGA reissued its reports for the periods ending 31 March 2020 to 2023 in
@@ -136,11 +133,7 @@ class SpdrImporter(ERIImporter):
                 break
             words += above
         end = anchor + 1
-        while (
-            end < len(lines)
-            and lines[end][0]["top"] <= line[0]["top"] + HEADING_REACH
-            and not _is_data(lines[end])
-        ):
+        while end < len(lines) and not _is_data(lines[end]):
             words += lines[end]
             end += 1
         groups: list[list[Word]] = []

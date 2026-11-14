@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, NamedTuple, NotRequired, TypedDict
 
 import pytest
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen.canvas import Canvas
 
 from cgt_calc.exceptions import ParsingError
@@ -107,6 +108,10 @@ class Row(NamedTuple):
     wrapped: bool = False
     # Each distribution is printed on its own line, without the ISIN.
     distributions: tuple[tuple[str, str], ...] = ()
+    # Points by which a long name runs on into the ISIN's first letters, drawn
+    # before the ISIN as in SSGA's reports ("(AccIE)00BFWFPY67" read left to
+    # right).
+    overlap: float = 0
 
 
 class Table(TypedDict):
@@ -171,11 +176,15 @@ def _draw_table(
             at(SUB_FUND_LEFT, baseline, row.name.split()[0])
         baseline -= LINE
         at(LEFT, baseline, "SSGA SPDR ETFs Europe I plc")
-        at(
-            SUB_FUND_LEFT,
-            baseline,
-            " ".join(row.name.split()[1:-1]) if row.wrapped else row.name,
-        )
+        if row.overlap:
+            isin_left = centre["isin"] - stringWidth(row.isin, FONT, SIZE) / 2
+            canvas.drawRightString(isin_left + row.overlap, baseline, row.name)
+        else:
+            at(
+                SUB_FUND_LEFT,
+                baseline,
+                " ".join(row.name.split()[1:-1]) if row.wrapped else row.name,
+            )
         values = {"isin": row.isin, "ref": "S0114-0001", "ccy": row.ccy, "eri": row.eri}
         values |= {"fdd": "30 September 2025", "remain": "Yes", "revised": "No"}
         for key, value in values.items():
@@ -235,13 +244,21 @@ ROWS = [
 def test_reads_excess_income_from_each_row(tmp_path: Path) -> None:
     """Each row gives its currency and per-share excess; the title gives the date.
 
-    The table continues on a second page without a title of its own. The
-    amounts are the report's own figures per share, so nothing is calculated.
+    The table continues on a second page without a title of its own, and its
+    row's fund name runs into the ISIN. The amounts are the report's own
+    figures per share, so nothing is calculated.
     """
+    overlapping = Row(
+        ISIN_D,
+        "USD",
+        "1.3988",
+        name="SPDR Emerging Markets Local Bond UCITS ETF (Acc)",
+        overlap=6,
+    )
     report = _write_report(
         tmp_path / REPORT_NAME,
         {"rows": ROWS},
-        {"rows": [Row(ISIN_C, "EUR", "0.0000")], "title": None},
+        {"rows": [Row(ISIN_C, "EUR", "0.0000"), overlapping], "title": None},
     )
 
     output = SpdrImporter().parse(report)
@@ -249,11 +266,12 @@ def test_reads_excess_income_from_each_row(tmp_path: Path) -> None:
     assert output is not None
     assert output.output_file_name == "spdr_eri.csv"
     transactions = sorted(output.transactions, key=lambda t: str(t.isin))
-    assert len(transactions) == 3
+    assert len(transactions) == 4
     year_end = dt.date(2025, 3, 31)
     check_transaction(transactions[0], ISIN_A, year_end, Decimal("0.0150"), "GBP")
     check_transaction(transactions[1], ISIN_B, year_end, Decimal("0.3113"), "USD")
     check_transaction(transactions[2], ISIN_C, year_end, Decimal(0), "EUR")
+    check_transaction(transactions[3], ISIN_D, year_end, Decimal("1.3988"), "USD")
 
 
 def test_reads_run_together_report_and_dates_a_terminated_fund(
@@ -375,6 +393,11 @@ def _renamed(key: str, heading: list[tuple[int, str]]) -> list[Column]:
             {"rows": [Row(ISIN_A, "", "0.0150")]},
             f"Expected one currency for {ISIN_A} on page 2, found ''",
             id="currency-empty",
+        ),
+        pytest.param(
+            {"rows": [Row(ISIN_A, "GBP EUR", "0.0150")]},
+            f"Expected one currency for {ISIN_A} on page 2, found 'GBP EUR'",
+            id="two-currencies",
         ),
         pytest.param(
             {"rows": [Row(f"{ISIN_A} {ISIN_B}", "GBP", "0.0150")]},
