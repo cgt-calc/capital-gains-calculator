@@ -717,10 +717,12 @@ def test_a_dollar_figure_dated_while_nothing_is_held_needs_no_rate(
     Ten units of a made-up fund are bought for 10 x 100.00 + 5.00 = 1,005.00
     on 01/06/2016 and sold for 10 x 110.00 - 5.00 = 1,095.00 on 01/12/2016,
     a gain of £90.00. The fund's one figure, 2.00 USD a unit for the period
-    ending 31/03/2017, is within the 2016/17 report but after the sale. Its
-    distribution date, 30/09/2017, has no rate in the shared rates file and
-    none ships with cgt-calc, and strict mode, as CI runs, refuses to download
-    one: converting the figure would stop the run.
+    ending 31/03/2017, is within the 2016/17 report but after the sale. The
+    run has its own empty rates file, so a rate another test adds to the
+    shared one cannot hide a conversion. No rate for the figure's
+    distribution date, 30/09/2017, ships with cgt-calc either, and strict
+    mode, as CI runs, refuses to download one: converting the figure would
+    stop the run.
     """
     monkeypatch.setenv("CGT_TEST_MODE_STRICT", "1")
     raw = tmp_path / "raw.csv"
@@ -735,9 +737,14 @@ def test_a_dollar_figure_dated_while_nothing_is_held_needs_no_rate(
     eri.write_text(HEADER + "XS0123456781,31/03/2017,USD,2.00\n", encoding="utf-8")
     isins = tmp_path / "isins.csv"
     isins.write_text("ISIN,symbol\nXS0123456781,EXAMPLE\n", encoding="utf-8")
+    rates = tmp_path / "rates.csv"
+    rates.write_text("month,currency,rate\n", encoding="utf-8")
 
     result = run_cli(
-        build_cmd(
+        [
+            sys.executable,
+            "-m",
+            "cgt_calc.main",
             "--year",
             "2016",
             "--raw-file",
@@ -746,8 +753,10 @@ def test_a_dollar_figure_dated_while_nothing_is_held_needs_no_rate(
             str(eri),
             "--isin-translation-file",
             str(isins),
+            "--exchange-rates-file",
+            str(rates),
             "--no-report",
-        )
+        ]
     )
 
     assert summary_figure(result.stdout, "Gain") == "90.00"

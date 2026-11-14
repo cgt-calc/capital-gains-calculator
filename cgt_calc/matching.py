@@ -2236,8 +2236,10 @@ class Matcher:
     ) -> CalculationEntry | None:
         """Process single excess reported income.
 
-        The figure is converted to pounds only when units are held, so a
-        report dated while nothing is held needs no exchange rate.
+        The figure is converted to pounds only when units are held, so this
+        needs no exchange rate for a report dated while nothing is held. The
+        30-day rule (`_match_bed_and_breakfast`) may still convert one dated
+        on the day of a disposal or in the 30 days after it.
         """
         amount = self.run.portfolio[symbol].amount
         quantity = self.run.portfolio[symbol].quantity
