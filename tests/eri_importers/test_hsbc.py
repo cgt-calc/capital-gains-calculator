@@ -96,9 +96,13 @@ def _draw_table(
 ) -> None:
     """Draw one table page, its headings bottom-aligned on the "Sub fund" line."""
     canvas.setFont(FONT, SIZE)
-    canvas.drawString(LEFT, 560, "HSBC ETF plc")
+    canvas.drawString(LEFT, 570, "HSBC ETF plc")
+    # The title is printed large, so it reaches over the first headings: the
+    # headings end where a line starts at the left margin.
+    canvas.setFont(FONT, 16)
     canvas.drawString(LEFT, 550, "UK reporting fund status report to investors")
-    canvas.drawString(LEFT, 540, "Reporting Period End 31 December 2025")
+    canvas.setFont(FONT, SIZE)
+    canvas.drawString(LEFT, 530, "Reporting Period End 31 December 2025")
     canvas.drawString(LEFT, HEADING_BASELINE, sub_fund_heading)
     for heading, centre in columns:
         for above, text in enumerate(reversed(heading)):
@@ -271,6 +275,13 @@ def _renamed(old: str, new: list[str]) -> list[tuple[list[str], float]]:
         ),
         pytest.param(
             None, None, "Fund name", "No 'Sub fund' heading on page 2", id="no-sub-fund"
+        ),
+        pytest.param(
+            _renamed("ISIN", ["Identifier"]),
+            None,
+            "Sub fund",
+            "Page 2 has ISINs but no 'ISIN' heading",
+            id="no-isin-heading",
         ),
         pytest.param(
             None,

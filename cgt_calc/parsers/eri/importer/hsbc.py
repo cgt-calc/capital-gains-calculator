@@ -58,6 +58,16 @@ def _overlaps(word: Word, cell: _Cell) -> bool:
     return bool(word["x0"] < cell.right and word["x1"] > cell.left)
 
 
+def _isins_in(word: Word) -> set[Isin]:
+    """Return every valid ISIN within the word, which may run on into others."""
+    text = str(word["text"])
+    return {
+        isin
+        for start in range(len(text) - ISIN_LENGTH + 1)
+        if (isin := Isin.parse(text[start : start + ISIN_LENGTH]))
+    }
+
+
 class HsbcImporter(ERIImporter):
     """Parser for the HSBC ETFs plc UK reporting fund status reports.
 
@@ -132,12 +142,7 @@ class HsbcImporter(ERIImporter):
         The end of a long fund name can share the column with the ISIN, as a
         separate word (`IE00BKY59G90 ETF`) or joined to it (`ETFIE000XFORJ80`).
         """
-        found = {
-            isin
-            for word in words
-            for start in range(len(word["text"]) - ISIN_LENGTH + 1)
-            if (isin := Isin.parse(word["text"][start : start + ISIN_LENGTH]))
-        }
+        found = {isin for word in words for isin in _isins_in(word)}
         if len(found) != 1:
             text = " ".join(word["text"] for word in words)
             raise ParsingError(
@@ -156,8 +161,13 @@ class HsbcImporter(ERIImporter):
             ),
             None,
         )
-        # The cover page, notes and disclaimer have no table.
+        # The cover page, notes and disclaimer have no table. A page with ISINs
+        # but no heading is a table that would otherwise be dropped unread.
         if heading_line is None:
+            if any(_isins_in(word) for line in lines for word in line):
+                raise ParsingError(
+                    file, f"Page {page_number} has ISINs but no {ISIN_COLUMN!r} heading"
+                )
             return []
         cells = HsbcImporter._header_cells(lines, heading_line, file, page_number)
         colmap: dict[str, _Cell] = {}
