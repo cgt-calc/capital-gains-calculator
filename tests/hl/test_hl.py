@@ -1,5 +1,7 @@
 """Tests for Hargreaves Lansdown parser."""
 
+from collections.abc import Callable
+import datetime as dt
 from decimal import Decimal
 import io
 from pathlib import Path
@@ -14,6 +16,7 @@ from reportlab.pdfgen import canvas
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.hl import HargreavesLansdownParser
+from tests.general.test_calc import REPORTING_ADVICE, _run_main
 from tests.utils import (
     assert_stdout_matches,
     build_cmd,
@@ -30,6 +33,21 @@ HL_CSV_HEADER = (
     "\n"
     "Trade date,Settle date,Reference,Description,Unit cost (p),Quantity,Value (£),\n"
 )
+
+# One purchase, on the line after the heading line (line 6), so row 7.
+BUY_ROW = (
+    '"24/01/2026","26/01/2026","B302087054","Vanguard FTSE Developed World UCITS '
+    'ETF 4563 @  3287.199","3,287.199","4,563","-150,006.84"\n'
+)
+
+# The lines of that purchase's contract note that cgt-calc reads, as
+# _create_buy_pdf writes them.
+BUY_NOTE_LINES = [
+    "ISIN: IE00BK5BQV03",
+    "STOCK CODE: VHVG",
+    "4,563.00 | 3287.199 | 149,994.89",
+    "Dealing charge || 11.95",
+]
 
 
 def _create_buy_pdf(filename: str) -> None:
@@ -132,7 +150,13 @@ def test_hl_parser(request: pytest.FixtureRequest) -> None:
 
 
 def test_hl_parser_missing_pdf(request: pytest.FixtureRequest) -> None:
-    """A trade whose contract note PDF is missing stops the run."""
+    """A trade whose contract note PDF is missing stops the run.
+
+    The fixture's folder holds no PDF. Its first trade is the sale on row 9,
+    after the fee and interest rows on rows 7 and 8, which need no note. The
+    message says where the note goes, and that HL issues none for some fund
+    trades, which then cannot be read from the summary.
+    """
     cmd = build_cmd(
         "--year",
         "2025",
@@ -143,10 +167,202 @@ def test_hl_parser_missing_pdf(request: pytest.FixtureRequest) -> None:
         report_path(request),
     )
     result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
-    assert result.returncode, "Test succeeded but expected failure"
-    assert "Cannot find contract note pdf" in result.stderr, (
-        "Test failed with unexpected error"
+    # The path as the program prints it, with this system's separator.
+    csv_file = Path("tests") / "hl" / "data" / "inputs" / "hl-transaction-summary.csv"
+    assert result.returncode == 1
+    assert result.stderr.endswith(
+        f"\nERROR: While parsing {csv_file}, "
+        "row 9: Cannot find contract note pdf for transaction S302087055. "
+        "Download its contract note from HL into this CSV's folder. If HL issued "
+        "none, as for some regular fund investments, cgt-calc cannot read this "
+        "trade from the Transaction Summary.\n\n"
     )
+
+
+def _note(path: Path, lines: list[str]) -> None:
+    """Write a contract note PDF holding `lines` of text, one under another."""
+    c = canvas.Canvas(str(path), pagesize=letter)
+    _, height = letter
+    for number, line in enumerate(lines):
+        c.drawString(50, height - 50 - 15 * number, line)
+    c.save()
+
+
+def _run_with_note(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    write_note: Callable[[Path], None],
+) -> tuple[int, str, Path]:
+    """Run on a folder of one purchase and its note, written by `write_note`.
+
+    Return the exit status, what was printed to stderr and the note's path.
+    """
+    folder = tmp_path / "h"
+    folder.mkdir()
+    (folder / "summary.csv").write_text(
+        HL_CSV_HEADER + BUY_ROW, encoding="windows-1252"
+    )
+    note = folder / "B302087054_BOUGHT_Vanguard.pdf"
+    write_note(note)
+    status = _run_main(
+        monkeypatch, "--year", "2025", "--hl-dir", str(folder), "--no-report"
+    )
+    return status, capsys.readouterr().err, note
+
+
+def _cut_off(path: Path) -> None:
+    """Write the purchase's note, then keep only its first half."""
+    _note(path, BUY_NOTE_LINES)
+    path.write_bytes(path.read_bytes()[: path.stat().st_size // 2])
+
+
+@pytest.mark.parametrize(
+    "write_note",
+    [
+        pytest.param(
+            lambda path: path.write_text(
+                "<html><body>Service unavailable</body></html>", encoding="utf-8"
+            ),
+            id="an error page",
+        ),
+        pytest.param(_cut_off, id="a cut-off download"),
+    ],
+)
+def test_a_contract_note_that_is_not_a_pdf_is_named(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    write_note: Callable[[Path], None],
+) -> None:
+    """A page saved under the note's name, or a download cut off part way.
+
+    Either used to end in "Unexpected error!" with a traceback. The file is
+    the user's to replace, so no advice on updating cgt-calc follows.
+    """
+    status, err, note = _run_with_note(tmp_path, monkeypatch, capsys, write_note)
+
+    assert status == 1
+    assert err.endswith(
+        f"\nERROR: While parsing {note}: this file is not a PDF cgt-calc can "
+        "open. Download the contract note again from HL.\n\n"
+    )
+    assert "Unexpected error!" not in err
+
+
+def _scan(path: Path) -> None:
+    """Write a one-page note holding a picture and no text, as a scan does."""
+    c = canvas.Canvas(str(path), pagesize=letter)
+    c.rect(50, 400, 300, 200, fill=1)
+    c.showPage()
+    c.save()
+
+
+def test_a_contract_note_with_no_text_is_named(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A page with no text, as a scanned note has, names the note.
+
+    It used to be read as no stock code and nothing bought, and the run
+    stopped with "Symbol missing." against the CSV row.
+    """
+    status, err, note = _run_with_note(tmp_path, monkeypatch, capsys, _scan)
+
+    assert status == 1
+    assert err.endswith(
+        f"\nERROR: While parsing {note}: could not read the stock code, quantity "
+        "and price from this contract note: it has no text cgt-calc can read. "
+        "Download it again from HL; a scanned copy cannot be read.\n\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("lines", "missing"),
+    [
+        pytest.param(
+            ["**BOUGHT**", "ISIN: IE00BK5BQV03", "STOCK CODE: VHVG"],
+            "quantity and price",
+            id="no figures",
+        ),
+        pytest.param(
+            ["**BOUGHT**", "4,563.00 | 3287.199 | 149,994.89"],
+            "stock code",
+            id="no stock code",
+        ),
+        pytest.param(
+            ["Hargreaves Lansdown Contract Note"],
+            "stock code, quantity and price",
+            id="neither",
+        ),
+    ],
+)
+def test_a_contract_note_in_another_layout_names_what_was_not_found(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    lines: list[str],
+    missing: str,
+) -> None:
+    """A note with text, but not where cgt-calc looks, may need an update.
+
+    The stock code is the ISIN followed by "STOCK CODE:", and the figures are
+    the quantity, price and consideration on one line. Each note leaves out
+    what the message names. A note without its figures used to stop with
+    "Positive quantity required.", and one without its stock code with
+    "Symbol missing.", both against the CSV row.
+    """
+    status, err, note = _run_with_note(
+        tmp_path, monkeypatch, capsys, lambda path: _note(path, lines)
+    )
+
+    assert status == 1
+    assert err.endswith(
+        f"\nERROR: While parsing {note}: could not read the {missing} from this "
+        f"contract note.\n\n{REPORTING_ADVICE}"
+    )
+
+
+def test_an_invalid_isin_in_a_contract_note_is_located_by_the_note(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The error names the note alone, without the CSV's row number.
+
+    It used to say "row 7", the purchase's row in the CSV, after the note's
+    name, as if the PDF had rows.
+    """
+    lines = [line.replace("IE00BK5BQV03", "GB0000000001") for line in BUY_NOTE_LINES]
+    status, err, note = _run_with_note(
+        tmp_path, monkeypatch, capsys, lambda path: _note(path, lines)
+    )
+
+    assert status == 1
+    assert err.endswith(
+        f"\nERROR: While parsing {note}: Invalid ISIN in contract note: "
+        "'GB0000000001'\n\n"
+    )
+
+
+def test_the_date_on_a_contract_note_is_not_read(tmp_path: Path) -> None:
+    """The trade date comes from the CSV, so the note's own date is not read.
+
+    The note gives 31 February, a day that does not exist, which used to stop
+    the run although the date was never used. The purchase loads with the
+    CSV's trade date, 24 January 2026.
+    """
+    csv_file = tmp_path / "summary.csv"
+    csv_file.write_text(HL_CSV_HEADER + BUY_ROW, encoding="windows-1252")
+    _note(
+        tmp_path / "B302087054_BOUGHT_Vanguard.pdf",
+        ["Date 31/02/2025", *BUY_NOTE_LINES],
+    )
+
+    (transaction,) = HargreavesLansdownParser.load_from_file(csv_file)
+
+    assert transaction.date == dt.date(2026, 1, 24)
 
 
 def test_hl_unknown_reference_raises(tmp_path: Path) -> None:
@@ -648,19 +864,6 @@ def test_read_row_buy_with_uppercase_contract_note_extension(tmp_path: Path) -> 
     # Prices in the contract note are in pence.
     assert transaction.price == Decimal("32.87199")
     assert transaction.fees == Decimal("11.95")
-
-
-def test_read_row_sell_without_contract_note(tmp_path: Path) -> None:
-    """Raise when the contract note PDF is missing."""
-    row = {
-        "Reference": "S99",
-        "Description": "Sell VHVG",
-        "Trade date": "24/02/2026",
-        "Value (£)": "100.00",
-    }
-
-    with pytest.raises(ParsingError, match="Cannot find contract note"):
-        HargreavesLansdownParser.read_row(row, tmp_path / "statement.csv")
 
 
 def test_read_transactions_reverses_order() -> None:
