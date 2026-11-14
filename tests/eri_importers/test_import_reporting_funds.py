@@ -96,8 +96,10 @@ def test_writes_hmrc_dates_for_each_bundled_fund(
     """Each bundled fund HMRC dates gets one row, its entries merged.
 
     The ISINs are bundled funds from five providers' ERI files; the dates are
-    invented. A fund listed more than once takes its earliest start, and an
-    end date only when every entry has one, the latest of them.
+    HMRC's, some changed or split to make each case. A fund listed more than
+    once takes its earliest start, and an end date only when every entry has
+    one, the latest of them. A fund with an entry whose start is "To Be
+    Confirmed" gets no row, even when another entry has a date.
     """
     output = run_script(
         tmp_path,
@@ -109,6 +111,9 @@ def test_writes_hmrc_dates_for_each_bundled_fund(
             entry("IE00B2NPL135", "10/07/2010", "14/08/2025"),
             # No start date: no row.
             entry("IE00BYZNF849", "To Be Confirmed", "no data"),
+            # An unconfirmed entry beside a dated one: still no row.
+            entry("IE00B3VVMM84", "To Be Confirmed", "28/01/2022"),
+            entry("IE00B3VVMM84", "29/01/2022", "no data"),
             # Overlapping by a day, the second still reporting: no end.
             entry("LU1230136894", "27/05/2015", "10/03/2025"),
             entry("LU1230136894", "10/03/2025", "no data"),
@@ -146,10 +151,11 @@ def test_writes_hmrc_dates_for_each_bundled_fund(
         "LU2518861054,2022-09-07,2022-09-07\n"
     )
     out = capsys.readouterr().out
-    assert (
-        "WARNING: HMRC's list has no start date for IE00BYZNF849, so it has no row.\n"
-        in out
-    )
+    for isin in ("IE00BYZNF849", "IE00B3VVMM84"):
+        assert (
+            f"WARNING: an entry for {isin} in HMRC's list gives its start as "
+            '"To Be Confirmed", so it has no row.\n'
+        ) in out
     assert "WARNING: IE00BFMXXD54 is not in HMRC's list, so it has no row.\n" in out
     assert f"Wrote 8 rows to {output}.\n" in out
 

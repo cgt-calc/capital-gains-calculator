@@ -61,7 +61,8 @@ records when each fund with bundled ERI data was a reporting fund, from HMRC's
 Its `start` column is the list's "Reporting Fund, with effect from" date, and `end` is its "Ceased
 to be an RF on" date, left empty while the fund is still a reporting fund. Dates are written as
 YYYY-MM-DD. A fund HMRC lists more than once gets one row: the earliest start, and the latest end
-date only if every entry has one.
+date only if every entry has one. A fund with any entry whose start is "To Be Confirmed" gets no
+row, because its dated entries alone could give too late a start.
 
 Regenerate the file whenever you change the bundled ERI data:
 
@@ -73,9 +74,9 @@ Regenerate the file whenever you change the bundled ERI data:
     uv run python scripts/import_reporting_funds.py /path/to/Master-Weblist.ods
     ```
 
-3. Check the **WARNING** lines. Each names a bundled fund that gets no row, because HMRC's list has
-    no start date for it or does not list it. Review the change with
-    `git diff -- cgt_calc/resources/reporting_funds.csv`.
+3. Check the **WARNING** lines. Each names a bundled fund that gets no row, because an entry for it
+    in HMRC's list gives its start as "To Be Confirmed", or the list does not include it. Review the
+    change with `git diff -- cgt_calc/resources/reporting_funds.csv`.
 4. Run the script's tests:
 
     ```shell
@@ -84,10 +85,10 @@ Regenerate the file whenever you change the bundled ERI data:
 
     `test_every_bundled_eri_fund_has_reporting_fund_dates` fails while a bundled fund other than
     `IE00BYZNF849`, whose start HMRC gives as "To Be Confirmed", has no row. Look the fund up in
-    HMRC's list. If its start is not confirmed either, add its ISIN to the test's exceptions; if it
-    is not listed, check the ISIN in the ERI data. The test also fails once HMRC confirms
-    `IE00BYZNF849`'s start and the fund gets a row: then remove it from the exceptions and from the
-    test's docstring.
+    HMRC's list. If an entry for it gives its start as "To Be Confirmed", add its ISIN to the test's
+    exceptions; if it is not listed, check the ISIN in the ERI data. The test also fails once HMRC
+    confirms `IE00BYZNF849`'s start and the fund gets a row: then remove it from the exceptions and
+    from the test's docstring.
 
 The script stops without changing the file when a date or column in HMRC's list is not in the form
 it expects. It also stops when HMRC lists a bundled fund twice with a gap between the date it ceased
@@ -97,6 +98,8 @@ issue with the fund's ISIN and HMRC's entries for it.
 HMRC publishes the list under the
 [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/).
 The dates file contains public sector information licensed under the Open Government Licence v3.0.
+[`reporting_funds_notice.txt`](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/reporting_funds_notice.txt)
+beside it carries this attribution into every package of cgt-calc.
 
 ## Pull request checklist
 

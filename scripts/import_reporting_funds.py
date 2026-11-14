@@ -107,8 +107,10 @@ def build_rows(ods: Path, isins: set[str]) -> list[list[str]]:
         if isin not in entries:
             print(f"WARNING: {isin} is not in HMRC's list, so it has no row.")
         elif any(start == NO_START for start, _ in entries[isin]):
+            # Its dated entries alone could give too late a start.
             print(
-                f"WARNING: HMRC's list has no start date for {isin}, so it has no row."
+                f"WARNING: an entry for {isin} in HMRC's list gives its start as "
+                f'"{NO_START}", so it has no row.'
             )
         else:
             start, end = merge(isin, entries[isin])

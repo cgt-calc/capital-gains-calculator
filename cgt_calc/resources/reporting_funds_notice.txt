@@ -1,0 +1,6 @@
+reporting_funds.csv holds dates from HM Revenue & Customs' list of approved offshore
+reporting funds:
+https://www.gov.uk/government/publications/approved-offshore-reporting-funds
+
+Contains public sector information licensed under the Open Government Licence v3.0:
+https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/
