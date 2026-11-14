@@ -83,7 +83,8 @@ withheld. The one exception is a row that [replaces](#replace-a-row-of-the-expor
 broker export: it states the refund as the export does.
 
 Do not leave `quantity` or `price` blank. On a row that moves cash, such as a trade, dividend,
-deposit or withdrawal, cgt-calc then has no amount to apply and stops with `Amount missing`.
+deposit or withdrawal, cgt-calc then has no amount to apply and stops with `Price missing` or
+`Quantity missing`, naming the blank cell.
 
 If a `STOCK_ACTIVITY` row has no `price`, cgt-calc looks it up by ticker and date in the
 [share prices](../extra-data-and-options.md#missing-share-prices) and reads it in the row's
@@ -711,10 +712,12 @@ action; verify its UK tax treatment and open a
 support it. For guidance on preparing a redacted example, see
 [Reporting problems](../reporting-problems.md).
 
-### `Amount missing`
+### `Price missing` or `Quantity missing`
 
-The row has no usable product of `quantity` and `price`. For a cash-only action, set quantity to `1`
-and put the full amount in `price`: positive for money received and negative for money paid. See
+The row leaves the named cell blank, so cgt-calc cannot calculate its amount from `quantity` and
+`price`. Fill in both cells: when both are blank, the error names only `price`. For a cash-only
+action, set quantity to `1` and put the full amount in `price`: positive for money received and
+negative for money paid. See
 [How the cash amount is calculated](#how-the-cash-amount-is-calculated).
 
 ### A header or column-count error
