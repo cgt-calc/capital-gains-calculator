@@ -12,7 +12,7 @@ import logging
 import os
 from pathlib import Path
 import re
-import select
+import selectors
 import signal
 import subprocess
 import sys
@@ -4971,18 +4971,20 @@ def test_ctrl_c_at_the_spin_off_prompt_stops_the_run_with_one_line(
 
     primary, secondary = os.openpty()
     try:
-        with subprocess.Popen(
-            cmd, stdin=secondary, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        ) as run:
+        with (
+            subprocess.Popen(
+                cmd, stdin=secondary, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            ) as run,
+            # Not select.select, which refuses descriptors numbered 1024 or more.
+            selectors.DefaultSelector() as selector,
+        ):
             assert run.stdout is not None
+            selector.register(run.stdout, selectors.EVENT_READ)
             try:
                 # Nothing else goes to stdout first. A run that never asks is
                 # waited for a minute, then fails the checks below.
                 shown = b""
-                while (
-                    len(shown) < len(prompt)
-                    and select.select([run.stdout], [], [], 60)[0]
-                ):
+                while len(shown) < len(prompt) and selector.select(60):
                     if not (chunk := os.read(run.stdout.fileno(), len(prompt))):
                         break
                     shown += chunk
@@ -5009,11 +5011,9 @@ def test_ctrl_c_at_the_spin_off_prompt_stops_the_run_with_one_line(
     # An error stands apart, with a blank line before and after it.
     line = b"\nERROR: Stopped by Ctrl-C before the run finished.\n"
     if verbose:
-        # Logged with the line; Python does not print it a second time. The
-        # rate limiters for exchange rate and ISIN lookups run threads that
-        # log a debug line now and then, so what follows is not checked.
+        # Logged with the line; Python does not print it a second time.
         assert line + b"Traceback (most recent call last):\n" in err
-        assert b"\nKeyboardInterrupt\n\n" in err
+        assert err.endswith(b"\nKeyboardInterrupt\n\n")
         assert err.count(b"Traceback") == 1
     else:
         assert err.endswith(line + b"\n")
