@@ -12,7 +12,8 @@ layout, and cgt-calc does not support all of them.
 
 ## Export the complete transaction history
 
-Use the Schwab website rather than a positions export, statement, realised gain/loss report or PDF:
+Export the account's transaction history as CSV. Do not use a positions export, a statement, a
+realised gain/loss report or a PDF.
 
 1. Open the transaction history for the taxable brokerage account.
 2. Select the longest date range available. Start with the account's first transaction if possible,
@@ -164,39 +165,8 @@ calculation could create a purchase that never happened.
 Schwab can show a date such as `08/18/2023 as of 08/15/2023`. cgt-calc uses the first date,
 `08/18/2023`, for the transaction.
 
-A vest is the exception. Schwab posts the shares a few days after they vest, and the main CSV may
-show only that posting date. The day you acquire the shares and their capital gains cost come from
-one event: the acquisition taxed as employment income. That acquisition happens when you gain a
-beneficial interest in the shares, not when they are transferred to your brokerage account
-([ITEPA 2003 s477](https://www.legislation.gov.uk/ukpga/2003/1/section/477)). For capital gains it
-counts as exercising an option
-([CG56321](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg56321)), which fixes both
-the day you acquire the shares and a cost that includes the amount taxed as income
-([HS287](https://www.gov.uk/government/publications/employee-share-and-security-schemes-and-capital-gains-tax-hs287-self-assessment-helpsheet)).
-If you paid nothing for the shares, that amount is their market value on the day
-([ITEPA 2003 s479](https://www.legislation.gov.uk/ukpga/2003/1/section/479)). For a typical award
-that event is the vest: HMRC describes a restricted stock unit award as normally an agreement to
-issue the shares when it vests
-([ERSM20192](https://www.gov.uk/hmrc-internal-manuals/employment-related-securities/ersm20192)).
-
-So when cgt-calc prices a `Stock Plan Activity` row from your [award file](#price-only-export), it
-takes the date from the same award row as the price, whichever date the main CSV shows. A vest
-posted on 18 August from shares that vested on 15 August is dated 15 August, so a sale on 18 August
-is no longer matched to that vest under the same-day rule. It is matched in the usual order: other
-acquisitions on 18 August first, then those in the following 30 days, then your pool
-([CG51560](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51560)).
-
-The facts of each award, rather than its label, decide its tax treatment (ERSM20192), so your
-employer may have taxed the shares at their market value on another day, such as the day they were
-issued. cgt-calc cannot tell this from Schwab's files. Your award statement or payslip, or your
-payroll team, can tell you which day's market value your employer taxed as income. If that day is
-not the `Date` of the vest's `Lapse` row in your award file, use that day and its market value for
-both the date and the cost: add a [`STOCK_ACTIVITY` row](raw.md#actions-to-use) to your RAW file
-that [replaces the vest](raw.md#replace-a-row-of-the-export). Give it that date, the quantity of the
-vest's `Stock Plan Activity` row in the main CSV, the market value of one share on that day,
-`Charles Schwab` as its `broker`, and the `Lapse` row's `Date` in `replaces`, written `YYYY-MM-DD`
-like the other dates in the RAW file. The main CSV stays as you downloaded it. If you are unsure
-which day applies, ask a tax adviser.
+A vest priced from your award file is the exception, and for any vest the day you acquired the
+shares can differ from the first date: see [Which day a vest is dated](#which-day-a-vest-is-dated).
 
 For other rows, the date affects the tax year, the exchange rate and the same-day and 30-day
 matching rules. Check any such row carefully when the two dates cross 5 April or another purchase or
@@ -378,10 +348,6 @@ reader does not check, and each of them stops the run with an error naming the f
     vest the file prices. The price comes from the award file and the number of shares from the main
     history, and neither says whether the split restated both.
 
-If the JSON export holds anything besides lapses, such as a `Journal` row moving cash out, cgt-calc
-will not read prices from it. Export the same history as the award-price CSV, which reads the vests
-and ignores the cash rows.
-
 #### What cgt-calc does not check
 
 Nothing verifies that the two files come from linked accounts, that either is complete, or that the
@@ -410,11 +376,47 @@ date, so a posting-date total need not equal an award-date total. Investigate an
 line up rather than assuming the nearest date is right: two awards a few days apart with the same
 net quantity but different prices both satisfy the lookup, and only one of them is your vest.
 
+### Which day a vest is dated
+
+Schwab posts the shares a few days after they vest, and the main CSV may show only that posting
+date. The day you acquire the shares and their capital gains cost come from one event: the
+acquisition taxed as employment income. That acquisition happens when you gain a beneficial interest
+in the shares, not when they are transferred to your brokerage account
+([ITEPA 2003 s477](https://www.legislation.gov.uk/ukpga/2003/1/section/477)). For capital gains it
+counts as exercising an option
+([CG56321](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg56321)), which fixes both
+the day you acquire the shares and a cost that includes the amount taxed as income
+([HS287](https://www.gov.uk/government/publications/employee-share-and-security-schemes-and-capital-gains-tax-hs287-self-assessment-helpsheet)).
+If you paid nothing for the shares, that amount is their market value on the day
+([ITEPA 2003 s479](https://www.legislation.gov.uk/ukpga/2003/1/section/479)). For a typical award
+that event is the vest: HMRC describes a restricted stock unit award as normally an agreement to
+issue the shares when it vests
+([ERSM20192](https://www.gov.uk/hmrc-internal-manuals/employment-related-securities/ersm20192)).
+
+So when cgt-calc prices a `Stock Plan Activity` row from your [award file](#price-only-export), it
+takes the date from the same award row as the price, whichever date the main CSV shows. A vest
+posted on 18 August from shares that vested on 15 August is dated 15 August, so a sale on 18 August
+is no longer matched to that vest under the same-day rule. It is matched in the usual order: other
+acquisitions on 18 August first, then those in the following 30 days, then your pool
+([CG51560](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg51560)).
+
+The facts of each award, rather than its label, decide its tax treatment (ERSM20192), so your
+employer may have taxed the shares at their market value on another day, such as the day they were
+issued. cgt-calc cannot tell this from Schwab's files. Your award statement or payslip, or your
+payroll team, can tell you which day's market value your employer taxed as income. If that day is
+not the `Date` of the vest's `Lapse` row in your award file, use that day and its market value for
+both the date and the cost: add a [`STOCK_ACTIVITY` row](raw.md#actions-to-use) to your RAW file
+that [replaces the vest](raw.md#replace-a-row-of-the-export). Give it that date, the quantity of the
+vest's `Stock Plan Activity` row in the main CSV, the market value of one share on that day,
+`Charles Schwab` as its `broker`, and the `Lapse` row's `Date` in `replaces`, written `YYYY-MM-DD`
+like the other dates in the RAW file. The main CSV stays as you downloaded it. If you are unsure
+which day applies, ask a tax adviser.
+
 ### Vests without an award file
 
 If you cannot get an award export, a [RAW](raw.md) row can give a vest the date and value the main
 CSV leaves out. Use it only when your own records establish both: the day you became entitled to the
-shares, and their market value that day. [Dates containing `as of`](#dates-containing-as-of)
+shares, and their market value that day. [Which day a vest is dated](#which-day-a-vest-is-dated)
 explains why that day decides the date and the cost, and not the day Schwab posted the shares.
 
 For each `Stock Plan Activity` row with a blank `Price`, add a `STOCK_ACTIVITY` row to a RAW file
@@ -683,17 +685,16 @@ transfer of the same shares on one day are refused when there is such a purchase
     the other, or make sure no vest, sale, dividend or cash movement appears in both; see
     [Combining a main history with a complete export](#combining-a-main-history-with-a-complete-export).
 - cgt-calc reads one Equity Awards export per run, and a complete export does not price the vests in
-    a main history. If your main history needs vest prices and your only award export is the
-    complete one, see [`Cannot price a vest`](#cannot-price-a-vest).
+    a main history; see
+    [Combining a main history with a complete export](#combining-a-main-history-with-a-complete-export).
 - A cash merger that gives replacement shares as well as cash is not supported. The cash-only
     importer prints a warning for every merger so you remember to check this.
 - All values in Schwab CSV and JSON files are treated as USD. Changing a currency symbol in the CSV
     does not convert the data.
-- cgt-calc does not remove duplicates from Schwab exports, because the CSV has no transaction ID to
-    tell a duplicate from a genuine repeat of the same trade. Every transaction must appear exactly
-    once. cgt-calc refuses exports whose transaction-date spans overlap rather than count both.
-- Exports from more than one Schwab account cannot be combined. Nothing in the CSV identifies the
-    account.
+- cgt-calc does not remove duplicates from Schwab exports, and refuses exports whose
+    transaction-date spans overlap; see [Prepare the directory](#prepare-the-directory).
+- Exports from more than one Schwab account cannot be combined; see
+    [Prepare the directory](#prepare-the-directory).
 - Excess reported income from a reporting offshore fund is left out, without a warning, when the
     mapping does not give the fund's ISIN its Schwab symbol; see
     [Funds based outside the US](#funds-based-outside-the-us).
@@ -713,10 +714,6 @@ their value that day, a RAW row can supply both: see
 a row does not help a vest that an award file you pass leaves out. A price in `--prices-file` does
 not help either, because it would be for the day Schwab posted the shares.
 
-If its JSON holds `Lapse` rows together with cash rows such as `Journal` or `Wire Transfer`,
-cgt-calc will not read prices from it. Export the same history as the award-price CSV, which reads
-the vests and ignores the cash rows.
-
 If the file instead uses the `VestFairMarketValue` layout, or its JSON holds `Deposit`, `Sale` or
 `Dividend` rows, it is the complete transaction export, and cgt-calc cannot use it to price a vest
 in your main history. Which way round to work depends on what each file holds:
@@ -728,11 +725,11 @@ in your main history. Which way round to work depends on what each file holds:
 - If the main history holds everything you need, ask Schwab for the award-price CSV as well and pass
     the two together.
 
-If neither file holds everything, cgt-calc cannot calculate from these exports: the complete export
-does not price the vests in the main history, and cgt-calc reads one award export per run. Open an
-issue as [Reporting problems](../reporting-problems.md) describes, but instead of an example say
-which kinds of row each file holds, without the figures, so the maintainers can decide whether to
-support that combination. Do not rename columns or invent a price merely to bypass the error.
+If neither file holds everything, cgt-calc cannot calculate from these exports, because it reads one
+award export per run. Open an issue as [Reporting problems](../reporting-problems.md) describes, but
+instead of an example say which kinds of row each file holds, without the figures, so the
+maintainers can decide whether to support that combination. Do not rename columns or invent a price
+merely to bypass the error.
 
 ### `Missing columns` or a row/column-count error
 
@@ -822,12 +819,11 @@ include that transaction.
 Two Schwab transaction histories in the run have earliest-to-latest transaction-date spans that
 overlap. They need not share any individual date: one file running from March to December and
 another holding a single June transaction is enough, because cgt-calc cannot then rule out that the
-two exports cover the same period. Because a Schwab CSV has no transaction ID, it cannot tell which
-rows are repeats, so it refuses rather than count them twice. Re-export the ranges so they do not
-overlap, or delete the redundant file.
+two exports cover the same period. Re-export the ranges so they do not overlap, or delete the
+redundant file.
 
 If the two files are exports from different Schwab accounts, that is the cause: cgt-calc cannot
-combine accounts, because no column says which account a row came from.
+combine accounts. [Prepare the directory](#prepare-the-directory) gives the reasons.
 
 ### `Reached a negative balance` or `Tried to sell`
 

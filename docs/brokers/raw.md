@@ -353,7 +353,7 @@ replaced:
     statement shows.
 - **A vest** (`STOCK_ACTIVITY`). The row keeps the export row's quantity and can change its date and
     its price. Use it when your employer taxed the shares on another day than the one cgt-calc uses:
-    see [Dates containing `as of`](schwab.md#dates-containing-as-of) in the Schwab guide. If the
+    see [Which day a vest is dated](schwab.md#which-day-a-vest-is-dated) in the Schwab guide. If the
     shares were split or consolidated between the two dates, the quantity is in the wrong units for
     the new date and cgt-calc cannot tell: edit the vest in a working copy of the export instead. A
     row can also give a Schwab vest with no price its date and price when you have no award file:
