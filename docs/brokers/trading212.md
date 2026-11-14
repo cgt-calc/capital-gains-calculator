@@ -137,7 +137,7 @@ older single `Stock Split` row: NVIDIA's 10-for-1 split of 10 June 2024 is one. 
 before the split are then counted in old shares and your sales after it in new ones. For the splits
 listed below cgt-calc can stop instead, in the cases that
 [When cgt-calc stops for a split in the table](#when-cgt-calc-stops-for-a-split-in-the-table)
-describes. If it stopped with **Cannot compute the disposal**, read that subsection before you add a
+describes. If it stopped with **Cannot compute the disposal**, read that section before you add a
 split row. It also stops at a later split or consolidation of the share that has rows in the export,
 when all your shares of it came from the export, as
 [Split rows that do not match your holding](#split-rows-that-do-not-match-your-holding) explains.
@@ -156,6 +156,13 @@ last row of your exports, so the two can be compared when the exports run to tod
 fewer shares in the portfolio than you hold may have a missing split, and one with more a missing
 consolidation: check whether the company has split or consolidated its shares since you first bought
 them.
+
+Do not add a split row for NVIDIA or Alphabet (`GOOG` and `GOOGL`) when the holding has had shares
+from a complete Schwab Equity Awards export since it last ended a day empty and has Trading 212
+shares bought before the split. The row would restate the award shares too, and cgt-calc would not
+stop: work that split out by hand, as
+[When cgt-calc stops for a split in the table](#when-cgt-calc-stops-for-a-split-in-the-table)
+explains.
 
 Add the split yourself in a [RAW file](raw.md):
 
@@ -227,7 +234,7 @@ the shares traded at the new count:
 | Super Micro Computer                      | `SMCI`  | 1 October 2024             | 10-for-1 | US86800U1043 or US86800U3023 |
 | Lam Research                              | `LRCX`  | 3 October 2024             | 10-for-1 | US5128071082 or US5128073062 |
 
-##### When cgt-calc stops for a split in the table
+#### When cgt-calc stops for a split in the table
 
 cgt-calc stops when your history holds the share going into the day the table gives, a Trading 212
 row with one of the share's ISINs in the table buys or sells it on or after that day, and no split
