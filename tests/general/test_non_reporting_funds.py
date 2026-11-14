@@ -60,9 +60,9 @@ REGULATION_100 = (
     "cgt-calc does not include that disposal."
 )
 UNCHECKED = (
-    "WARNING: You held units of VUAG (ISIN IE00BFMXXD54) under the name OLDFUND "
-    "before 2019-05-14, when HMRC's list shows the fund became a reporting fund, "
-    "and cgt-calc cannot check OLDFUND's status. If OLDFUND was not a reporting "
+    "WARNING: HMRC's list shows VUAG (ISIN IE00BFMXXD54) became a reporting fund on "
+    "2019-05-14, and you held units of it under the name OLDFUND before that date. "
+    "cgt-calc cannot check OLDFUND's status. If OLDFUND was not a reporting "
     "fund, a gain on these units may be an offshore income gain, taxed as income, "
     "which cgt-calc does not calculate. If OLDFUND is a fund cgt-calc has figures "
     "for, add its ISIN to your ISIN translation file and cgt-calc will check it. "
@@ -200,7 +200,7 @@ def test_a_disposal_before_the_fund_reported_stops(tmp_path: Path, bought: str) 
     assert result.returncode == 1
     assert (
         "ERROR: cgt-calc cannot calculate the disposal of VUAG (ISIN IE00BFMXXD54) "
-        "on 2019-03-01. HMRC's list shows the fund became a reporting fund only on "
+        "on 2019-03-01. HMRC's list shows the fund became a reporting fund on "
         "2019-05-14, after this disposal. The gain may be an offshore income gain"
     ) in result.stderr
 
@@ -242,6 +242,16 @@ def test_a_disposal_before_the_fund_reported_stops(tmp_path: Path, bought: str) 
         ),
         pytest.param(
             [
+                "2018-08-01,BUY,VUAG,10,40.00,5.00,GBP",
+                "2019-06-03,SELL,VUAG,10,45.00,5.00,GBP",
+            ],
+            "2019",
+            (_report(dt.date(2019, 5, 14), "0.00", "IE00BFMXXD54"),),
+            VUAG,
+            id="a figure for a period ending on the start date",
+        ),
+        pytest.param(
+            [
                 "2023-08-01,BUY,LGMLP,10,20.00,5.00,GBP",
                 "2024-10-11,SELL,LGMLP,10,18.00,5.00,GBP",
             ],
@@ -280,6 +290,9 @@ def test_a_disposal_that_does_not_stop(
     - A figure for a period ending 2018-06-30 shows the fund reported for a
       period that began up to a year earlier, by 2017-06-30, so units bought on
       2019-01-10 were not held before it became a reporting fund.
+    - A figure for a period ending on the start date, 2019-05-14, does the
+      same: the start moves to 2018-05-14, a year before it, so units bought
+      on 2018-08-01 were not held before the fund reported either.
     - LGMLP is a reporting fund until the end of 2024-10-11 (reg 116(1)), so a
       sale that day is from a reporting fund.
     - The RAW holding QDIV has no ISIN. The bundled list gives the ticker to
@@ -476,8 +489,8 @@ def test_emptying_a_holding_just_after_the_end_date_is_a_closure(
             (("10/03/2023", "LUFUND", "NEWX"),),
             "2023",
             "ERROR: cgt-calc cannot calculate the disposal of NEWX on 2023-06-01. "
-            "HMRC's list shows LUFUND (ISIN LU0827875005), the name you held these "
-            "units under, became a reporting fund on 2016-09-01, and you have held "
+            "You held these units as LUFUND before. HMRC's list shows LUFUND (ISIN "
+            "LU0827875005) became a reporting fund on 2016-09-01, and you have held "
             "units since before that date.",
             id="held since before the start, renamed, then sold",
         ),
@@ -528,6 +541,124 @@ def test_a_disposal_just_after_the_end_date_that_is_no_closure(
     assert result.returncode == 1
     assert expected in result.stderr
     assert "treats this as the fund's closure" not in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("sold", "year", "expected"),
+    [
+        pytest.param(
+            ["2019-06-03,SELL,VUAG,10,45.00,5.00,GBP"],
+            "2019",
+            "ERROR: cgt-calc cannot calculate the disposal of VUAG (ISIN "
+            "IE00BFMXXD54) on 2019-06-03. cgt-calc's earliest figure for the fund, "
+            "for the period ending 2018-06-30, shows it was a reporting fund from "
+            "about 2017-06-30, and you have held units since before that date. The "
+            "gain may be an offshore income gain",
+            id="sold",
+        ),
+        pytest.param(
+            [],
+            "2017",
+            "WARNING: cgt-calc's earliest figure for VUAG (ISIN IE00BFMXXD54), for "
+            "the period ending 2018-06-30, shows it was a reporting fund from about "
+            "2017-06-30, and you have held units since before that date. No disposal "
+            f"in this report is affected. {LATER_GAIN} See {DOCS}\n",
+            id="held",
+        ),
+    ],
+)
+def test_a_start_taken_from_a_figure_is_named_as_such(
+    tmp_path: Path, sold: list[str], year: str, expected: str
+) -> None:
+    """VUAG bought on 2017-01-10, with a nil figure for a period ending 2018-06-30.
+
+    The figure moves VUAG's start from HMRC's 2019-05-14 to 2017-06-30, a year
+    before it, and the units were held before that, so the sale stops the run.
+    HMRC's list does not show 2017-06-30, so the messages name the figure.
+    The real start is only known to within a year, so the 2017/18 report, the
+    year of the day before the moved start, names no regulation 48 election.
+    """
+    result = _run(
+        tmp_path,
+        ["2017-01-10,BUY,VUAG,10,40.00,5.00,GBP", *sold],
+        "--year",
+        year,
+        reports=(_report(dt.date(2018, 6, 30), "0.00", "IE00BFMXXD54"),),
+    )
+
+    assert result.returncode == (1 if sold else 0), result.stderr
+    assert expected in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("bought", "sold", "renamed", "year", "expected"),
+    [
+        pytest.param(
+            "2019-01-10,BUY,VUAG",
+            "2019-06-03,SELL,NEWX",
+            ("10/01/2019", "VUAG", "NEWX"),
+            "2019",
+            "ERROR: cgt-calc cannot calculate the disposal of NEWX on 2019-06-03. "
+            "You held these units as VUAG before. HMRC's list shows VUAG (ISIN "
+            "IE00BFMXXD54) became a reporting fund on 2019-05-14, and you have held "
+            "units since before that date.",
+            id="bought and renamed on one day",
+        ),
+        pytest.param(
+            "2016-08-01,BUY,LUFUND",
+            "2023-03-10,SELL,NEWX",
+            ("10/03/2023", "LUFUND", "NEWX"),
+            "2022",
+            "ERROR: cgt-calc cannot calculate the disposal of LUFUND (ISIN "
+            "LU0827875005) on 2023-03-10. HMRC's list shows the fund became a "
+            "reporting fund on 2016-09-01, and you have held units since before that "
+            "date.",
+            id="sold under the new name on the rename day",
+        ),
+        pytest.param(
+            "2022-08-01,BUY,LUFUND",
+            "2023-06-01,SELL,NEWX",
+            ("10/03/2023", "LUFUND", "NEWX"),
+            "2023",
+            None,
+            id="a closure by rename in an earlier report",
+        ),
+    ],
+)
+def test_a_rename_day_keeps_the_holding_s_history(
+    tmp_path: Path,
+    bought: str,
+    sold: str,
+    renamed: tuple[str, str, str],
+    year: str,
+    expected: str | None,
+) -> None:
+    """Holdings renamed to NEWX, a name with no ISIN, on a day with other trades.
+
+    - VUAG bought on 2019-01-10, before its 2019-05-14 start, and renamed the
+      same day: no day's end saw the units as VUAG, but they were held before
+      the fund reported, and the sale as NEWX stops the run.
+    - LUFUND held since 2016-08-01, before its 2016-09-01 start, and sold as
+      NEWX on the day of the rename: the sale is identified with the holding
+      the day opened with, LUFUND, so it stops the run.
+    - LUFUND bought on 2022-08-01 and renamed on 2023-03-10, 7 days after its
+      2023-03-03 end date: a closure, but in the 2022/23 report, so the
+      2023/24 report says nothing of it.
+    """
+    result = _run(
+        tmp_path,
+        [f"{bought},10,40.00,5.00,GBP", f"{sold},10,45.00,5.00,GBP"],
+        "--year",
+        year,
+        translations=f"{VUAG}\nLU0827875005,LUFUND",
+        renames=(renamed,),
+    )
+
+    assert result.returncode == (1 if expected else 0), result.stderr
+    if expected is None:
+        assert HMRC_LIST not in result.stderr
+    else:
+        assert expected in result.stderr
 
 
 @pytest.mark.parametrize(
@@ -718,8 +849,8 @@ def test_units_renamed_from_a_name_cgt_calc_cannot_check(
             "2024-12-02,SELL,NEWFUND",
             "20/11/2024",
             "ERROR: cgt-calc cannot calculate the disposal of NEWFUND on 2024-12-02. "
-            "HMRC's list shows LGMLP (ISIN IE00BHZKHS06), the name you held these "
-            "units under, stopped being a reporting fund on 2024-10-11. A gain on "
+            "You held these units as LGMLP before. HMRC's list shows LGMLP (ISIN "
+            "IE00BHZKHS06) stopped being a reporting fund on 2024-10-11. A gain on "
             "units disposed of after that date may be an offshore income gain",
             id="later",
         ),

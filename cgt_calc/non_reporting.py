@@ -39,11 +39,14 @@ class FundStatus(NamedTuple):
     """A bundled fund's ISIN and the dates it was a reporting fund between.
 
     The start is None when it is too early for cgt-calc to say anything.
+    `figure` is the period end of the earliest figure when that figure, not
+    HMRC's list, gives the start.
     """
 
     isin: Isin
     start: dt.date | None
     end: dt.date | None
+    figure: dt.date | None = None
 
 
 class Mark(NamedTuple):
@@ -53,6 +56,9 @@ class Mark(NamedTuple):
     - "end": held as `name` after `day`, when the fund stopped being one;
     - "unchecked": held before `day`, when `name`'s fund became one, under
       `earlier`, a name with no HMRC dates, and renamed to `name` since.
+
+    `figure` is the fund's earliest figure when it, not HMRC's list, gives
+    the start.
     """
 
     kind: Literal["start", "end", "unchecked"]
@@ -60,6 +66,7 @@ class Mark(NamedTuple):
     isin: Isin
     day: dt.date
     earlier: str | None = None
+    figure: dt.date | None = None
 
 
 class Disposal(NamedTuple):
@@ -89,10 +96,11 @@ def fund_statuses(
         if isin not in dates:
             continue
         start, end = reporting_dates(rows, dates[isin])
+        figure = min(rows) if start != dates[isin][0] else None
         for name in set(holdings_by_isin.get(isin, ())) - set(unchecked):
             if owners.get(name) == isin:
                 statuses[name] = FundStatus(
-                    isin, start if start > OLD_RULES_END else None, end
+                    isin, start if start > OLD_RULES_END else None, end, figure
                 )
     return statuses
 
@@ -102,6 +110,17 @@ def _keep(marks: dict[str, Mark], name: str, mark: Mark) -> None:
     held = marks.get(name)
     if held is None or (held.kind == "unchecked" and mark.kind != "unchecked"):
         marks[name] = mark
+
+
+def _day_mark(name: str, status: FundStatus | None, day: dt.date) -> Mark | None:
+    """Return the mark units held as `name` on `day` get, if any."""
+    if status is None:
+        return None
+    if status.start is not None and day < status.start:
+        return Mark("start", name, status.isin, status.start, figure=status.figure)
+    if status.end is not None and day > status.end:
+        return Mark("end", name, status.isin, status.end)
+    return None
 
 
 def mark_holdings(
@@ -121,13 +140,9 @@ def mark_holdings(
             held_since.pop(name, None)
             continue
         held_since.setdefault(name, day)
-        status = statuses.get(name)
-        if status is None:
-            continue
-        if status.start is not None and day < status.start:
-            _keep(marks, name, Mark("start", name, status.isin, status.start))
-        elif status.end is not None and day > status.end:
-            _keep(marks, name, Mark("end", name, status.isin, status.end))
+        mark = _day_mark(name, statuses.get(name), day)
+        if mark is not None:
+            _keep(marks, name, mark)
 
 
 def carry_mark(
@@ -150,10 +165,14 @@ def carry_mark(
     """
     mark = marks.pop(old, None)
     since = held_since.pop(old, None)
-    if since is None or not moved:
+    if not moved:
         return None
-    held_since[new] = min(since, held_since.get(new, since))
     status = statuses.get(old)
+    if since is None:
+        # Units bought today, which no day's end has marked yet.
+        since = day
+        mark = _day_mark(old, status, day)
+    held_since[new] = min(since, held_since.get(new, since))
     if (
         (mark is None or mark.kind == "end")
         and status is not None
@@ -170,7 +189,14 @@ def carry_mark(
         and target.start is not None
         and since < target.start
     ):
-        mark = Mark("unchecked", new, target.isin, target.start, earlier=old)
+        mark = Mark(
+            "unchecked",
+            new,
+            target.isin,
+            target.start,
+            earlier=old,
+            figure=target.figure,
+        )
     if mark is not None:
         _keep(marks, new, mark)
     return None
@@ -203,33 +229,39 @@ def classify_disposal(
         return Disposal(day, holding, mark, spouse)
     # Units bought and disposed of on one day before the start, so never
     # marked at a day's end: the fund was not a reporting fund then.
-    if status is not None and status.start is not None and day < status.start:
-        started = Mark("start", holding, status.isin, status.start)
-        return Disposal(day, holding, started, spouse)
-    return None
+    started = _day_mark(holding, status, day)
+    return None if started is None else Disposal(day, holding, started, spouse)
 
 
-def _fund(mark: Mark, holding: str) -> str:
-    """Name the fund whose dates `mark` comes from, as the message's subject."""
-    if mark.name == holding:
-        return "the fund"
-    return f"{mark.name} (ISIN {mark.isin}), the name you held these units under,"
+def _started(mark: Mark, fund: str) -> str:
+    """Say when `fund` became a reporting fund, and what shows it."""
+    if mark.figure is None:
+        return f"HMRC's list shows {fund} became a reporting fund on {mark.day}"
+    return (
+        f"cgt-calc's earliest figure for {fund}, for the period ending "
+        f"{mark.figure}, shows it was a reporting fund from about {mark.day}"
+    )
 
 
 def _stop_message(disposal: Disposal) -> str:
     mark = disposal.mark
-    own = mark.name == disposal.holding
-    lead = (
-        f"cgt-calc cannot calculate the disposal of {disposal.holding}"
-        f"{f' (ISIN {mark.isin})' if own else ''} on {disposal.day}. HMRC's list "
-        f"shows {_fund(mark, disposal.holding)} "
-    )
+    if mark.name == disposal.holding:
+        lead = (
+            f"cgt-calc cannot calculate the disposal of {disposal.holding} (ISIN "
+            f"{mark.isin}) on {disposal.day}. "
+        )
+        fund = "the fund"
+    else:
+        lead = (
+            f"cgt-calc cannot calculate the disposal of {disposal.holding} on "
+            f"{disposal.day}. You held these units as {mark.name} before. "
+        )
+        fund = f"{mark.name} (ISIN {mark.isin})"
     if mark.kind == "start":
-        status = (
-            f"became a reporting fund only on {mark.day}, after this disposal."
+        status = _started(mark, fund) + (
+            ", after this disposal."
             if disposal.day < mark.day
-            else f"became a reporting fund on {mark.day}, and you have held units "
-            "since before that date."
+            else ", and you have held units since before that date."
         )
         why = (
             "The gain may be an offshore income gain, taxed as income, depending on "
@@ -237,7 +269,9 @@ def _stop_message(disposal: Disposal) -> str:
         )
         report = "before"
     else:
-        status = f"stopped being a reporting fund on {mark.day}."
+        status = (
+            f"HMRC's list shows {fund} stopped being a reporting fund on {mark.day}."
+        )
         why = (
             "A gain on units disposed of after that date may be an offshore income "
             "gain, taxed as income."
@@ -252,14 +286,18 @@ def _stop_message(disposal: Disposal) -> str:
 
 
 def _held_message(mark: Mark, *, spouse: bool, tax_year: int) -> str:
+    fund = f"{mark.name} (ISIN {mark.isin})"
     if mark.kind == "start":
         status = (
-            f"became a reporting fund on {mark.day}, and you have held units since "
-            "before that date."
+            f"{_started(mark, fund)}, and you have held units since before that date."
         )
         # The election's deemed disposal is on the last day before the start
         # (reg 48(8)), and is made in the return for that year (reg 48(6)).
-        election = get_tax_year_for_date(mark.day - dt.timedelta(days=1)) == tax_year
+        # A start taken from a figure is only roughly known, so it names none.
+        election = (
+            mark.figure is None
+            and get_tax_year_for_date(mark.day - dt.timedelta(days=1)) == tax_year
+        )
         election_text = (
             " An election to be taxed on the gain up to that date instead "
             "(regulation 48) has to be made in your tax return for this year, and "
@@ -267,8 +305,8 @@ def _held_message(mark: Mark, *, spouse: bool, tax_year: int) -> str:
         )
     else:
         status = (
-            f"stopped being a reporting fund on {mark.day}, and you still held units "
-            "after that date."
+            f"HMRC's list shows {fund} stopped being a reporting fund on {mark.day}, "
+            "and you still held units after that date."
         )
         # Its deemed disposal is on the end date (reg 100(6), (8)).
         election = get_tax_year_for_date(mark.day) == tax_year
@@ -286,7 +324,7 @@ def _held_message(mark: Mark, *, spouse: bool, tax_year: int) -> str:
         else "No disposal in this report is affected."
     )
     return (
-        f"HMRC's list shows {mark.name} (ISIN {mark.isin}) {status} {effect} A gain "
+        f"{status} {effect} A gain "
         "on a later disposal may be an offshore income gain, taxed as income, which "
         f"cgt-calc does not calculate.{election_text if election else ''} See "
         f"{DOCS_URL}"
@@ -315,9 +353,9 @@ def _closure_message(disposal: Disposal) -> str:
 
 def _unchecked_message(mark: Mark) -> str:
     return (
-        f"You held units of {mark.name} (ISIN {mark.isin}) under the name "
-        f"{mark.earlier} before {mark.day}, when HMRC's list shows the fund became a "
-        f"reporting fund, and cgt-calc cannot check {mark.earlier}'s status. If "
+        f"{_started(mark, f'{mark.name} (ISIN {mark.isin})')}, and you held units "
+        f"of it under the name {mark.earlier} before that date. cgt-calc cannot "
+        f"check {mark.earlier}'s status. If "
         f"{mark.earlier} was not a reporting fund, a gain on these units may be an "
         "offshore income gain, taxed as income, which cgt-calc does not calculate. "
         f"If {mark.earlier} is a fund cgt-calc has figures for, add its ISIN to your "
