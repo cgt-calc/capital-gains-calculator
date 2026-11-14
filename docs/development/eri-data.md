@@ -43,6 +43,12 @@ the other reports, and add its data manually as described below.
 Amundi reports, Legal & General reports other than the UCITS ETF plc one, and HSBC Global Funds ICAV
 reports have no automatic importer; add their data manually as described below.
 
+SSGA SPDR ETFs Europe I and II plc reports are supported too. For the years to 31 March 2020 to
+2023, import SSGA's revised reports: the importer refuses the originals. The scanned copy of the
+Europe I plc letter for the year to 31 March 2015
+(`ssga-spdr-i-investor-letter-authorised-2015.pdf`) has no text and stops the script; leave it out,
+as SSGA also publishes that letter as text.
+
 ## Manual additions and ISIN translations
 
 To add data by hand, append the rows at the bottom of the provider's resource CSV under

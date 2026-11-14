@@ -60,6 +60,7 @@ cgt-calc currently bundles:
 - [Xtrackers (IE) Plc 2023-2025 and other Xtrackers Funds 2024-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/xtrackers_eri.csv)
 - [Amundi Smart Overnight Return (CSH2) 2015-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/amundi_eri.csv),
     entered by hand from KPMG Reporting Funds
+- [SSGA SPDR ETFs Europe I plc and II plc 2015-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/spdr_eri.csv)
 - [Legal & General UCITS ETF plc 2023-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/legal_and_general_eri.csv)
 - [HSBC ETFs plc 2015-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/hsbc_eri.csv)
 
