@@ -74,6 +74,23 @@ def _step(anchor: dt.date, months: int) -> dt.date:
     return day
 
 
+def reporting_dates(
+    rows: Collection[dt.date], status: tuple[dt.date, dt.date | None]
+) -> tuple[dt.date, dt.date | None]:
+    """Return a fund's start and end as a reporting fund, its rows outranking HMRC.
+
+    A row ending on or before HMRC's start date is a report for a period that
+    began up to a year before the row, so the start moves there. A row after
+    the end date shows the fund did not end then, so it has no end.
+    """
+    start, end = status
+    if min(rows) <= start:
+        start = _step(min(rows), -PERIOD_MONTHS)
+    if end is not None and max(rows) > end:
+        end = None
+    return start, end
+
+
 def predicted_period_ends(
     rows: Collection[dt.date],
     status: tuple[dt.date, dt.date | None] | None,
@@ -93,9 +110,7 @@ def predicted_period_ends(
     """
     ends = sorted(rows)
     first, last = ends[0], ends[-1]
-    start, end = status if status is not None else (None, None)
-    if end is not None and last > end:
-        end = None
+    start, end = reporting_dates(ends, status) if status is not None else (None, None)
 
     predicted = []
     for count in itertools.count(1):

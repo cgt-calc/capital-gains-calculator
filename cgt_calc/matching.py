@@ -28,6 +28,7 @@ from .model import (
     RuleType,
     SpinOff,
 )
+from .non_reporting import carry_mark, classify_disposal, mark_holdings
 from .rename_planning import connected_names, end_name
 from .stock_split_planning import unconverted_known_split_message
 from .stock_splits import (
@@ -600,8 +601,29 @@ class Matcher:
         self.run.portfolio[ctx.identity.pool_name] = Position(
             ctx.current_quantity, normalize_amount(ctx.current_amount)
         )
+        self._note_non_reporting(ctx)
         ctx.chargeable_gain = round_decimal(ctx.chargeable_gain, 2)
         return ctx.chargeable_gain, ctx.calculation_entries
+
+    def _note_non_reporting(self, ctx: DisposalContext) -> None:
+        """Note a disposal in the report from a fund that may be non-reporting.
+
+        A transfer to a spouse comes here too, as a no gain/no loss disposal.
+        The holding's mark is as the end of the day before left it.
+        """
+        if ctx.date_index < self.tax_year_start_date:
+            return
+        pool = ctx.identity.pool_name
+        disposal = classify_disposal(
+            ctx.date_index,
+            pool,
+            self.run.fund_statuses.get(pool),
+            self.run.non_reporting_marks.get(pool),
+            emptied=ctx.current_quantity <= 0,
+            spouse=ctx.no_gain_no_loss,
+        )
+        if disposal is not None:
+            self.run.non_reporting_disposals.append(disposal)
 
     def _pool_what_the_day_did_not_buy(
         self, identity: DayIdentity, date_index: dt.date
@@ -1118,6 +1140,19 @@ class Matcher:
                     eris=pending,
                 )
             )
+
+    def _carry_non_reporting(self, old: str, new: str, date_index: dt.date) -> None:
+        """Move a renamed holding's mark, noting a rename that closes its fund."""
+        closure = carry_mark(
+            date_index,
+            old,
+            new,
+            self.run.fund_statuses,
+            self.run.non_reporting_marks,
+            self.run.held_since,
+        )
+        if closure is not None and date_index >= self.tax_year_start_date:
+            self.run.non_reporting_disposals.append(closure)
 
     def process_rename(self, old: str, new: str) -> CalculationEntry:
         """Transfer pool from old ticker to new ticker (no disposal)."""
@@ -2458,6 +2493,7 @@ class Matcher:
             if date_index in self.history.rename_list:
                 for old, new in self.history.rename_list[date_index].items():
                     entry = self.process_rename(old, new)
+                    self._carry_non_reporting(old, new, date_index)
                     if date_index >= tax_year_start_index:
                         calculation_log[date_index][f"rename${old}"] = [entry]
 
@@ -2485,6 +2521,13 @@ class Matcher:
                         ] = [maybe_entry]
 
             self._record_missing_eris(date_index)
+            mark_holdings(
+                date_index,
+                self.run.portfolio,
+                self.run.fund_statuses,
+                self.run.non_reporting_marks,
+                self.run.held_since,
+            )
 
             self._note_eri_in_printed_pools(
                 date_index, calculation_log.get(date_index, {})

@@ -87,6 +87,10 @@
 ^(trading212|raw|interactive-brokers)\.md:.*SpellCheck.*`s`
 # "`IE00BYZNF849`'s start" - Harper splits the possessive after a code span.
 ^eri-data\.md:.*SpellCheck.*`s`
+# "`name`'s fund", "`old`'s mark" - the same split, after a code span.
+^non_reporting\.py:.*SpellCheck.*`s`
+# "para 3(3B)" names a paragraph of the regulations, not a number of bytes.
+^non_reporting\.py:.*ExpandMemoryShorthands
 # "The others are minor currencies" is complete; MissingPreposition misfires.
 ^extra-data-and-options\.md:.*MissingPreposition
 # "the Georgian lari at the rouble's rate" - Harper joins "lari at" into "lariat".

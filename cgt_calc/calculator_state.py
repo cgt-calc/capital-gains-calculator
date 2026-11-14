@@ -26,6 +26,7 @@ if TYPE_CHECKING:
         OptionDisposalData,
         SpinOff,
     )
+    from .non_reporting import Disposal, FundStatus, Mark
     from .rename_planning import RenameComponent
     from .stock_split_planning import KnownSplit
     from .stock_splits import SplitTransformation
@@ -220,6 +221,14 @@ class RunState:
     # holding, with the fund; and each one a holding had units at, with it.
     predicted_eri_ends: dict[dt.date, dict[str, Isin]] = field(default_factory=dict)
     missing_eris: dict[tuple[Isin, dt.date], str] = field(default_factory=dict)
+    # HMRC's dates for each holding of a bundled fund; each holding's units
+    # that may be in a fund that was not a reporting fund, and why; the day
+    # each holding last became non-empty; and the report's disposals from
+    # marked holdings, with any closure.
+    fund_statuses: dict[str, FundStatus] = field(default_factory=dict)
+    non_reporting_marks: dict[str, Mark] = field(default_factory=dict)
+    held_since: dict[str, dt.date] = field(default_factory=dict)
+    non_reporting_disposals: list[Disposal] = field(default_factory=list)
     # The excess reported income in a foreign currency that each pool's cost
     # carries, so a disposal before its distribution date can be flagged.
     pool_eris: dict[str, list[ExcessReportedIncome]] = field(
