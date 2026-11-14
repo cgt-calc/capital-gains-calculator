@@ -12,16 +12,17 @@ use real bundled funds with made-up transactions:
   figure, for the period ending 2023-06-30, in dollars;
 - LUFUND, LU0827875005: a reporting fund from 2016-09-01 to 2023-03-03, nil
   figures only, the last for the period ending 2023-03-02;
-- QDIV, IE00BKM4H312: a reporting fund from 2014-06-06, nil figures only from
-  2019-10-31.
+- QDIV, IE00BKM4H312: a reporting fund from 2014-06-06, figures for periods
+  ending 31 October from 2018, in dollars, nil but for 2018 and 2025.
 
 A dollar figure is converted at the rate for its distribution date (D), six
-months after its period ends. The runs only hold a fund at a dollar figure's
-period end when its D, 2019-12-30 or 2020-12-30, has a rate in
+months after its period ends. A run converts every non-nil dollar figure
+dated up to the end of its report, held or not, so each such figure's D, here
+2019-12-30, 2020-12-30 or 2023-12-30, has a rate in
 tests/exchange_rates_data.csv. A data update that adds a figure these runs
-hold units at needs them moved: a non-nil LGMLP figure for 2024-06-30 or
-2024-10-11 would change a cost below or need an uncached rate, and a QDIV
-figure before 2018-06-01 would reach its holding.
+reach needs them moved: a non-nil LGMLP figure for 2024-06-30 or 2024-10-11
+would change a cost below or need an uncached rate, and a non-nil QDIV figure
+dated before 2018-04-06 would need an uncached rate.
 """
 
 from __future__ import annotations
@@ -263,9 +264,9 @@ def test_a_disposal_before_the_fund_reported_stops(tmp_path: Path, bought: str) 
         pytest.param(
             [
                 "2013-01-10,BUY,QDIV,10,30.00,0.00,GBP",
-                "2018-06-01,SELL,QDIV,10,35.00,0.00,GBP",
+                "2018-03-01,SELL,QDIV,10,35.00,0.00,GBP",
             ],
-            "2018",
+            "2017",
             (),
             "XS0123456781,EXAMPLE",
             id="a share whose ticker is also a fund's",
@@ -298,7 +299,8 @@ def test_a_disposal_that_does_not_stop(
     - The RAW holding QDIV has no ISIN. The bundled list gives the ticker to
       IE00BKM4H312, a reporting fund from 2014-06-06, but QDIV is also a US
       symbol, so the holding may not be that fund and its dates are not used.
-      Its figures come after the sale on 2018-06-01, in 2018/19.
+      Its figures, from the period ending 2018-10-31, come after the 2017/18
+      report, which ends on 2018-04-05.
     """
     result = _run(
         tmp_path,
