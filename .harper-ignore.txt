@@ -85,6 +85,8 @@
 ^args_validators\.py:.*MissingPreposition
 # "Trading 212's" - Harper splits the possessive after a number.
 ^(trading212|raw|interactive-brokers)\.md:.*SpellCheck.*`s`
+# "`IE00BYZNF849`'s start" - Harper splits the possessive after a code span.
+^eri-data\.md:.*SpellCheck.*`s`
 # "The others are minor currencies" is complete; MissingPreposition misfires.
 ^extra-data-and-options\.md:.*MissingPreposition
 # "the Georgian lari at the rouble's rate" - Harper joins "lari at" into "lariat".
