@@ -302,6 +302,14 @@ def _renamed(old: str, new: list[str]) -> list[tuple[list[str], float]]:
         ),
         pytest.param(
             None,
+            [_row(ISIN_A, "31/12/2025", "GBP", "0.0150 0.0200")],
+            "Sub fund",
+            "Expected one value under 'Excess reported income per share' for "
+            f"{ISIN_A} on page 2, found '0.0150 0.0200'",
+            id="two-amounts",
+        ),
+        pytest.param(
+            None,
             [_row("IE00000000A3", "31/12/2025", "GBP", "0.0150")],
             "Sub fund",
             "Expected one ISIN on page 2, found 'IE00000000A3'",
