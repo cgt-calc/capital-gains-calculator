@@ -183,8 +183,9 @@ class IncomeProcessor:
                 "from the dividend on %s, so it is left out of the report! "
                 "Date it on the one it belongs to to have it counted. A RAW "
                 "row can replace a row of a broker export with the right "
-                "date: see https://cgt-calc.uk/brokers/raw/"
-                "#correct-a-row-in-a-broker-export",
+                "date: see "
+                # One literal, so that the link check reads the whole address.
+                "https://cgt-calc.uk/brokers/raw/#correct-a-row-in-a-broker-export",
                 amount,
                 tax.currency,
                 symbol,

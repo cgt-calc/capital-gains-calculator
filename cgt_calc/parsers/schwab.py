@@ -1236,8 +1236,9 @@ class SchwabParser(BaseSingleFileParser[BrokerTransaction]):
                 "given. cgt-calc reads one Equity Awards export per run: pass "
                 "it with --schwab-award-file. --schwab-equity-award-json is "
                 "the deprecated name for the same option. To choose between "
-                "the files, see https://cgt-calc.uk/brokers/schwab/"
-                "#combining-a-main-history-with-a-complete-export"
+                "the files, see "
+                # One literal, so that the link check reads the whole address.
+                "https://cgt-calc.uk/brokers/schwab/#combining-a-main-history-with-a-complete-export"
             )
         award_path = args.schwab_award_file or args.schwab_equity_award_json
         text = None
