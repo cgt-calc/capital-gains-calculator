@@ -390,6 +390,39 @@ def test_read_vanguard_investment_row_invalid_decimal_is_rejected(
         VanguardParser().load_from_file(vanguard_file)
 
 
+@pytest.mark.parametrize(
+    ("content", "row"),
+    [
+        pytest.param(
+            "Date,Details,Amount,Balance\n2022-03-08,Regular Deposit,100,100\n",
+            2,
+            id="cash",
+        ),
+        pytest.param(
+            _dual_table_csv(
+                "2022-03-08,Foo Fund (FOO),Bought 10 Foo Fund (FOO),10,1,10"
+            ),
+            6,
+            id="investment",
+        ),
+    ],
+)
+def test_read_vanguard_date_in_another_format_names_its_column(
+    tmp_path: Path, content: str, row: int
+) -> None:
+    """A spreadsheet's re-saved date is refused with the format Vanguard writes."""
+    vanguard_file = tmp_path / "resaved.csv"
+    vanguard_file.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ParsingError) as exc:
+        VanguardParser().load_from_file(vanguard_file)
+
+    assert str(exc.value) == (
+        f"While parsing {vanguard_file}, row {row}: Invalid date in column 'Date': "
+        "'2022-03-08', expected DD/MM/YYYY, e.g. '08/03/2022'"
+    )
+
+
 def test_dual_table_enriches_buy_with_investment_data() -> None:
     """Cash BUY transactions are enriched with precise quantity/price from investment table."""
     transactions = VanguardParser().load_from_file(

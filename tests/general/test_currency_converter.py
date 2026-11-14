@@ -102,28 +102,32 @@ def test_read_exchange_rates_accepts_a_byte_order_mark(tmp_path: Path) -> None:
     [
         pytest.param(
             "month,currency,rate\n2024/01/01,USD,1.25\n",
-            "Invalid date '2024/01/01'",
+            re.escape(
+                ", row 2: Invalid date in column 'month': '2024/01/01', expected "
+                "YYYY-MM-DD, e.g. '2024-05-01'"
+            )
+            + "$",
             id="invalid date",
         ),
         pytest.param(
             "month,currency,rate\n2024-01-01,USD,one.two\n",
-            re.escape("Invalid rate 'one.two'"),
+            re.escape(", row 2: Invalid rate 'one.two'") + "$",
             id="invalid rate",
         ),
         # Reported in the rates file, not later as a missing rate.
         pytest.param(
             "month,currency,rate\n2024-01-01,usd,1.25\n",
-            "Invalid currency code 'usd' at line 2",
+            re.escape(", row 2: Invalid currency code 'usd'") + "$",
             id="malformed currency",
         ),
         pytest.param(
             "# generated\n# do not edit\nmonth,currency,rate\n2024-01-01,usd,1.25\n",
-            "at line 4",
+            re.escape(", row 4: Invalid currency code 'usd'") + "$",
             id="comment lines count towards the line number",
         ),
         pytest.param(
             "month,currency,rate\n2024-01-01,USD,1.25\n2024-01-01,USD,1.30\n",
-            "Duplicate currency entry for USD on 2024-01-01",
+            re.escape(", row 3: Duplicate currency entry for USD on 2024-01-01") + "$",
             id="duplicate",
         ),
         pytest.param(
@@ -135,12 +139,15 @@ def test_read_exchange_rates_accepts_a_byte_order_mark(tmp_path: Path) -> None:
         ),
         pytest.param(
             "month,currency,rate\n2024-01-01,USD,\n",
-            "Missing data",
+            re.escape(", row 2: Missing data in exchange rate file: rate") + "$",
             id="missing value",
         ),
         pytest.param(
             "month,currency,rate\n2024-01-01,USD,1.25,\n",
-            "Too many values in exchange rate file at line 2: expected 3, found 4",
+            re.escape(
+                ", row 2: Too many values in exchange rate file: expected 3, found 4"
+            )
+            + "$",
             id="value beyond the last column",
         ),
         # The header is the error, not the rows it makes too long.
@@ -196,7 +203,11 @@ def test_read_exchange_rates_rejects_non_positive_or_non_finite_rate(
         f"month,currency,rate\n2024-01-01,USD,{rate}\n", encoding="utf8"
     )
 
-    with pytest.raises(ParsingError, match="must be finite and positive"):
+    with pytest.raises(
+        ParsingError,
+        match=re.escape(f", row 2: Exchange rate must be finite and positive: {rate!r}")
+        + "$",
+    ):
         CurrencyConverter(exchange_rates_file=rates_file)
 
 

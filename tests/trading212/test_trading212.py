@@ -1233,7 +1233,7 @@ def test_read_trading212_transactions_unconvertible_fee_skips_price_check(
 def test_datetime_from_str(value: str, expected: datetime) -> None:
     """Parse every timestamp shape the exports use, normalised to UTC."""
 
-    assert datetime_from_str(value) == expected
+    assert datetime_from_str(value, "Time") == expected
 
 
 @pytest.mark.parametrize(
@@ -1539,16 +1539,25 @@ def test_read_trading212_transactions_missing_time(tmp_path: Path) -> None:
     assert "Missing Time or Time (UTC)" in message
 
 
-def test_read_trading212_transactions_invalid_time(tmp_path: Path) -> None:
-    """Raise ParsingError when the timestamp cannot be parsed."""
+@pytest.mark.parametrize(
+    ("header", "column"),
+    [
+        pytest.param(HEADER_2024, Trading212Column.TIME, id="Time"),
+        pytest.param(HEADER_2026_UTC, Trading212Column.TIME_UTC, id="Time (UTC)"),
+    ],
+)
+def test_read_trading212_transactions_invalid_time(
+    tmp_path: Path, header: list[str], column: Trading212Column
+) -> None:
+    """A time in another form names the column the export used for it."""
 
     rows = [
-        HEADER_2024,
+        header,
         _make_row(
-            HEADER_2024,
+            header,
             {
                 Trading212Column.ACTION: "Deposit",
-                Trading212Column.TIME: "01/01/2024 10:00",
+                column: "01/01/2024 10:00",
                 Trading212Column.TOTAL: "100.00",
                 Trading212Column.CURRENCY_TOTAL: "GBP",
                 Trading212Column.TRANSACTION_ID: "deposit-bad-time",
@@ -1560,9 +1569,11 @@ def test_read_trading212_transactions_invalid_time(tmp_path: Path) -> None:
     with pytest.raises(ParsingError) as exc:
         Trading212Parser().load_from_dir(folder)
 
-    message = str(exc.value)
-    assert "row 2" in message
-    assert "Invalid timestamp" in message
+    assert str(exc.value) == (
+        f"While parsing {folder / 'trading212.csv'}, row 2: Invalid date and time "
+        f"in column '{column.value}': '01/01/2024 10:00', expected the form "
+        "Trading 212 exports, e.g. '2024-01-01 16:10:05'"
+    )
 
 
 def _make_dividend_row(

@@ -282,6 +282,21 @@ def test_read_freetrade_transactions_invalid_decimal(tmp_path: Path) -> None:
         FreetradeParser().load_from_file(path)
 
 
+def test_read_freetrade_transactions_invalid_timestamp(tmp_path: Path) -> None:
+    """A spreadsheet's re-saved timestamp is refused with the form Freetrade writes."""
+    overrides = {FreetradeColumn.TIMESTAMP.value: "01/05/2024 10:00"}
+    path = _write_csv(tmp_path, COLUMNS, [_default_row(overrides)])
+
+    with pytest.raises(ParsingError) as excinfo:
+        FreetradeParser().load_from_file(path)
+
+    assert str(excinfo.value) == (
+        f"While parsing {path}, row 2: Invalid date and time in column "
+        "'Timestamp': '01/05/2024 10:00', expected the form Freetrade exports, "
+        "e.g. '2024-01-16T10:01:02.811Z'"
+    )
+
+
 @pytest.mark.parametrize(
     "row",
     [_default_row()[:-1], [*_default_row(), "extra"]],

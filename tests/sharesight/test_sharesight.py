@@ -445,6 +445,64 @@ def test_parse_income_report_missing_currency_value(tmp_path: Path) -> None:
         SharesightParser().load_from_dir(tmp_path)
 
 
+@pytest.mark.parametrize(
+    ("filename", "rows", "column", "value"),
+    [
+        pytest.param(
+            "All Trades Report.csv",
+            [
+                ["All Trades Report"],
+                TRADE_HEADER,
+                [
+                    "NASDAQ",
+                    "FOO",
+                    "Foo Inc",
+                    "Buy",
+                    "2023-02-01",
+                    "10",
+                    "5.5",
+                    "1",
+                    "USD",
+                    "1",
+                    "44",
+                    "buy",
+                ],
+            ],
+            "Date",
+            "2023-02-01",
+            id="trade",
+        ),
+        pytest.param(
+            "Taxable Income Report.csv",
+            [
+                ["Foreign Income"],
+                FOREIGN_DIVIDEND_HEADER,
+                ["XYZ", "X Corp", "2023-04-03", "1.2", "USD", "85", "15", "100", "x"],
+            ],
+            "Date Paid",
+            "2023-04-03",
+            id="dividend",
+        ),
+    ],
+)
+def test_a_date_in_another_format_names_its_column(
+    tmp_path: Path, filename: str, rows: list[list[str]], column: str, value: str
+) -> None:
+    """A spreadsheet's re-saved date is refused with the format Sharesight writes.
+
+    Each report has a title row and its header first, so the row is 3.
+    """
+    _write_csv(tmp_path / filename, rows)
+
+    with pytest.raises(ParsingError) as excinfo:
+        list(SharesightParser().load_from_dir(tmp_path))
+
+    assert str(excinfo.value) == (
+        f"While parsing {tmp_path / filename}, row 3: Invalid date in column "
+        f"'{column}': '{value}', expected DD/MM/YYYY, e.g. '01/09/2020'"
+    )
+
+
 def test_parse_income_report_section_without_rows(tmp_path: Path) -> None:
     """Produce nothing when the dividend section ends at the file end."""
     _write_csv(

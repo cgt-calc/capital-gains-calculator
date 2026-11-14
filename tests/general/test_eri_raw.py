@@ -267,15 +267,20 @@ def test_non_uk_resident_periods_drop_eri_income_and_cost_uplift(
 
 
 def test_read_eri_raw_raises_on_invalid_date(tmp_path: Path) -> None:
-    """Raise ParsingError when ERI date field is invalid."""
+    """An ERI date that cannot be read names its column, row and format."""
     file_path = tmp_path / "eri.csv"
     file_path.write_text(
         HEADER + f"{VALID_ISIN},32/13/2024,USD,1.23\n",
         encoding="utf8",
     )
 
-    with pytest.raises(ParsingError, match="Invalid date '32/13/2024'"):
+    with pytest.raises(ParsingError) as exc:
         ERIRawParser.load_from_file(file_path)
+
+    assert str(exc.value) == (
+        f"While parsing {file_path}, row 2: Invalid date in column 'Fund Reporting "
+        "Period End Date': '32/13/2024', expected DD/MM/YYYY, e.g. '30/06/2024'"
+    )
 
 
 @pytest.mark.parametrize("value", ["not-a-number", "NaN", "Infinity"])

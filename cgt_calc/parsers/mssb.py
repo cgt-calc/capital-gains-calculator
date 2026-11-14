@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
-from cgt_calc.util import parse_decimal
+from cgt_calc.util import parse_date, parse_decimal
 
 from .base_parsers import BaseDirParser, StandardCSVParser, missing_columns
 
@@ -127,6 +127,17 @@ def _parse_decimal(row: dict[str, str], column: StrEnum) -> Decimal:
     """Parse a decimal from the given row, annotating errors with column context."""
 
     return parse_decimal(row[column], f"column '{column.value}'", strip=",$")
+
+
+def _parse_date(row: dict[str, str], column: StrEnum) -> dt.date:
+    """Parse a date from the given row, naming the column if it cannot be read."""
+    return parse_date(
+        row[column],
+        column.value,
+        "%d-%b-%Y",
+        expected="DD-Mon-YYYY",
+        example="25-Mar-2021",
+    )
 
 
 class MSSBParser(
@@ -241,7 +252,7 @@ class MSSBParser(
         symbol = KNOWN_SYMBOL_DICT[plan]
 
         return BrokerTransaction(
-            date=dt.datetime.strptime(row[ReleaseColumn.VEST_DATE], "%d-%b-%Y").date(),
+            date=_parse_date(row, ReleaseColumn.VEST_DATE),
             action=ActionType.STOCK_ACTIVITY,
             symbol=symbol,
             description=plan,
@@ -304,9 +315,7 @@ class MSSBParser(
 
         symbol = KNOWN_SYMBOL_DICT[plan]
         transaction = BrokerTransaction(
-            date=dt.datetime.strptime(
-                row[WithdrawalColumn.EXECUTION_DATE], "%d-%b-%Y"
-            ).date(),
+            date=_parse_date(row, WithdrawalColumn.EXECUTION_DATE),
             action=action,
             symbol=symbol,
             description=plan,
