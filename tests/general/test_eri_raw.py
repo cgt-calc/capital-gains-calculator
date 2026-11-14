@@ -222,7 +222,7 @@ def test_bundled_ishares_eri_reaches_holders_at_the_reports_real_period_ends(
         ),
     ],
 )
-def test_bundled_eri_reaches_holders_at_the_period_ends_the_reports_give(
+def test_bundled_eri_of_closed_vanguard_funds_and_gaaa_first_period_reaches_holders(
     tmp_path: Path,
     request: pytest.FixtureRequest,
     year: str,
