@@ -47,7 +47,7 @@ from .model import (
     Position,
     SpinOff,
 )
-from .parsers.raw import raw_file_of
+from .parsers.raw import RawTransaction, raw_file_of
 from .parsers.vanguard import VanguardTransaction
 from .raw_replacements import refuse_unpriced_vests, resolve_raw_brokers
 from .rename_planning import (
@@ -117,6 +117,11 @@ def get_amount_or_fail(transaction: BrokerTransaction) -> Decimal:
     """Return the transaction amount or raise an error if missing."""
     amount = transaction.amount
     if amount is None:
+        # A RAW file has no amount column: name the blank cell it comes from.
+        if isinstance(transaction, RawTransaction):
+            if transaction.price is None:
+                raise PriceMissingError(transaction)
+            raise QuantityMissingError(transaction)
         raise AmountMissingError(transaction)
     return amount
 

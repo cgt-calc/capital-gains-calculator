@@ -14,11 +14,7 @@ import sys
 import pytest
 
 from cgt_calc.args_validators import STDIN_PATH
-from cgt_calc.exceptions import (
-    AmountMissingError,
-    InvalidTransactionError,
-    ParsingError,
-)
+from cgt_calc.exceptions import InvalidTransactionError, ParsingError
 from cgt_calc.logging import force_utf8_stdio
 from cgt_calc.model import (
     ActionType,
@@ -878,19 +874,58 @@ def test_read_raw_transactions_accepts_tax_that_is_not_positive(
     assert [transaction.amount for transaction in transactions] == [Decimal(amount)]
 
 
-def test_a_raw_tax_row_with_no_price_stops_as_amount_missing(tmp_path: Path) -> None:
-    """A tax row with a blank price has no amount to check the sign of.
+@pytest.mark.parametrize(
+    ("row", "message", "shown_row"),
+    [
+        (
+            ["2024-05-01", "BUY", "AAA", "10", "", "0", "GBP"],
+            "Price missing.",
+            "2024-05-01 Buy 10 AAA",
+        ),
+        (
+            ["2024-06-15", "INTEREST_TAX", "", "1", "", "0.00", "GBP"],
+            "Price missing.",
+            "2024-06-15 Interest tax 1",
+        ),
+        (
+            ["2024-05-01", "BUY", "AAA", "", "4", "0", "GBP"],
+            "Quantity missing.",
+            "2024-05-01 Buy AAA, price 4 GBP",
+        ),
+        (
+            ["2024-05-01", "BUY", "AAA", "", "", "0", "GBP"],
+            "Price missing.",
+            "2024-05-01 Buy AAA",
+        ),
+    ],
+    ids=["blank price", "blank price on a tax row", "blank quantity", "both blank"],
+)
+def test_a_raw_row_without_an_amount_names_the_blank_cell(
+    tmp_path: Path, row: list[str], message: str, shown_row: str
+) -> None:
+    """A RAW row's amount is quantity x price, so the error names the blank one.
 
-    It stops with the error any other row without an amount gives, which the
-    guide names, rather than failing inside the sign check.
+    A RAW file has no amount column, so "Amount missing." would send the user
+    looking for one. The row line shows the values the row gives: a blank
+    price leaves the price out, a blank quantity the quantity. With both
+    blank, the price is named, as the guide says. A tax row with no price has
+    no amount to check the sign of either, and stops here rather than inside
+    that check.
     """
-    raw_file = tmp_path / "raw_tax_no_price.csv"
-    rows = [COLUMNS, ["2024-06-15", "INTEREST_TAX", "", "1", "", "0.00", "GBP"]]
-    _write_csv(raw_file, rows)
-    calculator = create_calculator(tax_year=2024, balance_check=False)
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(raw_file, [COLUMNS, row])
 
-    with pytest.raises(AmountMissingError, match=r"^Amount missing\.\n"):
-        calculator.prepare_history(list(RawParser().load_from_file(raw_file)))
+    result = subprocess.run(
+        build_cmd("--year", "2024", "--raw-file", str(raw_file), "--no-report"),
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert result.stderr.endswith(
+        f"\nERROR: {message}\n{shown_row}\n  Unknown, read from row 2 of {raw_file}\n\n"
+    )
 
 
 @pytest.mark.parametrize(

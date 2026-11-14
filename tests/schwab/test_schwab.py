@@ -515,6 +515,43 @@ def test_stock_activity_without_symbol() -> None:
         _read(content)
 
 
+@pytest.mark.parametrize(
+    ("row", "shown_row"),
+    [
+        (
+            "05/01/2024,Buy,AAA,AAA INC,$4,10,$0,\n",
+            "2024-05-01 Buy 10 AAA, price 4 USD",
+        ),
+        ("05/01/2024,Buy,AAA,AAA INC,,10,$0,\n", "2024-05-01 Buy 10 AAA"),
+    ],
+    ids=["blank amount", "blank amount and price"],
+)
+def test_a_row_without_an_amount_stops_as_amount_missing(
+    tmp_path: Path, row: str, shown_row: str
+) -> None:
+    """A Schwab export has an Amount column, so the error names it.
+
+    Only a RAW row, whose amount is quantity x price, names its blank price
+    or quantity instead; a Schwab row says the amount is missing even when
+    its price is blank too.
+    """
+    schwab_file = tmp_path / "s.csv"
+    schwab_file.write_text(SCHWAB_HEADER + row)
+
+    result = subprocess.run(
+        build_cmd("--year", "2024", "--schwab-file", str(schwab_file), "--no-report"),
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert result.stderr.endswith(
+        f"\nERROR: Amount missing.\n{shown_row}\n"
+        f'  Charles Schwab "AAA INC", read from row 2 of {schwab_file}\n\n'
+    )
+
+
 def test_a_vest_posted_without_as_of_takes_the_award_date() -> None:
     """A posting date with no 'as of' still gives way to the award's vest date."""
     SchwabParser.awards_prices = AwardPrices(

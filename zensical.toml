@@ -57,6 +57,7 @@ extra_css = ["stylesheets/extra.css"]
 "development/contributing.md#add-a-development-dependency" = "development/contributing.md#managing-dependencies"
 "development/contributing.md#upgrade-existing-dependencies" = "development/contributing.md#managing-dependencies"
 "development/contributing.md#manual-changes" = "development/contributing.md#managing-dependencies"
+"brokers/raw.md#amount-missing" = "brokers/raw.md#price-missing-or-quantity-missing"
 
 [project.theme]
 variant = "modern"
