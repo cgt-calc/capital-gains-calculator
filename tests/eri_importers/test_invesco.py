@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal
+from itertools import accumulate, pairwise
 from typing import TYPE_CHECKING, cast
 
 import pytest
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.pdfgen.canvas import Canvas
 from reportlab.platypus import (
     Flowable,
     Paragraph,
@@ -173,6 +176,177 @@ def test_parse_v2_report(tmp_path: Path) -> None:
 
     assert result is not None
     _check_result_transactions(result.transactions, dt.date(2023, 12, 31))
+
+
+UNRULED_HEADINGS = [
+    "UMBRELLA FUND\nNAME",
+    "SUB FUND NAME",
+    "SHARE CLASS / SERIES NAME",
+    "ISIN / Identifier",
+    "HMRC REFERENCE",
+    "CURRENCY OF\nSHARE CLASS",
+    (
+        "PER UNIT EXCESS REPORTABLE\nINCOME OVER DISTRIBUTIONS IN\n"
+        "RESPECT OF THE REPORTING\nPERIOD (1) (3) (4)"
+    ),
+    "FUND DISTRIBUTION\nDATE (5)",
+    (
+        "DOES THE FUND REMAIN A\nREPORTING FUND AT THE\n"
+        "DATE THIS REPORT IS MADE\nAVAILABLE?"
+    ),
+    "DISTRIBUTION PER\nUNIT IN RESPECT OF\nTHE REPORTING\nPERIOD (2)",
+    "DATE OF\nDISTRIBUTION",
+]
+
+# The ISIN column is far wider than its heading and the share class column
+# is not, so the ISINs start well left of their heading and left of the point
+# halfway between the two headings.
+UNRULED_WIDTHS = [90.0, 80.0, 122.0, 100.0, 84.0, 70.0, 140.0, 90.0, 120.0, 90.0, 80.0]
+
+UNRULED_PREAMBLE = [
+    "Invesco Markets II plc",
+    "UK reporting fund status Report to Investors",
+    "Reporting Period Ended 31 December 2025",
+]
+
+
+def _build_unruled_pdf(
+    path: Path, data_rows: list[list[str]], heading_shift: float = 0.0
+) -> Path:
+    """Draw a report laid out like Invesco's 2025 one.
+
+    A shaded box holds the headings, each line centred in its column and
+    followed by a space, as in that report. Thin filled rectangles rule the
+    rows, and nothing marks the columns. Cell text starts 2 points inside its
+    column. ``heading_shift`` moves every heading that far right of centre.
+
+    As in that report, the rules are a little wider than the box, so the box
+    is the tallest rectangle but not the widest. The box also ends half a point
+    right of the last column, where the report's is a fifth of a point off.
+    """
+    font = "Helvetica"
+    canvas = Canvas(str(path), pagesize=PAGESIZE)
+    canvas.setFont(font, 8)
+    for i, line in enumerate(UNRULED_PREAMBLE):
+        canvas.drawString(40, 680 - 12 * i, line)
+    edges = list(accumulate(UNRULED_WIDTHS, initial=40.0))
+    width = edges[-1] - edges[0] + 0.5
+    canvas.setFillColor(colors.lightgrey)
+    canvas.rect(edges[0], 560, width, 44, stroke=0, fill=1)
+    canvas.setFillColor(colors.black)
+    for (left, right), heading in zip(pairwise(edges), UNRULED_HEADINGS, strict=True):
+        for i, line in enumerate(heading.split("\n")):
+            ink = stringWidth(line, font, 8)
+            x = (left + right - ink) / 2 + heading_shift
+            canvas.drawString(x, 594 - 9 * i, line + " ")
+    top = 560.0
+    for row in data_rows:
+        canvas.rect(edges[0] - 0.4, top, width + 0.4, 0.6, stroke=0, fill=1)
+        top -= 12
+        for left, cell in zip(edges, row, strict=False):
+            canvas.drawString(left + 2, top + 3, cell)
+    canvas.save()
+    return path
+
+
+UNRULED_ROWS = [
+    [
+        "Invesco Markets II plc",
+        "Fund A",
+        "Class A Acc",
+        "IE00B3RBWM25",
+        "I0103-0001",
+        "USD",
+        "1.2345",
+        "30 June 2026",
+        "Yes",
+        "N/A",
+        "N/A",
+    ],
+    # A distribution paid in the period, on a line of its own with no ISIN.
+    ["", "", "", "", "", "", "", "", "", "0.1100", "11 December 2025"],
+    [
+        "Invesco Markets II plc",
+        "Fund B",
+        "Class B Dist",
+        "IE00BK5BQV03",
+        "I0103-0002",
+        "EUR",
+        "0.0000",
+        "30 June 2026",
+        "Yes",
+        "0.2926",
+        "11 September 2025",
+    ],
+    [
+        "Invesco Markets II plc",
+        "Fund C",
+        "Class C Acc",
+        "IE00B42WWV65",
+        "I0103-0003",
+        "GBP",
+        "12.0456",
+        "30 June 2026",
+        "Yes",
+        "N/A",
+        "N/A",
+    ],
+]
+
+
+def test_parse_report_with_no_column_lines(tmp_path: Path) -> None:
+    """Read the 2025 layout, whose table rules its rows but not its columns.
+
+    Each share class's ISIN, currency and excess per unit come from its own
+    line; the distribution line between them has no ISIN and adds nothing.
+    The period end is the title's 31 December 2025.
+    """
+    file = _build_unruled_pdf(
+        tmp_path / "invesco-markets-ii-reportable-income-2025.pdf", UNRULED_ROWS
+    )
+
+    result = InvescoImporter().parse(file)
+
+    assert result is not None
+    period_end = dt.date(2025, 12, 31)
+    assert len(result.transactions) == 3
+    check_transaction(
+        result.transactions[0], "IE00B3RBWM25", period_end, Decimal("1.2345"), "USD"
+    )
+    check_transaction(
+        result.transactions[1], "IE00BK5BQV03", period_end, Decimal(0), "EUR"
+    )
+    check_transaction(
+        result.transactions[2], "IE00B42WWV65", period_end, Decimal("12.0456"), "GBP"
+    )
+
+
+@pytest.mark.parametrize("heading_shift", [3.0, -3.0, 0.8, -0.3])
+def test_header_with_no_column_lines_and_uncentred_headings_fails_loudly(
+    tmp_path: Path, heading_shift: float
+) -> None:
+    """Without centred headings the columns cannot be placed, so refuse.
+
+    Headings moved off centre move the right edges of the 1st, 3rd, ..., 11th
+    columns twice as far the same way. The box ends 0.5 points right of the
+    centred columns, so 3-point shifts put the last edge 5.5 points past it or
+    6.5 points short. Shifts of 0.8 and -0.3 points put it 1.1 points past or
+    short, just outside the 1-point tolerance.
+    """
+    file = _build_unruled_pdf(
+        tmp_path / "invesco-markets-ii-reportable-income-2025.pdf",
+        UNRULED_ROWS,
+        heading_shift=heading_shift,
+    )
+
+    with pytest.raises(
+        ParsingError,
+        match=(
+            "The table header on page 1 has no column lines, and its columns "
+            "cannot be placed from the centred headings"
+        ),
+    ):
+        InvescoImporter().parse(file)
 
 
 def test_old_report_is_ignored(tmp_path: Path) -> None:

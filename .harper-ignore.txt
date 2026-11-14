@@ -125,5 +125,7 @@
 ^usage\.md:.*ItsContraction
 # "a header that names the seven columns" is a relative clause, not a comparison.
 ^raw\.md:.*ThatThan
+# "a header that has no column lines" is a relative clause, not a comparison.
+^invesco\.py:.*ThatThan
 # "a header with every name wrong look alike" uses the verb "look alike".
 ^csv_columns\.py:.*CompoundNouns

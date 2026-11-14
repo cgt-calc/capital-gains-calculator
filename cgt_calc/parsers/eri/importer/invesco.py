@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 import logging
 import re
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, NamedTuple, override
 
 import dateutil.parser as date_parser
 import pdfplumber
@@ -34,8 +34,20 @@ ISIN_COLUMN = 0
 CURRENCY_COLUMN = 1
 ERI_COLUMN = 2
 MIN_VALID_YEAR = 2018
+# How far, in points, the last column edge placed from the headings of a
+# header without column lines may be from the header's right edge.
+HEADER_EDGE_TOLERANCE = 1.0
 
 INVESCO_ERI_FILENAME = "invesco_eri.csv"
+
+
+class _HeadingLine(NamedTuple):
+    """One printed line of a column heading, from its first to last character."""
+
+    left: float
+    right: float
+    top: float
+    text: str
 
 
 class InvescoImporter(ERIImporter):
@@ -71,13 +83,81 @@ class InvescoImporter(ERIImporter):
         # page.to_image(resolution=100).debug_tablefinder().save(f"full_p{page_num}.png")
         header_table = page.find_table()
         if header_table is None:
-            raise ParsingError(file, f"Could not find table headers on page {page_num}")
+            return InvescoImporter._extract_unruled_header(page, file, page_num)
         extracted_header = header_table.extract()
         if not extracted_header or not extracted_header[0]:
             raise ParsingError(file, f"Table header is empty on page {page_num}")
         cur_header = [
             (col or "").replace("\n", " ").strip() for col in extracted_header[0]
         ]
+        colmap = InvescoImporter._map_columns(cur_header, file, page_num)
+        columns = [col.bbox[0] for col in header_table.columns]
+        columns.append(header_table.rows[0].bbox[2])
+        return header_table.rows[0].bbox, columns, colmap
+
+    @staticmethod
+    def _extract_unruled_header(
+        page: Page, file: Path, page_num: int
+    ) -> tuple[tuple[float, float, float, float], list[float], dict[int, int]]:
+        """Read a header that has no column lines, as in the 2025 report.
+
+        The header is a shaded box. Each cell's lines are centred in the cell, so
+        the lines of one cell overlap and their centre is the cell's centre.
+        """
+        box = max(page.rects, key=lambda rect: rect["height"], default=None)
+        if box is None:
+            raise ParsingError(file, f"Could not find table headers on page {page_num}")
+        bbox = (box["x0"], box["top"], box["x1"], box["bottom"])
+        # keep_blank_chars makes each line of a cell one phrase. A line's edges
+        # are those of its printed characters, not of the spaces around them,
+        # which would move its centre.
+        lines = [
+            _HeadingLine(
+                left=min(char["x0"] for char in ink),
+                right=max(char["x1"] for char in ink),
+                top=phrase["top"],
+                text=phrase["text"].strip(),
+            )
+            for phrase in page.within_bbox(bbox).extract_words(
+                keep_blank_chars=True, return_chars=True
+            )
+            if (ink := [char for char in phrase["chars"] if char["text"].strip()])
+        ]
+        cells: list[list[_HeadingLine]] = []
+        for line in sorted(lines, key=lambda line: line.left):
+            if cells and line.left < max(other.right for other in cells[-1]):
+                cells[-1].append(line)
+            else:
+                cells.append([line])
+        cur_header = [
+            " ".join(line.text for line in sorted(cell, key=lambda line: line.top))
+            for cell in cells
+        ]
+        colmap = InvescoImporter._map_columns(cur_header, file, page_num)
+        # The cells are contiguous from the box's left edge, and each ends as
+        # far right of its centre as it starts left of it.
+        columns = [box["x0"]]
+        for cell in cells:
+            centre = (
+                min(line.left for line in cell) + max(line.right for line in cell)
+            ) / 2
+            columns.append(2 * centre - columns[-1])
+        if abs(columns[-1] - box["x1"]) > HEADER_EDGE_TOLERANCE:
+            # A wrong column edge could cut an amount in two and import part
+            # of it, so refuse instead of guessing.
+            raise ParsingError(
+                file,
+                f"The table header on page {page_num} has no column lines, and "
+                "its columns cannot be placed from the centred headings: they "
+                f"end at {columns[-1]:.1f}, not at the header's edge "
+                f"{box['x1']:.1f}",
+            )
+        return bbox, columns, colmap
+
+    @staticmethod
+    def _map_columns(
+        cur_header: list[str], file: Path, page_num: int
+    ) -> dict[int, int]:
         LOGGER.debug("cur_header=%s", cur_header)
         colmap = {}
         colreg = {
@@ -109,9 +189,7 @@ class InvescoImporter(ERIImporter):
                 f"Expected at least {min_column_count} columns on page {page_num}, "
                 f"found {len(cur_header)}",
             )
-        columns = [col.bbox[0] for col in header_table.columns]
-        columns.append(header_table.rows[0].bbox[2])
-        return header_table.rows[0].bbox, columns, colmap
+        return colmap
 
     @staticmethod
     def _extract_data_rows(
