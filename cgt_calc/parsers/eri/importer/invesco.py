@@ -34,8 +34,8 @@ ISIN_COLUMN = 0
 CURRENCY_COLUMN = 1
 ERI_COLUMN = 2
 MIN_VALID_YEAR = 2018
-# How far, in points, the column edges placed from the headings of a header
-# without column lines may end from the header's right edge.
+# How far, in points, the last column edge placed from the headings of a
+# header without column lines may be from the header's right edge.
 HEADER_EDGE_TOLERANCE = 1.0
 
 INVESCO_ERI_FILENAME = "invesco_eri.csv"

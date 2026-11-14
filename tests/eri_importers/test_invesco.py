@@ -321,15 +321,17 @@ def test_parse_report_with_no_column_lines(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.parametrize("heading_shift", [3.0, -3.0])
+@pytest.mark.parametrize("heading_shift", [3.0, -3.0, 0.8, -0.3])
 def test_header_with_no_column_lines_and_uncentred_headings_fails_loudly(
     tmp_path: Path, heading_shift: float
 ) -> None:
     """Without centred headings the columns cannot be placed, so refuse.
 
-    Headings 3 points right or left of centre move the right edges of the 1st,
-    3rd, ..., 11th columns 6 points the same way. The last column then ends
-    beyond the header's right edge or short of it.
+    Headings moved off centre move the right edges of the 1st, 3rd, ..., 11th
+    columns twice as far the same way. The box ends 0.5 points right of the
+    centred columns, so 3-point shifts put the last edge 5.5 points past it or
+    6.5 points short. Shifts of 0.8 and -0.3 points put it 1.1 points past or
+    short, just outside the 1-point tolerance.
     """
     file = _build_unruled_pdf(
         tmp_path / "invesco-markets-ii-reportable-income-2025.pdf",
