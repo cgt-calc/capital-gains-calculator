@@ -131,6 +131,57 @@ def test_bundled_csh2_eri_is_read_in_the_currency_kpmg_states(
     assert any(line.startswith(label) and line.endswith(f" {amount}") for line in lines)
 
 
+def test_bundled_ishares_eri_reaches_holders_at_the_reports_real_period_ends(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """Two bundled iShares rows are dated at the period end the report means.
+
+    iShares plc's 2019 report prints IE00BD45KH83's first period as
+    "12/03/2018 to 28/02/2018": the class started on 12/03/2018, and its fund
+    distribution date, 31/08/2019, is the umbrella's for the year to
+    28/02/2019. The 2020 report prints FTSEurofirst 100 (IE0030974079)'s last
+    period as ending 29/02/2020, but iShares closed the fund on 25/09/2019,
+    HMRC's end date, and the report's fund distribution date, 25/03/2020, is
+    six months after that. Dated as printed, neither row reaches anyone holding
+    the units.
+
+    - EIMU (IE00BD45KH83): 10,000 bought on 01/06/2018 for 40,000.00 plus a
+      5.00 fee, held at 28/02/2019, sold on 02/09/2019 for 42,000.00 less a
+      5.00 fee. ERI 10,000 x 0.0016 USD = 16.00 USD, received on 28/08/2019
+      at HMRC's August 2019 rate of 1.25: 16.00 / 1.25 = 12.80.
+    - IQQ1 (IE0030974079): 1,000 bought on 01/03/2019, after the 28/02/2019
+      period end, for 30,000.00 plus a 5.00 fee, held at 25/09/2019 and
+      redeemed on 27/09/2019 for 30,500.00. ERI 1,000 x 0.01822 EUR =
+      18.22 EUR, received on 25/03/2020 at HMRC's March 2020 rate of 1.2:
+      18.22 / 1.2 = 15.18.
+    - Allowable costs: 40,005.00 + 5.00 + 12.80 + 30,005.00 + 15.18 =
+      70,042.98; without the ERI they would be 70,015.00.
+    """
+    raw = tmp_path / "raw.csv"
+    raw.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2018-06-01,TRANSFER,,1,70010.00,0.00,GBP\n"
+        "2018-06-01,BUY,EIMU,10000,4.00,5.00,GBP\n"
+        "2019-03-01,BUY,IQQ1,1000,30.00,5.00,GBP\n"
+        "2019-09-02,SELL,EIMU,10000,4.20,5.00,GBP\n"
+        "2019-09-27,SELL,IQQ1,1000,30.50,0.00,GBP\n",
+        encoding="utf-8",
+    )
+
+    result = run_cli(
+        build_cmd(
+            "--year", "2019", "--raw-file", str(raw), "--output", report_path(request)
+        )
+    )
+
+    lines = [line.strip() for line in result.stdout.splitlines()]
+    assert [line for line in lines if line.endswith("(included as dividend)")] == [
+        "EIMU: £12.80 (included as dividend)",
+        "IQQ1: £15.18 (included as dividend)",
+    ]
+    assert "Allowable costs:    £70,042.98" in lines
+
+
 def test_a_holding_with_euro_eri_sold_and_bought_back_within_30_days(
     tmp_path: Path, request: pytest.FixtureRequest
 ) -> None:
