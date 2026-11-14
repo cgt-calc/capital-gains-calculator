@@ -60,8 +60,8 @@ records when each fund with bundled ERI data was a reporting fund, from HMRC's
 [list of approved offshore reporting funds](https://www.gov.uk/government/publications/approved-offshore-reporting-funds).
 Its `start` column is the list's "Reporting Fund, with effect from" date, and `end` is its "Ceased
 to be an RF on" date, left empty while the fund is still a reporting fund. Dates are written as
-YYYY-MM-DD. A fund HMRC lists more than once gets one row: the earliest start, and an end date only
-if every entry has one.
+YYYY-MM-DD. A fund HMRC lists more than once gets one row: the earliest start, and the latest end
+date only if every entry has one.
 
 Regenerate the file whenever you change the bundled ERI data:
 
@@ -85,7 +85,9 @@ Regenerate the file whenever you change the bundled ERI data:
     `test_every_bundled_eri_fund_has_reporting_fund_dates` fails while a bundled fund other than
     `IE00BYZNF849`, whose start HMRC gives as "To Be Confirmed", has no row. Look the fund up in
     HMRC's list. If its start is not confirmed either, add its ISIN to the test's exceptions; if it
-    is not listed, check the ISIN in the ERI data.
+    is not listed, check the ISIN in the ERI data. The test also fails once HMRC confirms
+    `IE00BYZNF849`'s start and the fund gets a row: then remove it from the exceptions and from the
+    test's docstring.
 
 The script stops without changing the file when a date or column in HMRC's list is not in the form
 it expects. It also stops when HMRC lists a bundled fund twice with a gap between the date it ceased

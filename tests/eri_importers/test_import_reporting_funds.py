@@ -120,10 +120,14 @@ def test_writes_hmrc_dates_for_each_bundled_fund(
             # the later of the two, not the end of the entry listed last.
             entry("IE00BQXKVQ19", "05/02/2015", "31/12/2020"),
             entry("IE00BQXKVQ19", "01/01/2017", "30/06/2018"),
+            # The entry still reporting comes first: no end, though the
+            # later entry has one.
+            entry("LU0476289623", "01/01/2011", "no data"),
+            entry("LU0476289623", "01/01/2013", "31/12/2014"),
             # Equal start and end are stored as one repeated cell.
             entry("LU2518861054", "07/09/2022", "07/09/2022"),
-            # BlackRock's file writes this ISIN in lower case.
-            entry("LU2278361055", "30/12/2020", "no data"),
+            # HMRC writes this bundled ISIN in lower case.
+            entry("lu2278361055", "30/12/2020", "no data"),
             [],
             # Share classes with no ISIN are not read.
             entry("no data", "To Be Confirmed", "no data"),
@@ -135,6 +139,7 @@ def test_writes_hmrc_dates_for_each_bundled_fund(
         "IE00B2NPL135,2010-07-10,2025-08-14\n"
         "IE00B3XXRP09,2012-05-24,\n"
         "IE00BQXKVQ19,2015-02-05,2020-12-31\n"
+        "LU0476289623,2011-01-01,\n"
         "LU0871639380,2012-09-01,2019-12-03\n"
         "LU1230136894,2015-05-27,\n"
         "LU2278361055,2020-12-30,\n"
@@ -146,7 +151,7 @@ def test_writes_hmrc_dates_for_each_bundled_fund(
         in out
     )
     assert "WARNING: IE00BFMXXD54 is not in HMRC's list, so it has no row.\n" in out
-    assert f"Wrote 7 rows to {output}.\n" in out
+    assert f"Wrote 8 rows to {output}.\n" in out
 
 
 @pytest.mark.parametrize(
