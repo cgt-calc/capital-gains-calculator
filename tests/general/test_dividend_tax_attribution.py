@@ -312,7 +312,8 @@ def test_tax_two_payments_could_claim_is_left_out(
 
     A credit four weeks after one payment and two days before the next could
     be a late correction of the first or ordinary tax on the second. The
-    export does not say which, so neither payment is given it.
+    export does not say which, so neither payment is given it. The credit
+    is 15 back, so the warning calls it refunded.
     """
     first = dt.date(2024, 6, 3)
     correction = dt.date(2024, 7, 1)
@@ -333,7 +334,11 @@ def test_tax_two_payments_could_claim_is_left_out(
     warnings = _unattributed_warnings(transactions, caplog)
 
     assert len(warnings) == 1
-    assert "the dividend on 2024-06-03 or 2024-07-03" in warnings[0]
+    assert warnings[0].startswith(
+        "Dividend tax of 15.00 USD for FOO, refunded on 2024-07-01, could have "
+        "been taken from the dividend on 2024-06-03 or 2024-07-03, so it is "
+        "left out of the report! "
+    )
     assert warnings[0].endswith(
         "Date it on the one it belongs to to have it counted. A RAW row can "
         "replace a row of a broker export with the right date: see "
@@ -617,20 +622,37 @@ def test_withholding_beyond_the_limit_warns(
     warnings = _unattributed_warnings(transactions, caplog)
 
     assert len(warnings) == 1
-    assert "-15.00 USD for FOO on 2024-07-04" in warnings[0]
+    assert "of 15.00 USD for FOO, withheld on 2024-07-04," in warnings[0]
     assert "has no dividend in the 30 days before it or the 5 days after" in warnings[0]
 
 
-def test_withholding_without_any_dividend_warns(
-    caplog: pytest.LogCaptureFixture,
+@pytest.mark.parametrize(
+    ("taken", "moved"),
+    [
+        pytest.param(15, "withheld", id="withheld"),
+        pytest.param(-15, "refunded", id="refunded"),
+    ],
+)
+def test_tax_without_any_dividend_warns(
+    caplog: pytest.LogCaptureFixture, taken: int, moved: str
 ) -> None:
-    """Tax for a symbol that paid no dividend at all is reported."""
-    transactions = [dividend_tax_transaction(DIVIDEND_DATE, "FOO", 15)]
+    """Tax for a symbol that paid no dividend at all is reported.
+
+    The export signs tax by cash: 15 taken is -15.00 and 15 refunded is
+    15.00. Either sign alone was misread, so the warning prints 15.00 for
+    both and says which way the tax went.
+    """
+    transactions = [dividend_tax_transaction(DIVIDEND_DATE, "FOO", taken)]
 
     warnings = _unattributed_warnings(transactions, caplog)
 
-    assert len(warnings) == 1
-    assert "-15.00 USD for FOO on 2024-06-03" in warnings[0]
+    assert warnings == [
+        (
+            f"Dividend tax of 15.00 USD for FOO, {moved} on 2024-06-03, has no "
+            "dividend in the 30 days before it or the 5 days after, so it is "
+            "left out of the report!"
+        )
+    ]
 
 
 def test_withholding_across_the_tax_year_end_stays_with_its_dividend() -> None:
@@ -670,8 +692,9 @@ def test_unattributed_withholding_below_a_penny_shows_its_own_value(
     warnings = _unattributed_warnings(transactions, caplog)
 
     assert len(warnings) == 1
-    assert "of -0.00 USD" not in warnings[0]
-    assert "-0.004" in warnings[0]
+    assert "of 0.00 USD" not in warnings[0]
+    # The helper stores amounts to six places, so -0.004 is -0.004000.
+    assert "of 0.004000 USD for FOO, withheld on" in warnings[0]
 
 
 def test_unattributed_withholding_of_half_a_penny_warns(
@@ -683,7 +706,7 @@ def test_unattributed_withholding_of_half_a_penny_warns(
     warnings = _unattributed_warnings(transactions, caplog)
 
     assert len(warnings) == 1
-    assert "-0.01 USD for FOO" in warnings[0]
+    assert "of 0.01 USD for FOO, withheld on" in warnings[0]
 
 
 def test_dividend_without_withholding_leaves_no_entry(
