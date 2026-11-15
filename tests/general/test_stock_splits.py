@@ -819,8 +819,18 @@ def test_an_unresolved_ratio_nothing_needs_is_calculated_normally() -> None:
 
 
 def test_an_unresolved_ratio_blocks_a_bed_and_breakfast_conversion() -> None:
-    """The two counts are in different units and cannot be compared."""
-    with pytest.raises(CalculationError, match="identified under the 30-day rule"):
+    """The two counts are in different units and cannot be compared.
+
+    The sale on 14 May is matched with the purchase on 20 May, five days
+    after the split of 15 May, so the message names 20 May as the acquisition
+    and 15 May only as the split's.
+    """
+    with pytest.raises(
+        CalculationError,
+        match=r"Cannot compute the disposal of FOO on 2023-05-14: it is "
+        r"identified under the 30-day rule against the acquisition on "
+        r"2023-05-20, and FOO on 2023-05-15 \(",
+    ):
         run(
             [
                 trade(POOL_DAY, ActionType.BUY, "FOO", "0.0002", "1000"),
@@ -835,7 +845,7 @@ def test_an_unresolved_ratio_blocks_a_bed_and_breakfast_conversion() -> None:
                     EVENT_DAY, "FOO", "0.0001000000", "0.0000066700", UNRESOLVED
                 ),
                 trade(
-                    EVENT_DAY + dt.timedelta(days=1),
+                    EVENT_DAY + dt.timedelta(days=5),
                     ActionType.BUY,
                     "FOO",
                     "0.000005",

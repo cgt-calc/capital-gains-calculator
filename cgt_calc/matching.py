@@ -756,7 +756,7 @@ class Matcher:
             # multiplying rounded decimal multipliers day by day compounds the
             # very error the exact ratio removed.
             cumulative_ratio = Fraction(1)
-            unresolved_splits: list[tuple[dt.date, StockSplitEvent]] = []
+            unresolved_splits: list[StockSplitEvent] = []
             # Known splits the history entered holding nothing, with the split
             # it records that day when that is not the known one.
             unconverted_splits: list[tuple[KnownSplit, SplitTransformation | None]] = []
@@ -803,7 +803,7 @@ class Matcher:
                     unconverted_splits.append((known_split, transformation))
                 if transformation is not None:
                     if transformation.ratio is None:
-                        unresolved_splits.append((search_index, transformation.event))
+                        unresolved_splits.append(transformation.event)
                     else:
                         cumulative_ratio *= transformation.ratio
                     # A reorganisation this close to a disposal is worth a
@@ -912,10 +912,14 @@ class Matcher:
                     # inside the window: an acquisition before it, or a
                     # disposal already matched, needs no conversion at all.
                     if unresolved_splits:
-                        split_date, unresolved_event = unresolved_splits[0]
+                        # Dated on the acquisition, which this day is; the
+                        # split's own date is in its description.
                         raise CalculationError(
                             self._unresolved_bnb_message(
-                                unresolved_event, ctx.symbol, ctx.date_index, split_date
+                                unresolved_splits[0],
+                                ctx.symbol,
+                                ctx.date_index,
+                                search_index,
                             )
                         )
                     if unconverted_splits:
