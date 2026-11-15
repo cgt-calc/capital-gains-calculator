@@ -385,6 +385,53 @@ def test_bundled_eri_of_iucm_first_period_reaches_holders(
     assert "Allowable costs:    £50,020.73" in lines
 
 
+def test_bundled_eri_of_isf_typed_from_a_pdf_reaches_its_holder(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """An ISF figure typed from BlackRock's PDF report reaches its holder.
+
+    BlackRock's ISF report for the year to 31/05/2017, published only as a
+    PDF, gives BlackRock UK Index Sub-Fund Flexible Accumulating Class
+    (IE0001200165) 1.5849 GBP per unit. No bundled mapping names its ticker,
+    so the user's ISIN translation file does.
+
+    - 1,000 bought on 03/01/2017 for 10,000.00 plus a 5.00 fee, held at
+      31/05/2017, sold on 02/01/2018 for 11,000.00 less a 5.00 fee.
+    - ERI 1,000 x 1.5849 GBP = 1,584.90 GBP, received on 30/11/2017 (cgt-calc's
+      date, six months after the period end), in 2017/18.
+    - Allowable costs 10,000.00 + 5.00 + 1,584.90 + 5.00 = 11,594.90.
+    """
+    raw = tmp_path / "raw.csv"
+    raw.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2017-01-03,TRANSFER,,1,10005.00,0.00,GBP\n"
+        "2017-01-03,BUY,ISFUK,1000,10.00,5.00,GBP\n"
+        "2018-01-02,SELL,ISFUK,1000,11.00,5.00,GBP\n",
+        encoding="utf-8",
+    )
+    isins = tmp_path / "isins.csv"
+    isins.write_text("ISIN,symbol\nIE0001200165,ISFUK\n", encoding="utf-8")
+
+    result = run_cli(
+        build_cmd(
+            "--year",
+            "2017",
+            "--raw-file",
+            str(raw),
+            "--isin-translation-file",
+            str(isins),
+            "--output",
+            report_path(request),
+        )
+    )
+
+    lines = [line.strip() for line in result.stdout.splitlines()]
+    assert [line for line in lines if line.endswith("(included as dividend)")] == [
+        "ISFUK: £1,584.90 (included as dividend)"
+    ]
+    assert "Allowable costs:    £11,594.90" in lines
+
+
 def test_bundled_eri_of_a_vanguard_us_etf_reaches_its_holder(
     tmp_path: Path, request: pytest.FixtureRequest
 ) -> None:
