@@ -41,6 +41,7 @@ from tests.utils import (
     report_path,
     run_cli,
     stderr_alerts,
+    summary_figure,
 )
 
 from .test_trading212 import (
@@ -52,7 +53,7 @@ from .test_trading212 import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
 # A one-for-nine consolidation of a whole share, priced so that the two rows
 # state the same money. The counts are as Trading 212 prints them: ten
@@ -2085,12 +2086,13 @@ def _known_split_cmd(
     *,
     raw_rows: tuple[str, ...] = (),
     extra: tuple[str, ...] = (),
+    year: str = "2024",
 ) -> list[str]:
     """Write a Trading 212 export, and a RAW file when given rows for one."""
     folder = tmp_path / "trading212"
     folder.mkdir()
     _write_csv(folder / "export.csv", [HEADER_2026, *rows])
-    args = ["--year", "2024", "--trading212-dir", str(folder)]
+    args = ["--year", year, "--trading212-dir", str(folder)]
     if raw_rows:
         raw_file = tmp_path / "splits.csv"
         raw_file.write_text("\n".join([RAW_HEADER, *raw_rows]) + "\n", encoding="utf-8")
@@ -4103,21 +4105,57 @@ def _across_august_2020(symbol: str, isin: str) -> list[list[str]]:
     )
 
 
+def _partly_sold_before_august_2020(symbol: str, isin: str) -> list[list[str]]:
+    """Buy 2 on 20 August 2020, sell 1 on 24 August and buy 1 on 2 September."""
+    return [
+        _deposit("2020-08-20 09:00:00"),
+        _trade(
+            "Market buy", "2020-08-20 14:00:00", "2", "400.00", ticker=symbol, isin=isin
+        ),
+        _trade(
+            "Market sell",
+            "2020-08-24 14:00:00",
+            "1",
+            "410.00",
+            ticker=symbol,
+            isin=isin,
+        ),
+        _trade(
+            "Market buy", "2020-09-02 14:00:00", "1", "100.00", ticker=symbol, isin=isin
+        ),
+    ]
+
+
 @pytest.mark.parametrize(("symbol", "ratio", "isin"), AUGUST_2020)
 @pytest.mark.parametrize("with_split_row", [False, True], ids=["no row", "a row"])
+@pytest.mark.parametrize(
+    ("history", "held"),
+    [
+        pytest.param(_across_august_2020, 2, id="held through it"),
+        pytest.param(_partly_sold_before_august_2020, 1, id="partly sold before it"),
+    ],
+)
 def test_a_holding_carried_across_august_2020_is_refused(
-    tmp_path: Path, symbol: str, ratio: int, isin: str, with_split_row: bool
+    tmp_path: Path,
+    symbol: str,
+    ratio: int,
+    isin: str,
+    with_split_row: bool,
+    history: Callable[[str, str], list[list[str]]],
+    held: int,
 ) -> None:
-    """A row adding 2 x (ratio - 1) shares, the right ratio, is no remedy."""
-    added = 2 * (ratio - 1)
+    """A row adding held x (ratio - 1) shares, the right ratio, is no remedy.
+
+    Trading 212 still holds 2 going into 31 August in one history, and 1 in
+    the other, which bought 2 and sold 1 before it.
+    """
+    added = held * (ratio - 1)
     raw_rows = (
         (f"2020-08-31,STOCK_SPLIT,{symbol},{added},0.00,0.00,GBP",)
         if with_split_row
         else ()
     )
-    cmd = _known_split_cmd(
-        tmp_path, _across_august_2020(symbol, isin), raw_rows=raw_rows
-    )
+    cmd = _known_split_cmd(tmp_path, history(symbol, isin), raw_rows=raw_rows)
 
     stderr = _refusal(cmd)
 
@@ -4210,6 +4248,334 @@ def test_another_broker_s_holding_across_august_2020_runs(
     result = run_cli(_known_split_cmd(tmp_path, rows, raw_rows=raw_rows))
 
     assert f"\n  {symbol}: {2 * ratio}.00\n" in result.stdout, result.stdout
+
+
+def _sold_before_august_2020(symbol: str, ratio: int, isin: str) -> list[list[str]]:
+    """Buy 1 for 300 in June 2020, sell it for 350 in July, buy `ratio` in September.
+
+    The account also holds 1 Microsoft through 31 August, which is another
+    security and does not count as holding this one. The deposit covers the
+    purchases with room for a test's own RAW purchase at Trading 212, so no
+    history here runs out of cash.
+    """
+    return [
+        _deposit("2020-05-01 09:00:00", total="2000.00"),
+        _trade(
+            "Market buy", "2020-06-01 14:00:00", "1", "300.00", ticker=symbol, isin=isin
+        ),
+        _trade(
+            "Market buy",
+            "2020-06-15 14:00:00",
+            "1",
+            "200.00",
+            ticker="MSFT",
+            isin="US5949181045",
+        ),
+        _trade(
+            "Market sell",
+            "2020-07-01 14:00:00",
+            "1",
+            "350.00",
+            ticker=symbol,
+            isin=isin,
+        ),
+        _trade(
+            "Market buy",
+            "2020-09-10 14:00:00",
+            str(ratio),
+            "100.00",
+            ticker=symbol,
+            isin=isin,
+        ),
+    ]
+
+
+def _other_broker_s_4(symbol: str) -> tuple[str, ...]:
+    """RAW rows buying the 4 that keep the holding open, for 1,200 in May 2020."""
+    return (
+        "2020-05-01,TRANSFER,,1,5000.00,0.00,GBP",
+        f"2020-05-04,BUY,{symbol},4,300.00,0.00,GBP",
+    )
+
+
+@pytest.mark.parametrize(("symbol", "ratio", "isin"), AUGUST_2020)
+def test_a_trading_212_lot_sold_before_august_2020_is_calculated(
+    tmp_path: Path, symbol: str, ratio: int, isin: str
+) -> None:
+    """Trading 212 held none at the split, so none of its shares were paid out.
+
+    Another broker's 4, bought for 1,200 in May 2020, keep the holding open
+    while Trading 212 buys 1 for 300 in June and sells it for 350 in July. It
+    buys `ratio` more at 100 each after the split, in September:
+    - the July sale: the pool is 5 for 1,500, so the 1 sold cost 300 and
+      gained 350 - 300 = 50;
+    - the split: the 4 left become 4 x ratio, still costing 1,200;
+    - September: 4 x ratio + ratio = 5 x ratio shares for 1,200 + 100 x ratio,
+      which is 20 for 1,600 for Apple's 4-for-1 and 25 for 1,700 for Tesla's
+      5-for-1.
+    """
+    raw_rows = (
+        *_other_broker_s_4(symbol),
+        f"2020-08-31,STOCK_SPLIT,{symbol},{4 * (ratio - 1)},0.00,0.00,GBP",
+    )
+
+    result = run_cli(
+        _known_split_cmd(
+            tmp_path,
+            _sold_before_august_2020(symbol, ratio, isin),
+            raw_rows=raw_rows,
+            year="2020",
+        )
+    )
+
+    assert summary_figure(result.stdout, "Allowable costs") == "300.00"
+    assert summary_figure(result.stdout, "Gain") == "50.00"
+    assert f"\n  {symbol}: {5 * ratio}.00, £{1200 + 100 * ratio:,}.00\n" in (
+        result.stdout
+    )
+
+
+@pytest.mark.parametrize(("symbol", "ratio", "isin"), AUGUST_2020)
+def test_a_trading_212_lot_sold_before_august_2020_still_needs_a_split_row(
+    tmp_path: Path, symbol: str, ratio: int, isin: str
+) -> None:
+    """With Trading 212 out of it, the holding is checked like the other splits.
+
+    The other broker's 4 are all that is held going into 31 August, and with
+    no row restating them the run stops and asks for one.
+    """
+    stderr = _refusal(
+        _known_split_cmd(
+            tmp_path,
+            _sold_before_august_2020(symbol, ratio, isin),
+            raw_rows=_other_broker_s_4(symbol),
+            year="2020",
+        )
+    )
+
+    expected = _missing(symbol, "2020-08-31", "4", tmp_path / "splits.csv", ratio=ratio)
+    assert "ERROR: " + expected + "\n" in stderr
+
+
+@pytest.mark.parametrize(("symbol", "ratio", "isin"), AUGUST_2020)
+def test_a_raw_purchase_at_trading_212_held_through_august_2020_is_refused(
+    tmp_path: Path, symbol: str, ratio: int, isin: str
+) -> None:
+    """A RAW row naming Trading 212 joins its records, so its shares count.
+
+    The export buys 1 and sells it before 31 August, but a RAW row adds 1.5
+    bought at Trading 212 in May, so Trading 212 still holds 1.5 + 1 - 1 =
+    1.5 going into the split, and its cash-out of fractions applies.
+    """
+    raw_file = tmp_path / "trading212-rows.csv"
+    raw_file.write_text(
+        "\n".join(
+            [
+                f"{RAW_HEADER},broker",
+                f"2020-05-04,BUY,{symbol},1.5,300.00,0.00,GBP,Trading 212",
+                (
+                    f"2020-08-31,STOCK_SPLIT,{symbol},{Decimal('1.5') * (ratio - 1)},"
+                    "0.00,0.00,GBP,Trading 212"
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    stderr = _refusal(
+        _known_split_cmd(
+            tmp_path,
+            _sold_before_august_2020(symbol, ratio, isin),
+            extra=("--raw-file", str(raw_file)),
+            year="2020",
+        )
+    )
+
+    assert "ERROR: " + _cashed_out(symbol, ratio) + "\n" in stderr
+
+
+def _unbalanced(symbol: str, ratio: int) -> str:
+    """Return the refusal for Trading 212 rows that sell more than they buy."""
+    return (
+        f"{symbol} traded at a new count from 2020-08-31 after a {ratio}-for-1 "
+        f"split, and the Trading 212 rows for {symbol} before that day, including "
+        "RAW rows naming Trading 212, record more shares leaving than arriving. "
+        "The history therefore does not show how many shares Trading 212 held at "
+        "the split. At this split Trading 212 closed any fraction of a share for "
+        "cash, and cgt-calc cannot tell whether that applies. Check those rows "
+        "against your records: add missing rows, such as an earlier export, or "
+        "correct mistakes. Alternatively, work the holding out by hand (consider "
+        "professional advice). See "
+        "https://cgt-calc.uk/brokers/trading212/#apple-and-tesla-in-august-2020"
+    )
+
+
+@pytest.mark.parametrize(("symbol", "ratio", "isin"), AUGUST_2020)
+@pytest.mark.parametrize(
+    ("before", "raw_sale", "other"),
+    [
+        pytest.param(
+            [("Market sell", "2020-07-01", "1", "350.00")],
+            False,
+            5,
+            id="sold without buying",
+        ),
+        pytest.param(
+            [
+                ("Market buy", "2020-06-01", "1", "300.00"),
+                ("Market sell", "2020-07-01", "2", "350.00"),
+            ],
+            False,
+            4,
+            id="sold more than bought",
+        ),
+        pytest.param(
+            [
+                ("Market buy", "2020-06-01", "1", "300.00"),
+                ("Market sell", "2020-07-01", "1", "350.00"),
+            ],
+            True,
+            5,
+            id="a RAW sale naming Trading 212",
+        ),
+    ],
+)
+def test_trading_212_rows_selling_more_than_they_buy_before_august_2020_stop(
+    tmp_path: Path,
+    symbol: str,
+    ratio: int,
+    isin: str,
+    before: list[tuple[str, str, str, str]],
+    raw_sale: bool,
+    other: int,
+) -> None:
+    """With more leaving than arriving, what Trading 212 held is unknown.
+
+    Trading 212's rows before 31 August net to -1 in each history: it sells
+    1 it never bought (0 - 1), sells 2 after buying 1 (1 - 2), or buys 1 and
+    sells it while a RAW row naming Trading 212 sells 1 more (1 - 1 - 1).
+    Another broker's `other` shares keep the holding open at `other` - 1, a
+    split row restates those, and Trading 212 buys `ratio` after the split.
+    """
+    rows = [
+        _deposit("2020-05-01 09:00:00"),
+        *(
+            _trade(action, f"{day} 14:00:00", shares, price, ticker=symbol, isin=isin)
+            for action, day, shares, price in before
+        ),
+        _trade(
+            "Market buy",
+            "2020-09-10 14:00:00",
+            str(ratio),
+            "100.00",
+            ticker=symbol,
+            isin=isin,
+        ),
+    ]
+    raw_file = tmp_path / "rows.csv"
+    raw_file.write_text(
+        "\n".join(
+            [
+                f"{RAW_HEADER},broker",
+                "2020-05-01,TRANSFER,,1,5000.00,0.00,GBP,",
+                f"2020-05-04,BUY,{symbol},{other},300.00,0.00,GBP,",
+                *(
+                    [f"2020-07-15,SELL,{symbol},1,360.00,0.00,GBP,Trading 212"]
+                    if raw_sale
+                    else []
+                ),
+                (
+                    f"2020-08-31,STOCK_SPLIT,{symbol},{(other - 1) * (ratio - 1)},"
+                    "0.00,0.00,GBP,"
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    stderr = _refusal(
+        _known_split_cmd(
+            tmp_path, rows, extra=("--raw-file", str(raw_file)), year="2020"
+        )
+    )
+
+    assert "ERROR: " + _unbalanced(symbol, ratio) + "\n" in stderr
+
+
+def test_trading_212_rows_selling_more_than_they_buy_stop_only_for_august_2020(
+    tmp_path: Path,
+) -> None:
+    """Only Apple's and Tesla's 2020 splits paid fractions out, so only they stop.
+
+    For NVIDIA's split of 10 June 2024 the same shape is calculated. Another
+    broker buys 5 for 4,000 on 2 May, and Trading 212 sells 1 it never bought
+    for 900 on 20 May:
+    - the sale: 1 of 5 costing 4,000 cost 800, a gain of 900 - 800 = 100;
+    - the split: the 4 left become 40, still costing 3,200;
+    - Trading 212 buys 10 for 1,000 on 20 June, 31 days after the sale, so
+      they join the pool: 50 for 4,200.
+    """
+    rows = [
+        _deposit("2024-05-01 09:00:00"),
+        _trade("Market sell", "2024-05-20 14:00:00", "1", "900.00"),
+        _trade("Market buy", "2024-06-20 14:00:00", "10", "100.00"),
+    ]
+    raw_rows = (
+        "2024-05-01,TRANSFER,,1,10000.00,0.00,GBP",
+        "2024-05-02,BUY,NVDA,5,800.00,0.00,GBP",
+        "2024-06-10,STOCK_SPLIT,NVDA,36,0.00,0.00,GBP",
+    )
+
+    result = run_cli(_known_split_cmd(tmp_path, rows, raw_rows=raw_rows))
+
+    assert summary_figure(result.stdout, "Gain") == "100.00"
+    assert "\n  NVDA: 50.00, £4,200.00\n" in result.stdout
+
+
+@pytest.mark.parametrize(("symbol", "ratio", "isin"), AUGUST_2020)
+def test_trading_212_rows_selling_more_than_they_buy_into_an_empty_holding_run(
+    tmp_path: Path, symbol: str, ratio: int, isin: str
+) -> None:
+    """With nothing held going into 31 August, there is nothing to check.
+
+    Another broker buys 1 for 300 in May 2020, and Trading 212 sells 1 it
+    never bought for 350 in July, which empties the holding before the split
+    although Trading 212's rows net to -1:
+    - the sale: 1 costing 300, a gain of 350 - 300 = 50;
+    - the split restates nothing, and needs no row;
+    - Trading 212 buys `ratio` at 100 each in September, more than 30 days
+      later: `ratio` shares for 100 x `ratio`.
+    """
+    rows = [
+        _deposit("2020-05-01 09:00:00"),
+        _trade(
+            "Market sell",
+            "2020-07-01 14:00:00",
+            "1",
+            "350.00",
+            ticker=symbol,
+            isin=isin,
+        ),
+        _trade(
+            "Market buy",
+            "2020-09-10 14:00:00",
+            str(ratio),
+            "100.00",
+            ticker=symbol,
+            isin=isin,
+        ),
+    ]
+    raw_rows = (
+        "2020-05-01,TRANSFER,,1,5000.00,0.00,GBP",
+        f"2020-05-04,BUY,{symbol},1,300.00,0.00,GBP",
+    )
+
+    result = run_cli(_known_split_cmd(tmp_path, rows, raw_rows=raw_rows, year="2020"))
+
+    assert summary_figure(result.stdout, "Gain") == "50.00"
+    assert f"\n  {symbol}: {ratio}.00, £{100 * ratio:,}.00\n" in result.stdout
 
 
 def test_tesla_bought_after_2020_is_checked_for_2022(tmp_path: Path) -> None:

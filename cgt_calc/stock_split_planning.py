@@ -781,8 +781,9 @@ class KnownSplit:
     # under the same ticker.
     isins: frozenset[Isin]
     # Trading 212 closed fractions of a share for cash at this split instead
-    # of splitting them, and how its exports show that is not known, so a
-    # history carried across it is refused whatever split rows it has.
+    # of splitting them, and how its exports show that is not known, so
+    # shares Trading 212 held across it are refused whatever split rows the
+    # history has.
     fractions_cashed_out: bool = False
     # Where the ISIN changed with the split, the one from the split on; the
     # other one in `isins` is the one before it.
@@ -1077,12 +1078,17 @@ def check_known_split(
     """
     if held <= 0 or _restated_by_schwab_awards(state, split, days):
         return
-    # The fractions paid out were Trading 212's; a holding from other brokers
-    # alone is checked like any other split.
-    if split.fractions_cashed_out and _carried_from(
-        state, split.symbol, days, Trading212Transaction
-    ):
-        raise CalculationError(_cashed_out_message(split))
+    # The fractions paid out were of shares Trading 212 held at the split; a
+    # holding from other brokers alone is checked like any other split.
+    if split.fractions_cashed_out:
+        at_trading212 = _trading212_balance(split.symbol, split.date, days)
+        if at_trading212 > 0:
+            raise CalculationError(_cashed_out_message(split))
+        # More left than arrived: rows are missing or wrong, so what Trading
+        # 212 held at the split, and whether any of it was paid out, is not
+        # known.
+        if at_trading212 < 0:
+            raise CalculationError(_unbalanced_trading212_message(split))
     transformation = state.history.splits.get(split.date, {}).get(split.symbol)
     if transformation is None:
         raise CalculationError(_missing_known_split_message(split, held, days))
@@ -1111,6 +1117,39 @@ def _restated_by_schwab_awards(
     ):
         return False
     return _carried_from(state, split.symbol, days, SchwabAwardTransaction)
+
+
+def _trading212_balance(
+    symbol: str,
+    date: dt.date,
+    days: Mapping[dt.date, list[BrokerTransaction]],
+) -> Decimal:
+    """Return the shares of ``symbol`` Trading 212's rows hold going into ``date``.
+
+    Its rows before that day that add or remove shares are netted together:
+    the export's rows, and RAW rows that name Trading 212 as their broker,
+    which join its records. Removing all it added leaves none, so none of its
+    shares were split or paid out. Below zero, more shares left than the
+    history shows arriving.
+    """
+    brokers = {
+        row.broker
+        for rows in days.values()
+        for row in rows
+        if isinstance(row, Trading212Transaction)
+    }
+    held = Decimal(0)
+    for day, rows in days.items():
+        if day >= date:
+            continue
+        for row in rows:
+            if (
+                row.broker in brokers
+                and row.symbol == symbol
+                and (sign := quantity_sign(row.action))
+            ):
+                held += sign * stated_quantity(row)
+    return held
 
 
 def _carried_from(
@@ -1269,6 +1308,23 @@ def _cashed_out_message(split: KnownSplit) -> str:
         "fraction appears (as a sale, a deposit or not at all) and its date. "
         "Do not attach the export or post amounts or quantities. "
         f"See {_CASHED_OUT_DOCS}"
+    )
+
+
+def _unbalanced_trading212_message(split: KnownSplit) -> str:
+    """Explain why Trading 212 rows recording more shares leaving stop the run."""
+    symbol, date = split.symbol, split.date
+    return (
+        f"{symbol} traded at a new count from {date} after a "
+        f"{split.ratio}-for-1 split, and the Trading 212 rows for {symbol} "
+        "before that day, including RAW rows naming Trading 212, record more "
+        "shares leaving than arriving. The history therefore does not show how "
+        "many shares Trading 212 held at the split. At this split Trading 212 "
+        "closed any fraction of a share for cash, and cgt-calc cannot tell "
+        "whether that applies. Check those rows against your records: add "
+        "missing rows, such as an earlier export, or correct mistakes. "
+        "Alternatively, work the holding out by hand (consider professional "
+        f"advice). See {_CASHED_OUT_DOCS}"
     )
 
 

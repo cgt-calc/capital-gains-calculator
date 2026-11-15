@@ -243,8 +243,8 @@ the ticker and **traded at a new count**. With one that gives another ratio, it 
 **does not match** the split that day. It does not check other splits, a share you hold across the
 split without trading it at Trading 212 afterwards, or rows without an ISIN, so the check of the
 final portfolio above still applies. Apple's and Tesla's splits of August 2020 are not in the table:
-cgt-calc stops at those for a holding with Trading 212 shares even with a split row, as
-[Apple and Tesla in August 2020](#apple-and-tesla-in-august-2020) explains.
+cgt-calc stops at those when Trading 212 still held the share going into the split, even with a
+split row, as [Apple and Tesla in August 2020](#apple-and-tesla-in-august-2020) explains.
 
 cgt-calc also stops, with a message that begins **Cannot compute the disposal**, when all of these
 apply:
@@ -348,20 +348,24 @@ do depends on where the row is:
 Apple's 4-for-1 split and Tesla's 5-for-1 split both took effect from 31 August 2020. At these two,
 Trading 212 did not split fractions of a share: it closed the fractional part of each holding for
 cash. cgt-calc does not know how an export shows that, so no split row can make the result right.
-cgt-calc stops when your holding of Apple (ISIN US0378331005) or Tesla (US88160R1014) going into 31
-August 2020 includes shares bought at Trading 212 since it was last empty, and a Trading 212 row
-with that ISIN buys or sells it on or after that day, even if you have added a split row. The
-message begins with the ticker and **traded at a new count**, and says that Trading 212 **closed any
-fraction of a share for cash**. A history that bought the share only after the split, or sold all of
-it before, runs as usual, unless that sale is matched with a purchase across the split under the
-30-day rule: cgt-calc then stops with **Cannot compute the disposal**, as
+cgt-calc stops when Trading 212 still held Apple (ISIN US0378331005) or Tesla (US88160R1014) going
+into 31 August 2020 and a Trading 212 row with that ISIN buys or sells it on or after that day, even
+if you have added a split row. What Trading 212 held is counted from its rows before that day that
+add or remove shares, including RAW rows that name Trading 212 as their broker. The message begins
+with the ticker and **traded at a new count**, and says that Trading 212 **closed any fraction of a
+share for cash**. When this split is checked, if Trading 212's earlier rows for the share, including
+RAW rows that name it, record more shares leaving than arriving, cgt-calc stops because the history
+does not show how many shares Trading 212 held at the split: check those rows against your records
+and add missing rows or correct mistakes, or work the holding out by hand. A history that bought the
+share only after the split, or sold all of it before, runs as usual, unless that sale is matched
+with a purchase across the split under the 30-day rule: cgt-calc then stops with **Cannot compute
+the disposal**, as
 [When cgt-calc stops for a split in the table](#when-cgt-calc-stops-for-a-split-in-the-table)
-describes. If the holding going into 31 August 2020 has no shares bought at Trading 212 since it was
-last empty, cgt-calc checks it like the splits in the table above, so it needs a split row dated 31
-August 2020. Trading 212 purchases after the split do not change that. Trading 212 shares count even
-if you sold them before the split, as long as shares at another broker kept the holding from
-emptying, so such a history stops too. Tesla's 3-for-1 split of 25 August 2022 is checked like the
-others in the table.
+describes. If Trading 212 held none of the share going into 31 August 2020, for example because you
+sold your Trading 212 shares before the split while shares at another broker kept the holding open,
+cgt-calc checks the holding like the splits in the table above, so it needs a split row dated 31
+August 2020. Trading 212 purchases after the split do not change that. Tesla's 3-for-1 split of 25
+August 2022 is checked like the others in the table.
 
 Work the holding out by hand (consider professional advice). To help cgt-calc support these splits,
 open an issue as [Reporting problems](../reporting-problems.md) describes, but instead of an example
