@@ -996,11 +996,11 @@ def test_equal_tax_rows_in_two_accounts_are_interchangeable(
         if record.levelno >= logging.WARNING
     ] == [
         (
-            "Dividend tax of -5.00 USD for FOO on 2024-06-27 could have been taken "
-            "from the dividend on 2024-06-03 or 2024-06-30, so it is left out of "
-            "the report! Date it on the one it belongs to to have it counted. A "
-            "RAW row can replace a row of a broker export with the right date: "
-            f"see {DOCS}"
+            "Dividend tax of 5.00 USD for FOO, withheld on 2024-06-27, could have "
+            "been taken from the dividend on 2024-06-03 or 2024-06-30, so it is "
+            "left out of the report! Date it on the one it belongs to to have it "
+            "counted. A RAW row can replace a row of a broker export with the "
+            f"right date: see {DOCS}"
         )
     ]
 

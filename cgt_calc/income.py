@@ -164,7 +164,7 @@ class IncomeProcessor:
         tax: ForeignCurrencyAmount,
         candidates: list[dt.date],
     ) -> None:
-        """Warn about withheld tax that no single dividend can claim."""
+        """Warn about tax withheld or refunded that no single dividend can claim."""
         # The tax is missing from the report of every year that holds a
         # payment which could have carried it, not only from the year it was
         # taken in, and each of those years is entitled to hear so. A
@@ -172,14 +172,18 @@ class IncomeProcessor:
         # side of the boundary.
         if not any(self.date_in_tax_year(affected) for affected in (date, *candidates)):
             return
-        # Tax below half a unit would print as a bare "-0.00", so it is
+        # Tax below half a unit would print as a bare "0.00", so it is
         # shown as it stands instead. Whether it is material is a question
         # about its value in GBP, and answering it here would put a rate
         # lookup, and the failure of one, in the way of a warning.
-        amount = round_decimal(tax.amount, 2) or tax.amount
+        #
+        # The export's sign is easily misread (tax taken is negative), so the
+        # figure drops it and a word says which way the tax went.
+        amount = abs(round_decimal(tax.amount, 2) or tax.amount)
+        moved = "withheld" if tax.amount < 0 else "refunded"
         if candidates:
             LOGGER.warning(
-                "Dividend tax of %s %s for %s on %s could have been taken "
+                "Dividend tax of %s %s for %s, %s on %s, could have been taken "
                 "from the dividend on %s, so it is left out of the report! "
                 "Date it on the one it belongs to to have it counted. A RAW "
                 "row can replace a row of a broker export with the right "
@@ -189,17 +193,19 @@ class IncomeProcessor:
                 amount,
                 tax.currency,
                 symbol,
+                moved,
                 date,
                 " or ".join(str(candidate) for candidate in candidates),
             )
             return
         LOGGER.warning(
-            "Dividend tax of %s %s for %s on %s has no dividend in the %d "
+            "Dividend tax of %s %s for %s, %s on %s, has no dividend in the %d "
             "days before it or the %d days after, so it is left out of the "
             "report!",
             amount,
             tax.currency,
             symbol,
+            moved,
             date,
             DIVIDEND_TAX_MATCH_DAYS,
             DIVIDEND_TAX_LEAD_DAYS,
