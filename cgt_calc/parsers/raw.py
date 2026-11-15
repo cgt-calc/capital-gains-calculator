@@ -7,6 +7,7 @@ import datetime as dt
 from decimal import Decimal
 from enum import StrEnum
 import io
+import logging
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, overload, override
 
 from cgt_calc.const import LSE_MARKET, US_MARKET
@@ -25,6 +26,8 @@ from .base_parsers import BaseSingleFileParser, read_csv_rows
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
     from pathlib import Path
+
+LOGGER = logging.getLogger(__name__)
 
 
 class RawColumn(StrEnum):
@@ -328,5 +331,26 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
                         "Use one spelling consistently.",
                     )
             transaction.source = TransactionSource(row=index)
+            # A price of 0 is right for worthless shares but is usually a value
+            # left out. Not for a row replacing a vest: one replacing a vest
+            # Schwab did not price is refused at 0, while one restating a vest
+            # the export prices at 0 goes unwarned, a limit the design accepts.
+            if (
+                transaction.action is ActionType.STOCK_ACTIVITY
+                and transaction.price == 0
+                and transaction.replaces is None
+            ):
+                LOGGER.warning(
+                    "%s, row %d: the STOCK_ACTIVITY row acquires %s %s on %s at a "
+                    "price of 0, so they cost nothing but any fees, which "
+                    "overstates the gain on a later sale. Unless the shares were "
+                    "worth nothing that day, enter their market value per share "
+                    "as the price.",
+                    file_path,
+                    index,
+                    transaction.quantity,
+                    transaction.symbol,
+                    transaction.date,
+                )
             transactions.append(transaction)
         return transactions

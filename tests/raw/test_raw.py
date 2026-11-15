@@ -31,6 +31,7 @@ from tests.utils import (
     report_path,
     run_cli,
     stderr_alerts,
+    summary_figure,
 )
 
 
@@ -795,6 +796,101 @@ def test_read_raw_transactions_invalid_decimal(tmp_path: Path) -> None:
     message = str(exc.value)
     assert "row 2" in message
     assert "Invalid decimal in column 'quantity'" in message
+
+
+def test_a_stock_activity_row_at_a_price_of_0_is_named_in_a_warning(
+    tmp_path: Path,
+) -> None:
+    """A STOCK_ACTIVITY row at a price of 0 is named, and the run goes on.
+
+    A price of 0 is right for worthless shares but is usually a value left
+    out. 10 ACME arrive at 0 with a £10 fee and are all sold at £150. The
+    figures are those the row gives:
+    - cost: 10 x 0 + 10 = £10;
+    - proceeds: 10 x 150 = £1,500;
+    - gain: 1,500 - 10 = £1,490.
+    """
+    raw_file = tmp_path / "gifts.csv"
+    _write_csv(
+        raw_file,
+        [
+            COLUMNS,
+            ["2023-06-01", "STOCK_ACTIVITY", "ACME", "10", "0", "10.00", "GBP"],
+            ["2023-09-12", "SELL", "ACME", "10", "150.00", "0.00", "GBP"],
+        ],
+    )
+
+    result = run_cli(
+        build_cmd("--year", "2023", "--raw-file", str(raw_file), "--no-report")
+    )
+
+    assert stderr_alerts(result.stderr) == [
+        (
+            f"WARNING: {raw_file}, row 2: the STOCK_ACTIVITY row acquires 10 ACME "
+            "on 2023-06-01 at a price of 0, so they cost nothing but any fees, "
+            "which overstates the gain on a later sale. Unless the shares were "
+            "worth nothing that day, enter their market value per share as the "
+            "price."
+        )
+    ]
+    assert summary_figure(result.stdout, "Allowable costs") == "10.00"
+    assert summary_figure(result.stdout, "Gain") == "1,490.00"
+
+
+@pytest.mark.parametrize(
+    ("action", "price", "replaces", "warnings"),
+    [
+        ("STOCK_ACTIVITY", "0", "", 1),
+        ("STOCK_ACTIVITY", "", "", 0),
+        ("STOCK_ACTIVITY", "0.01", "", 0),
+        ("BUY", "0", "", 0),
+        ("STOCK_ACTIVITY", "0", "2023-06-02", 0),
+    ],
+    ids=[
+        "row naming its broker",
+        "blank price",
+        "price above 0",
+        "purchase at 0",
+        "row replacing a vest",
+    ],
+)
+def test_only_a_stock_activity_row_stated_at_0_is_warned_about(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    action: str,
+    price: str,
+    replaces: str,
+    warnings: int,
+) -> None:
+    """Only a STOCK_ACTIVITY row at 0 that replaces nothing is warned about.
+
+    Naming its broker does not change that. A blank price is looked up, not
+    0, and a purchase at 0 is not shares received. A row replacing a vest is
+    not warned about: the replacement checks refuse one at 0 for a vest
+    Schwab did not price.
+    """
+    raw_file = tmp_path / "raw.csv"
+    _write_csv(
+        raw_file,
+        [
+            [*COLUMNS, "broker", "replaces"],
+            [
+                "2023-06-01",
+                action,
+                "ACME",
+                "10",
+                price,
+                "0.00",
+                "GBP",
+                "Charles Schwab",
+                replaces,
+            ],
+        ],
+    )
+
+    RawParser().load_from_file(raw_file)
+
+    assert sum(record.levelname == "WARNING" for record in caplog.records) == warnings
 
 
 def test_read_raw_transactions_negative_fees(tmp_path: Path) -> None:
