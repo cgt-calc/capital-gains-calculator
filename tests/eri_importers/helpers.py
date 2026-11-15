@@ -20,6 +20,16 @@ def write_xlsx(path: Path, rows: list[list[object]]) -> Path:
     return path
 
 
+def write_xlsx_sheets(path: Path, sheets: dict[str, list[list[object]]]) -> Path:
+    """Write each named sheet's rows to one xlsx file, in order; [] is empty."""
+    with pd.ExcelWriter(path) as writer:
+        for name, rows in sheets.items():
+            pd.DataFrame(rows).to_excel(
+                writer, sheet_name=name, index=False, header=False
+            )
+    return path
+
+
 def check_transaction(
     transaction: ERITransaction,
     isin: str,

@@ -10,7 +10,7 @@ import pytest
 
 from cgt_calc.exceptions import ParsingError
 from cgt_calc.parsers.eri.importer.vanguard import VanguardImporter
-from tests.eri_importers.helpers import check_transaction, write_xlsx
+from tests.eri_importers.helpers import check_transaction, write_xlsx, write_xlsx_sheets
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -231,16 +231,120 @@ def test_unmatched_file_name_is_not_accepted(tmp_path: Path) -> None:
 
 
 def test_no_isin_column(tmp_path: Path) -> None:
-    """Raise when no ISIN column can be found."""
-    file = write_xlsx(
+    """Raise when no sheet of the workbook has an ISIN column."""
+    file = write_xlsx_sheets(
         tmp_path / "vanguard-eri-2024.xlsx",
-        [
-            ["Fund", "Period", "Ccy", "Amount"],
-            ["Some Fund", PERIOD, "USD", "1.0"],
-        ],
+        {
+            "Report information": [["Excess reportable income report"]],
+            "31 Dec 2024": [
+                ["Fund", "Period", "Ccy", "Amount"],
+                ["Some Fund", PERIOD, "USD", "1.0"],
+            ],
+        },
     )
 
     with pytest.raises(ParsingError, match="No ISIN column"):
+        VanguardImporter().parse(file)
+
+
+# The US-domiciled ETFs' workbooks have one sheet per year end, with the
+# header below a few lines of title; some open with an information sheet,
+# and the latest has header-only sheets for year ends still to come.
+TITLE: list[list[object]] = [
+    ["Vanguard US ETFs", None, None, None],
+    ["UK reporting fund status", None, None, None],
+    [None, None, None, None],
+]
+JAN_PERIOD = "01 February 2024 to 31 January 2025"
+DEC_PERIOD = "01 January 2025 to 31 December 2025"
+
+
+def test_rows_are_read_from_every_data_sheet(tmp_path: Path) -> None:
+    """Read the classes on each year-end sheet, and nothing from a placeholder."""
+    file = write_xlsx_sheets(
+        tmp_path / "vanguard-Excess_Reportable_Income_2025.xlsx",
+        {
+            "31 Jan 2025": [
+                *TITLE,
+                HEADER,
+                ["US9220426764", JAN_PERIOD, "USD", "1.23456"],
+            ],
+            "31 Dec 2025": [
+                *TITLE,
+                HEADER,
+                ["US9229087690", DEC_PERIOD, "USD", "0"],
+                ["US9220427424", DEC_PERIOD, "USD", "0.25000"],
+            ],
+            "31 Aug 2026": [*TITLE, HEADER],
+        },
+    )
+
+    result = VanguardImporter().parse(file)
+
+    assert result is not None
+    assert len(result.transactions) == 3
+    check_transaction(
+        result.transactions[0],
+        "US9220426764",
+        dt.date(2025, 1, 31),
+        Decimal("1.23456"),
+        "USD",
+    )
+    check_transaction(
+        result.transactions[1],
+        "US9229087690",
+        dt.date(2025, 12, 31),
+        Decimal(0),
+        "USD",
+    )
+    check_transaction(
+        result.transactions[2],
+        "US9220427424",
+        dt.date(2025, 12, 31),
+        Decimal("0.25000"),
+        "USD",
+    )
+
+
+def test_information_and_empty_sheets_are_skipped(tmp_path: Path) -> None:
+    """A sheet without an ISIN header, or with nothing on it, adds no rows."""
+    file = write_xlsx_sheets(
+        tmp_path / "vanguard-Excess_Reportable_Income_2025.xlsx",
+        {
+            "Report information": [
+                ["Report information", None],
+                ["Fund", "Vanguard US ETFs"],
+                ["Period ended", "31 January 2025"],
+            ],
+            "31 Jan 2025": [*TITLE, HEADER, ["US9220426764", JAN_PERIOD, "USD", "0.5"]],
+            "Sheet3": [],
+        },
+    )
+
+    result = VanguardImporter().parse(file)
+
+    assert result is not None
+    assert len(result.transactions) == 1
+    check_transaction(
+        result.transactions[0],
+        "US9220426764",
+        dt.date(2025, 1, 31),
+        Decimal("0.50000"),
+        "USD",
+    )
+
+
+def test_malformed_data_sheet_after_a_valid_one_is_refused(tmp_path: Path) -> None:
+    """A bad row on a later data sheet still fails the whole workbook."""
+    file = write_xlsx_sheets(
+        tmp_path / "vanguard-Excess_Reportable_Income_2025.xlsx",
+        {
+            "31 Jan 2025": [*TITLE, HEADER, ["US9220426764", JAN_PERIOD, "USD", "1"]],
+            "31 Dec 2025": [*TITLE, HEADER, ["NOTANISIN", DEC_PERIOD, "USD", "1"]],
+        },
+    )
+
+    with pytest.raises(ParsingError, match="Not valid ISIN NOTANISIN"):
         VanguardImporter().parse(file)
 
 

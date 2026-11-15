@@ -52,6 +52,12 @@ JPMorgan's 2020 report does not say which currency its figures are in. The scrip
 class from it only when the class's currency is the fund's Currency of calculation or its figure is
 Nil, and prints **Skipping** with the ISIN for each other class.
 
+Vanguard publishes the reports for its US-domiciled ETFs as workbooks named like
+`Excess_Reportable_Income_2025.xlsx`, which the script does not recognise. Save each with a
+`vanguard-` prefix, such as `vanguard-Excess_Reportable_Income_2025.xlsx`. The script then reads
+every sheet of the workbook that has an ISIN column, one for each year end, and skips the others,
+such as the information sheet some of them open with.
+
 ## Manual additions and ISIN translations
 
 To add data by hand, append the rows at the bottom of the provider's resource CSV under
