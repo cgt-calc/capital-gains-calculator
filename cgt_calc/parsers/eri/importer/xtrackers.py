@@ -21,7 +21,7 @@ from .model import ERIImporter, ERIImporterOutput
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from pdfplumber.page import CroppedPage, Page
+    from pdfplumber.page import Page
     from pdfplumber.pdf import PDF
 
 LOGGER = logging.getLogger(__name__)
@@ -41,6 +41,8 @@ AMOUNT_REGEX = re.compile(r"^\d+\.\d+$")
 ISIN_COLUMN = 0
 CURRENCY_COLUMN = 1
 ERI_COLUMN = 2
+# The share class's own period end, read in the investor report format.
+PERIOD_END_COLUMN = 3
 MIN_VALID_YEAR = 2018
 
 # Headings of the columns read from the participants report (from 2025),
@@ -139,17 +141,18 @@ class XtrackersImporter(ERIImporter):
         return date.date()
 
     @staticmethod
-    def _extract_header(
-        page: Page, file: Path, page_num: int
-    ) -> tuple[tuple[float, float, float, float], list[float], dict[int, int]]:
+    def _extract_table(
+        page: Page, file: Path, page_num: int, *, with_period_end: bool = False
+    ) -> tuple[list[list[str | None]], dict[int, int]]:
+        """Return the page table's rows below its header, and the column map."""
         header_table = page.find_table()
         if header_table is None:
             raise ParsingError(file, f"Could not find table headers on page {page_num}")
-        extracted_header = header_table.extract()
-        if not extracted_header or not extracted_header[0]:
+        extracted_table = header_table.extract()
+        if not extracted_table or not extracted_table[0]:
             raise ParsingError(file, f"Table header is empty on page {page_num}")
         cur_header = [
-            (col or "").replace("\n", " ").strip() for col in extracted_header[0]
+            (col or "").replace("\n", " ").strip() for col in extracted_table[0]
         ]
         LOGGER.debug("cur_header=%s", cur_header)
         colmap = {}
@@ -164,6 +167,10 @@ class XtrackersImporter(ERIImporter):
                 re.IGNORECASE,
             ),
         }
+        if with_period_end:
+            colreg[PERIOD_END_COLUMN] = re.compile(
+                r"^REPORTING PERIOD END DATE$", re.IGNORECASE
+            )
         for col, regex in colreg.items():
             match_idx = [i for i, h in enumerate(cur_header) if regex.match(h)]
             if len(match_idx) > 1:
@@ -179,26 +186,15 @@ class XtrackersImporter(ERIImporter):
                 )
             colmap[col] = match_idx[0]
 
-        columns = [col.bbox[0] for col in header_table.columns]
-        columns.append(header_table.rows[0].bbox[2])
-        return header_table.rows[0].bbox, columns, colmap
-
-    @staticmethod
-    def _extract_data_rows(
-        cropped: CroppedPage,
-        columns: list[float],
-        file: Path,
-        page_num: int,
-    ) -> list[list[str | None]]:
-        table_settings = {
-            "vertical_strategy": "explicit",
-            "explicit_vertical_lines": columns,
-            "horizontal_strategy": "text",
-        }
-        data_table = cropped.extract_table(table_settings)
-        if data_table is None:
-            raise ParsingError(file, f"Could not extract data table on page {page_num}")
-        return data_table
+        # The rows are the drawn table's own cells: the 2023 reports wrap
+        # their cells over several lines, so rows found from text lines
+        # do not line up there.
+        data_rows = extracted_table[1:]
+        if not data_rows:
+            raise ParsingError(
+                file, f"No data rows below the table header on page {page_num}"
+            )
+        return data_rows, colmap
 
     @staticmethod
     def _process_data_table(
@@ -238,10 +234,24 @@ class XtrackersImporter(ERIImporter):
                 )
             amount = round_decimal(Decimal(row[ERI_COLUMN]), 5)
 
+            # A class that closed during the year prints its own, earlier
+            # period end; only the investor report format gives one.
+            date = reporting_period_end
+            if PERIOD_END_COLUMN in colmap:
+                period_end = " ".join(row[PERIOD_END_COLUMN].split())
+                try:
+                    date = dt.datetime.strptime(period_end, "%d %B %Y").date()
+                except ValueError:
+                    raise ParsingError(
+                        file,
+                        f"Invalid reporting period end date on page {page_num}, "
+                        f"row {row_num}: {period_end!r}",
+                    ) from None
+
             transactions.append(
                 ERITransaction(
                     isin=isin,
-                    date=reporting_period_end,
+                    date=date,
                     price=amount,
                     currency=currency,
                 )
@@ -254,16 +264,13 @@ class XtrackersImporter(ERIImporter):
         pdf: PDF,
         reporting_period_end: dt.date,
         file: Path,
+        *,
+        with_period_end: bool = False,
     ) -> list[ERITransaction]:
         transactions = []
         for page_num, page in enumerate(pdf.pages, 1):
-            header_bbox, columns, colmap = XtrackersImporter._extract_header(
-                page, file, page_num
-            )
-            (h_left, _h_top, h_right, h_bottom) = header_bbox
-            cropped = page.crop((h_left, h_bottom, h_right, page.height))
-            data_table = XtrackersImporter._extract_data_rows(
-                cropped, columns, file, page_num
+            data_table, colmap = XtrackersImporter._extract_table(
+                page, file, page_num, with_period_end=with_period_end
             )
             transactions += XtrackersImporter._process_data_table(
                 page_num, data_table, reporting_period_end, colmap, file
@@ -305,7 +312,9 @@ class XtrackersImporter(ERIImporter):
         if reporting_period_end is None or reporting_period_end.year < MIN_VALID_YEAR:
             return []
 
-        return XtrackersImporter._parse_pages(pdf, reporting_period_end, file)
+        return XtrackersImporter._parse_pages(
+            pdf, reporting_period_end, file, with_period_end=True
+        )
 
     @staticmethod
     def _parse_participants_report_format(
