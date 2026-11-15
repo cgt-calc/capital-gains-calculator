@@ -91,7 +91,8 @@ deposit or withdrawal, cgt-calc then has no amount to apply and stops with `Pric
 If a `STOCK_ACTIVITY` row has no `price`, cgt-calc looks it up by ticker and date in the
 [share prices](../extra-data-and-options.md#missing-share-prices) and reads it in the row's
 `currency`. If there is none, the run stops with `No share price`: enter the market value per unit
-in `price`.
+in `price`. Any `fees` on a `STOCK_ACTIVITY` row, such as a cost of having the shares transferred to
+you, are added to the cost of the shares, but not taken from your cash balance.
 
 ## Actions to use
 

@@ -480,6 +480,44 @@ def test_a_cost_added_on_a_purchase_day_is_an_entry_of_its_own(
     ) in text
 
 
+def test_a_fee_on_a_vest_is_part_of_its_cost(tmp_path: Path) -> None:
+    """A vest's fee is in the cost the heading says includes it.
+
+    A fee such as a cost of transferring the shares is an incidental cost of
+    acquisition (TCGA 1992 s38(1)(a) and (2)). 10 FOO vest at £100 with a
+    £10 fee, and all 10 are sold at £150:
+    - cost: 10 x £100 + £10 = £1,010, which is £101.00 a unit;
+    - proceeds: 10 x £150 = £1,500;
+    - gain: £1,500 - £1,010 = £490.
+    The fee used to be left out, for a cost of £1,000 and a gain of £500,
+    under a heading that still said "including £10.00 fees". The balance
+    check stays on: no cash is held, so a fee taken from cash would stop the
+    run.
+    """
+    report = get_report(
+        create_calculator(tax_year=2024),
+        [
+            transaction(
+                POOL_DAY, ActionType.STOCK_ACTIVITY, "FOO", 10, 100, 10, None, GBP
+            ),
+            transaction(BAR_SALE_DAY, ActionType.SELL, "FOO", 10, 150, 0, 1500, GBP),
+        ],
+    )
+    text = report_text(report, tmp_path)
+
+    assert (
+        "Acquisition 1: 10 units of FOO for £1,010.00 (£101.00/unit), "
+        "including £10.00 fees"
+    ) in text
+    assert disposals(text) == [
+        (
+            "FOO",
+            Decimal("1500.00"),
+            [(Decimal("1500.00"), Decimal("1010.00"), Decimal("490.00"))],
+        )
+    ]
+
+
 def test_a_page_break_keeps_each_rule_with_the_row_under_it(tmp_path: Path) -> None:
     """A table that runs over a page breaks between rules, never inside one.
 

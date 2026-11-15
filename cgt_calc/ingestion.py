@@ -453,10 +453,10 @@ class TransactionIngester:
     ) -> None:
         """Record an acquisition in the portfolio and the acquisition list.
 
-        Every figure in money comes from the row's own quantity and price. A
-        row that a later reorganisation on the same day has restated pools a
-        different number of units for the same money, so only the count
-        changes.
+        Every figure in money comes from the row's own quantity, price and
+        fees. A row that a later reorganisation on the same day has restated
+        pools a different number of units for the same money, so only the
+        count changes.
         """
         symbol = get_symbol_or_fail(transaction)
         quantity = transaction.quantity
@@ -472,7 +472,11 @@ class TransactionIngester:
                 price = self.share_prices.get(
                     transaction.date, symbol, transaction.currency
                 )
-            amount = round_decimal(quantity * price, 2)
+            # The row's fee is taken as an incidental cost of acquisition, such
+            # as a cost of transferring the shares (TCGA 1992 s38(1)(a),
+            # s38(2), CG15250; for a legatee, s64(1)). Like the fee on a GIFT
+            # row, it moves no cash.
+            amount = round_decimal(quantity * price + transaction.fees, 2)
         elif transaction.action is ActionType.TRANSFER_FROM_SPOUSE:
             # Shares received from a spouse arrive at the base cost they left
             # with (TCGA 1992 s58, CG22200), which the row states as the price.

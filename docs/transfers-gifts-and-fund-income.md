@@ -192,9 +192,13 @@ share as the `price`:
 
 The shares join any you already hold under the same `symbol`, so write it exactly as the report
 names that holding. No money is added to your cash balance. Enter the value: cgt-calc accepts a
-`price` of `0`, which makes the shares cost nothing and overstates the gain on a later sale. Leave
-`fees` at `0`, because cgt-calc does not add a fee on this row to the cost. If your broker export
-shows the shares arriving, leave that row out of the export: this row records them instead.
+`price` of `0`, which leaves only any fees in the cost and overstates the gain on a later sale. If
+you, or for an inheritance the executors, paid a cost of having the shares transferred to you, such
+as a broker's fee for the transfer, enter it in `fees`: it is an allowable cost
+([s38](https://www.legislation.gov.uk/ukpga/1992/12/section/38), and
+[s64](https://www.legislation.gov.uk/ukpga/1992/12/section/64) for an inheritance), so cgt-calc adds
+it to the cost of the shares, without taking it from your cash balance. If your broker export shows
+the shares arriving, leave that row out of the export: this row records them instead.
 
 If the giver claimed [Gift Hold-over Relief](https://www.gov.uk/gift-holdover-relief), which you
 claim together with them, your cost is the market value less the gain held over
