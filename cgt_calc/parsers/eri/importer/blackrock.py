@@ -125,8 +125,9 @@ class BlackrockImporter(ERIImporter):
 
             reporting_date_str = row[REPORTING_PERIOD_COLUMN]
             try:
+                # UK reports print dates day first: 01/04/2019 is 1 April.
                 reporting_date = date_parser.parse(
-                    PERIOD_RE.sub("", reporting_date_str)
+                    PERIOD_RE.sub("", reporting_date_str), dayfirst=True
                 ).date()
             except Exception as e:
                 raise ParsingError(
