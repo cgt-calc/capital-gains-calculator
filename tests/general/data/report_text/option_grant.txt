@@ -5,7 +5,7 @@ Number of disposals 1
 Total disposal proceeds £200.00
 Total allowable costs £1.30
 Total capital gain before loss £198.70
-Total capital loss £0
+Total capital loss £0.00
 Total capital gain after loss £198.70
 Amounts are rounded to the nearest penny individually, so a line may differ from its
 components by a penny.

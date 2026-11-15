@@ -4,9 +4,9 @@ Number of acquisitions 2
 Number of disposals 0
 Total disposal proceeds £0.00
 Total allowable costs £0.00
-Total capital gain before loss £0
-Total capital loss £0
-Total capital gain after loss £0
+Total capital gain before loss £0.00
+Total capital loss £0.00
+Total capital gain after loss £0.00
 Amounts are rounded to the nearest penny individually, so a line may differ from its
 components by a penny.
 Overall - Dividends and Interests

@@ -4,7 +4,7 @@ Number of acquisitions 2
 Number of disposals 1
 Total disposal proceeds £800.00
 Total allowable costs £900.00
-Total capital gain before loss £0
+Total capital gain before loss £0.00
 Total capital loss £100.00
 Total capital gain after loss £-100.00
 Amounts are rounded to the nearest penny individually, so a line may differ from its

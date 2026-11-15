@@ -170,6 +170,23 @@ def test_lines_add_up_to_their_heading_and_the_total(tmp_path: Path) -> None:
     assert abs(sum(headings) - money(total[1])) <= PENNY * len(headings)
 
 
+def test_zero_gain_and_loss_totals_show_pence(tmp_path: Path) -> None:
+    """With nothing sold, the summary's totals read £0.00, as its other amounts do.
+
+    They used to print £0: the totals start from a whole zero, and nothing
+    was added to them.
+    """
+    report = get_report(
+        create_calculator(tax_year=2024, balance_check=False),
+        [transaction(POOL_DAY, ActionType.BUY, "FOO", 10, 20, 0, -200, GBP)],
+    )
+
+    assert (
+        "Total capital gain before loss £0.00 Total capital loss £0.00 "
+        "Total capital gain after loss £0.00"
+    ) in report_text(report, tmp_path)
+
+
 @pytest.mark.parametrize(
     "name",
     [
