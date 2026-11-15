@@ -702,7 +702,7 @@ def test_a_fund_is_not_given_periods_before_hmrc_lists_it(tmp_path: Path) -> Non
     """Periods start after HMRC's start date, and a known fund gets no income note.
 
     HMRC lists LU0274208692 as a reporting fund from 2011-01-01; its first row
-    ends 2024-12-31. Held from 2010-06-01 to a sale on 2012-03-01, the units
+    ends 2023-12-31. Held from 2010-06-01 to a sale on 2012-03-01, the units
     were held at the period end predicted around 2011-12-31, and at 2010-12-31,
     which is before the start, so not a reporting period. 2011-12-31's D,
     2012-06-30, is after the 2011/12 report. The fund's status is known, so the
@@ -725,7 +725,7 @@ def test_a_fund_is_not_given_periods_before_hmrc_lists_it(tmp_path: Path) -> Non
     assert (
         "WARNING: No excess reported income figure for XTRK (ISIN LU0274208692) "
         "for a reporting period when you held units. cgt-calc's figures for this "
-        "fund cover periods ending 2024-12-31 to 2025-12-31.\n"
+        "fund cover periods ending 2023-12-31 to 2025-12-31.\n"
         "  Period predicted to end around 2011-12-31: its report was due around "
         "2012-06-30, and any income from it falls in the 2012/13 tax year.\n"
         f"{ADVICE_ONE}\n"

@@ -62,7 +62,7 @@ cgt-calc currently bundles:
 - [JPMorgan ETFs (Ireland) ICAV 2020-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/jpmorgan_eri.csv),
     except the 2020 figures of eight share classes whose currency differs from their fund's, as the
     2020 report does not say which currency they are in
-- [Xtrackers (IE) Plc 2023-2025 and other Xtrackers Funds 2024-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/xtrackers_eri.csv)
+- [Xtrackers Funds 2023-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/xtrackers_eri.csv)
 - [Amundi Smart Overnight Return (CSH2) 2015-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/amundi_eri.csv),
     entered by hand from KPMG Reporting Funds
 - [SSGA SPDR ETFs Europe I plc and II plc 2015-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/spdr_eri.csv)
