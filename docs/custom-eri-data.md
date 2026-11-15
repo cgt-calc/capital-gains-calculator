@@ -59,6 +59,28 @@ ETFs. Check the fund company in your fund documents if you are unsure.
 - **Currency:** Share Class Currency column
 - **Excess of reporting income over distribution:** same name column
 
+Vanguard's US-domiciled ETFs, such as Vanguard Global ex-U.S. Real Estate ETF (VNQI), have their own
+reports here: <https://advisors.vanguard.com/tax-center/uk-reporting-status>
+
+From 2022 each year's report is a workbook with a sheet for each year end; use the sheet named after
+your ETF's year end. The columns are the ones above; some headings carry a footnote number.
+
+The reports for 2018 to 2021 are PDFs, with a section for each year end. In all of them, the amounts
+listed under a fund's row are its distributions, not its excess income. The 2021 report's sections
+after 31 January 2021 have the workbooks' columns; there the excess income column is headed EXCESS
+OF REPORTABLE INCOME OVER DISTRIBUTIONS. The 2018 to 2020 reports, and the 2021 report's section for
+31 January 2021, differ:
+
+- **ISIN:** the ISIN CODE column gives the fund's 9-character CUSIP instead. The ISIN is US, the
+    CUSIP and one more digit: take the ISIN from the fund's row in a later report (the 2021 report
+    or a workbook). For example, VNQI's CUSIP 922042676 is ISIN US9220426764.
+- **Fund Reporting Period End Date:** the single date in the REPORTING PERIOD column, written month
+    first in some rows (1/31/2018 is 31 January 2018) and day first in others (31/01/2019). The
+    section's Accounting period line gives the same end date in words.
+- **Currency:** CURRENCY column
+- **Excess of reporting income over distribution:** the column headed EXCESS OF REPORTED INCOME PER
+    UNIT, not the DISTRIBUTION(S) PER UNIT one
+
 ### iShares / BlackRock
 
 BlackRock UK publishes annual Reportable Income reports here:
