@@ -55,10 +55,27 @@ class VanguardImporter(ERIImporter):
         else:
             return None
 
-        sheet = 0
+        # Vanguard's US workbooks have one sheet per year end, and some
+        # open with an information sheet.
+        found = False
+        with pd.ExcelFile(file) as workbook:
+            for sheet in workbook.sheet_names:
+                found |= VanguardImporter._parse_sheet(workbook, sheet, file, result)
+        if not found:
+            raise ParsingError(file, "No ISIN column found!")
+        return result
 
-        df = pd.read_excel(file, sheet)
-        df.columns = df.columns.str.strip()
+    @staticmethod
+    def _parse_sheet(
+        workbook: pd.ExcelFile,
+        sheet: str | int,
+        file: Path,
+        result: ERIImporterOutput,
+    ) -> bool:
+        """Add a sheet's rows to result; return False if it has no ISIN header."""
+        df = pd.read_excel(workbook, sheet)
+        # An empty sheet has numbered, not named, columns.
+        df.columns = df.columns.astype(str).str.strip()
 
         # main header row might be the first one or after some rows
         # some reports have an additional table at the end for retired
@@ -68,13 +85,14 @@ class VanguardImporter(ERIImporter):
         mask = df.astype(str).map(lambda x: isinstance(x, str) and x.startswith("ISIN"))
         header_loc = mask[mask].dropna(axis=1, how="all").dropna(how="all")
 
-        # first row is the header row
-        if "ISIN" in df.columns:
+        # first row is the header row; Vanguard often labels the ISIN column
+        # with a footnote mark
+        if any(column.startswith("ISIN") for column in df.columns):
             max_allowed_isin_columns = 1
             skiprows = 0
         else:
             if len(header_loc.index) == 0:
-                raise ParsingError(file, "No ISIN column found!")
+                return False
             max_allowed_isin_columns = 2
             # skip to the header row
             skiprows = header_loc.index[0] + 1
@@ -87,7 +105,7 @@ class VanguardImporter(ERIImporter):
             # filter out final table
             nrows = header_loc.index[max_allowed_isin_columns - 1] - skiprows
 
-        df = pd.read_excel(file, sheet, skiprows=skiprows, nrows=nrows)
+        df = pd.read_excel(workbook, sheet, skiprows=skiprows, nrows=nrows)
         df.columns = df.columns.str.strip()
         df.columns = df.columns.str.replace("\n", " ")
         df.columns = df.columns.str.replace("  ", " ")
@@ -152,4 +170,4 @@ class VanguardImporter(ERIImporter):
                 )
             )
 
-        return result
+        return True
