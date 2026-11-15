@@ -558,6 +558,17 @@ distributions and ERI; see the [offshore-fund checklist](offshore-funds.md#what-
 reports the income as foreign interest, so do not use it for a UK fund. If cgt-calc reports a UK
 bond fund distribution as a dividend, adjust the income figures outside cgt-calc.
 
+Tax withheld from the distributions of a fund you pass to `--interest-fund-tickers` is left out of
+the report. The report's interest tax paid counts only tax recorded as tax on interest, such as tax
+on cash interest, and the report gives these distributions no treaty relief. cgt-calc prints a
+warning for each distribution with tax withheld. The terminal's **Dividends** list printed after
+**Final balance** still shows the distribution and its tax, but the tax summary counts the
+distribution only under **Interest**. Take the tax from your broker's statement. The notes to HMRC's
+[Foreign pages (SA106)](https://www.gov.uk/government/publications/self-assessment-foreign-sa106)
+say how to enter it with the interest, and
+[Relief for foreign tax paid (HS263)](https://www.gov.uk/government/publications/calculating-foreign-tax-credit-relief-on-income-hs263-self-assessment-helpsheet)
+explains how much relief you can claim for it.
+
 ### Income reported in more than one currency
 
 Two payments of the same dividend in different currencies, such as one to each of two accounts, or a
