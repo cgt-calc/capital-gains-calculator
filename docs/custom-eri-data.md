@@ -136,6 +136,26 @@ reporting status:
 - **Excess of reporting income over distribution:** Per unit excess reportable income over
     distributions in respect of the reporting period column
 
+### SPDR
+
+SSGA publishes the annual Reportable Income reports of SSGA SPDR ETFs Europe I plc and SSGA SPDR
+ETFs Europe II plc on its announcements page:
+<https://ssga.com/uk/en_gb/intermediary/resources/documents/announcements>
+
+Choose the report for the company named in your fund documents. For the years to 31 March 2020 to
+2023, use the revised reports SSGA published in 2024, with "Revised" in the title: SSGA restated the
+figures of some share classes.
+
+The table comes after the letter:
+
+- **ISIN:** ISIN / Identifier column (ISIN in reports up to 2019)
+- **Fund Reporting Period End Date:** the date in the table's title, after "Reporting Period End" or
+    "Reporting Period Ended". If a footnote says your fund terminated during the year, use that
+    date.
+- **Currency:** Currency of Share Class column
+- **Excess of reporting income over distribution:** Per unit excess reportable income over
+    distributions in respect of the reporting period column
+
 ### Legal & General
 
 LGIM publishes annual Reportable Income reports here:

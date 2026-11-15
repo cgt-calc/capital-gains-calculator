@@ -346,6 +346,8 @@ SplitHistory
 SPYM
 sqrt
 ss126
+SSGA
+SSGA's
 StandardCSVParser
 stderr
 stdin

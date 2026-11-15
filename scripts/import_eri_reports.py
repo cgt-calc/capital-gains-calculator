@@ -21,6 +21,7 @@ from cgt_calc.parsers.eri.importer.blackrock import BlackrockImporter
 from cgt_calc.parsers.eri.importer.hsbc import HsbcImporter
 from cgt_calc.parsers.eri.importer.invesco import InvescoImporter
 from cgt_calc.parsers.eri.importer.legal_and_general import LegalAndGeneralImporter
+from cgt_calc.parsers.eri.importer.spdr import SpdrImporter
 from cgt_calc.parsers.eri.importer.vanguard import VanguardImporter
 from cgt_calc.parsers.eri.importer.xtrackers import XtrackersImporter
 from cgt_calc.parsers.eri.raw import COLUMNS, RAW_DATE_FORMAT, ERIRawParser
@@ -35,6 +36,7 @@ if TYPE_CHECKING:
 ERI_IMPORTERS: list[ERIImporter] = [
     BlackrockImporter(),
     InvescoImporter(),
+    SpdrImporter(),
     VanguardImporter(),
     XtrackersImporter(),
     LegalAndGeneralImporter(),
