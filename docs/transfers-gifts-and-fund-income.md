@@ -65,8 +65,12 @@ under another name the shares become a separate holding.
     transfer. Since 6 April 2023 it also applies for a period after separating and, once a divorce
     or dissolution has started, at any time under a divorce or separation agreement or a court order
     ([CG22200](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22200),
-    [CG22420](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22420)). If you gave
-    the shares and do not qualify, or they went to anyone else, record a
+    [CG22420](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22420)). These rules
+    look at the day the transfer counts as made, which under a court order or a binding agreement
+    can differ from the day the shares moved: the bullet on a transfer from a spouse or civil
+    partner under
+    [Shares you were given or inherited](#shares-you-were-given-or-inherited) says how to find it.
+    If you gave the shares and do not qualify, or they went to anyone else, record a
     [gift](#gifts-to-anyone-else) instead. If you received shares in a transfer that does not
     qualify, record them as
     [Shares you were given or inherited](#shares-you-were-given-or-inherited) describes.
@@ -93,6 +97,12 @@ later split (Schwab's export does this), divide the value of the whole gift by t
 holding that has become worthless can be given away at a market value of `0`, and the whole cost
 becomes a loss.
 
+If you transferred shares to your spouse or civil partner, or a former one, and the transfer does
+not [qualify](#if-you-received-the-shares) for no gain / no loss, date and value the row as for the
+person who received them: see the bullet on a transfer from a spouse or civil partner under
+[Shares you were given or inherited](#shares-you-were-given-or-inherited). Under a court order or a
+binding agreement, that date can differ from the day the shares moved.
+
 Gifts to connected persons made within six years of each other are valued as a series
 ([s19](https://www.legislation.gov.uk/ukpga/1992/12/section/19),
 [CG14650](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg14650)): when the pieces
@@ -101,8 +111,8 @@ everything given, and each later gift enlarges the series, which can revise the 
 including those in years already filed. A typical holding of quoted shares is unaffected, since
 every share has the same price, but for unquoted shares given in stages enter the s19-apportioned
 value as the `price`, and amend the earlier years yourself when a later gift revises them. A
-transfer to your spouse stays no gain / no loss, but it still counts towards the series when the
-same holding is split between a spouse and someone else
+qualifying transfer to your spouse stays no gain / no loss, but it still counts towards the series
+when the same holding is split between a spouse and someone else
 ([CG14710](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg14710)).
 
 ```csv
@@ -112,21 +122,21 @@ same holding is split between a spouse and someone else
 The same identification rules as a sale apply, and a gain counts like any other.
 
 `GIFT` is for a connected person, which
-[s286](https://www.legislation.gov.uk/ukpga/1992/12/section/286) defines at some length: your
-relatives (brothers, sisters, parents, grandparents, children, grandchildren) and their spouses,
-your spouse's relatives and their spouses, your business partners and their spouses and relatives,
-trustees of a settlement you or a connected person set up, companies you control alone or with
-connected persons, and people acting together to control a company. That is not the whole
-definition, so read the section if in doubt. If the recipient is not a connected person, a friend
-say, use `GIFT_UNCONNECTED` instead; the only difference is what happens to a loss, and when unsure
-`GIFT` is the safe choice, since it can only overstate. A sale and a `GIFT` of the same shares on
-one day cannot be computed (they are one disposal under s105(1), and a loss on it could not be
-split), while a sale and a `GIFT_UNCONNECTED` are one ordinary disposal, reported as a sale. Several
-`GIFT` rows for one symbol on one day must state the same value per unit, and they mean one gift to
-one person: their fees and their gain or loss merge into one result, which is right for one
-recipient and wrong for several, since a clogged loss to one person cannot net a gain to another. If
-a day's gifts went to different people, leave that symbol out of the input and work it out by hand,
-as with any day cgt-calc refuses.
+[s286](https://www.legislation.gov.uk/ukpga/1992/12/section/286) defines at some length: your spouse
+or civil partner until the divorce or dissolution is made final, your relatives (brothers, sisters,
+parents, grandparents, children, grandchildren) and their spouses, your spouse's relatives and their
+spouses, your business partners and their spouses and relatives, trustees of a settlement you or a
+connected person set up, companies you control alone or with connected persons, and people acting
+together to control a company. That is not the whole definition, so read the section if in doubt. If
+the recipient is not a connected person, a friend say, use `GIFT_UNCONNECTED` instead; the only
+difference is what happens to a loss, and when unsure `GIFT` is the safe choice, since it can only
+overstate. A sale and a `GIFT` of the same shares on one day cannot be computed (they are one
+disposal under s105(1), and a loss on it could not be split), while a sale and a `GIFT_UNCONNECTED`
+are one ordinary disposal, reported as a sale. Several `GIFT` rows for one symbol on one day must
+state the same value per unit, and they mean one gift to one person: their fees and their gain or
+loss merge into one result, which is right for one recipient and wrong for several, since a clogged
+loss to one person cannot net a gain to another. If a day's gifts went to different people, leave
+that symbol out of the input and work it out by hand, as with any day cgt-calc refuses.
 
 cgt-calc works out the gain before any relief. Shares in a trading company that is not listed on a
 recognised stock exchange, or in your personal company, may qualify for
@@ -177,12 +187,18 @@ share as the `price`:
     holding's value: enter that value divided by the holding's number of shares, not a value for
     your part alone. Ask the executors for it if you do not have it.
 - **A transfer from your spouse or civil partner, or a former one, that does not qualify:** date the
-    row on the day the transfer counts as made, at the market value that day. Under a court order
-    that is usually the date of the order, or the date of the Final Order (decree absolute before 6
-    April 2022) if the order was made before it and the shares moved after it
-    ([CG22420](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22420)). Without a
-    court order it is the day the shares moved, unless you had already made a binding agreement to
-    transfer them: then
+    row on the day the transfer counts as made, at the market value that day. Under a court order it
+    is usually the date of the order. If the order was made before the divorce or dissolution was
+    made final (for a divorce, the Final Order or decree absolute) and the shares moved afterwards,
+    it is the day the divorce or dissolution was made final. If they moved before then, the order
+    counts as a contract made on its date, and the transfer counts as made on that date or, if the
+    contract was conditional, on the day the condition was met
+    ([s28](https://www.legislation.gov.uk/ukpga/1992/12/section/28),
+    [CG22420](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22420)). Whether it
+    was conditional depends on the order's terms
+    ([CG14261](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg14261)): read the
+    order, and take professional advice if it does not make this clear. Without a court order it is
+    the day the shares moved, unless you had already made a binding agreement to transfer them: then
     [CG22410](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg22410) says which date
     applies.
 
