@@ -272,7 +272,7 @@ def test_rows_are_read_from_every_data_sheet(tmp_path: Path) -> None:
             "31 Dec 2025": [
                 *TITLE,
                 HEADER,
-                ["US9229087690", DEC_PERIOD, "USD", "0"],
+                ["US9229087690", DEC_PERIOD, "USD", "0.75000"],
                 ["US9220427424", DEC_PERIOD, "USD", "0.25000"],
             ],
             "31 Aug 2026": [*TITLE, HEADER],
@@ -294,7 +294,7 @@ def test_rows_are_read_from_every_data_sheet(tmp_path: Path) -> None:
         result.transactions[1],
         "US9229087690",
         dt.date(2025, 12, 31),
-        Decimal(0),
+        Decimal("0.75000"),
         "USD",
     )
     check_transaction(
