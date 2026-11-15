@@ -25,6 +25,7 @@ if TYPE_CHECKING:
         Isin,
         OptionDisposalData,
         SpinOff,
+        TransactionSource,
     )
     from .non_reporting import Disposal, FundStatus, Mark
     from .rename_planning import RenameComponent
@@ -143,6 +144,12 @@ class PreparedHistory:
     # itself once it is in.
     fee_days: set[tuple[dt.date, str]] = field(default_factory=set)
     eris: ExcessReportedIncomeLog = field(default_factory=lambda: defaultdict(dict))
+    # Every report kept, with the row it was read from, by period end and
+    # holding, nil ones included: a second report for the same period is
+    # compared with it, and the error for a different figure names that row.
+    eri_reports: dict[
+        tuple[dt.date, str], tuple[ExcessReportedIncome, TransactionSource | None]
+    ] = field(default_factory=dict)
     # Every period end a report is supplied for, by holding, including the
     # reports `eris` leaves out for a nil amount or non-residence.
     eri_period_ends: set[tuple[dt.date, str]] = field(default_factory=set)

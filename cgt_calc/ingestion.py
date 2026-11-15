@@ -1615,35 +1615,43 @@ class TransactionIngester:
             )
             return
 
-        if transaction.price == Decimal(0):
-            return
-
         for symbol in sorted(known | renamed):
             # For some funds we don't have symbol translation
             if not symbol:
                 continue
 
-            for report_date, report_by_symbol in self.history.eris.items():
-                if symbol in report_by_symbol and report_date == transaction.date:
-                    previous = report_by_symbol[symbol]
-                    if self._same_eri(
-                        previous, transaction.price, transaction.currency
-                    ):
-                        LOGGER.warning(
-                            "Skipping duplicated ERI transaction: %s", transaction
-                        )
-                        return
-                    raise InvalidTransactionError(
-                        transaction,
-                        f"A conflicting ERI report at {report_date} for "
-                        f"{symbol} of {transaction.price} {transaction.currency} "
-                        f"has been found at {report_date} of {previous.price} "
-                        f"{previous.currency}.",
+            kept = self.history.eri_reports.get((transaction.date, symbol))
+            if kept is not None:
+                previous, source = kept
+                if self._same_eri(previous, transaction.price, transaction.currency):
+                    LOGGER.warning(
+                        "Skipping duplicated ERI transaction: %s", transaction
                     )
+                    return
+                # The bundled data is read first and never conflicts with
+                # itself, and one user file is read after it, so this row is
+                # the user's and an earlier row from another file is bundled.
+                if (
+                    source is not None
+                    and transaction.source is not None
+                    and source.file == transaction.source.file
+                ):
+                    where = f"on row {source.row} of your --eri-raw-file"
+                else:
+                    where = "in cgt-calc's bundled data"
+                raise InvalidTransactionError(
+                    transaction,
+                    "Two different excess reported income figures for "
+                    f"{symbol} for the period ending {transaction.date}: "
+                    f"{transaction.price} {transaction.currency} a unit on the "
+                    f"row below, and {previous.price} {previous.currency} a unit "
+                    f"{where}. cgt-calc cannot tell which is right. Check the "
+                    "fund's report, then correct or remove the row below.",
+                )
 
             # Kept in the fund's currency: the matcher converts it when it
             # first uses it, so a report never used needs no exchange rate.
-            self.history.eris[transaction.date][symbol] = ExcessReportedIncome(
+            report = ExcessReportedIncome(
                 price=transaction.price,
                 symbol=symbol,
                 date=transaction.date,
@@ -1651,6 +1659,13 @@ class TransactionIngester:
                 is_interest=symbol.upper() in self.interest_fund_tickers,
                 currency=transaction.currency,
             )
+            self.history.eri_reports[transaction.date, symbol] = (
+                report,
+                transaction.source,
+            )
+            # A nil report is kept only to compare a later one with.
+            if transaction.price:
+                self.history.eris[transaction.date][symbol] = report
 
     def _note_ticker_only_reports(
         self,
@@ -1704,10 +1719,11 @@ class TransactionIngester:
         """Tell whether a second report gives the same ERI per unit as `previous`.
 
         Reports in one currency are compared as they are. Reports in two are
-        compared in pounds, at the rate the ERI is converted at.
+        compared in pounds, at the rate the ERI is converted at, unless either
+        is nil: nil is nil in any currency, so it needs no exchange rate.
         """
         tolerance = Decimal("0.0001")
-        if previous.currency == currency:
+        if previous.currency == currency or not (previous.price and price):
             return approx_equal(previous.price, price, tolerance)
         second = replace(previous, price=price, currency=currency)
         return approx_equal(
