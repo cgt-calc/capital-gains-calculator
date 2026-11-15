@@ -564,7 +564,10 @@ dividend, adjust the income figures outside cgt-calc.
 
 If a value you pass matches no cash distribution or ERI, cgt-calc warns that it changed nothing. The
 warning names any income whose symbol is the same apart from its market, such as `FOO.NASDAQ` for
-`FOO` or `NASDAQ:FOO`. Correct the value and run cgt-calc again.
+`FOO` or `NASDAQ:FOO`. If the fund had no distribution or ERI in the period your files cover,
+nothing needs changing. Otherwise correct the value and run cgt-calc again. cgt-calc cannot warn
+when a fund needs two names and you list only one, because that name still matches some of its
+income.
 
 Tax withheld from the distributions of a fund you pass to `--interest-fund-tickers` is left out of
 the report. The report's interest tax paid counts only tax recorded as tax on interest, such as tax

@@ -1,8 +1,9 @@
 """The warning for an --interest-fund-tickers value that matches no income.
 
 The Sharesight CLI test owns the message and the income it names. These cover
-what a value matches: a dividend of any tax year, and excess reported income,
-which matches the holding a report reaches rather than a dividend row's symbol.
+what a value matches: a dividend, and excess reported income, which matches
+the holding a report reaches rather than a dividend row's symbol, each of any
+tax year.
 """
 
 from __future__ import annotations
@@ -63,6 +64,35 @@ def buy(symbol: str, day: dt.date = BUY_DAY) -> BrokerTransaction:
             [],
             id="dividend in an earlier tax year",
         ),
+        # The report for the year to 31 July 2023 is distributed on 31 January
+        # 2024, in 2023/24: 100 units at £0.05, £5, but no interest this year.
+        # The sale comes before the next period ends, which needs no report.
+        pytest.param(
+            [
+                buy("VAGP", dt.date(2023, 6, 1)),
+                transaction(
+                    dt.date(2023, 7, 31),
+                    ActionType.EXCESS_REPORTED_INCOME,
+                    price=0.05,
+                    isin=FUND,
+                    currency=GBP,
+                ),
+                transaction(
+                    dt.date(2024, 7, 1),
+                    ActionType.SELL,
+                    "VAGP",
+                    100,
+                    21,
+                    0,
+                    2100,
+                    GBP,
+                ),
+            ],
+            "VAGP",
+            Decimal(0),
+            [],
+            id="excess reported income in an earlier tax year",
+        ),
         pytest.param([buy("VAGP"), ERI], "VAGP", Decimal(5), [], id="held"),
         pytest.param(
             [buy("VAGP"), rename_row("VAGP", "VAGPNEW"), ERI],
@@ -106,7 +136,7 @@ def test_income_an_interest_fund_ticker_matches(
     warnings: list[str],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A value matches a dividend of any year or a held fund's reported income.
+    """A value matches a dividend or a held fund's reported income of any year.
 
     The interest is the warning's evidence: where it says the value changed
     nothing, no income is reported as interest. A report naming VAGP reaches
