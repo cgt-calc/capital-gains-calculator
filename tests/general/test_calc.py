@@ -373,6 +373,69 @@ def test_eri_conflicting_report_raises_invalid_transaction_error() -> None:
         calculator.prepare_history(transactions)
 
 
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        pytest.param("0", "0.0200", id="a figure after a nil report"),
+        pytest.param("0.0200", "0", id="a nil report after a figure"),
+    ],
+)
+def test_a_nil_eri_report_conflicts_with_a_figure_for_the_same_period(
+    first: str, second: str
+) -> None:
+    """A nil report is a report, so a figure for the same period contradicts it.
+
+    The two differ by 0.0200, far more than the 0.0001 tolerance, in either
+    order. Nothing says which is right, so the run stops rather than use one.
+    The second row is the one the error names, so the message says where the
+    first came from and what to do with the second.
+    """
+    date = dt.date(2024, 6, 30)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
+    transactions: list[BrokerTransaction] = [
+        ERITransaction(date=date, isin=ERI_ISIN, price=Decimal(price), currency=GBP)
+        for price in (first, second)
+    ]
+
+    message = (
+        f"A conflicting ERI report at 2024-06-30 for VWRL of {second} GBP has been "
+        f"found at 2024-06-30 of {first} GBP. That figure is from cgt-calc's "
+        "bundled data or an earlier row of your --eri-raw-file. Check the fund's "
+        "report, then correct or remove the row below."
+    )
+    with pytest.raises(InvalidTransactionError, match=re.escape(message)):
+        calculator.prepare_history(transactions)
+
+
+def test_two_nil_eri_reports_for_one_period_are_a_duplicate(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A second nil report for the same period is the same report read twice.
+
+    It is skipped with the duplicate warning, and neither reaches the
+    calculation: a nil report adds nothing to the holding's cost or income.
+    """
+    date = dt.date(2024, 6, 30)
+    calculator = create_calculator(tax_year=2024, balance_check=False)
+    calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
+
+    calculator.prepare_history(
+        [
+            ERITransaction(date=date, isin=ERI_ISIN, price=Decimal(0), currency=GBP)
+            for _ in range(2)
+        ]
+    )
+
+    assert _warnings(caplog) == [
+        (
+            "Skipping duplicated ERI transaction: 2024-06-30 Excess reported "
+            f"income, price 0 GBP\n  N/A (ISIN {ERI_ISIN})"
+        )
+    ]
+    assert date not in calculator.eris
+
+
 def _rename_transaction(date: dt.date, old: str, new: str) -> BrokerTransaction:
     """Build a RENAME BrokerTransaction that moves the pool from old to new."""
     return BrokerTransaction(
@@ -655,6 +718,32 @@ def test_the_same_eri_in_two_currencies_is_a_duplicate(
     )
 
     calculator.prepare_history([pounds, _usd_eri("2")])
+
+    assert "Skipping duplicated ERI transaction" in caplog.text
+
+
+def test_nil_eri_reports_in_two_currencies_are_a_duplicate_needing_no_rate(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A nil report in pounds and one in dollars agree without a rate.
+
+    Nil is nil in any currency. The period ends on 2099-06-30, for which HMRC
+    has published no rate, and the calculator has no rates of its own, so
+    converting either figure to compare them would stop the run.
+    """
+    calculator = _eri_calculator({}, ERI_DISTRIBUTION_DATE)
+
+    calculator.prepare_history(
+        [
+            ERITransaction(
+                date=dt.date(2099, 6, 30),
+                isin=ERI_ISIN,
+                price=Decimal(0),
+                currency=currency,
+            )
+            for currency in (GBP, USD)
+        ]
+    )
 
     assert "Skipping duplicated ERI transaction" in caplog.text
 

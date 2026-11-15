@@ -143,6 +143,11 @@ class PreparedHistory:
     # itself once it is in.
     fee_days: set[tuple[dt.date, str]] = field(default_factory=set)
     eris: ExcessReportedIncomeLog = field(default_factory=lambda: defaultdict(dict))
+    # Every report kept, by period end and holding, nil ones included, so that
+    # a second report for the same period is compared with it.
+    eri_reports: dict[tuple[dt.date, str], ExcessReportedIncome] = field(
+        default_factory=dict
+    )
     # Every period end a report is supplied for, by holding, including the
     # reports `eris` leaves out for a nil amount or non-residence.
     eri_period_ends: set[tuple[dt.date, str]] = field(default_factory=set)

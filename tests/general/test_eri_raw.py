@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 import re
+import subprocess
 import sys
 from typing import TYPE_CHECKING
 
@@ -42,6 +43,61 @@ def test_eri_raw_file_option_adds_its_rows_to_the_bundled_ones(tmp_path: Path) -
         (VALID_ISIN, dt.date(2023, 2, 1), Decimal("1.23"))
     ]
     assert len(transactions) > len(given)
+
+
+def test_a_nil_row_for_a_period_with_a_bundled_figure_stops_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A nil row in --eri-raw-file contradicts the bundled figure for its period.
+
+    The bundled HSBC row `IE00B64PTF05,31/12/2022,GBP,0.06330` is read before
+    the user's file, so the error names the user's row as the one to correct
+    or remove. 100 units are held over that period end under a made-up
+    ticker, where the bundled figure alone adds 100 x 0.0633 = £6.33 to their
+    cost. The figures are in pounds, and strict mode, as CI runs, refuses to
+    download a rate, so the run needs none.
+    """
+    monkeypatch.setenv("CGT_TEST_MODE_STRICT", "1")
+    raw = tmp_path / "raw.csv"
+    raw.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2022-06-01,TRANSFER,,1,1005.00,0.00,GBP\n"
+        "2022-06-01,BUY,HSBX,100,10.00,5.00,GBP\n"
+        "2023-08-01,SELL,HSBX,100,11.00,5.00,GBP\n",
+        encoding="utf-8",
+    )
+    eri = tmp_path / "eri.csv"
+    eri.write_text(HEADER + "IE00B64PTF05,31/12/2022,GBP,0\n", encoding="utf-8")
+    isins = tmp_path / "isins.csv"
+    isins.write_text("ISIN,symbol\nIE00B64PTF05,HSBX\n", encoding="utf-8")
+
+    result = subprocess.run(
+        build_cmd(
+            "--year",
+            "2023",
+            "--raw-file",
+            str(raw),
+            "--eri-raw-file",
+            str(eri),
+            "--isin-translation-file",
+            str(isins),
+            "--no-report",
+        ),
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert (
+        "ERROR: A conflicting ERI report at 2022-12-31 for HSBX of 0 GBP has been "
+        "found at 2022-12-31 of 0.06330 GBP. That figure is from cgt-calc's bundled "
+        "data or an earlier row of your --eri-raw-file. Check the fund's report, "
+        "then correct or remove the row below.\n"
+        "2022-12-31 Excess reported income, price 0 GBP\n"
+        f"  N/A (ISIN IE00B64PTF05), read from row 2 of {eri}\n"
+    ) in result.stderr
+    assert "Tax summary" not in result.stdout
 
 
 @pytest.mark.parametrize(
