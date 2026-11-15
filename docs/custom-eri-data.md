@@ -101,9 +101,9 @@ The column names changed in 2025. For reports on periods ending in 2025 or later
 If that column is empty for your share class, the report gives no figure. Do not enter 0; ask DWS
 for the figure.
 
-Earlier reports come in two layouts; check the heading at the top of yours. Reports headed "UK
-reporting fund status report to investors", as Xtrackers II and Xtrackers IE published for 2023 and
-2024 and Xtrackers for 2023:
+The 2023 and 2024 reports come in two layouts; check the heading at the top of yours, and read an
+older report with the same heading in the same way. Reports headed "UK reporting fund status report
+to investors", as Xtrackers II and Xtrackers IE published for 2023 and 2024 and Xtrackers for 2023:
 
 - **ISIN:** same name column
 - **Fund Reporting Period End Date:** REPORTING PERIOD END DATE column for your share class, which
