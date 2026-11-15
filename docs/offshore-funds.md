@@ -61,6 +61,7 @@ cgt-calc currently bundles:
 - [Amundi Smart Overnight Return (CSH2) 2015-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/amundi_eri.csv),
     entered by hand from KPMG Reporting Funds
 - [Legal & General UCITS ETF plc 2023-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/legal_and_general_eri.csv)
+- [HSBC ETFs plc 2015-2025](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/eri/hsbc_eri.csv)
 
 Open the relevant file and check that it contains the exact ISIN and every reporting period you
 need. cgt-calc checks for most missing periods, but not all; see

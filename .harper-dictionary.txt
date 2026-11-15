@@ -155,6 +155,7 @@ HL's
 Hmrc
 HS287
 ICAV
+ICAV's
 I/O
 IBKR
 IBKR's
