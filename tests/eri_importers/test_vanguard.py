@@ -75,6 +75,41 @@ def test_parse_header_after_preamble_with_trailing_table(tmp_path: Path) -> None
     )
 
 
+def test_period_end_is_read_day_first(tmp_path: Path) -> None:
+    """Read a period end printed day first, as UK reports print them.
+
+    Both periods end on "01/04/2019", 1 April 2019. Read month first it
+    would be 4 January 2019.
+    """
+    file = write_xlsx(
+        tmp_path / "vanguard-eri-2019.xlsx",
+        [
+            HEADER,
+            ["IE00B3RBWM25", "02/04/2018 - 01/04/2019", "USD", "0.03590"],
+            ["IE00BK5BQV03", "02/04/2018 to 01/04/2019", "GBP", "0.10000"],
+        ],
+    )
+
+    result = VanguardImporter().parse(file)
+
+    assert result is not None
+    assert len(result.transactions) == 2
+    check_transaction(
+        result.transactions[0],
+        "IE00B3RBWM25",
+        dt.date(2019, 4, 1),
+        Decimal("0.03590"),
+        "USD",
+    )
+    check_transaction(
+        result.transactions[1],
+        "IE00BK5BQV03",
+        dt.date(2019, 4, 1),
+        Decimal("0.10000"),
+        "GBP",
+    )
+
+
 def test_investment_series_file_name_is_accepted(tmp_path: Path) -> None:
     """Read an Investment Series report under the name Vanguard publishes it.
 
