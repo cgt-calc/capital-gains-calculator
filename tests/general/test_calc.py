@@ -369,8 +369,24 @@ def test_eri_conflicting_report_raises_invalid_transaction_error() -> None:
         ),
     ]
 
-    with pytest.raises(InvalidTransactionError, match="conflicting ERI report"):
+    message = (
+        "Two different excess reported income figures for VWRL for the period "
+        "ending 2024-06-30: 1.0050 GBP a unit on the row below, and 1.0000 GBP a "
+        "unit"
+    )
+    with pytest.raises(InvalidTransactionError, match=re.escape(message)):
         calculator.prepare_history(transactions)
+
+
+def _eri_row(
+    date: dt.date, price: str, currency: CurrencyCode, file: str, row: int
+) -> ERITransaction:
+    """Build an ERI row read from `row` of `file`, as the ERI parser records it."""
+    transaction = ERITransaction(
+        date=date, isin=ERI_ISIN, price=Decimal(price), currency=currency
+    )
+    transaction.source = TransactionSource(file=Path(file), row=row)
+    return transaction
 
 
 @pytest.mark.parametrize(
@@ -387,22 +403,22 @@ def test_a_nil_eri_report_conflicts_with_a_figure_for_the_same_period(
 
     The two differ by 0.0200, far more than the 0.0001 tolerance, in either
     order. Nothing says which is right, so the run stops rather than use one.
-    The second row is the one the error names, so the message says where the
-    first came from and what to do with the second.
+    Both are rows 2 and 3 of the user's own file: the error prints row 3
+    beneath it and names row 2 as where the other figure is.
     """
     date = dt.date(2024, 6, 30)
     calculator = create_calculator(tax_year=2024, balance_check=False)
     calculator.isin_converter.data[ERI_ISIN] = {"VWRL"}
     transactions: list[BrokerTransaction] = [
-        ERITransaction(date=date, isin=ERI_ISIN, price=Decimal(price), currency=GBP)
-        for price in (first, second)
+        _eri_row(date, first, GBP, "eri.csv", 2),
+        _eri_row(date, second, GBP, "eri.csv", 3),
     ]
 
     message = (
-        f"A conflicting ERI report at 2024-06-30 for VWRL of {second} GBP has been "
-        f"found at 2024-06-30 of {first} GBP. That figure is from cgt-calc's "
-        "bundled data or an earlier row of your --eri-raw-file. Check the fund's "
-        "report, then correct or remove the row below."
+        "Two different excess reported income figures for VWRL for the period "
+        f"ending 2024-06-30: {second} GBP a unit on the row below, and {first} GBP "
+        "a unit on row 2 of your --eri-raw-file. cgt-calc cannot tell which is "
+        "right. Check the fund's report, then correct or remove the row below."
     )
     with pytest.raises(InvalidTransactionError, match=re.escape(message)):
         calculator.prepare_history(transactions)
@@ -764,23 +780,24 @@ def test_a_nil_eri_report_conflicts_with_a_figure_in_another_currency_without_a_
     stops with the conflict rather than ask for a rate, in either order. As
     above, HMRC has published no rate for the 2099-06-30 period end and the
     calculator has none, so a conversion would stop the run with another
-    error.
+    error. The first row is a bundled file's and the second the user's, so the
+    error names the bundled data as where the other figure is. The bundled
+    row has the lower number, so only the file, not the row order, tells
+    them apart.
     """
     calculator = _eri_calculator({}, ERI_DISTRIBUTION_DATE)
     period_end = dt.date(2099, 6, 30)
     transactions: list[BrokerTransaction] = [
-        ERITransaction(
-            date=period_end, isin=ERI_ISIN, price=Decimal(price), currency=currency
-        )
-        for price, currency in (first, second)
+        _eri_row(period_end, *first, "bundled_eri.csv", 2),
+        _eri_row(period_end, *second, "eri.csv", 5),
     ]
 
     message = (
-        f"A conflicting ERI report at 2099-06-30 for VWRL of {second[0]} "
-        f"{second[1]} has been found at 2099-06-30 of {first[0]} {first[1]}. "
-        "That figure is from cgt-calc's bundled data or an earlier row of your "
-        "--eri-raw-file. Check the fund's report, then correct or remove the "
-        "row below."
+        "Two different excess reported income figures for VWRL for the period "
+        f"ending 2099-06-30: {second[0]} {second[1]} a unit on the row below, and "
+        f"{first[0]} {first[1]} a unit in cgt-calc's bundled data. cgt-calc "
+        "cannot tell which is right. Check the fund's report, then correct or "
+        "remove the row below."
     )
     with pytest.raises(InvalidTransactionError, match=re.escape(message)):
         calculator.prepare_history(transactions)

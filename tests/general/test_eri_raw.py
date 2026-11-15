@@ -51,11 +51,12 @@ def test_a_nil_row_for_a_period_with_a_bundled_figure_stops_the_run(
     """A nil row in --eri-raw-file contradicts the bundled figure for its period.
 
     The bundled HSBC row `IE00B64PTF05,31/12/2022,GBP,0.06330` is read before
-    the user's file, so the error names the user's row as the one to correct
-    or remove. 100 units are held over that period end under a made-up
-    ticker, where the bundled figure alone adds 100 x 0.0633 = £6.33 to their
-    cost. The figures are in pounds, and strict mode, as CI runs, refuses to
-    download a rate, so the run needs none.
+    the user's file, so the error names the bundled data as where the other
+    figure is, and prints the user's row as the one to correct or remove. 100
+    units are held over that period end under a made-up ticker, where the
+    bundled figure alone adds 100 x 0.0633 = £6.33 to their cost. The figures
+    are in pounds, and strict mode, as CI runs, refuses to download a rate, so
+    the run needs none.
     """
     monkeypatch.setenv("CGT_TEST_MODE_STRICT", "1")
     raw = tmp_path / "raw.csv"
@@ -90,10 +91,10 @@ def test_a_nil_row_for_a_period_with_a_bundled_figure_stops_the_run(
 
     assert result.returncode == 1
     assert (
-        "ERROR: A conflicting ERI report at 2022-12-31 for HSBX of 0 GBP has been "
-        "found at 2022-12-31 of 0.06330 GBP. That figure is from cgt-calc's bundled "
-        "data or an earlier row of your --eri-raw-file. Check the fund's report, "
-        "then correct or remove the row below.\n"
+        "ERROR: Two different excess reported income figures for HSBX for the "
+        "period ending 2022-12-31: 0 GBP a unit on the row below, and 0.06330 GBP "
+        "a unit in cgt-calc's bundled data. cgt-calc cannot tell which is right. "
+        "Check the fund's report, then correct or remove the row below.\n"
         "2022-12-31 Excess reported income, price 0 GBP\n"
         f"  N/A (ISIN IE00B64PTF05), read from row 2 of {eri}\n"
     ) in result.stderr
