@@ -333,7 +333,8 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
             transaction.source = TransactionSource(row=index)
             # A price of 0 is right for worthless shares but is usually a value
             # left out. Not for a row replacing a vest: one replacing a vest
-            # Schwab did not price is refused at 0.
+            # Schwab did not price is refused at 0, while one restating a vest
+            # the export prices at 0 goes unwarned, a limit the design accepts.
             if (
                 transaction.action is ActionType.STOCK_ACTIVITY
                 and transaction.price == 0
