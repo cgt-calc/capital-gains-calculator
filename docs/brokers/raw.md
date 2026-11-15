@@ -2,9 +2,9 @@
 
 cgt-calc reads a simple seven-column CSV when your broker is not supported or when you need to add a
 supported event that its export does not identify. You write this file yourself from the broker's
-records; it is not the CSV that a broker supplies. For a transfer to a spouse or civil partner, a
-gift, or income an accumulation fund keeps, start with
-[Transfers, gifts and fund income](../transfers-gifts-and-fund-income.md).
+records; it is not the CSV that a broker supplies. For a transfer to or from a spouse or civil
+partner, a gift you made or received, an inheritance, or income an accumulation fund keeps, start
+with [Transfers, gifts and fund income](../transfers-gifts-and-fund-income.md).
 
 ## Create the CSV
 
@@ -97,24 +97,24 @@ in `price`.
 
 Use the following action names when writing a RAW file.
 
-| Action                           | What to enter                                                                                                                                                                      |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BUY`                            | Ticker, positive quantity and positive unit price. `fees` increases the cash cost and allowable acquisition cost.                                                                  |
-| `SELL`                           | Ticker, positive quantity and positive unit price. `fees` reduces the cash proceeds and gain.                                                                                      |
-| `STOCK_ACTIVITY`                 | Shares acquired without paying cash, such as a vest: ticker, quantity and market value per unit.                                                                                   |
-| `DIVIDEND`                       | Ticker and gross dividend. Use the actual shares and dividend per share, or use quantity `1` and the gross total as `price`.                                                       |
-| `DIVIDEND_TAX`                   | Ticker, quantity `1` and the tax deducted as a negative `price`.                                                                                                                   |
-| `INTEREST`                       | Interest received: leave `symbol` blank, use quantity `1` and the gross total as a positive `price`.                                                                               |
-| `INTEREST_TAX`                   | Tax deducted from interest: leave `symbol` blank, use quantity `1` and the deduction as a negative `price`.                                                                        |
-| `TRANSFER`                       | Cash added or removed: leave `symbol` blank, use quantity `1`, and use a positive `price` for a deposit or a negative one for a withdrawal.                                        |
-| `ADJUSTMENT`                     | A cash-only correction or charge: write it like `TRANSFER`. It affects the balance but no holding or taxable income.                                                               |
-| `FEE`                            | A cost that should increase one holding's pooled cost: enter its ticker, quantity `1`, the charge as a negative `price`, and `fees` `0`.                                           |
-| `CASH_MERGER`, `FULL_REDEMPTION` | A disposal for cash: write it like `SELL`. Use only when no replacement shares were received.                                                                                      |
-| `STOCK_SPLIT`                    | Ticker, the change a reorganisation made to your entire pooled holding, negative for a consolidation, price `0` and fees `0`; see [Share reorganisations](#share-reorganisations). |
-| `SPIN_OFF`                       | New ticker, quantity received, price `0` and fees `0`; cgt-calc works the rest out itself, as described below.                                                                     |
-| `TRANSFER_TO_SPOUSE`             | See [Transfers to a spouse or civil partner](../transfers-gifts-and-fund-income.md#transfers-to-a-spouse-or-civil-partner).                                                        |
-| `TRANSFER_FROM_SPOUSE`           | See [If you received the shares](../transfers-gifts-and-fund-income.md#if-you-received-the-shares).                                                                                |
-| `GIFT`, `GIFT_UNCONNECTED`       | See [Gifts to anyone else](../transfers-gifts-and-fund-income.md#gifts-to-anyone-else).                                                                                            |
+| Action                           | What to enter                                                                                                                                                                                                                                      |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BUY`                            | Ticker, positive quantity and positive unit price. `fees` increases the cash cost and allowable acquisition cost.                                                                                                                                  |
+| `SELL`                           | Ticker, positive quantity and positive unit price. `fees` reduces the cash proceeds and gain.                                                                                                                                                      |
+| `STOCK_ACTIVITY`                 | Shares acquired without paying cash, such as a vest: ticker, quantity and market value per unit. For a gift or an inheritance, see [Shares you were given or inherited](../transfers-gifts-and-fund-income.md#shares-you-were-given-or-inherited). |
+| `DIVIDEND`                       | Ticker and gross dividend. Use the actual shares and dividend per share, or use quantity `1` and the gross total as `price`.                                                                                                                       |
+| `DIVIDEND_TAX`                   | Ticker, quantity `1` and the tax deducted as a negative `price`.                                                                                                                                                                                   |
+| `INTEREST`                       | Interest received: leave `symbol` blank, use quantity `1` and the gross total as a positive `price`.                                                                                                                                               |
+| `INTEREST_TAX`                   | Tax deducted from interest: leave `symbol` blank, use quantity `1` and the deduction as a negative `price`.                                                                                                                                        |
+| `TRANSFER`                       | Cash added or removed: leave `symbol` blank, use quantity `1`, and use a positive `price` for a deposit or a negative one for a withdrawal.                                                                                                        |
+| `ADJUSTMENT`                     | A cash-only correction or charge: write it like `TRANSFER`. It affects the balance but no holding or taxable income.                                                                                                                               |
+| `FEE`                            | A cost that should increase one holding's pooled cost: enter its ticker, quantity `1`, the charge as a negative `price`, and `fees` `0`.                                                                                                           |
+| `CASH_MERGER`, `FULL_REDEMPTION` | A disposal for cash: write it like `SELL`. Use only when no replacement shares were received.                                                                                                                                                      |
+| `STOCK_SPLIT`                    | Ticker, the change a reorganisation made to your entire pooled holding, negative for a consolidation, price `0` and fees `0`; see [Share reorganisations](#share-reorganisations).                                                                 |
+| `SPIN_OFF`                       | New ticker, quantity received, price `0` and fees `0`; cgt-calc works the rest out itself, as described below.                                                                                                                                     |
+| `TRANSFER_TO_SPOUSE`             | See [Transfers to a spouse or civil partner](../transfers-gifts-and-fund-income.md#transfers-to-a-spouse-or-civil-partner).                                                                                                                        |
+| `TRANSFER_FROM_SPOUSE`           | See [If you received the shares](../transfers-gifts-and-fund-income.md#if-you-received-the-shares).                                                                                                                                                |
+| `GIFT`, `GIFT_UNCONNECTED`       | See [Gifts to anyone else](../transfers-gifts-and-fund-income.md#gifts-to-anyone-else).                                                                                                                                                            |
 
 For a reinvested dividend, write two rows in this order: a `DIVIDEND` for the income, then a `BUY`
 for the shares bought with it. Excess Reported Income uses the separate
