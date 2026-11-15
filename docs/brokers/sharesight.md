@@ -106,9 +106,10 @@ The Taxable Income report can name a fund differently from the All Trades report
 the income of `FOO`, traded on `NASDAQ`, is named `FOO.NASDAQ`, while cgt-calc names the holding
 `NASDAQ:FOO`, as the final portfolio shows. To report a bond fund's distributions as interest, pass
 the name its income has, as the terminal's **Dividends** list shows it: here
-`--interest-fund-tickers FOO.NASDAQ`. For a fund without ERI, `FOO` or `NASDAQ:FOO` leaves the
-distributions as dividends, and cgt-calc warns that the value matched no income and names
-`FOO.NASDAQ`.
+`--interest-fund-tickers FOO.NASDAQ`. Unless you added
+[excess reported income (ERI)](../offshore-funds.md) for the fund as described below, `FOO` or
+`NASDAQ:FOO` leaves the distributions as dividends, and cgt-calc warns that the value matched no
+income and names `FOO.NASDAQ`.
 
 ERI goes by the holding's name instead. If you added ERI for the fund by
 [mapping its ISIN](../extra-data-and-options.md#isin-to-ticker-translation) to `NASDAQ:FOO`, pass

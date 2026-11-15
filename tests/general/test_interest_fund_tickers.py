@@ -1,9 +1,8 @@
 """The warning for an --interest-fund-tickers value that matches no income.
 
 The Sharesight CLI test owns the message and the income it names. These cover
-what a value matches: a dividend, and excess reported income, which matches
-the holding a report reaches rather than a dividend row's symbol, each of any
-tax year.
+what a value matches, in any tax year: a dividend, and excess reported income,
+which matches the holding a report reaches rather than a dividend row's symbol.
 """
 
 from __future__ import annotations
@@ -65,8 +64,9 @@ def buy(symbol: str, day: dt.date = BUY_DAY) -> BrokerTransaction:
             id="dividend in an earlier tax year",
         ),
         # The report for the year to 31 July 2023 is distributed on 31 January
-        # 2024, in 2023/24: 100 units at £0.05, £5, but no interest this year.
-        # The sale comes before the next period ends, which needs no report.
+        # 2024, in 2023/24: 100 units at £0.05, £5, so the 2024/25 run has no
+        # interest from it. Selling before the next period ends on 31 July 2024
+        # means that period needs no report.
         pytest.param(
             [
                 buy("VAGP", dt.date(2023, 6, 1)),
