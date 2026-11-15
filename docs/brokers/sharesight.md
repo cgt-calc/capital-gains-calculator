@@ -99,6 +99,38 @@ cgt-calc then treats the row as stock activity rather than a cash purchase. A `S
 that marker is rejected. If the CSV has no `Comments` column, cgt-calc warns that it cannot detect
 these markers.
 
+### Funds with excess reported income
+
+cgt-calc adds a reporting fund's [excess reported income (ERI)](../offshore-funds.md) to a holding
+through the fund's ISIN. cgt-calc reads a market and a code from the All Trades report, not an ISIN,
+and names the holding after both, such as `LSE:VAGP`. cgt-calc's bundled ISIN data knows a London
+fund by its ticker alone, such as `VAGP`, so nothing links the two: the holding gets none of the
+fund's ERI, and cgt-calc does not check it for missing reports.
+
+For a holding on the `LSE` market whose code is a London ticker of a fund cgt-calc has ERI for,
+cgt-calc prints a warning beginning `cgt-calc has excess reported income reports for fund`, followed
+by the fund's ISIN, and shows a row for your
+[ISIN translation file](../extra-data-and-options.md#isin-to-ticker-translation). The warning does
+not link the holding to the fund, because a code alone does not prove which security it is. To link
+them:
+
+1. Check the ISIN against your contract note or the fund's documents. If the holding is a different
+    security, leave the file as it is; the warning then appears on every run.
+2. If the file has a row for that ISIN, add the holding's name to it and keep every name already
+    there. Otherwise, add the row the warning shows. Keep one row for each ISIN: a second row for it
+    stops the run, and a row that leaves out a name takes the fund's ERI away from a holding under
+    that name. When two warnings name one ISIN, such as for `LSE:VAPX` and `LSE:VDPX`, add both
+    names to the same row.
+3. Run cgt-calc again. The warning stops, and any ERI for the tax year appears under the holding's
+    name in the terminal's **Excess Reported Income** list. If a row of your own `--eri-raw-file`
+    gives the fund a different figure for the same period, the run stops instead and shows the row
+    to check.
+
+If you also hold the fund under its bare ticker through another broker, both holdings then get its
+ERI, but they stay two separate holdings, so do not rely on their gains; see the warning under
+[ISIN to ticker translation](../extra-data-and-options.md#isin-to-ticker-translation). cgt-calc does
+not check holdings on other markets. If you know such a holding's ISIN, map it the same way.
+
 ### Bond funds
 
 The Taxable Income report can name a fund differently from the All Trades report. In the
@@ -106,16 +138,19 @@ The Taxable Income report can name a fund differently from the All Trades report
 the income of `FOO`, traded on `NASDAQ`, is named `FOO.NASDAQ`, while cgt-calc names the holding
 `NASDAQ:FOO`, as the final portfolio shows. To report a bond fund's distributions as interest, pass
 the name its income has, as the terminal's **Dividends** list shows it: here
-`--interest-fund-tickers FOO.NASDAQ`. Unless you added
-[excess reported income (ERI)](../offshore-funds.md) for the fund as described below, `FOO` or
-`NASDAQ:FOO` leaves the distributions as dividends, and cgt-calc warns that the value matched no
-income and names `FOO.NASDAQ`.
+`--interest-fund-tickers FOO.NASDAQ`. `FOO` or `NASDAQ:FOO` leaves the distributions as dividends,
+and cgt-calc warns that the value matched no income and names `FOO.NASDAQ`. Once the holding
+receives ERI as described below, `NASDAQ:FOO` matches that ERI, so it no longer warns.
 
-ERI goes by the holding's name instead. If you added ERI for the fund by
-[mapping its ISIN](../extra-data-and-options.md#isin-to-ticker-translation) to `NASDAQ:FOO`, pass
-both names: `--interest-fund-tickers FOO.NASDAQ,NASDAQ:FOO`. If you list only one of them, the other
-income stays a dividend, and cgt-calc cannot warn, because the name you listed still matches some of
-the fund's income. See [Bond-fund income](../extra-data-and-options.md#bond-fund-income).
+ERI goes by the holding's name instead. The holding receives ERI, whether bundled with cgt-calc or
+given with `--eri-raw-file`, only once you
+[map the fund's ISIN](../extra-data-and-options.md#isin-to-ticker-translation) to its name, here
+`NASDAQ:FOO`; see [Funds with excess reported income](#funds-with-excess-reported-income). Then pass
+the name of each kind of income your files have: both names,
+`--interest-fund-tickers FOO.NASDAQ,NASDAQ:FOO`, when there are distributions and ERI, and
+`NASDAQ:FOO` alone when there is only ERI. If you list only one of two names, the other income stays
+a dividend, and cgt-calc cannot warn, because the name you listed still matches some of the fund's
+income. See [Bond-fund income](../extra-data-and-options.md#bond-fund-income).
 
 ## Known limitations
 
