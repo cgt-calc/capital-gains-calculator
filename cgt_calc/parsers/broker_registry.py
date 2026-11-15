@@ -206,9 +206,14 @@ class BrokerRegistry:
                 csv_fields(unmapped_vanguard_symbols),
                 location,
             )
-        all_transactions += [
-            trx for trx in ERIRawParser.load_from_args(args) if trx.isin in isins
-        ]
+        eri_transactions = ERIRawParser.load_from_args(args)
+        # Before the filter: a holding no ISIN links to a fund has none of its
+        # reports kept, and the calculator warns about it only if the fund has
+        # reports at all.
+        isin_converter.isins_with_eri = {
+            trx.isin for trx in eri_transactions if trx.isin is not None
+        }
+        all_transactions += [trx for trx in eri_transactions if trx.isin in isins]
 
         all_transactions.sort(key=_transaction_sort_key)
         return all_transactions

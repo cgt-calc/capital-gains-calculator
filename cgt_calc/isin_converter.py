@@ -155,6 +155,10 @@ class IsinConverter:
         self.exported_isins: dict[str, Isin] = {}
         # The first row that exported each ticker with an ISIN, to show it.
         self.exporters: dict[str, BrokerTransaction] = {}
+        # Every fund with an excess reported income row in the data the run
+        # read, bundled or the user's, before only the funds the transactions
+        # name are kept. A row says a report exists, not what it adds.
+        self.isins_with_eri: set[Isin] = set()
         # The new ISIN each old one continues as, for each known split that
         # changed it and that this run's rows cross as that split, with a
         # purchase or sale under the new ISIN. The checks below read the old
@@ -393,6 +397,34 @@ class IsinConverter:
             csv_fields([isin, *tickers]),
             [ticker for ticker in others if ticker in US_SYMBOLS_OF_BUNDLED_TICKERS],
         )
+
+    def unlinked_london_fund(self, name: str) -> tuple[Isin, str, str] | None:
+        """Return the fund a London holding with no ISIN may be, with its row.
+
+        ``name`` is a holding's name. None unless it is ``LSE:<code>``, as the
+        Sharesight parser names a London holding, nothing in the run gives it
+        an ISIN, this run's ISIN data gives the code to a fund as a London
+        ticker, after the tickers set aside for another security, and the run
+        read an excess reported income row for that fund.
+
+        Returns the fund, the code and the translation row to start from: the
+        fund's tickers in this run with ``name`` added, so that adding the
+        name drops none of them.
+        """
+        market, _, code = name.partition(":")
+        if market != LSE_MARKET:
+            return None
+        owners = self.get_symbol_to_isin_map()
+        isin = owners.get(code)
+        if (
+            name in owners
+            or isin is None
+            or isin not in self.isins_with_eri
+            or not _is_london_ticker(isin, code)
+        ):
+            return None
+        tickers = self.data.get(isin, set()) | {code, name}
+        return isin, code, csv_fields([isin, *sorted(tickers)])
 
     def add_from_transaction(self, transaction: BrokerTransaction) -> None:
         """Normalise the transaction's ticker and record what it links to.

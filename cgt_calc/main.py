@@ -251,6 +251,57 @@ class CapitalGainsCalculator:
                 else "",
             )
 
+    def _warn_unlinked_london_holdings(self) -> None:
+        """Warn for each London holding that may be a fund cgt-calc has ERI for.
+
+        Sharesight names a holding `LSE:VAGP` and gives it no ISIN, while the
+        bundled ISIN data knows the fund as `VAGP`, so the fund's reports reach
+        a holding only once the user links the two. cgt-calc does not decide
+        that they are one fund: a code alone does not prove it. Read after
+        ingestion, when every alias is normalised and every rename applied, so
+        a holding that a report already reaches is left alone.
+        """
+        held = {
+            symbol
+            for log in (self.history.acquisition_list, self.history.disposal_list)
+            for day in log.values()
+            for symbol in day
+        } | {new for day in self.history.rename_list.values() for new in day.values()}
+        reached = set[str]().union(*self.history.eri_fund_holdings.values())
+        path = self.isin_converter.isin_translation_file
+        where = (
+            f"your ISIN translation file {path}"
+            if path is not None
+            else "an ISIN translation file, and pass it with --isin-translation-file"
+        )
+        for name in sorted(held - reached):
+            fund = self.isin_converter.unlinked_london_fund(name)
+            if fund is None:
+                continue
+            isin, code, row = fund
+            LOGGER.warning(
+                "cgt-calc has excess reported income reports for fund %s, whose "
+                "ticker in cgt-calc's ISIN data is %s, but no ISIN mapping or "
+                "rename links them to your holding %s. So none of that fund's "
+                "excess reported income is added to %s, and the holding is not "
+                "checked for missing reports.\n"
+                "If %s is that fund (check the ISIN on your contract note or the "
+                "fund's documents), add it to %s. Keep one row for %s. If the file "
+                "already has that row, add %s to it and keep every name already on "
+                "it. If not, add this row:\n"
+                "    %s\n"
+                "See https://cgt-calc.uk/extra-data-and-options/#isin-to-ticker-translation",
+                isin,
+                code,
+                name,
+                name,
+                name,
+                where,
+                isin,
+                name,
+                row,
+            )
+
     def calculate_capital_gain(
         self,
     ) -> CapitalGainsReport:
@@ -269,6 +320,7 @@ class CapitalGainsCalculator:
         self.run.reset()
         self._warn_unmatched_cgt_exempt_tickers()
         self._warn_unmatched_interest_fund_tickers()
+        self._warn_unlinked_london_holdings()
         # A period that has not ended yet has no report missing.
         self.run.predicted_eri_ends = predict_missing_period_ends(
             self.history.eri_fund_period_ends,
