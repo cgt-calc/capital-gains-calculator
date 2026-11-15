@@ -244,9 +244,11 @@ ROWS = [
 def test_reads_excess_income_from_each_row(tmp_path: Path) -> None:
     """Each row gives its currency and per-share excess; the title gives the date.
 
-    The table continues on a second page without a title of its own, and its
-    row's fund name runs into the ISIN. The amounts are the report's own
-    figures per share, so nothing is calculated.
+    The title says "Reporting Period End", as seven of SSGA's reports do, and
+    its year comes after the reissued ones, so it needs no "(Revised)". The
+    table continues on a second page without a title of its own, and its row's
+    fund name runs into the ISIN. The amounts are the report's own figures per
+    share, so nothing is calculated.
     """
     overlapping = Row(
         ISIN_D,
@@ -256,8 +258,9 @@ def test_reads_excess_income_from_each_row(tmp_path: Path) -> None:
         overlap=6,
     )
     report = _write_report(
-        tmp_path / REPORT_NAME,
-        {"rows": ROWS},
+        tmp_path
+        / "ssga-spdr-etfs-europe-i-plc-reportable-income-report-as-at-31-march-2024.pdf",
+        {"rows": ROWS, "title": "Reporting Period End 31 March 2024"},
         {"rows": [Row(ISIN_C, "EUR", "0.0000"), overlapping], "title": None},
     )
 
@@ -267,7 +270,7 @@ def test_reads_excess_income_from_each_row(tmp_path: Path) -> None:
     assert output.output_file_name == "spdr_eri.csv"
     transactions = sorted(output.transactions, key=lambda t: str(t.isin))
     assert len(transactions) == 4
-    year_end = dt.date(2025, 3, 31)
+    year_end = dt.date(2024, 3, 31)
     check_transaction(transactions[0], ISIN_A, year_end, Decimal("0.0150"), "GBP")
     check_transaction(transactions[1], ISIN_B, year_end, Decimal("0.3113"), "USD")
     check_transaction(transactions[2], ISIN_C, year_end, Decimal(0), "EUR")
@@ -280,10 +283,11 @@ def test_reads_run_together_report_and_dates_a_terminated_fund(
     """The 2015 to 2017 reports print no spaces between words.
 
     A fund that closed during the year is footnoted, and its period ended on
-    the day it closed, not on the title's 31 March.
+    the day it closed, not on the title's 31 March. The file has the name of
+    SSGA's 2016 Europe I letter, which is in mixed case.
     """
     report = _write_report(
-        tmp_path / "ssga-spdr-i-investor-letter-authorised.pdf",
+        tmp_path / "SPDR-ETFs-Europe-I-plc-Reportable-Income-Shareholder-Letter.pdf",
         {
             "rows": [
                 Row(ISIN_A, "USD", "0.0029"),
@@ -345,15 +349,19 @@ def _renamed(key: str, heading: list[tuple[int, str]]) -> list[Column]:
 @pytest.mark.parametrize(
     ("table", "message"),
     [
-        pytest.param(
-            {
-                "rows": [Row(ISIN_A, "EUR", "0.3132")],
-                "title": "Reporting Period Ended 31 March 2021",
-            },
-            "This is SSGA's original report for the period ending 2021-03-31. SSGA "
-            "reissued its reports for the periods ending 31 March 2020 to 2023; "
-            "import the revised report instead",
-            id="original-not-revised",
+        *(
+            pytest.param(
+                {
+                    "rows": [Row(ISIN_A, "EUR", "0.3132")],
+                    "title": f"Reporting Period Ended 31 March {year}",
+                },
+                f"This is SSGA's original report for the period ending {year}-03-31. "
+                "SSGA reissued its reports for the periods ending 31 March 2020 to "
+                "2023; import the revised report instead",
+                id=f"original-{year}-not-revised",
+            )
+            # The first and last of the reissued years.
+            for year in (2020, 2023)
         ),
         pytest.param(
             {"rows": ROWS, "title": None},
