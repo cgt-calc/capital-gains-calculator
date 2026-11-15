@@ -348,6 +348,43 @@ def test_malformed_data_sheet_after_a_valid_one_is_refused(tmp_path: Path) -> No
         VanguardImporter().parse(file)
 
 
+def test_footnoted_isin_header_in_a_sheets_first_row_is_read(tmp_path: Path) -> None:
+    """Read a later sheet whose first row is a header labelled like ISIN with a mark.
+
+    The US workbooks print "ISIN" with a subscript one. In the first row it
+    must still count as the header, or that sheet would be skipped silently.
+    """
+    file = write_xlsx_sheets(
+        tmp_path / "vanguard-Excess_Reportable_Income_2025.xlsx",
+        {
+            "31 Jan 2025": [*TITLE, HEADER, ["US9220426764", JAN_PERIOD, "USD", "0.4"]],
+            "31 Dec 2025": [
+                ["ISIN₁", *HEADER[1:]],
+                ["US9220427424", DEC_PERIOD, "USD", "0.6"],
+            ],
+        },
+    )
+
+    result = VanguardImporter().parse(file)
+
+    assert result is not None
+    assert len(result.transactions) == 2
+    check_transaction(
+        result.transactions[0],
+        "US9220426764",
+        dt.date(2025, 1, 31),
+        Decimal("0.40000"),
+        "USD",
+    )
+    check_transaction(
+        result.transactions[1],
+        "US9220427424",
+        dt.date(2025, 12, 31),
+        Decimal("0.60000"),
+        "USD",
+    )
+
+
 def test_too_many_isin_columns(tmp_path: Path) -> None:
     """Raise when more tables are found than expected."""
     file = write_xlsx(

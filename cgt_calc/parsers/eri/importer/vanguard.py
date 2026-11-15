@@ -85,8 +85,9 @@ class VanguardImporter(ERIImporter):
         mask = df.astype(str).map(lambda x: isinstance(x, str) and x.startswith("ISIN"))
         header_loc = mask[mask].dropna(axis=1, how="all").dropna(how="all")
 
-        # first row is the header row
-        if "ISIN" in df.columns:
+        # first row is the header row; Vanguard often labels the ISIN column
+        # with a footnote mark
+        if any(column.startswith("ISIN") for column in df.columns):
             max_allowed_isin_columns = 1
             skiprows = 0
         else:
