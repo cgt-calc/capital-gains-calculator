@@ -71,7 +71,7 @@ type _StartingRates = dict[dt.date, Decimal]
 
 def _why_the_request_failed(err: Exception) -> str:
     """Say in words why a request failed; --verbose shows the error itself."""
-    # A proxy or certificate failure is also a ConnectionError, so it goes first.
+    # A proxy or certificate failure is also a `ConnectionError`, so it goes first.
     match err:
         case requests_exceptions.ProxyError():
             return "could not connect through the proxy"

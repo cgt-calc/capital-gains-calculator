@@ -93,6 +93,7 @@ Colima
 Colima's
 colorama
 colorama's
+ConnectionError
 ConsoleUI
 CRLF
 combinatorially
@@ -388,6 +389,7 @@ unpriced
 unprovable
 UnresolvedRatio
 unvalidated
+urllib3's
 US02079K1079
 US02079K3059
 US0231351067
@@ -428,6 +430,7 @@ XOF
 XPF
 xtrackers
 yfinance
+yfinance's
 YFRateLimitError
 YYYY
 ZQX
