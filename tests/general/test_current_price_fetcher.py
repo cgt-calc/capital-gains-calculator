@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal, localcontext
+import logging
 import sys
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
@@ -39,6 +40,28 @@ OFFLINE = CurlConnectionError(
     "Failed to perform, curl: (7) Failed to connect to query2.finance.yahoo.com "
     "port 443 after 0 ms: Could not connect to server"
 )
+# What yfinance 1.7 logs offline before that for an info request, as for
+# today's price, seen through a proxy that refused every connection.
+OFFLINE_LOGS = (
+    (
+        logging.WARNING,
+        (
+            "Cookie fetch from fc.yahoo.com failed (ConnectionError), continuing "
+            "without it"
+        ),
+    ),
+    (
+        logging.WARNING,
+        "Cookie/crumb fetch failed (ConnectionError), continuing without crumb",
+    ),
+)
+# And for a history request, as for a spin-off's prices, with no time zone
+# cached for the ticker: it fails to fetch one, then asks for its info.
+OFFLINE_HISTORY_LOGS = (
+    *OFFLINE_LOGS,
+    (logging.ERROR, f"Failed to get ticker 'BBB' reason: {OFFLINE}"),
+    OFFLINE_LOGS[1],
+)
 
 
 class FailingTicker:
@@ -47,24 +70,35 @@ class FailingTicker:
     Without `history`, the history request fails first, as offline. Given one,
     it answers: as when Yahoo starts refusing partway through, or with no rows
     as yfinance answers offline once it has cached the ticker's time zone.
+    The first request logs `logs` on yfinance's logger, as the library does.
     """
 
     def __init__(
         self,
         error: Exception,
         history: FakeHistoryTicker | FakeEmptyHistoryTicker | None = None,
+        logs: Sequence[tuple[int, str]] = (),
     ) -> None:
-        """Store the error to raise and the history, if any, to answer with."""
+        """Store the error to raise, the history to answer with and the logs."""
         self._error = error
         self._history = history
+        self._logs = logs
+
+    def _log(self) -> None:
+        """Log the library's records, once."""
+        for level, message in self._logs:
+            logging.getLogger("yfinance").log(level, message)
+        self._logs = ()
 
     @property
     def info(self) -> dict[str, float | str]:
         """Fail the info request."""
+        self._log()
         raise self._error
 
     def history(self, **kwargs: object) -> pd.DataFrame:
         """Answer from the stored history, or fail the request."""
+        self._log()
         if self._history is None:
             raise self._error
         return self._history.history(**kwargs)
@@ -513,16 +547,32 @@ def _run_main(
 
 
 @pytest.mark.parametrize(
-    ("error", "history"),
+    ("error", "history", "logs"),
     [
-        pytest.param(OFFLINE, None, id="offline"),
+        pytest.param(OFFLINE, None, OFFLINE_HISTORY_LOGS, id="offline"),
         pytest.param(
-            OFFLINE, FakeEmptyHistoryTicker(), id="offline-with-the-time-zone-cached"
+            OFFLINE,
+            FakeEmptyHistoryTicker(),
+            (
+                *OFFLINE_LOGS,
+                # Seen from yfinance 1.7 for a ticker it held a time zone for,
+                # then the info request's warning.
+                (
+                    logging.ERROR,
+                    (
+                        "$BBB: possibly delisted; no price data found  "
+                        "(1d 2024-06-03 -> 2026-11-15)"
+                    ),
+                ),
+                OFFLINE_LOGS[1],
+            ),
+            id="offline-with-the-time-zone-cached",
         ),
-        pytest.param(YFRateLimitError(), None, id="rate-limited"),
+        pytest.param(YFRateLimitError(), None, (), id="rate-limited"),
         pytest.param(
             YFRateLimitError(),
             FakeHistoryTicker(48.17, "GBP"),
+            (),
             id="rate-limited-after-the-history",
         ),
     ],
@@ -533,11 +583,15 @@ def test_a_failed_request_for_a_spin_off_price_stops_with_what_to_do(
     capsys: pytest.CaptureFixture[str],
     error: Exception,
     history: FakeHistoryTicker | FakeEmptyHistoryTicker | None,
+    logs: Sequence[tuple[int, str]],
 ) -> None:
     """The price divides the cost, so the run stops, saying why and what to do.
 
     BBB, the new holding, is priced first. A failed request is not a fault in
-    cgt-calc: no traceback, and no advice to update it.
+    cgt-calc: no traceback, and no advice to update it. What the library logs
+    is left out, warnings and errors alike: offline, its raw curl error reports
+    the failure the line below explains, and its "possibly delisted" would
+    mislead.
     """
     spin_offs = tmp_path / "spin_offs.csv"
     spin_offs.write_text("dst,src\nBBB,AAA\n", encoding="utf-8")
@@ -546,7 +600,7 @@ def test_a_failed_request_for_a_spin_off_price_stops_with_what_to_do(
         tmp_path,
         monkeypatch,
         "2024-05-01,BUY,AAA,10,4.00,0,GBP\n2024-06-03,SPIN_OFF,BBB,5,0,0,GBP\n",
-        lambda symbol: FailingTicker(error, history),
+        lambda symbol: FailingTicker(error, history, logs),
         "--spin-offs-file",
         str(spin_offs),
     )
@@ -565,11 +619,59 @@ def test_a_failed_request_for_a_spin_off_price_stops_with_what_to_do(
     assert "cgt-calc update" not in err
 
 
+def test_verbose_also_shows_what_the_library_logs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--verbose adds the library's own records, which can say more of a failure."""
+    spin_offs = tmp_path / "spin_offs.csv"
+    spin_offs.write_text("dst,src\nBBB,AAA\n", encoding="utf-8")
+    root = logging.getLogger()
+    level = root.level
+
+    try:
+        status = _run_main(
+            tmp_path,
+            monkeypatch,
+            "2024-05-01,BUY,AAA,10,4.00,0,GBP\n2024-06-03,SPIN_OFF,BBB,5,0,0,GBP\n",
+            lambda symbol: FailingTicker(OFFLINE, logs=OFFLINE_HISTORY_LOGS),
+            "--spin-offs-file",
+            str(spin_offs),
+            "--verbose",
+        )
+    finally:
+        # --verbose lowers it for the whole process, not only this run.
+        root.setLevel(level)
+
+    assert status == 1
+    assert stderr_alerts(capsys.readouterr().err) == [
+        (
+            "WARNING: Cookie fetch from fc.yahoo.com failed (ConnectionError), "
+            "continuing without it"
+        ),
+        (
+            "WARNING: Cookie/crumb fetch failed (ConnectionError), continuing "
+            "without crumb"
+        ),
+        (
+            "ERROR: Failed to get ticker 'BBB' reason: Failed to perform, curl: (7) "
+            "Failed to connect to query2.finance.yahoo.com port 443 after 0 ms: "
+            "Could not connect to server"
+        ),
+        (
+            "WARNING: Cookie/crumb fetch failed (ConnectionError), continuing "
+            "without crumb"
+        ),
+        "ERROR: Exception:",
+    ]
+
+
 @pytest.mark.parametrize(
-    "error",
+    ("error", "logs"),
     [
-        pytest.param(OFFLINE, id="offline"),
-        pytest.param(YFRateLimitError(), id="rate-limited"),
+        pytest.param(OFFLINE, OFFLINE_LOGS, id="offline"),
+        pytest.param(YFRateLimitError(), (), id="rate-limited"),
     ],
 )
 def test_failed_requests_for_today_s_prices_are_named_in_one_warning(
@@ -577,18 +679,20 @@ def test_failed_requests_for_today_s_prices_are_named_in_one_warning(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     error: Exception,
+    logs: Sequence[tuple[int, str]],
 ) -> None:
     """Their holdings are left out of the estimate, and the run finishes.
 
     The warning lists them as the report does, sorted: BBB is bought first.
     CCC cost £40.00 for 10 and is worth £5.00 each today, an unrealised gain of
-    10 x £5.00 - £40.00 = £10.00, which is the whole total.
+    10 x £5.00 - £40.00 = £10.00, which is the whole total. The library's own
+    warnings are left out.
     """
 
     def ticker(name: str) -> FakeTicker | FailingTicker:
         if name == "CCC":
             return FakeTicker({"currentPrice": 5.0, "currency": "GBP"})
-        return FailingTicker(error)
+        return FailingTicker(error, logs=logs)
 
     status = _run_main(
         tmp_path,

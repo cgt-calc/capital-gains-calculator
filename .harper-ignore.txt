@@ -8,6 +8,10 @@
 ^schwab_equity_award_json\.py:.*`Center`
 # NO_COLOR is a standard environment variable (https://no-color.org/).
 ^logging\.py:.*`COLOR`
+# "possibly delisted" quotes yfinance's own message; WrongNegative misfires.
+^logging\.py:.*WrongNegative
+# "to every one of the session's retries" means each one, not "everyone".
+^currency_converter\.py:.*Everyone
 # "in upper case" is the noun; "spdr" is the text SSGA's file names share.
 ^spdr\.py:.*(CompoundNouns.*uppercase|SpellCheck.*`spdr`)
 # "a share that fell that far" is correct; the FeelFell typo rule misfires.

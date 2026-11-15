@@ -195,6 +195,19 @@ def force_utf8_stdio() -> None:
             )
 
 
+def _shown(record: logging.LogRecord) -> bool:
+    """Show cgt-calc's own records, and other libraries' only under --verbose.
+
+    cgt-calc reports every failure it acts on in its own words. The libraries'
+    records add only noise, such as urllib3's retries, or mislead, such as
+    yfinance's "possibly delisted" for a request that failed offline. Run as
+    `python -m cgt_calc.cli`, the module logs as `__main__`.
+    """
+    return record.name.partition(".")[0] in {"cgt_calc", "__main__"} or (
+        logging.getLogger().isEnabledFor(logging.DEBUG)
+    )
+
+
 def setup_logging() -> None:
     """Configure the root logger with coloured output."""
 
@@ -213,6 +226,8 @@ def setup_logging() -> None:
             use_emoji=get_ui().supports_emoji(stream),
         )
     )
+    # On the handler: a logger's own filters do not see its children's records.
+    handler.addFilter(_shown)
 
     root = logging.getLogger()
     root.setLevel(logging.INFO)
