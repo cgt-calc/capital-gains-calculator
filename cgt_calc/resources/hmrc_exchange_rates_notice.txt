@@ -1,0 +1,13 @@
+hmrc_exchange_rates/ holds HM Revenue & Customs' exchange rates for customs and VAT from April
+2002 to April 2016, with the changes HMRC made during a month. Each year's file names the HMRC
+pages or files its rates were taken from.
+
+April 2002 to December 2014: HMRC's pages and files kept in the UK Government Web Archive:
+https://webarchive.nationalarchives.gov.uk/
+Contains public sector information licensed under the Open Government Licence v2.0:
+https://www.nationalarchives.gov.uk/doc/open-government-licence/version/2/
+
+January 2015 to April 2016: HMRC's own files, listed at
+https://www.gov.uk/government/collections/exchange-rates-for-customs-and-vat
+Contains public sector information licensed under the Open Government Licence v3.0:
+https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/

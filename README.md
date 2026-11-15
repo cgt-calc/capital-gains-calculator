@@ -79,4 +79,8 @@ warranty of any kind; see the [MIT License](LICENSE). The PDF report's Noto Sans
 cgt-calc under the
 [SIL Open Font License](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/fonts/noto-sans/OFL.txt).
 HMRC's reporting fund dates ship under the
-[Open Government Licence v3.0](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/reporting_funds_notice.txt).
+[Open Government Licence v3.0](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/reporting_funds_notice.txt),
+and its exchange rates for April 2002 to April 2016 under the Open Government Licence v2.0 and v3.0,
+as
+[their notice](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/resources/hmrc_exchange_rates_notice.txt)
+sets out.

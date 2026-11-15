@@ -12,13 +12,15 @@ description = "Calculate UK capital gains tax from broker exports for your HMRC 
 authors = [{ name = "Ruslan Sayfutdinov", email = "ruslan@sayfutdinov.com" }]
 readme = "README.md"
 # The code is MIT; the bundled Noto Sans fonts are under the SIL Open Font
-# License, which travels with them. HMRC's reporting fund dates are under the
-# Open Government Licence, whose attribution notice travels with them.
-license = "MIT AND OFL-1.1 AND OGL-UK-3.0"
+# License, which travels with them. HMRC's reporting fund dates and its
+# exchange rates for 2002 to 2016 are under the Open Government Licence, whose
+# attribution notices travel with them.
+license = "MIT AND OFL-1.1 AND OGL-UK-2.0 AND OGL-UK-3.0"
 license-files = [
   "LICENSE",
   "cgt_calc/resources/fonts/noto-sans/OFL.txt",
   "cgt_calc/resources/reporting_funds_notice.txt",
+  "cgt_calc/resources/hmrc_exchange_rates_notice.txt",
 ]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
