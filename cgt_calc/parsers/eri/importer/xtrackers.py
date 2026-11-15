@@ -86,10 +86,11 @@ def _class_period_end(period: str) -> dt.date | None:
 class XtrackersImporter(ERIImporter):
     """Parser for Xtrackers ERI reports.
 
-    Covers the three Xtrackers umbrellas published by DWS: Xtrackers
-    (summary format), and Xtrackers II / Xtrackers (IE) Plc (investor
-    report format), up to 2024; and all three in the participants report
-    format from 2025.
+    Covers the three Xtrackers umbrellas published by DWS up to 2024:
+    Xtrackers II and Xtrackers (IE) Plc in the investor report format, and
+    Xtrackers in the summary format, except for 2023, when it used the
+    investor report format too. From 2025 all three use the participants
+    report format.
     """
 
     def __init__(self) -> None:
@@ -142,13 +143,18 @@ class XtrackersImporter(ERIImporter):
 
     @staticmethod
     def _extract_table(
-        page: Page, file: Path, page_num: int, *, with_period_end: bool = False
+        page: Page, file: Path, page_num: int, *, with_period_end: bool
     ) -> tuple[list[list[str | None]], dict[int, int]]:
         """Return the page table's rows below its header, and the column map."""
-        header_table = page.find_table()
-        if header_table is None:
+        tables = page.find_tables()
+        if not tables:
             raise ParsingError(file, f"Could not find table headers on page {page_num}")
-        extracted_table = header_table.extract()
+        # Rows in a second table would be lost, so a page must hold one.
+        if len(tables) > 1:
+            raise ParsingError(
+                file, f"Expected one table on page {page_num}, found {len(tables)}"
+            )
+        extracted_table = tables[0].extract()
         if not extracted_table or not extracted_table[0]:
             raise ParsingError(file, f"Table header is empty on page {page_num}")
         cur_header = [
@@ -234,7 +240,7 @@ class XtrackersImporter(ERIImporter):
                 )
             amount = round_decimal(Decimal(row[ERI_COLUMN]), 5)
 
-            # A class that closed during the year prints its own, earlier
+            # A class that closed during the year may print its own, earlier
             # period end; only the investor report format gives one.
             date = reporting_period_end
             if PERIOD_END_COLUMN in colmap:
@@ -265,7 +271,7 @@ class XtrackersImporter(ERIImporter):
         reporting_period_end: dt.date,
         file: Path,
         *,
-        with_period_end: bool = False,
+        with_period_end: bool,
     ) -> list[ERITransaction]:
         transactions = []
         for page_num, page in enumerate(pdf.pages, 1):
@@ -279,7 +285,7 @@ class XtrackersImporter(ERIImporter):
 
     @staticmethod
     def _parse_summary_format(pdf: PDF, file: Path) -> list[ERITransaction] | None:
-        """Parse the summary format used by the main Xtrackers umbrella."""
+        """Parse the summary format used by the Xtrackers umbrella, except in 2023."""
         first_page = pdf.pages[0]
         prefix = "Period ended"
         if not first_page.search("Summary of reportable income calculations"):
@@ -292,13 +298,19 @@ class XtrackersImporter(ERIImporter):
         if reporting_period_end is None or reporting_period_end.year < MIN_VALID_YEAR:
             return []
 
-        return XtrackersImporter._parse_pages(pdf, reporting_period_end, file)
+        return XtrackersImporter._parse_pages(
+            pdf, reporting_period_end, file, with_period_end=False
+        )
 
     @staticmethod
     def _parse_investor_report_format(
         pdf: PDF, file: Path
     ) -> list[ERITransaction] | None:
-        """Parse the investor report format used by Xtrackers II and (IE) Plc."""
+        """Parse the investor report format.
+
+        Xtrackers II and Xtrackers (IE) Plc used it up to 2024, and
+        Xtrackers in 2023.
+        """
         first_page = pdf.pages[0]
         if not first_page.search("UK reporting fund status report to investors"):
             return None

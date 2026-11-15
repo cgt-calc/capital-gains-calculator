@@ -58,8 +58,12 @@ def _build_pdf(
     with_table: bool = True,
     data_rows: list[list[str]] | None = None,
     header: list[str] | None = None,
+    second_table: list[list[str]] | None = None,
 ) -> Path:
-    """Build a PDF with preamble text lines and optionally a data table."""
+    """Build a PDF with preamble text lines and optionally a data table.
+
+    second_table adds a separate grid below the first one.
+    """
     styles = getSampleStyleSheet()
     doc = SimpleDocTemplate(str(path), pagesize=PAGESIZE)
     story: list[Flowable] = [Paragraph(line, styles["Normal"]) for line in preamble]
@@ -87,6 +91,10 @@ def _build_pdf(
             )
         )
         story.append(table)
+    if second_table is not None:
+        extra = Table(second_table, colWidths=[180.0] * len(second_table[0]))
+        extra.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 1, colors.black)]))
+        story += [Spacer(1, 40), extra]
     doc.build(story)
     return path
 
@@ -137,15 +145,19 @@ def _investor_rows(period_ends: list[str]) -> list[list[str]]:
 
 
 def test_parse_investor_report_format(tmp_path: Path) -> None:
-    """Parse the investor report format used by Xtrackers II and (IE) Plc.
+    """Parse the investor report format.
 
-    Also covers the official DWS download file name.
+    Xtrackers II and Xtrackers (IE) Plc used it up to 2024, and Xtrackers
+    in 2023. Also covers the official DWS download file name, and a blank
+    row between classes, which is skipped.
     """
+    rows = _investor_rows(["31 December 2024"] * 3)
+    rows.insert(1, [""] * len(INVESTOR_HEADER))
     file = _build_pdf(
         tmp_path / "Reporting-Funds-Xtrackers-II-2024.pdf",
         INVESTOR_PREAMBLE,
         header=INVESTOR_HEADER,
-        data_rows=_investor_rows(["31 December 2024"] * 3),
+        data_rows=rows,
     )
 
     result = XtrackersImporter().parse(file)
@@ -389,6 +401,22 @@ def test_report_without_a_table_fails_loudly(tmp_path: Path) -> None:
         XtrackersImporter().parse(file)
 
 
+def test_page_with_two_tables_is_refused(tmp_path: Path) -> None:
+    """Rows in a second table on a page would be lost, so it is refused.
+
+    Here the last class continues in a grid of its own below the first.
+    """
+    file = _build_pdf(
+        tmp_path / "Xtrackers-Report-2024.pdf",
+        SUMMARY_PREAMBLE,
+        data_rows=DATA_ROWS[:2],
+        second_table=[DATA_ROWS[2]],
+    )
+
+    with pytest.raises(ParsingError, match="Expected one table on page 1, found 2"):
+        XtrackersImporter().parse(file)
+
+
 def test_header_only_table_fails_loudly(tmp_path: Path) -> None:
     """A table with headers but no data rows is invalid input."""
     file = _build_pdf(
@@ -453,8 +481,8 @@ class _HeaderlessPage:
     """Page stub with a detectable but empty table."""
 
     @staticmethod
-    def find_table() -> _HeaderlessTable:
-        return _HeaderlessTable()
+    def find_tables() -> list[_HeaderlessTable]:
+        return [_HeaderlessTable()]
 
 
 def test_empty_extracted_header_fails_loudly(tmp_path: Path) -> None:
@@ -463,7 +491,7 @@ def test_empty_extracted_header_fails_loudly(tmp_path: Path) -> None:
 
     with pytest.raises(ParsingError, match="Table header is empty on page 1"):
         XtrackersImporter._extract_table(  # noqa: SLF001
-            page, tmp_path / "report.pdf", 1
+            page, tmp_path / "report.pdf", 1, with_period_end=False
         )
 
 
