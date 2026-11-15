@@ -99,6 +99,24 @@ cgt-calc then treats the row as stock activity rather than a cash purchase. A `S
 that marker is rejected. If the CSV has no `Comments` column, cgt-calc warns that it cannot detect
 these markers.
 
+### Bond funds
+
+The Taxable Income report can name a fund differently from the All Trades report. In the
+[sanitised example reports](https://github.com/cgt-calc/capital-gains-calculator/tree/main/tests/sharesight/data/inputs),
+the income of `FOO`, traded on `NASDAQ`, is named `FOO.NASDAQ`, while cgt-calc names the holding
+`NASDAQ:FOO`, as the final portfolio shows. To report a bond fund's distributions as interest, pass
+the name its income has, as the terminal's **Dividends** list shows it: here
+`--interest-fund-tickers FOO.NASDAQ`. Unless you added
+[excess reported income (ERI)](../offshore-funds.md) for the fund as described below, `FOO` or
+`NASDAQ:FOO` leaves the distributions as dividends, and cgt-calc warns that the value matched no
+income and names `FOO.NASDAQ`.
+
+ERI goes by the holding's name instead. If you added ERI for the fund by
+[mapping its ISIN](../extra-data-and-options.md#isin-to-ticker-translation) to `NASDAQ:FOO`, pass
+both names: `--interest-fund-tickers FOO.NASDAQ,NASDAQ:FOO`. If you list only one of them, the other
+income stays a dividend, and cgt-calc cannot warn, because the name you listed still matches some of
+the fund's income. See [Bond-fund income](../extra-data-and-options.md#bond-fund-income).
+
 ## Known limitations
 
 - [`Opening Balance`](https://help.sharesight.com/opening-balance/) trades are not supported.
