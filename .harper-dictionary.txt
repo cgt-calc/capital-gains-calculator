@@ -1,4 +1,5 @@
 Acc
+acc
 ActionType
 ActionTypes
 ADR
@@ -130,6 +131,7 @@ ETCs
 ETF
 ETFs
 ETNs
+EUR
 Excel's
 expanduser
 f
@@ -178,6 +180,8 @@ IsinConverter
 ISINs
 isins
 isoformat
+JPMorgan
+JPMorgan's
 JPN
 JPY
 json

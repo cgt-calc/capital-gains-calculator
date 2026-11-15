@@ -21,6 +21,10 @@
 ^ingestion\.py:.*MissingPreposition
 # "CR CR LF" spells out the doubled carriage return; the repeat is the point.
 ^util\.py:.*RepeatedWords
+# JPMorgan's report names (`jpm-etfs-uk-reportable-income-2021-en.pdf`,
+# `jpm-etf-ireland-icav-2025-report-to-investors.pdf`) quoted in the importer's
+# comments, and "in upper case" as a noun.
+^jpmorgan\.py:.*(SpellCheck.*`(jpm|etfs|etf|uk|ireland|icav)`|CompoundNouns.*uppercase)
 # "a header that does not match" is a relative clause, not a comparison.
 ^vanguard\.md:.*ThatThan
 # "What a lot does state" - a lot here is a parcel of shares, not the

@@ -18,9 +18,9 @@ uv run python scripts/import_eri_reports.py /path/to/reports
 Replace `/path/to/reports` with your file or folder. The script recognises each report by its
 filename and imports the data into the matching resource CSV under
 [`cgt_calc/resources/eri/`](https://github.com/cgt-calc/capital-gains-calculator/tree/main/cgt_calc/resources/eri).
-Vanguard, BlackRock, iShares, Xtrackers, Invesco, Legal & General UCITS ETF plc, HSBC ETFs plc and
-SSGA SPDR ETFs Europe I and II plc reports are supported this way. The script does not update ISIN
-translations; add any needed mappings as described below.
+Vanguard, BlackRock, iShares, Xtrackers, Invesco, Legal & General UCITS ETF plc, HSBC ETFs plc, SSGA
+SPDR ETFs Europe I and II plc and JPMorgan ETFs (Ireland) ICAV reports are supported this way. The
+script does not update ISIN translations; add any needed mappings as described below.
 
 Check the messages for each file. **No ERI importer found** means the file was skipped; **found no
 transactions** means no rows were imported from it. The final **Import complete!** message alone
@@ -47,6 +47,10 @@ For SSGA's SPDR reports, import the revised reports for the years to 31 March 20
 importer refuses the originals. The scanned copy of the Europe I plc letter for the year to 31 March
 2015 (`ssga-spdr-i-investor-letter-authorised-2015.pdf`) has no text and stops the script; leave it
 out, as SSGA also publishes that letter as text.
+
+JPMorgan's 2020 report does not say which currency its figures are in. The script imports a share
+class from it only when the class's currency is the fund's Currency of calculation or its figure is
+Nil, and prints **Skipping** with the ISIN for each other class.
 
 ## Manual additions and ISIN translations
 

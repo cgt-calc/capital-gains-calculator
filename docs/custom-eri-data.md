@@ -110,6 +110,28 @@ For earlier reports:
 - **Excess of reporting income over distribution:** Excess reported income per share column (Per
     unit excess reportable income over distributions in Xtrackers II and Xtrackers IE reports)
 
+### JPMorgan
+
+JPMorgan publishes one Report to Investors a year for all the funds of JPMorgan ETFs (Ireland) ICAV.
+The report for 2025 is at
+<https://am.jpmorgan.com/content/dam/jpm-am-aem/emea/regional/en/supplemental/notice-to-shareholders/jpm-etf-ireland-icav-2025-report-to-investors.pdf>,
+and the one for 2020 at
+<https://am.jpmorgan.com/content/dam/jpm-am-aem/emea/ie/en/regulatory/reportable-incomes/jpm-etfs-uk-reportable-income-2020-en.pdf>.
+
+From the 2021 report on, each share class has a row:
+
+- **ISIN:** ISIN or ISIN/SEDOL column
+- **Fund Reporting Period End Date:** the "To" date under Reporting Period
+- **Currency:** your share class's currency: the Share Class Currency column, or in the 2025 report
+    the currency named in the Share class column, such as EUR in "Class EUR Hedged (acc)". Do not
+    use the Currency of calculation column, which is the fund's currency.
+- **Excess of reporting income over distribution:** Excess of reportable income per unit column
+
+The 2020 report lists the share classes in columns instead, and its excess of reportable income per
+unit is "Nil" when there is none. It does not say which currency its figures are in. cgt-calc has no
+2020 figure for a share class whose currency differs from its Currency of calculation, unless the
+figure is Nil; ask JPMorgan which currency the figure is in before entering it.
+
 ### Amundi
 
 Amundi UK publishes annual Reportable Income reports here:

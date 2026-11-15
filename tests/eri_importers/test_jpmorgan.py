@@ -119,8 +119,9 @@ def _write_rows(
     if account is not None:
         canvas.drawString(LEFT, 554, account)
     canvas.drawString(layout.start, 530, "Reporting Period")
+    # The heading is centred, so its wider lines start left of "Excess".
     for offset, text in enumerate(excess_heading):
-        canvas.drawString(layout.excess, 520 - offset * LINE, text)
+        canvas.drawCentredString(layout.excess + 15, 520 - offset * LINE, text)
     for x in layout.distributions:
         for offset, text in enumerate(distribution_headings):
             canvas.drawString(x, 520 - offset * LINE, text)
@@ -143,6 +144,8 @@ def _write_rows(
         for x, value in zip(layout.distributions, row.distributions, strict=False):
             canvas.drawRightString(x + 30, y, value)
         y -= LINE
+    # The reports end with notes below the table.
+    canvas.drawString(LEFT, y - LINE, "There is no excess reportable income where the")
     canvas.save()
     return path
 
@@ -179,6 +182,9 @@ def _write_columns(
     canvas.setFont(FONT, SIZE)
     canvas.drawString(LEFT, 800, "REPORT TO INVESTORS")
     canvas.drawString(LEFT, 790, account)
+    # Each column is headed by its fund's name, above the labelled rows.
+    for index in range(len(columns)):
+        canvas.drawCentredString(400 + 120 * index, 772, "BetaBuilders Fund")
     y = 760
     for label in labels:
         canvas.drawString(LEFT, y, label)
