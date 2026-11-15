@@ -748,30 +748,39 @@ def test_nil_eri_reports_in_two_currencies_are_a_duplicate_needing_no_rate(
     assert "Skipping duplicated ERI transaction" in caplog.text
 
 
-def test_a_nil_eri_report_conflicts_with_a_figure_in_another_currency_without_a_rate() -> (
-    None
-):
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        pytest.param(("0", GBP), ("0.0200", USD), id="a dollar figure after a nil one"),
+        pytest.param(("0.0200", USD), ("0", GBP), id="a nil report after a dollar one"),
+    ],
+)
+def test_a_nil_eri_report_conflicts_with_a_figure_in_another_currency_without_a_rate(
+    first: tuple[str, CurrencyCode], second: tuple[str, CurrencyCode]
+) -> None:
     """A nil report in pounds and a dollar figure disagree without a rate.
 
     However the 0.0200 dollars converted, it would not be nil, so the run
-    stops with the conflict rather than ask for a rate. As above, HMRC has
-    published no rate for the 2099-06-30 period end and the calculator has
-    none, so a conversion would stop the run with another error.
+    stops with the conflict rather than ask for a rate, in either order. As
+    above, HMRC has published no rate for the 2099-06-30 period end and the
+    calculator has none, so a conversion would stop the run with another
+    error.
     """
     calculator = _eri_calculator({}, ERI_DISTRIBUTION_DATE)
     period_end = dt.date(2099, 6, 30)
     transactions: list[BrokerTransaction] = [
-        ERITransaction(date=period_end, isin=ERI_ISIN, price=Decimal(0), currency=GBP),
         ERITransaction(
-            date=period_end, isin=ERI_ISIN, price=Decimal("0.0200"), currency=USD
-        ),
+            date=period_end, isin=ERI_ISIN, price=Decimal(price), currency=currency
+        )
+        for price, currency in (first, second)
     ]
 
     message = (
-        "A conflicting ERI report at 2099-06-30 for VWRL of 0.0200 USD has been "
-        "found at 2099-06-30 of 0 GBP. That figure is from cgt-calc's bundled "
-        "data or an earlier row of your --eri-raw-file. Check the fund's report, "
-        "then correct or remove the row below."
+        f"A conflicting ERI report at 2099-06-30 for VWRL of {second[0]} "
+        f"{second[1]} has been found at 2099-06-30 of {first[0]} {first[1]}. "
+        "That figure is from cgt-calc's bundled data or an earlier row of your "
+        "--eri-raw-file. Check the fund's report, then correct or remove the "
+        "row below."
     )
     with pytest.raises(InvalidTransactionError, match=re.escape(message)):
         calculator.prepare_history(transactions)
