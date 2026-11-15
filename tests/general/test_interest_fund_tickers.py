@@ -1,8 +1,8 @@
 """The warning for an --interest-fund-tickers value that matches no income.
 
-The Sharesight CLI test owns the dividend case and the message. These cover
-excess reported income, which matches the holding a report reaches rather
-than a dividend row's symbol.
+The Sharesight CLI test owns the message and the income it names. These cover
+what a value matches: a dividend of any tax year, and excess reported income,
+which matches the holding a report reaches rather than a dividend row's symbol.
 """
 
 from __future__ import annotations
@@ -37,14 +37,32 @@ ERI = transaction(
 )
 
 
-def buy(symbol: str) -> BrokerTransaction:
+def buy(symbol: str, day: dt.date = BUY_DAY) -> BrokerTransaction:
     """Buy 100 units for £2,000."""
-    return transaction(BUY_DAY, ActionType.BUY, symbol, 100, 20, 0, -2000, GBP)
+    return transaction(day, ActionType.BUY, symbol, 100, 20, 0, -2000, GBP)
 
 
 @pytest.mark.parametrize(
     ("rows", "ticker", "interest", "warnings"),
     [
+        # BND's only dividend is paid in 2023/24, so the 2024/25 run has no
+        # interest from it, but the value matches that dividend.
+        pytest.param(
+            [
+                buy("BND", dt.date(2023, 6, 1)),
+                transaction(
+                    dt.date(2023, 9, 29),
+                    ActionType.DIVIDEND,
+                    "BND",
+                    amount=10,
+                    currency=GBP,
+                ),
+            ],
+            "BND",
+            Decimal(0),
+            [],
+            id="dividend in an earlier tax year",
+        ),
         pytest.param([buy("VAGP"), ERI], "VAGP", Decimal(5), [], id="held"),
         pytest.param(
             [buy("VAGP"), rename_row("VAGP", "VAGPNEW"), ERI],
@@ -81,17 +99,19 @@ def buy(symbol: str) -> BrokerTransaction:
         ),
     ],
 )
-def test_excess_reported_income_matches_the_holding_it_reaches(
+def test_income_an_interest_fund_ticker_matches(
     rows: list[BrokerTransaction],
     ticker: str,
     interest: Decimal,
     warnings: list[str],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A fund whose only income is excess reported income is matched.
+    """A value matches a dividend of any year or a held fund's reported income.
 
-    The interest is the warning's evidence: where it says the ticker changed
-    nothing, no income is reported as interest.
+    The interest is the warning's evidence: where it says the value changed
+    nothing, no income is reported as interest. A report naming VAGP reaches
+    no Sharesight holding LSE:VAGP, so VAGP matches neither its report nor
+    its dividend VAGP.LSE.
     """
     calculator = create_calculator(
         tax_year=2024, balance_check=False, interest_fund_tickers=[ticker]
