@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import io
 import logging
+import subprocess
 import sys
 from typing import TYPE_CHECKING, TextIO, cast
 
 import colorama
 
 from cgt_calc.logging import ColourMessageFormatter, ConsoleUI, force_utf8_stdio
+from tests.utils import stderr_alerts
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     import pytest
 
 
@@ -157,3 +161,41 @@ def test_force_utf8_stdio_keeps_stderr_able_to_print_any_name(
     sys.stderr.flush()
 
     assert written.getvalue() == b"r\\udce9sum\\udce9.csv"
+
+
+def test_run_as_a_module_its_own_errors_are_still_shown(tmp_path: Path) -> None:
+    """`python -m cgt_calc.cli` logs as `__main__`, and that is cgt-calc's own.
+
+    Other libraries' records are left out, so a filter that knew only the
+    `cgt_calc` package would drop this run's error line too.
+    """
+    raw = tmp_path / "raw.csv"
+    raw.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2024-05-01,SWAP,AAA,1,1,0,GBP\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "cgt_calc.cli",
+            "--year",
+            "2024",
+            "--raw-file",
+            str(raw),
+            "--no-report",
+            "--exchange-rates-file=",
+            "--isin-translation-file=",
+            "--spin-offs-file=",
+        ],
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    assert result.returncode == 1
+    alerts = stderr_alerts(result.stderr)
+    assert len(alerts) == 1, result.stderr
+    assert alerts[0].endswith(", row 2: Unknown action: SWAP"), result.stderr

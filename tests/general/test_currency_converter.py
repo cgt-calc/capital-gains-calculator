@@ -229,16 +229,17 @@ def test_read_exchange_rates_skips_comment_lines(tmp_path: Path) -> None:
 
 
 class OfflineSession:
-    """Session stub that fails every request."""
+    """Session stub that fails every request, by default as with no connection."""
 
-    def __init__(self) -> None:
-        """Start with nothing asked."""
+    def __init__(self, error: Exception | None = None) -> None:
+        """Start with nothing asked; `error` is what every request raises."""
         self.urls: list[str] = []
+        self.error = error
 
     def get(self, url: str, timeout: int) -> NoReturn:
-        """Simulate a network failure, noting the address asked."""
+        """Simulate a failed request, noting the address asked."""
         self.urls.append(url)
-        raise requests_exceptions.ConnectionError(f"offline: {url}")
+        raise self.error or requests_exceptions.ConnectionError(f"offline: {url}")
 
 
 def test_hmrc_fetch_announces_itself(
@@ -384,15 +385,63 @@ def _reply(text: str, *, status: int = 200) -> FakeSession:
 @pytest.mark.parametrize(
     ("date", "session", "problem"),
     [
+        # A failed request is said in words; --verbose shows the error itself.
+        # Each error is the one requests raises once the session's retries
+        # are spent. Offline and refused connections raise ConnectionError.
         pytest.param(
             DECEMBER_2020,
             OfflineSession(),
-            "Failed to retrieve HMRC exchange rates for 2020-12. Error: offline: "
-            f"{RATES_ADDRESS[DECEMBER_2020]}",
+            "Could not download HMRC exchange rates for 2020-12: no connection to "
+            "the server.",
             id="unreachable",
         ),
+        # Also a ConnectionError, so told apart before it.
+        pytest.param(
+            JANUARY_2021,
+            OfflineSession(
+                requests_exceptions.ProxyError("Unable to connect to proxy")
+            ),
+            "Could not download HMRC exchange rates for 2021-01: could not "
+            "connect through the proxy.",
+            id="proxy",
+        ),
+        # Also a ConnectionError: a proxy that inspects HTTPS, for one.
+        pytest.param(
+            JANUARY_2021,
+            OfflineSession(
+                requests_exceptions.SSLError(
+                    "certificate verify failed: self-signed certificate in "
+                    "certificate chain"
+                )
+            ),
+            "Could not download HMRC exchange rates for 2021-01: the secure "
+            "connection to the server failed.",
+            id="certificate",
+        ),
+        # The session retries 502, 503 and 504, then raises this.
+        pytest.param(
+            JANUARY_2021,
+            OfflineSession(
+                requests_exceptions.RetryError("too many 503 error responses")
+            ),
+            "Could not download HMRC exchange rates for 2021-01: the server "
+            "kept answering with an error.",
+            id="server errors",
+        ),
+        # Any other failure is named by its type: here a reply cut off.
+        pytest.param(
+            JANUARY_2021,
+            OfflineSession(
+                requests_exceptions.ChunkedEncodingError(
+                    "Connection broken: IncompleteRead"
+                )
+            ),
+            "Could not download HMRC exchange rates for 2021-01: the request "
+            "failed (ChunkedEncodingError).",
+            id="other",
+        ),
         # Not 502, 503 or 504: the session retries those and then raises, which
-        # is the row above.
+        # is the "server errors" row.
         pytest.param(
             JANUARY_2021,
             _reply("Not Found", status=404),

@@ -17,6 +17,7 @@ from defusedxml import ElementTree as ET
 from defusedxml.common import DefusedXmlException
 from pyrate_limiter import Duration, InMemoryBucket, Limiter, Rate, SingleBucketFactory
 from pyrate_limiter.extras.requests_limiter import RateLimitedRequestsSession
+from requests import exceptions as requests_exceptions
 from requests.adapters import HTTPAdapter, Retry
 
 from .const import (
@@ -66,6 +67,22 @@ NEW_ENDPOINT_FROM_YEAR: Final = 2021
 FIRST_DOWNLOADED_RATES_MONTH: Final = dt.date(2015, 2, 1)
 
 type _StartingRates = dict[dt.date, Decimal]
+
+
+def _why_the_request_failed(err: Exception) -> str:
+    """Say in words why a request failed; --verbose shows the error itself."""
+    # A proxy or certificate failure is also a ConnectionError, so it goes first.
+    match err:
+        case requests_exceptions.ProxyError():
+            return "could not connect through the proxy"
+        case requests_exceptions.SSLError():
+            return "the secure connection to the server failed"
+        case requests_exceptions.ConnectionError():
+            return "no connection to the server"
+        case requests_exceptions.RetryError():
+            # HTTP 502, 503 or 504 to every one of the session's retries.
+            return "the server kept answering with an error"
+    return f"the request failed ({type(err).__name__})"
 
 
 class CurrencyConverter:
@@ -341,7 +358,8 @@ class CurrencyConverter:
             response = self.session.get(url, timeout=10)
         except Exception as err:
             raise failed(
-                f"Failed to retrieve HMRC exchange rates for {month}. Error: {err}"
+                f"Could not download HMRC exchange rates for {month}: "
+                f"{_why_the_request_failed(err)}."
             ) from err
 
         def reply_start() -> str:
