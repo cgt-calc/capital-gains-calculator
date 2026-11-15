@@ -589,8 +589,9 @@ def test_a_failed_request_for_a_spin_off_price_stops_with_what_to_do(
 
     BBB, the new holding, is priced first. A failed request is not a fault in
     cgt-calc: no traceback, and no advice to update it. What the library logs
-    is left out, warnings and errors alike: offline, its raw curl error repeats
-    the line below, and its "possibly delisted" would mislead.
+    is left out, warnings and errors alike: offline, its raw curl error reports
+    the failure the line below explains, and its "possibly delisted" would
+    mislead.
     """
     spin_offs = tmp_path / "spin_offs.csv"
     spin_offs.write_text("dst,src\nBBB,AAA\n", encoding="utf-8")
