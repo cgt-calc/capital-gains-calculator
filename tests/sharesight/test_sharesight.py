@@ -24,6 +24,7 @@ from tests.utils import (
     report_path,
     run_cli,
     stderr_alerts,
+    summary_figure,
 )
 
 
@@ -55,6 +56,44 @@ def test_run_with_sharesight_files_no_balance_check(
         / "test_run_with_sharesight_files_no_balance_check_output.txt"
     )
     assert_stdout_matches(result, cmd, expected_file)
+
+
+def test_interest_fund_ticker_that_matches_no_income_names_the_income(
+    request: pytest.FixtureRequest,
+) -> None:
+    """A fund listed under another symbol than its income's is warned about.
+
+    The income report names the fund FOO.NASDAQ and the trades NASDAQ:FOO, so
+    neither FOO nor NASDAQ:FOO matches its income, and the warning names the
+    income's symbol. BAR is held but has no income, so no symbol is named.
+
+    The figures are those of the run without the option: dividends of 5.00 USD
+    at October 2020's 1.2763, £3.92, and FUND1.UKF's £3.00, £6.92; no interest.
+    """
+    cmd = build_cmd(
+        "--year",
+        "2020",
+        "--sharesight-dir",
+        "tests/sharesight/data/inputs/",
+        "--no-balance-check",
+        "--interest-fund-tickers",
+        "FOO,NASDAQ:FOO,BAR",
+        "--output",
+        report_path(request),
+    )
+    result = run_cli(cmd)
+    advice = (
+        "matched no dividend or excess reported income, so it changed nothing. "
+        "Give each fund's symbol exactly as its income shows it."
+    )
+    named = "Your files have income under FOO.NASDAQ."
+    assert stderr_alerts(result.stderr) == [
+        f"WARNING: Interest fund ticker 'BAR' {advice}",
+        f"WARNING: Interest fund ticker 'FOO' {advice} {named}",
+        f"WARNING: Interest fund ticker 'NASDAQ:FOO' {advice} {named}",
+    ]
+    assert summary_figure(result.stdout, "Proceeds") == "6.92"
+    assert summary_figure(result.stdout, "Foreign proceeds") == "0.00"
 
 
 def test_real_exports_preserve_physical_row_numbers() -> None:

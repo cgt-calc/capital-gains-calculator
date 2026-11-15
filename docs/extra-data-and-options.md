@@ -550,13 +550,20 @@ portfolio may not be what you hold today. See
 ### Bond-fund income
 
 Some offshore bond funds have income that must be reported as interest rather than dividends. After
-checking the fund's classification, pass its ticker to `--interest-fund-tickers`. Use a
-comma-separated list for several tickers. Income is classified by the ticker the holding has on the
-cash distribution date, or on the reporting period end date for ERI, so a fund renamed part-way
-through the history has to be listed under both names. This setting applies to both cash
+checking the fund's classification, pass the fund to `--interest-fund-tickers` exactly as its income
+names it; upper or lower case does not matter. Use a comma-separated list for several funds. A cash
+distribution is classified by the symbol on its income row, which the terminal's **Dividends** list
+shows, and ERI by the ticker the holding has on the reporting period end date. A fund renamed
+part-way through the history therefore has to be listed under both names. Both are usually the
+fund's ticker, but not always: a [Sharesight](brokers/sharesight.md#bond-funds) income row can name
+the fund `FOO.NASDAQ` while the holding is `NASDAQ:FOO`. This setting applies to both cash
 distributions and ERI; see the [offshore-fund checklist](offshore-funds.md#what-to-check). It
 reports the income as foreign interest, so do not use it for a UK fund. If cgt-calc reports a UK
 bond fund distribution as a dividend, adjust the income figures outside cgt-calc.
+
+If a value you pass matches no cash distribution or ERI in your files, cgt-calc warns that it
+changed nothing. The warning names any income whose symbol has the same code, such as `FOO.NASDAQ`
+for `FOO` or `NASDAQ:FOO`. Correct the value and run cgt-calc again.
 
 Tax withheld from the distributions of a fund you pass to `--interest-fund-tickers` is left out of
 the report. The report's interest tax paid counts only tax recorded as tax on interest, such as tax

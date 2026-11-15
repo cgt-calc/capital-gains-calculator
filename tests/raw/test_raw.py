@@ -81,7 +81,8 @@ def test_bond_fund_typed_in_lower_case_is_reported_as_interest(tmp_path: Path) -
 
     The option's values are upper case, so `iglt` never matched `IGLT` and
     the bond fund's distribution was reported as a dividend. 100 units at
-    £0.25 pay £25.00, all foreign interest and none of it dividends.
+    £0.25 pay £25.00, all foreign interest and none of it dividends. As the
+    value matches the income, nothing warns that it matched none.
     """
     raw_file = tmp_path / "raw.csv"
     _write_csv(
@@ -107,6 +108,7 @@ def test_bond_fund_typed_in_lower_case_is_reported_as_interest(tmp_path: Path) -
     result = run_cli(cmd)
     assert re.search(r"\n  Foreign proceeds: +£25\.00\n", result.stdout)
     assert re.search(r"\n  Proceeds: +£0\.00\n", result.stdout)
+    assert stderr_alerts(result.stderr) == []
 
 
 def test_a_split_day_moved_into_raw_computes_with_the_balance_check_on(

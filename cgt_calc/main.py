@@ -192,20 +192,64 @@ class CapitalGainsCalculator:
         self.prepare_history(transactions)
         return self.calculate_capital_gain()
 
-    def _warn_unmatched_cgt_exempt_tickers(self) -> None:
-        """Warn for any exempt ticker with no transactions."""
-        logged_symbols = {
+    def _logged_symbols(self) -> set[str]:
+        """Return every symbol acquired or disposed of, upper-cased."""
+        return {
             sym.upper()
             for log in (self.history.acquisition_list, self.history.disposal_list)
             for day in log.values()
             for sym in day
         }
+
+    def _warn_unmatched_cgt_exempt_tickers(self) -> None:
+        """Warn for any exempt ticker with no transactions."""
+        logged_symbols = self._logged_symbols()
         for ticker in sorted(self.cgt_exempt_tickers):
             if ticker not in logged_symbols:
                 LOGGER.warning(
                     "CGT-exempt ticker '%s' was not found in acquisitions or disposals",
                     ticker,
                 )
+
+    def _warn_unmatched_interest_fund_tickers(self) -> None:
+        """Warn for any interest fund ticker that matches no income.
+
+        Income is matched by its exact symbol, which a broker can spell
+        differently from the holding: Sharesight names a dividend `FOO.NASDAQ`
+        and the holding `NASDAQ:FOO`. A ticker matches a dividend of any year,
+        or excess reported income for a holding the files trade or rename to.
+        A report also names tickers nobody holds, such as a bundled fund's
+        `VAGP` beside a Sharesight holding `LSE:VAGP`, and those match nothing.
+        The warning names the income whose symbol shares the ticker's code.
+        """
+        held = self._logged_symbols() | {
+            new.upper()
+            for day in self.history.rename_list.values()
+            for new in day.values()
+        }
+        reported = {
+            symbol.upper() for day in self.history.eris.values() for symbol in day
+        }
+        income = {symbol.upper() for symbol, _ in self.history.dividend_list}
+        income |= held & reported
+
+        def code(symbol: str) -> str:
+            # FOO from FOO.NASDAQ or NASDAQ:FOO.
+            return symbol.rsplit(":", maxsplit=1)[-1].split(".", maxsplit=1)[0]
+
+        for ticker in sorted(set(self.interest_fund_tickers) - income):
+            similar = sorted(
+                symbol for symbol in income if code(symbol) == code(ticker)
+            )
+            LOGGER.warning(
+                "Interest fund ticker '%s' matched no dividend or excess reported "
+                "income, so it changed nothing. Give each fund's symbol exactly "
+                "as its income shows it.%s",
+                ticker,
+                f" Your files have income under {', '.join(similar)}."
+                if similar
+                else "",
+            )
 
     def calculate_capital_gain(
         self,
@@ -224,6 +268,7 @@ class CapitalGainsCalculator:
         # rerun starts from nothing rather than adding to the last run.
         self.run.reset()
         self._warn_unmatched_cgt_exempt_tickers()
+        self._warn_unmatched_interest_fund_tickers()
         # A period that has not ended yet has no report missing.
         self.run.predicted_eri_ends = predict_missing_period_ends(
             self.history.eri_fund_period_ends,

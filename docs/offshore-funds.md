@@ -20,8 +20,9 @@ accumulating and distributing share classes.
     bundled data below. If anything is missing, use the fund's report and the
     [custom ERI guide](custom-eri-data.md).
 4. Check how the income should be reported. cgt-calc treats ERI and cash distributions as dividend
-    income by default. For a bond fund, pass its ticker to `--interest-fund-tickers` to report both
-    as interest. The report then leaves out any tax withheld from its distributions: see
+    income by default. For a bond fund, pass it to `--interest-fund-tickers` to report both as
+    interest, exactly as its income names it, which is not always its ticker. The report then leaves
+    out any tax withheld from its distributions: see
     [Bond-fund income](extra-data-and-options.md#bond-fund-income). cgt-calc cannot handle property,
     miscellaneous or mixed fund income; calculate that income outside the tool and do not use its
     income totals. See HMRC's
