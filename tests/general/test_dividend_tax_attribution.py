@@ -639,8 +639,8 @@ def test_tax_without_any_dividend_warns(
     """Tax for a symbol that paid no dividend at all is reported.
 
     The export signs tax by cash: 15 taken is -15.00 and 15 refunded is
-    15.00. Either sign alone was misread, so the warning prints 15.00 for
-    both and says which way the tax went.
+    15.00. The sign alone was misread either way, so the warning prints
+    15.00 for both and says which way the tax went.
     """
     transactions = [dividend_tax_transaction(DIVIDEND_DATE, "FOO", taken)]
 

@@ -176,6 +176,7 @@ class IncomeProcessor:
         # shown as it stands instead. Whether it is material is a question
         # about its value in GBP, and answering it here would put a rate
         # lookup, and the failure of one, in the way of a warning.
+        #
         # The export's sign is easily misread (tax taken is negative), so the
         # figure drops it and a word says which way the tax went.
         amount = abs(round_decimal(tax.amount, 2) or tax.amount)
