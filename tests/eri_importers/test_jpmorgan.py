@@ -48,6 +48,7 @@ DISTRIBUTION_HEADING = ["Distribution", "(ex-date", "11/02/2021,", "pay date"]
 ROW_ACCOUNT = "PERIOD OF ACCOUNT: 01/01/2021 - 31/12/2021"
 CCY_ACCOUNT = "Accounting Period 1 January 2025 - 31 December 2025"
 COLUMN_ACCOUNT = "Accounting Period 1 January 2020 - 31 December 2020"
+CCY_HEADING = ("Excess of", "reportable", "income per", "unit in", "share class", "ccy")
 
 
 class Layout(NamedTuple):
@@ -90,6 +91,7 @@ class Row(NamedTuple):
 class RowOptions(TypedDict, total=False):
     """Changes to a row report's page, for the refusal cases."""
 
+    layout: Layout
     account: str | None
     excess_heading: tuple[str, ...]
     distribution_headings: list[str]
@@ -126,6 +128,9 @@ def _write_rows(
         for offset, text in enumerate(distribution_headings):
             canvas.drawString(x, 520 - offset * LINE, text)
     heading = 520 - len(excess_heading) * LINE
+    if layout.share_class:
+        canvas.drawString(200, heading + 2 * LINE, "Currency of")
+        canvas.drawString(200, heading + LINE, "calculation")
     canvas.drawString(LEFT, heading, "Share class name")
     canvas.drawString(layout.isin, heading, "ISIN/SEDOL")
     canvas.drawString(layout.start, heading, "From")
@@ -268,14 +273,7 @@ def test_reads_the_share_class_currency_from_the_share_class(tmp_path: Path) -> 
         ],
         layout=CCY,
         account=CCY_ACCOUNT,
-        excess_heading=(
-            "Excess of",
-            "reportable",
-            "income per",
-            "unit in",
-            "share class",
-            "ccy",
-        ),
+        excess_heading=CCY_HEADING,
     )
 
     output = JpmorganImporter().parse(report)
@@ -363,8 +361,43 @@ def test_reads_columns_and_refuses_a_figure_in_an_unstated_currency(
             [Row(ISIN_A, "EUR", "0.0751", end="31/12/2022")],
             {},
             f"The reporting period 2021-01-01 to 2022-12-31 of {ISIN_A} on page 1 "
-            "is not within the accounting period 2021-01-01 to 2021-12-31",
-            id="period-outside-the-accounting-period",
+            "is not a period within the accounting period 2021-01-01 to 2021-12-31",
+            id="period-ends-after-the-accounting-period",
+        ),
+        pytest.param(
+            [Row(ISIN_A, "EUR", "0.0751", start="01/01/2020")],
+            {},
+            f"The reporting period 2020-01-01 to 2021-12-31 of {ISIN_A} on page 1 "
+            "is not a period within the accounting period 2021-01-01 to 2021-12-31",
+            id="period-starts-before-the-accounting-period",
+        ),
+        pytest.param(
+            [Row(ISIN_A, "EUR", "0.0751", start="31/12/2021", end="01/06/2021")],
+            {},
+            f"The reporting period 2021-12-31 to 2021-06-01 of {ISIN_A} on page 1 "
+            "is not a period within the accounting period 2021-01-01 to 2021-12-31",
+            id="period-ends-before-it-starts",
+        ),
+        pytest.param(
+            [Row(ISIN_A, "EUR", "0.0751"), Row(f"{ISIN_B}*", "EUR", "0.0242")],
+            {},
+            "A row on page 1 has no ISIN",
+            id="isin-not-a-word-of-its-own",
+        ),
+        pytest.param(
+            [
+                Row(
+                    ISIN_C,
+                    "USD Class CHF (acc)",
+                    "0.2648",
+                    start="01/01/2025",
+                    end="31/12/2025",
+                )
+            ],
+            {"layout": CCY, "account": CCY_ACCOUNT, "excess_heading": CCY_HEADING},
+            "Expected the share class, such as 'Class EUR (acc)', after "
+            f"{ISIN_C} on page 1",
+            id="calculation-currency-after-the-isin",
         ),
         pytest.param(
             [Row(ISIN_A, "EUR", "n/a")],

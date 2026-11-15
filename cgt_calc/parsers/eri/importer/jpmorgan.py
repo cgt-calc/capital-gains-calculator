@@ -159,8 +159,8 @@ class JpmorganImporter(ERIImporter):
         if not account[0] <= start <= end <= account[1]:
             raise ParsingError(
                 file,
-                f"The reporting period {start} to {end} {where} is not within the "
-                f"accounting period {account[0]} to {account[1]}",
+                f"The reporting period {start} to {end} {where} is not a period "
+                f"within the accounting period {account[0]} to {account[1]}",
             )
         return end
 
@@ -210,21 +210,39 @@ class JpmorganImporter(ERIImporter):
                 f"figures are in the share class currency: {_text(heading)!r}",
             )
 
+        # The 2025 report also prints the fund's currency of calculation, and
+        # names the share class's currency only in the share class column,
+        # "Class EUR Hedged (acc)", after the ISIN. The earlier reports give the
+        # share class currency its own column after the ISIN.
+        calculation = any(word["text"] == "calculation" for word in header)
         transactions = []
         for line in lines[first_row:]:
             found = _isins(line)
-            if not found:
-                continue
             text = _text(line)
+            if not found:
+                # A row whose ISIN is not a word of its own, such as one with a
+                # footnote mark, would otherwise be lost.
+                if (
+                    sum(1 for word in line if NUMERIC_DATE.fullmatch(word["text"]))
+                    >= PERIOD_DATES
+                ):
+                    raise ParsingError(
+                        file, f"A row on page {page_number} has no ISIN: {text!r}"
+                    )
+                continue
             if len(found) != 1:
                 raise ParsingError(
                     file, f"Expected one ISIN on page {page_number}, found {text!r}"
                 )
             isin = _isin(found[0], page_number, file)
             after = line[line.index(found[0]) + 1 :]
-            # The 2025 report names the currency in the share class column,
-            # "Class EUR Hedged (acc)"; the earlier ones give it a column.
-            if after and after[0]["text"] == "Class":
+            if calculation:
+                if not after or after[0]["text"] != "Class":
+                    raise ParsingError(
+                        file,
+                        f"Expected the share class, such as 'Class EUR (acc)', after "
+                        f"{isin} on page {page_number}, found {text!r}",
+                    )
                 after = after[1:]
             currency = CurrencyCode.parse(after[0]["text"]) if after else None
             if currency is None:

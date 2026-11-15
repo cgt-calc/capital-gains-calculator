@@ -128,9 +128,11 @@ From the 2021 report on, each share class has a row:
 - **Excess of reporting income over distribution:** Excess of reportable income per unit column
 
 The 2020 report lists the share classes in columns instead, and its excess of reportable income per
-unit is "Nil" when there is none. It does not say which currency its figures are in. cgt-calc has no
-2020 figure for a share class whose currency differs from its Currency of calculation, unless the
-figure is Nil; ask JPMorgan which currency the figure is in before entering it.
+unit is "Nil" when there is none. Its reporting periods are cut off after the end's day, "1 January
+2020 - 31"; enter the end date as 31/12/2020. The report does not say which currency its figures are
+in. cgt-calc has no 2020 figure for a share class whose currency differs from its Currency of
+calculation, unless the figure is Nil; ask JPMorgan which currency the figure is in before entering
+it.
 
 ### Amundi
 
