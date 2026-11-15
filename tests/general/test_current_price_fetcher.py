@@ -40,8 +40,8 @@ OFFLINE = CurlConnectionError(
     "Failed to perform, curl: (7) Failed to connect to query2.finance.yahoo.com "
     "port 443 after 0 ms: Could not connect to server"
 )
-# What yfinance 1.7 logs offline before that, seen through a proxy that
-# refused every connection.
+# What yfinance 1.7 logs offline before that for an info request, as for
+# today's price, seen through a proxy that refused every connection.
 OFFLINE_LOGS = (
     (
         logging.WARNING,
@@ -54,6 +54,13 @@ OFFLINE_LOGS = (
         logging.WARNING,
         "Cookie/crumb fetch failed (ConnectionError), continuing without crumb",
     ),
+)
+# And for a history request, as for a spin-off's prices, with no time zone
+# cached for the ticker: it fails to fetch one, then asks for its info.
+OFFLINE_HISTORY_LOGS = (
+    *OFFLINE_LOGS,
+    (logging.ERROR, f"Failed to get ticker 'BBB' reason: {OFFLINE}"),
+    OFFLINE_LOGS[1],
 )
 
 
@@ -542,13 +549,14 @@ def _run_main(
 @pytest.mark.parametrize(
     ("error", "history", "logs"),
     [
-        pytest.param(OFFLINE, None, OFFLINE_LOGS, id="offline"),
+        pytest.param(OFFLINE, None, OFFLINE_HISTORY_LOGS, id="offline"),
         pytest.param(
             OFFLINE,
             FakeEmptyHistoryTicker(),
             (
                 *OFFLINE_LOGS,
-                # Seen from yfinance 1.7 for a ticker it held a time zone for.
+                # Seen from yfinance 1.7 for a ticker it held a time zone for,
+                # then the info request's warning.
                 (
                     logging.ERROR,
                     (
@@ -556,6 +564,7 @@ def _run_main(
                         "(1d 2024-06-03 -> 2026-11-15)"
                     ),
                 ),
+                OFFLINE_LOGS[1],
             ),
             id="offline-with-the-time-zone-cached",
         ),
@@ -580,8 +589,8 @@ def test_a_failed_request_for_a_spin_off_price_stops_with_what_to_do(
 
     BBB, the new holding, is priced first. A failed request is not a fault in
     cgt-calc: no traceback, and no advice to update it. What the library logs
-    is left out, warnings and errors alike: offline, its "possibly delisted"
-    would mislead.
+    is left out, warnings and errors alike: offline, its raw curl error repeats
+    the line below, and its "possibly delisted" would mislead.
     """
     spin_offs = tmp_path / "spin_offs.csv"
     spin_offs.write_text("dst,src\nBBB,AAA\n", encoding="utf-8")
@@ -625,7 +634,7 @@ def test_verbose_also_shows_what_the_library_logs(
             tmp_path,
             monkeypatch,
             "2024-05-01,BUY,AAA,10,4.00,0,GBP\n2024-06-03,SPIN_OFF,BBB,5,0,0,GBP\n",
-            lambda symbol: FailingTicker(OFFLINE, logs=OFFLINE_LOGS),
+            lambda symbol: FailingTicker(OFFLINE, logs=OFFLINE_HISTORY_LOGS),
             "--spin-offs-file",
             str(spin_offs),
             "--verbose",
@@ -639,6 +648,15 @@ def test_verbose_also_shows_what_the_library_logs(
         (
             "WARNING: Cookie fetch from fc.yahoo.com failed (ConnectionError), "
             "continuing without it"
+        ),
+        (
+            "WARNING: Cookie/crumb fetch failed (ConnectionError), continuing "
+            "without crumb"
+        ),
+        (
+            "ERROR: Failed to get ticker 'BBB' reason: Failed to perform, curl: (7) "
+            "Failed to connect to query2.finance.yahoo.com port 443 after 0 ms: "
+            "Could not connect to server"
         ),
         (
             "WARNING: Cookie/crumb fetch failed (ConnectionError), continuing "
