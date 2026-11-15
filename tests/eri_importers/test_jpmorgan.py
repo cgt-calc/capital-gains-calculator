@@ -246,6 +246,23 @@ def test_reads_rows_with_a_currency_column(tmp_path: Path) -> None:
     check_transaction(transactions[1], ISIN_B, year_end, Decimal("0.0242"), "GBP")
 
 
+def test_reads_a_page_without_distribution_columns(tmp_path: Path) -> None:
+    """With no distribution columns after it, the excess runs to the page edge."""
+    report = _write_rows(
+        tmp_path / ROW_REPORT,
+        [Row(ISIN_A, "EUR", "0.0751")],
+        distribution_headings=[],
+    )
+
+    output = JpmorganImporter().parse(report)
+
+    assert output is not None
+    assert len(output.transactions) == 1
+    check_transaction(
+        output.transactions[0], ISIN_A, dt.date(2021, 12, 31), Decimal("0.0751"), "EUR"
+    )
+
+
 def test_reads_the_share_class_currency_from_the_share_class(tmp_path: Path) -> None:
     """The 2025 report's excess is in the share class currency, "ccy".
 

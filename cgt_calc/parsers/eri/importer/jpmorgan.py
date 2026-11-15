@@ -49,7 +49,7 @@ ACCOUNT_REGEX = re.compile(
 )
 # The 2020 report cuts each period off after the end's day, "1 January 2020 -
 # 31", so its end is the accounting period's when the day agrees.
-PERIOD_REGEX = re.compile(rf"^({WRITTEN_DATE}) - (?:({WRITTEN_DATE})|(\d{{1,2}}))$")
+PERIOD_REGEX = re.compile(rf"^({WRITTEN_DATE}) - (\d{{1,2}})$")
 CLASS_CURRENCY_REGEX = re.compile(r"\bClass ([A-Z]{3})\b")
 # The row reports say which currency their figures are in; it is the share
 # class's, though the 2025 report also prints the fund's calculation currency.
@@ -347,9 +347,7 @@ class JpmorganImporter(ERIImporter):
                 )
             period = _text(cell("Reporting period", index))
             dates = PERIOD_REGEX.match(period)
-            if dates is None or (
-                dates.group(3) is not None and int(dates.group(3)) != account[1].day
-            ):
+            if dates is None or int(dates.group(2)) != account[1].day:
                 raise ParsingError(
                     file,
                     f"Expected the reporting period of {isin} on page {page_number}, "
@@ -358,7 +356,7 @@ class JpmorganImporter(ERIImporter):
                 )
             end = JpmorganImporter._period_end(
                 _date(dates.group(1)),
-                _date(dates.group(2)) if dates.group(2) else account[1],
+                account[1],
                 account,
                 f"of {isin} on page {page_number}",
                 file,
