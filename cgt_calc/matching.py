@@ -2234,15 +2234,21 @@ class Matcher:
         symbol: str,
         date_index: dt.date,
     ) -> CalculationEntry | None:
-        """Process single excess reported income."""
-        eri = self.get_eri(symbol, date_index)
-        assert eri is not None
-        amount = self.run.portfolio[eri.symbol].amount
-        quantity = self.run.portfolio[eri.symbol].quantity
+        """Process single excess reported income.
+
+        The figure is converted to pounds only when units are held, so this
+        needs no exchange rate for a report dated while nothing is held. The
+        30-day rule (`_match_bed_and_breakfast`) may still convert one dated
+        on the day of a disposal or in the 30 days after it.
+        """
+        amount = self.run.portfolio[symbol].amount
+        quantity = self.run.portfolio[symbol].quantity
 
         if quantity == 0:
             return None
 
+        eri = self.get_eri(symbol, date_index)
+        assert eri is not None
         allowable_cost = quantity * eri.price
 
         if allowable_cost == 0:

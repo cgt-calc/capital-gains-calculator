@@ -16,13 +16,15 @@ use real bundled funds with made-up transactions:
   ending 31 October from 2018, in dollars, nil but for 2018 and 2025.
 
 A dollar figure is converted at the rate for its distribution date (D), six
-months after its period ends. A run converts every non-nil dollar figure
-dated up to the end of its report, held or not, so each such figure's D, here
-2019-12-30, 2020-12-30 or 2023-12-30, has a rate in
-tests/exchange_rates_data.csv. A data update that adds a figure these runs
-reach needs them moved: a non-nil LGMLP figure for 2024-06-30 or 2024-10-11
-would change a cost below or need an uncached rate, and a non-nil QDIV figure
-dated before 2018-04-06 would need an uncached rate.
+months after its period ends, and only when a run may use it: for units held
+at its period end, or for a disposal on that day or in the 30 days before it,
+which the 30-day rule may match with units bought after it. The figures these
+runs may use have D 2019-12-30 or 2020-12-30, which have rates in
+tests/exchange_rates_data.csv. A data update that adds a figure these runs may
+use needs them moved: a non-nil LGMLP figure for 2024-06-30 or 2024-10-11 would
+change a cost below or need an uncached rate, and a non-nil QDIV figure dated
+on or before 2018-03-31, 30 days after its sale, would reach its holding or
+need an uncached rate.
 """
 
 from __future__ import annotations
