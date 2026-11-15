@@ -4254,10 +4254,12 @@ def _sold_before_august_2020(symbol: str, ratio: int, isin: str) -> list[list[st
     """Buy 1 for 300 in June 2020, sell it for 350 in July, buy `ratio` in September.
 
     The account also holds 1 Microsoft through 31 August, which is another
-    security and does not count as holding this one.
+    security and does not count as holding this one. The deposit covers the
+    purchases with room for a test's own RAW purchase at Trading 212, so no
+    history here runs out of cash.
     """
     return [
-        _deposit("2020-05-01 09:00:00"),
+        _deposit("2020-05-01 09:00:00", total="2000.00"),
         _trade(
             "Market buy", "2020-06-01 14:00:00", "1", "300.00", ticker=symbol, isin=isin
         ),
@@ -4530,6 +4532,50 @@ def test_trading_212_rows_selling_more_than_they_buy_stop_only_for_august_2020(
 
     assert summary_figure(result.stdout, "Gain") == "100.00"
     assert "\n  NVDA: 50.00, £4,200.00\n" in result.stdout
+
+
+@pytest.mark.parametrize(("symbol", "ratio", "isin"), AUGUST_2020)
+def test_trading_212_rows_selling_more_than_they_buy_into_an_empty_holding_run(
+    tmp_path: Path, symbol: str, ratio: int, isin: str
+) -> None:
+    """With nothing held going into 31 August, there is nothing to check.
+
+    Another broker buys 1 for 300 in May 2020, and Trading 212 sells 1 it
+    never bought for 350 in July, which empties the holding before the split
+    although Trading 212's rows net to -1:
+    - the sale: 1 costing 300, a gain of 350 - 300 = 50;
+    - the split restates nothing, and needs no row;
+    - Trading 212 buys `ratio` at 100 each in September, more than 30 days
+      later: `ratio` shares for 100 x `ratio`.
+    """
+    rows = [
+        _deposit("2020-05-01 09:00:00"),
+        _trade(
+            "Market sell",
+            "2020-07-01 14:00:00",
+            "1",
+            "350.00",
+            ticker=symbol,
+            isin=isin,
+        ),
+        _trade(
+            "Market buy",
+            "2020-09-10 14:00:00",
+            str(ratio),
+            "100.00",
+            ticker=symbol,
+            isin=isin,
+        ),
+    ]
+    raw_rows = (
+        "2020-05-01,TRANSFER,,1,5000.00,0.00,GBP",
+        f"2020-05-04,BUY,{symbol},1,300.00,0.00,GBP",
+    )
+
+    result = run_cli(_known_split_cmd(tmp_path, rows, raw_rows=raw_rows, year="2020"))
+
+    assert summary_figure(result.stdout, "Gain") == "50.00"
+    assert f"\n  {symbol}: {ratio}.00, £{100 * ratio:,}.00\n" in result.stdout
 
 
 def test_tesla_bought_after_2020_is_checked_for_2022(tmp_path: Path) -> None:
