@@ -1628,7 +1628,7 @@ class TransactionIngester:
                     )
                     return
                 # The bundled data, read first, never conflicts with itself,
-                # so this row is always one of the user's file.
+                # so this row is always a row of the user's file.
                 raise InvalidTransactionError(
                     transaction,
                     f"A conflicting ERI report at {transaction.date} for "

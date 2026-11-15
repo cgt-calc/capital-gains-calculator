@@ -748,6 +748,35 @@ def test_nil_eri_reports_in_two_currencies_are_a_duplicate_needing_no_rate(
     assert "Skipping duplicated ERI transaction" in caplog.text
 
 
+def test_a_nil_eri_report_conflicts_with_a_figure_in_another_currency_without_a_rate() -> (
+    None
+):
+    """A nil report in pounds and a dollar figure disagree without a rate.
+
+    However the 0.0200 dollars converted, it would not be nil, so the run
+    stops with the conflict rather than ask for a rate. As above, HMRC has
+    published no rate for the 2099-06-30 period end and the calculator has
+    none, so a conversion would stop the run with another error.
+    """
+    calculator = _eri_calculator({}, ERI_DISTRIBUTION_DATE)
+    period_end = dt.date(2099, 6, 30)
+    transactions: list[BrokerTransaction] = [
+        ERITransaction(date=period_end, isin=ERI_ISIN, price=Decimal(0), currency=GBP),
+        ERITransaction(
+            date=period_end, isin=ERI_ISIN, price=Decimal("0.0200"), currency=USD
+        ),
+    ]
+
+    message = (
+        "A conflicting ERI report at 2099-06-30 for VWRL of 0.0200 USD has been "
+        "found at 2099-06-30 of 0 GBP. That figure is from cgt-calc's bundled "
+        "data or an earlier row of your --eri-raw-file. Check the fund's report, "
+        "then correct or remove the row below."
+    )
+    with pytest.raises(InvalidTransactionError, match=re.escape(message)):
+        calculator.prepare_history(transactions)
+
+
 def test_an_eri_that_is_never_used_needs_no_exchange_rate() -> None:
     """A report is converted when first used, so an unused one needs no rate.
 
