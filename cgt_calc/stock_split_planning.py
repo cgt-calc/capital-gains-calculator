@@ -350,8 +350,12 @@ def _plan_stock_split(
         raise CalculationError(
             f"Cannot apply the reorganisation of {symbol} on {date_index}: "
             f"the holding is {strip_zeros(holding_at_event)} units at that "
-            "point, so there is nothing to restate. The history is missing "
-            f"the {symbol} shares it acts on."
+            "point, so there is nothing to restate. If you held "
+            f"{symbol} shares at that point, the history is missing the rows "
+            "that acquired them, or records them under another symbol: add "
+            "those rows, or write the split row under the symbol the holding "
+            "uses. If you held none at that point, for example because you "
+            "sold them all before the split, remove the split row."
         )
 
     event = _stock_split_event(

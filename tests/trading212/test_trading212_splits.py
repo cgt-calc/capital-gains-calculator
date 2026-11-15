@@ -3465,6 +3465,42 @@ def test_a_sale_matched_across_a_known_split_entered_empty_is_refused(
     assert "ERROR: " + expected + "\n" in stderr
 
 
+def test_a_split_row_for_shares_sold_before_the_split_names_each_cause(
+    tmp_path: Path,
+) -> None:
+    """A split row for a holding sold out before the split has nothing to restate.
+
+    2 NVDA are sold on 7 June 2024, before the 10-for-1 split of 10 June, and
+    20 are bought on 12 June. A RAW row adding 18 for the split finds none
+    held. Rows missing from the history, the holding under another symbol and
+    a row that should not be there all look the same here, so the refusal
+    names each with its fix, and no longer states as fact that the history
+    is missing shares.
+    """
+    rows = [
+        *_nvidia_sold_out(),
+        _trade("Market buy", "2024-06-12 14:00:00", "20", "46.00"),
+    ]
+
+    stderr = _refusal(
+        _known_split_cmd(
+            tmp_path,
+            rows,
+            raw_rows=("2024-06-10,STOCK_SPLIT,NVDA,18,0.00,0.00,GBP",),
+        )
+    )
+
+    assert (
+        "ERROR: Cannot apply the reorganisation of NVDA on 2024-06-10: the "
+        "holding is 0 units at that point, so there is nothing to restate. If "
+        "you held NVDA shares at that point, the history is missing the rows "
+        "that acquired them, or records them under another symbol: add those "
+        "rows, or write the split row under the symbol the holding uses. If you "
+        "held none at that point, for example because you sold them all before "
+        "the split, remove the split row.\n"
+    ) in stderr
+
+
 def _nvidia_sold_out(*, bought: str = "2024-06-03") -> list[list[str]]:
     """Buy 2 NVDA for GBP 800 and sell both on 7 June 2024 for GBP 900."""
     return [
