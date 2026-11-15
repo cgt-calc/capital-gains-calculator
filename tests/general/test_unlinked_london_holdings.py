@@ -66,6 +66,15 @@ def eri(isin: Isin) -> BrokerTransaction:
             [],
             id="renamed to the London name",
         ),
+        # ZZQX has no ISIN, so the report reaches VAGP only, not the name
+        # ZZQX is renamed to: LSE:VAGP keeps its £2,000 and is warned about.
+        pytest.param(
+            [buy("ZZQX"), rename_row("ZZQX", "LSE:VAGP"), eri(VAGP_FUND)],
+            VAGP_FUND,
+            {"LSE:VAGP": Decimal(2000)},
+            ["LSE:VAGP"],
+            id="held only under the name it is renamed to",
+        ),
         # SXR8 is read as CSP1 before the rename is applied, so the rename's
         # old name SXR8 joins LSE:CSP1 to nothing the report reaches.
         pytest.param(

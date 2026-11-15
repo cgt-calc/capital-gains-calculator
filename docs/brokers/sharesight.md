@@ -121,7 +121,9 @@ is. To link them:
     that name. When two warnings name one ISIN, such as for `LSE:VAPX` and `LSE:VDPX`, add both
     names to the same row.
 3. Run cgt-calc again. The warning stops, and any ERI for the tax year appears under the holding's
-    name in the terminal's **Excess Reported Income** list.
+    name in the terminal's **Excess Reported Income** list. If a row of your own `--eri-raw-file`
+    gives the fund a different figure for the same period, the run stops instead and shows the row
+    to check.
 
 If you also hold the fund under its bare ticker through another broker, both holdings then get its
 ERI, but they stay two separate holdings, so do not rely on their gains; see the warning under
@@ -135,9 +137,9 @@ The Taxable Income report can name a fund differently from the All Trades report
 the income of `FOO`, traded on `NASDAQ`, is named `FOO.NASDAQ`, while cgt-calc names the holding
 `NASDAQ:FOO`, as the final portfolio shows. To report a bond fund's distributions as interest, pass
 the name its income has, as the terminal's **Dividends** list shows it: here
-`--interest-fund-tickers FOO.NASDAQ`. Unless the holding receives ERI as described below, `FOO` or
-`NASDAQ:FOO` leaves the distributions as dividends, and cgt-calc warns that the value matched no
-income and names `FOO.NASDAQ`.
+`--interest-fund-tickers FOO.NASDAQ`. `FOO` or `NASDAQ:FOO` leaves the distributions as dividends,
+and cgt-calc warns that the value matched no income and names `FOO.NASDAQ`. Once the holding
+receives ERI as described below, `NASDAQ:FOO` matches that ERI, so it no longer warns.
 
 ERI goes by the holding's name instead. The holding receives ERI, whether bundled with cgt-calc or
 given with `--eri-raw-file`, only once you
