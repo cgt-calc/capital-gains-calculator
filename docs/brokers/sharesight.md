@@ -108,10 +108,11 @@ fund by its ticker alone, such as `VAGP`, so nothing links the two: the holding 
 fund's ERI, and cgt-calc does not check it for missing reports.
 
 For a holding on the `LSE` market whose code is a London ticker of a fund cgt-calc has ERI for,
-cgt-calc warns that it `has excess reported income reports for fund` with the fund's ISIN, and shows
-a row for your [ISIN translation file](../extra-data-and-options.md#isin-to-ticker-translation). The
-warning does not link the holding to the fund, because a code alone does not prove which security it
-is. To link them:
+cgt-calc prints a warning beginning `cgt-calc has excess reported income reports for fund`, followed
+by the fund's ISIN, and shows a row for your
+[ISIN translation file](../extra-data-and-options.md#isin-to-ticker-translation). The warning does
+not link the holding to the fund, because a code alone does not prove which security it is. To link
+them:
 
 1. Check the ISIN against your contract note or the fund's documents. If the holding is a different
     security, leave the file as it is; the warning then appears on every run.
