@@ -353,11 +353,12 @@ replaced:
     statement shows.
 - **A vest** (`STOCK_ACTIVITY`). The row keeps the export row's quantity and can change its date and
     its price. Use it when your employer taxed the shares on another day than the one cgt-calc uses:
-    see [Which day a vest is dated](schwab.md#which-day-a-vest-is-dated) in the Schwab guide. If the
-    shares were split or consolidated between the two dates, the quantity is in the wrong units for
-    the new date and cgt-calc cannot tell: edit the vest in a working copy of the export instead. A
-    row can also give a Schwab vest with no price its date and price when you have no award file:
-    see [Vests without an award file](schwab.md#vests-without-an-award-file).
+    [Which day a vest is dated](schwab.md#which-day-a-vest-is-dated) in the Schwab guide says why,
+    and [Correct several vests](schwab.md#correct-several-vests) how. If the shares were split or
+    consolidated between the two dates, the quantity is in the wrong units for the new date and
+    cgt-calc does not always detect it: edit the vest in a working copy of the export instead. A row
+    can also give a Schwab vest with no price its date and price when you have no award file: see
+    [Vests without an award file](schwab.md#vests-without-an-award-file).
 
 Say Schwab withheld a further 5 dollars of tax on 27 June 2024 that belongs to the dividend of 3
 June. Schwab's row is replaced by one dated on the dividend:
@@ -415,9 +416,9 @@ The error names the RAW row:
 - **`Cannot replace the ... vest ..., which has no price in the Schwab history`**: your row is all
     cgt-calc has for the vest's cost, so it needs a `price` above zero, `USD` as its currency and no
     fees. A split or consolidation of the share on either date or between them is refused as well,
-    if your main history records it or cgt-calc already knows of it: the vest's quantity may be in
-    the wrong units for your row's date. Edit the vest's date, quantity and price in a working copy
-    of the history instead.
+    if your main history records it or it is an NVIDIA or Alphabet split that cgt-calc already knows
+    of: the vest's quantity may be in the wrong units for your row's date. Edit the vest's date,
+    quantity and price in a working copy of the history instead.
 - **`Several ... vests match this replacement and none has a price`**: Schwab posted two vests of
     the same quantity on the same day, and nothing tells them apart. Pass the award file, or edit
     the vests in a working copy of the history.
