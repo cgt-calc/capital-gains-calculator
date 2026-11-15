@@ -147,9 +147,9 @@ def _investor_rows(period_ends: list[str]) -> list[list[str]]:
 def test_parse_investor_report_format(tmp_path: Path) -> None:
     """Parse the investor report format.
 
-    Xtrackers II and Xtrackers (IE) Plc used it up to 2024, and Xtrackers
-    in 2023. Also covers the official DWS download file name, and a blank
-    row between classes, which is skipped.
+    All three umbrellas used it up to 2024, except Xtrackers in 2024. Also
+    covers the official DWS download file name, and a blank row between
+    classes, which is skipped.
     """
     rows = _investor_rows(["31 December 2024"] * 3)
     rows.insert(1, [""] * len(INVESTOR_HEADER))
@@ -227,7 +227,8 @@ def test_investor_report_bad_period_end_fails_loudly(tmp_path: Path) -> None:
         XtrackersImporter().parse(file)
 
 
-# Headings as the 2023 investor reports print them.
+# Some of the headings the investor reports print, the excess income one
+# cut short.
 WRAPPED_HEADER = [
     "SUB FUND",
     "SHARE CLASS / SERIES",
@@ -240,11 +241,12 @@ WRAPPED_HEADER = [
 
 
 def _build_wrapped_investor_pdf(path: Path, rows: list[list[str]]) -> Path:
-    """Build an investor report whose cells wrap over several lines, as in 2023.
+    """Build an investor report whose text lines sit too close to separate.
 
-    In small type, cells of different heights centred in one row put that
-    row's text lines a point or two apart. Edges found from text lines
-    then merge, so only the drawn grid separates the rows.
+    Some 2021 and 2023 reports do this with tiny type on tightly spaced
+    rows. Here, in small type, cells of different heights centred in one
+    row put that row's text lines a point or two apart. Either way, edges
+    found from text lines merge, so only the drawn grid separates the rows.
     """
     styles = getSampleStyleSheet()
     cell = ParagraphStyle("cell", fontSize=3, leading=3.5)
@@ -276,10 +278,10 @@ def _build_wrapped_investor_pdf(path: Path, rows: list[list[str]]) -> Path:
 
 
 def test_investor_report_rows_wrapping_over_several_lines(tmp_path: Path) -> None:
-    """Read the rows of a report whose cells wrap, as the 2023 reports do.
+    """Read the rows of a report whose text lines sit too close to separate.
 
-    Rows found from text lines merge here, so the reader must take them
-    from the drawn grid.
+    Rows found from text lines merge here, as in some 2021 and 2023
+    reports, so the reader must take them from the drawn grid.
     """
     file = _build_wrapped_investor_pdf(
         tmp_path / "Reporting-Funds-Xtrackers-II-2023.pdf",

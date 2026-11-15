@@ -86,10 +86,9 @@ def _class_period_end(period: str) -> dt.date | None:
 class XtrackersImporter(ERIImporter):
     """Parser for Xtrackers ERI reports.
 
-    Covers the three Xtrackers umbrellas published by DWS up to 2024:
-    Xtrackers II and Xtrackers (IE) Plc in the investor report format, and
-    Xtrackers in the summary format, except for 2023, when it used the
-    investor report format too. From 2025 all three use the participants
+    Covers the three Xtrackers umbrellas published by DWS. Up to 2024 all
+    three used the investor report format, except Xtrackers in 2024, which
+    used the summary format. From 2025 all three use the participants
     report format.
     """
 
@@ -192,9 +191,9 @@ class XtrackersImporter(ERIImporter):
                 )
             colmap[col] = match_idx[0]
 
-        # The rows are the drawn table's own cells: the 2023 reports wrap
-        # their cells over several lines, so rows found from text lines
-        # do not line up there.
+        # The rows are the drawn table's own cells: some reports, such as
+        # those for 2021 and 2023, set their rows so close together that
+        # rows found from text lines merge into one.
         data_rows = extracted_table[1:]
         if not data_rows:
             raise ParsingError(
@@ -285,7 +284,7 @@ class XtrackersImporter(ERIImporter):
 
     @staticmethod
     def _parse_summary_format(pdf: PDF, file: Path) -> list[ERITransaction] | None:
-        """Parse the summary format used by the Xtrackers umbrella, except in 2023."""
+        """Parse the summary format, used by the Xtrackers umbrella in 2024."""
         first_page = pdf.pages[0]
         prefix = "Period ended"
         if not first_page.search("Summary of reportable income calculations"):
@@ -308,8 +307,7 @@ class XtrackersImporter(ERIImporter):
     ) -> list[ERITransaction] | None:
         """Parse the investor report format.
 
-        Xtrackers II and Xtrackers (IE) Plc used it up to 2024, and
-        Xtrackers in 2023.
+        All three umbrellas used it up to 2024, except Xtrackers in 2024.
         """
         first_page = pdf.pages[0]
         if not first_page.search("UK reporting fund status report to investors"):
