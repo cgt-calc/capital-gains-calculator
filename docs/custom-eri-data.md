@@ -59,6 +59,13 @@ ETFs. Check the fund company in your fund documents if you are unsure.
 - **Currency:** Share Class Currency column
 - **Excess of reporting income over distribution:** same name column
 
+Vanguard's US-domiciled ETFs, such as Vanguard Global ex-U.S. Real Estate ETF (VNQI), have their own
+reports: one workbook a year, with a sheet for each year end. They are here:
+<https://advisors.vanguard.com/tax-center/uk-reporting-status>
+
+Use the sheet named after your ETF's year end. The columns are the ones above; some headings carry a
+footnote number.
+
 ### iShares / BlackRock
 
 BlackRock UK publishes annual Reportable Income reports here:

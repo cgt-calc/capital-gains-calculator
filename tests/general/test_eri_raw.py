@@ -385,6 +385,54 @@ def test_bundled_eri_of_iucm_first_period_reaches_holders(
     assert "Allowable costs:    £50,020.73" in lines
 
 
+def test_bundled_eri_of_a_vanguard_us_etf_reaches_its_holder(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """A Vanguard US-domiciled ETF's bundled figure reaches its holder.
+
+    Vanguard's 2023 workbook gives Vanguard Global ex-U.S. Real Estate ETF
+    (VNQI, US9220426764) 1.433 USD per unit for the year to 31/10/2023. No
+    bundled mapping names its ticker, so the user's ISIN translation file
+    does.
+
+    - 100 bought on 01/06/2023 for 7,500.00 plus a 5.00 fee, held at
+      31/10/2023, sold on 01/05/2024 for 8,000.00 less a 5.00 fee.
+    - ERI 100 x 1.433 USD = 143.30 USD, received on 30/04/2024 (cgt-calc's
+      date, six months after the period end), in 2024/25, at HMRC's rate of
+      1.2693: 143.30 / 1.2693 = 112.90.
+    - Allowable costs 7,500.00 + 5.00 + 112.90 + 5.00 = 7,622.90.
+    """
+    raw = tmp_path / "raw.csv"
+    raw.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2023-06-01,TRANSFER,,1,7505.00,0.00,GBP\n"
+        "2023-06-01,BUY,VNQI,100,75.00,5.00,GBP\n"
+        "2024-05-01,SELL,VNQI,100,80.00,5.00,GBP\n",
+        encoding="utf-8",
+    )
+    isins = tmp_path / "isins.csv"
+    isins.write_text("ISIN,symbol\nUS9220426764,VNQI\n", encoding="utf-8")
+
+    result = run_cli(
+        build_cmd(
+            "--year",
+            "2024",
+            "--raw-file",
+            str(raw),
+            "--isin-translation-file",
+            str(isins),
+            "--output",
+            report_path(request),
+        )
+    )
+
+    lines = [line.strip() for line in result.stdout.splitlines()]
+    assert [line for line in lines if line.endswith("(included as dividend)")] == [
+        "VNQI: £112.90 (included as dividend)"
+    ]
+    assert "Allowable costs:    £7,622.90" in lines
+
+
 def test_a_holding_with_euro_eri_sold_and_bought_back_within_30_days(
     tmp_path: Path, request: pytest.FixtureRequest
 ) -> None:

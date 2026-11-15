@@ -131,6 +131,7 @@ ESPP
 etc
 ETCs
 ETF
+ETF's
 ETFs
 ETNs
 EUR
@@ -424,6 +425,7 @@ v3
 ValueError
 VanEck
 VanguardTransaction
+VNQI
 VTI
 WCLD
 worktree
