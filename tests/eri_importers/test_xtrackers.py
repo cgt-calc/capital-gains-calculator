@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal
+import re
 from typing import TYPE_CHECKING, cast
 
 import pytest
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import (
     Flowable,
     PageBreak,
@@ -57,8 +58,12 @@ def _build_pdf(
     with_table: bool = True,
     data_rows: list[list[str]] | None = None,
     header: list[str] | None = None,
+    second_table: list[list[str]] | None = None,
 ) -> Path:
-    """Build a PDF with preamble text lines and optionally a data table."""
+    """Build a PDF with preamble text lines and optionally a data table.
+
+    second_table adds a separate grid below the first one.
+    """
     styles = getSampleStyleSheet()
     doc = SimpleDocTemplate(str(path), pagesize=PAGESIZE)
     story: list[Flowable] = [Paragraph(line, styles["Normal"]) for line in preamble]
@@ -86,6 +91,10 @@ def _build_pdf(
             )
         )
         story.append(table)
+    if second_table is not None:
+        extra = Table(second_table, colWidths=[180.0] * len(second_table[0]))
+        extra.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 1, colors.black)]))
+        story += [Spacer(1, 40), extra]
     doc.build(story)
     return path
 
@@ -121,24 +130,200 @@ def test_parse_summary_format(tmp_path: Path) -> None:
     _check_result_transactions(result.transactions, dt.date(2024, 12, 31))
 
 
-def test_parse_investor_report_format(tmp_path: Path) -> None:
-    """Parse the investor report format used by Xtrackers II and (IE) Plc.
+INVESTOR_PREAMBLE = [
+    "Xtrackers II",
+    "UK reporting fund status report to investors",
+    "Period of account ended 31 December 2024",
+]
+# The investor report also gives each share class's own period end.
+INVESTOR_HEADER = [*HEADER, "Reporting period end date"]
 
-    Also covers the official DWS download file name.
+
+def _investor_rows(period_ends: list[str]) -> list[list[str]]:
+    """Return DATA_ROWS with the given period end added to each row."""
+    return [[*row, end] for row, end in zip(DATA_ROWS, period_ends, strict=True)]
+
+
+def test_parse_investor_report_format(tmp_path: Path) -> None:
+    """Parse the investor report format.
+
+    All three umbrellas used it up to 2024, except Xtrackers in 2024. Also
+    covers the official DWS download file name, and a blank row between
+    classes, which is skipped.
     """
+    rows = _investor_rows(["31 December 2024"] * 3)
+    rows.insert(1, [""] * len(INVESTOR_HEADER))
     file = _build_pdf(
         tmp_path / "Reporting-Funds-Xtrackers-II-2024.pdf",
-        [
-            "Xtrackers II",
-            "UK reporting fund status report to investors",
-            "Period of account ended 31 December 2024",
-        ],
+        INVESTOR_PREAMBLE,
+        header=INVESTOR_HEADER,
+        data_rows=rows,
     )
 
     result = XtrackersImporter().parse(file)
 
     assert result is not None
     _check_result_transactions(result.transactions, dt.date(2024, 12, 31))
+
+
+def test_investor_report_class_period_end_is_the_row_date(tmp_path: Path) -> None:
+    """A class that closed during the year is dated by its own period end.
+
+    Xtrackers' 2023 report prints a class liquidated on 14 March 2023 as
+    ending on 14 March 2023, in a report for the year to 31 December: its
+    row takes 14 March, the others the year end they print.
+    """
+    file = _build_pdf(
+        tmp_path / "Reporting-Funds-Xtrackers-II-2024.pdf",
+        INVESTOR_PREAMBLE,
+        header=INVESTOR_HEADER,
+        data_rows=_investor_rows(
+            ["31 December 2024", "14 March 2024", "31 December 2024"]
+        ),
+    )
+
+    result = XtrackersImporter().parse(file)
+
+    assert result is not None
+    assert _summary(result.transactions) == [
+        ("LU0000000009", dt.date(2024, 12, 31), Decimal("1.23456"), "USD"),
+        ("IE0000000004", dt.date(2024, 3, 14), Decimal("0.55555"), "JPY"),
+        ("LU0000000124", dt.date(2024, 12, 31), Decimal(0), "EUR"),
+    ]
+
+
+def test_investor_report_without_a_period_end_column_fails_loudly(
+    tmp_path: Path,
+) -> None:
+    """The investor report must give each class's period end."""
+    file = _build_pdf(
+        tmp_path / "Reporting-Funds-Xtrackers-II-2024.pdf", INVESTOR_PREAMBLE
+    )
+
+    with pytest.raises(
+        ParsingError,
+        match=re.escape("No column matching '^REPORTING PERIOD END DATE$' on page 1"),
+    ):
+        XtrackersImporter().parse(file)
+
+
+def test_investor_report_bad_period_end_fails_loudly(tmp_path: Path) -> None:
+    """A period end that is not a date is refused, not replaced."""
+    file = _build_pdf(
+        tmp_path / "Reporting-Funds-Xtrackers-II-2024.pdf",
+        INVESTOR_PREAMBLE,
+        header=INVESTOR_HEADER,
+        data_rows=_investor_rows(
+            ["31 December 2024", "31 Smarch 2024", "31 December 2024"]
+        ),
+    )
+
+    with pytest.raises(
+        ParsingError,
+        match=re.escape(
+            "Invalid reporting period end date on page 1, row 2: '31 Smarch 2024'"
+        ),
+    ):
+        XtrackersImporter().parse(file)
+
+
+# Some of the headings the investor reports print, the excess income one
+# cut short.
+WRAPPED_HEADER = [
+    "SUB FUND",
+    "SHARE CLASS / SERIES",
+    "ISIN",
+    "REPORTING PERIOD END DATE",
+    "CURRENCY OF THE FOLLOWING AMOUNTS",
+    "PER UNIT EXCESS REPORTABLE INCOME OVER DISTRIBUTIONS",
+    "ADDITIONAL COMMENTS",
+]
+
+
+def _build_wrapped_investor_pdf(path: Path, rows: list[list[str]]) -> Path:
+    """Build an investor report whose text lines sit too close to separate.
+
+    Some 2021 and 2023 reports do this with tiny type on tightly spaced
+    rows. Here, in small type, cells of different heights centred in one
+    row put that row's text lines a point or two apart. Either way, edges
+    found from text lines merge, so only the drawn grid separates the rows.
+    """
+    styles = getSampleStyleSheet()
+    cell = ParagraphStyle("cell", fontSize=3, leading=3.5)
+    table = Table(
+        [[Paragraph(text, cell) for text in row] for row in [WRAPPED_HEADER, *rows]],
+        colWidths=[90, 60, 60, 60, 60, 80, 90],
+    )
+    table.setStyle(
+        TableStyle(
+            [
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 1),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 1),
+                ("TOPPADDING", (0, 0), (-1, -1), 1),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+            ]
+        )
+    )
+    preamble = [
+        "Xtrackers II",
+        "UK reporting fund status report to investors",
+        "Period of account ended 31 December 2023",
+    ]
+    story: list[Flowable] = [Paragraph(line, styles["Normal"]) for line in preamble]
+    story += [Spacer(1, 6), table]
+    SimpleDocTemplate(str(path), pagesize=(842, 595)).build(story)
+    return path
+
+
+def test_investor_report_rows_wrapping_over_several_lines(tmp_path: Path) -> None:
+    """Read the rows of a report whose text lines sit too close to separate.
+
+    Rows found from text lines merge here, as in some 2021 and 2023
+    reports, so the reader must take them from the drawn grid.
+    """
+    file = _build_wrapped_investor_pdf(
+        tmp_path / "Reporting-Funds-Xtrackers-II-2023.pdf",
+        [
+            [
+                "Xtrackers II Eurozone Government Bond UCITS ETF",
+                "1C",
+                "LU0000000009",
+                "31 December 2023",
+                "EUR",
+                "4.0744",
+                "A comment that wraps over a few lines of text",
+            ],
+            [
+                "Xtrackers II Global Inflation-Linked Bond UCITS ETF and more words",
+                "2D - GBP Hedged",
+                "LU0000000017",
+                "31 December 2023",
+                "GBP",
+                "0.0000",
+                "",
+            ],
+            [
+                "Short",
+                "4C - EUR Hedged share class",
+                "LU0000000025",
+                "31 December 2023",
+                "USD",
+                "1.2386",
+                "A comment that wraps over a few lines of text",
+            ],
+        ],
+    )
+
+    result = XtrackersImporter().parse(file)
+
+    assert result is not None
+    assert _summary(result.transactions) == [
+        ("LU0000000009", dt.date(2023, 12, 31), Decimal("4.0744"), "EUR"),
+        ("LU0000000017", dt.date(2023, 12, 31), Decimal(0), "GBP"),
+        ("LU0000000025", dt.date(2023, 12, 31), Decimal("1.2386"), "USD"),
+    ]
 
 
 def test_old_report_is_ignored(tmp_path: Path) -> None:
@@ -218,6 +403,22 @@ def test_report_without_a_table_fails_loudly(tmp_path: Path) -> None:
         XtrackersImporter().parse(file)
 
 
+def test_page_with_two_tables_is_refused(tmp_path: Path) -> None:
+    """Rows in a second table on a page would be lost, so it is refused.
+
+    Here the last class continues in a grid of its own below the first.
+    """
+    file = _build_pdf(
+        tmp_path / "Xtrackers-Report-2024.pdf",
+        SUMMARY_PREAMBLE,
+        data_rows=DATA_ROWS[:2],
+        second_table=[DATA_ROWS[2]],
+    )
+
+    with pytest.raises(ParsingError, match="Expected one table on page 1, found 2"):
+        XtrackersImporter().parse(file)
+
+
 def test_header_only_table_fails_loudly(tmp_path: Path) -> None:
     """A table with headers but no data rows is invalid input."""
     file = _build_pdf(
@@ -226,7 +427,9 @@ def test_header_only_table_fails_loudly(tmp_path: Path) -> None:
         data_rows=[],
     )
 
-    with pytest.raises(ParsingError, match="Could not extract data table on page 1"):
+    with pytest.raises(
+        ParsingError, match="No data rows below the table header on page 1"
+    ):
         XtrackersImporter().parse(file)
 
 
@@ -280,8 +483,8 @@ class _HeaderlessPage:
     """Page stub with a detectable but empty table."""
 
     @staticmethod
-    def find_table() -> _HeaderlessTable:
-        return _HeaderlessTable()
+    def find_tables() -> list[_HeaderlessTable]:
+        return [_HeaderlessTable()]
 
 
 def test_empty_extracted_header_fails_loudly(tmp_path: Path) -> None:
@@ -289,8 +492,8 @@ def test_empty_extracted_header_fails_loudly(tmp_path: Path) -> None:
     page = cast("Page", _HeaderlessPage())
 
     with pytest.raises(ParsingError, match="Table header is empty on page 1"):
-        XtrackersImporter._extract_header(  # noqa: SLF001
-            page, tmp_path / "report.pdf", 1
+        XtrackersImporter._extract_table(  # noqa: SLF001
+            page, tmp_path / "report.pdf", 1, with_period_end=False
         )
 
 

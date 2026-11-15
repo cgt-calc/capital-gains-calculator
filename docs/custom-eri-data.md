@@ -101,14 +101,23 @@ The column names changed in 2025. For reports on periods ending in 2025 or later
 If that column is empty for your share class, the report gives no figure. Do not enter 0; ask DWS
 for the figure.
 
-For earlier reports:
+Reports before 2025 come in two layouts; check the heading at the top of yours. Reports headed "UK
+reporting fund status report to investors", as all three fund companies published for 2021 to 2023,
+and Xtrackers II and Xtrackers IE for 2024:
 
 - **ISIN:** same name column
-- **Fund Reporting Period End Date:** Period Ended date at the top of the PDF
-- **Currency:** Share class currency column (Currency of the following amounts in Xtrackers II and
-    Xtrackers IE reports)
-- **Excess of reporting income over distribution:** Excess reported income per share column (Per
-    unit excess reportable income over distributions in Xtrackers II and Xtrackers IE reports)
+- **Fund Reporting Period End Date:** REPORTING PERIOD END DATE column for your share class, which
+    can be earlier than the year end for a share class that closed during the year
+- **Currency:** CURRENCY OF THE FOLLOWING AMOUNTS column
+- **Excess of reporting income over distribution:** PER UNIT EXCESS REPORTABLE INCOME OVER
+    DISTRIBUTIONS column
+
+Reports headed "Summary of reportable income calculations", as Xtrackers published for 2024:
+
+- **ISIN:** same name column
+- **Fund Reporting Period End Date:** Period ended date at the top of the PDF
+- **Currency:** Share class currency column
+- **Excess of reporting income over distribution:** Excess reported income per share column
 
 ### JPMorgan
 
