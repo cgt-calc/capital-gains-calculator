@@ -1011,14 +1011,17 @@ def test_equal_tax_rows_in_two_accounts_are_interchangeable(
         pytest.param(
             True,
             "The broker 'Charles Schwabb' is not the broker of any other input in "
-            "this run. Leave the broker blank to keep the row in the RAW file's own "
-            "ledger, or use one of: Charles Schwab.",
+            "this run. Use one of: Charles Schwab. If this row does not replace "
+            "an export row, you can leave the broker blank to keep it in the "
+            "RAW file's own ledger.",
             id="another broker loaded",
         ),
         pytest.param(
             False,
             "The broker 'Charles Schwabb' is not the broker of any other input in "
-            "this run, and no other input names one. Leave the broker blank to "
+            "this run, and no other input names one. If this row replaces an "
+            "export row, pass that broker's export in the same run and use its "
+            "broker name. Otherwise, leave the broker blank to "
             "keep the row in the RAW file's own ledger.",
             id="only RAW rows",
         ),

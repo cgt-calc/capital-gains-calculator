@@ -130,8 +130,9 @@ Documentation: https://cgt-calc.uk/
             "--prices-file",
             type=existing_file_type,
             metavar="PATH",
-            help="share prices in CSV format, for vests without a price and for "
-            "spin-offs; used instead of the bundled prices",
+            help="share prices in CSV format, for vests without a price (except "
+            "in a Schwab main history) and for spin-offs; used instead of the "
+            "bundled prices",
         ),
         shtab.FILE,
     )

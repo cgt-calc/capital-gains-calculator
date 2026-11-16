@@ -262,12 +262,15 @@ def resolve_raw_brokers(
             )
             if known:
                 message += (
-                    ". Leave the broker blank to keep the row in the RAW file's "
-                    f"own ledger, or use one of: {known}."
+                    f". Use one of: {known}. If this row does not replace an "
+                    "export row, you can leave the broker blank to keep it in "
+                    "the RAW file's own ledger."
                 )
             else:
                 message += (
-                    ", and no other input names one. Leave the broker blank to "
+                    ", and no other input names one. If this row replaces an "
+                    "export row, pass that broker's export in the same run and "
+                    "use its broker name. Otherwise, leave the broker blank to "
                     "keep the row in the RAW file's own ledger."
                 )
             raise _refuse(row, f"{message} See {DOCS}")

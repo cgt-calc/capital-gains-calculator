@@ -423,7 +423,9 @@ The error names the RAW row:
 - **`Several ... vests match this replacement and none has a price`**: Schwab posted two vests of
     the same quantity on the same day, and nothing tells them apart. Pass the award file, or edit
     the vests in a working copy of the history.
-- **`The broker '...' is not the broker of any other input`**: correct the name, or leave it blank.
+- **`The broker '...' is not the broker of any other input`**: correct the name to that of a broker
+    export in the same run. You can leave `broker` blank only if the row does not replace an export
+    row; it then stays in the RAW file's own `Unknown` balance.
 - **`A row that replaces a row of a broker export names that broker`**: fill in `broker`.
 
 ## Say which market a ticker is from
