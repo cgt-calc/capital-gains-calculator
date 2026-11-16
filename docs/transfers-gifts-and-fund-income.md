@@ -47,8 +47,17 @@ Record them arriving with `TRANSFER_FROM_SPOUSE`, with the base cost per unit as
 transferor's report prints the row ready to use, with the header line that starts a new RAW file. To
 add it to a RAW file whose header lists the columns in another order or has the
 [optional columns](brokers/raw.md#create-the-csv), put each value under its column, with a blank
-cell for any other column. The shares enter your Section 104 pool at that cost, acquired on the
-transfer date, and no money is added to your cash balance.
+cell for any other column. The shares enter your Section 104 pool, acquired on the transfer date at
+the supplied base cost.
+
+Enter any separate allowable expense you incurred in acquiring the shares in `fees`: cgt-calc adds
+it to their cost without taking it from your cash balance. Check that the transfer qualifies for no
+gain/no loss and that this is your own allowable acquisition expense, not a cost already included in
+the supplied base cost. cgt-calc cannot verify those facts. If you cannot establish them, work this
+holding out separately (consider professional advice). See
+[TCGA 1992 s38](https://www.legislation.gov.uk/ukpga/1992/12/section/38) and
+[HMRC CG15250](https://www.gov.uk/hmrc-internal-manuals/capital-gains-manual/cg15250) for allowable
+costs and the purpose test.
 
 ```csv
 2024-03-16,TRANSFER_FROM_SPOUSE,META,21.5,95.60,0.00,GBP

@@ -480,10 +480,12 @@ class TransactionIngester:
         elif transaction.action is ActionType.TRANSFER_FROM_SPOUSE:
             # Shares received from a spouse arrive at the base cost they left
             # with (TCGA 1992 s58, CG22200), which the row states as the price.
+            # The recipient's separate incidental acquisition costs are added
+            # under s38(1)(a), s38(2).
             # No money moves, so it is pooled the way a vest is.
             if price is None:
                 raise PriceMissingError(transaction)
-            amount = round_decimal(quantity * price, 2)
+            amount = round_decimal(quantity * price + transaction.fees, 2)
         elif transaction.action is ActionType.SPIN_OFF:
             price, amount = self.handle_spin_off(transaction)
         else:
