@@ -30,6 +30,9 @@ def _asking_yahoo(failed: CgtError) -> Generator[None]:
     The HTTP libraries yfinance uses, `curl_cffi` and `requests`, raise
     subclasses of `OSError` for no connection, DNS, a proxy, TLS or a timeout.
     Yahoo refusing with HTTP 429 is `YFRateLimitError`.
+
+    While the request runs, deprecation warnings attributed to `yfinance`
+    are hidden unless the root logger enables `DEBUG` (`--verbose`).
     """
     # Imported here because it loads pandas, and most runs fetch no price.
     from yfinance.exceptions import YFRateLimitError  # type: ignore[import-untyped]  # noqa: PLC0415
