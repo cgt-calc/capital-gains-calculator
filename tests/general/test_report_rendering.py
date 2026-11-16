@@ -32,7 +32,7 @@ import pytest
 from cgt_calc.exceptions import CgtError
 from cgt_calc.model import ActionType
 from cgt_calc.render_pdf import render_pdf
-from tests.utils import build_cmd, pdf_text, report_text, run_cli
+from tests.utils import build_cmd, pdf_text, report_text, run_cli, summary_figure
 
 from .calc_test_data import GBP, transaction
 from .test_calc import create_calculator, get_report
@@ -533,6 +533,48 @@ def test_a_fee_on_a_vest_is_part_of_its_cost(tmp_path: Path) -> None:
             [(Decimal("1500.00"), Decimal("1010.00"), Decimal("490.00"))],
         )
     ]
+
+
+def test_a_fee_on_shares_received_from_spouse_is_part_of_their_cost(
+    tmp_path: Path,
+) -> None:
+    """A recipient's separate allowable expense joins the supplied base cost.
+
+    Assume a qualifying no gain/no loss transfer and a separate £10 expense
+    incurred by the recipient that satisfies TCGA 1992 s38(1)(a) and (2):
+    - cost: 10 x £100 supplied base cost + £10 = £1,010 (£101 a unit);
+    - proceeds: 10 x £150 = £1,500;
+    - gain: £1,500 - £1,010 = £490.
+    The old cost was £1,000 and gain £500, while the PDF said the cost
+    included £10 fees. Use a real RAW file and leave the balance check on:
+    no cash is held, so charging the fee to cash would stop the run.
+    """
+    raw = tmp_path / "spouse.csv"
+    raw.write_text(
+        "date,action,symbol,quantity,price,fees,currency\n"
+        "2024-06-01,TRANSFER_FROM_SPOUSE,FOO,10,100,10,GBP\n"
+        "2024-08-01,SELL,FOO,10,150,0,GBP\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "report.pdf"
+    result = run_cli(
+        build_cmd("--year", "2024", "--raw-file", str(raw), "--output", str(output))
+    )
+    text = " ".join(pdf_text(output).split())
+
+    assert (
+        "Acquisition 1: 10 units of FOO for £1,010.00 (£101.00/unit), "
+        "including £10.00 fees"
+    ) in text
+    assert disposals(text) == [
+        (
+            "FOO",
+            Decimal("1500.00"),
+            [(Decimal("1500.00"), Decimal("1010.00"), Decimal("490.00"))],
+        )
+    ]
+    assert summary_figure(result.stdout, "Allowable costs") == "1,010.00"
+    assert summary_figure(result.stdout, "Gain") == "490.00"
 
 
 def test_a_page_break_keeps_each_rule_with_the_row_under_it(tmp_path: Path) -> None:
