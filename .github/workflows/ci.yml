@@ -124,9 +124,57 @@ jobs:
         # Catches runtime imports of packages which are only declared
         # as dev dependencies. yfinance is imported only when a price is
         # fetched, so --help alone would not load it.
+        # Python -I keeps the checkout off the resource check's import path.
         run: |
           uv run --isolated --no-project --with ./dist/*.whl -- cgt-calc --help
-          uv run --isolated --no-project --with ./dist/*.whl -- python -c "import yfinance"
+          uv run --isolated --no-project --with ./dist/*.whl -- python -I - <<'PY'
+          from importlib.resources import files
+
+          import yfinance
+
+          package = files("cgt_calc")
+          expected = (
+              "py.typed",
+              "resources/eri/amundi_eri.csv",
+              "resources/eri/blackrock_eri.csv",
+              "resources/eri/hsbc_eri.csv",
+              "resources/eri/invesco_eri.csv",
+              "resources/eri/ishares_eri.csv",
+              "resources/eri/jpmorgan_eri.csv",
+              "resources/eri/legal_and_general_eri.csv",
+              "resources/eri/spdr_eri.csv",
+              "resources/eri/vanguard_eri.csv",
+              "resources/eri/xtrackers_eri.csv",
+              "resources/fonts/noto-sans/NotoSans-Bold.otf",
+              "resources/fonts/noto-sans/NotoSans-Regular.otf",
+              "resources/fonts/noto-sans/NotoSans-SemiBold.otf",
+              "resources/fonts/noto-sans/OFL.txt",
+              "resources/hmrc_exchange_rates/2002.csv",
+              "resources/hmrc_exchange_rates/2003.csv",
+              "resources/hmrc_exchange_rates/2004.csv",
+              "resources/hmrc_exchange_rates/2005.csv",
+              "resources/hmrc_exchange_rates/2006.csv",
+              "resources/hmrc_exchange_rates/2007.csv",
+              "resources/hmrc_exchange_rates/2008.csv",
+              "resources/hmrc_exchange_rates/2009.csv",
+              "resources/hmrc_exchange_rates/2010.csv",
+              "resources/hmrc_exchange_rates/2011.csv",
+              "resources/hmrc_exchange_rates/2012.csv",
+              "resources/hmrc_exchange_rates/2013.csv",
+              "resources/hmrc_exchange_rates/2014.csv",
+              "resources/hmrc_exchange_rates/2015.csv",
+              "resources/hmrc_exchange_rates/2016.csv",
+              "resources/hmrc_exchange_rates_notice.txt",
+              "resources/initial_isin_translation.csv",
+              "resources/reporting_funds.csv",
+              "resources/reporting_funds_notice.txt",
+              "resources/share_prices.csv",
+              "resources/template.typ",
+              "resources/ticker_renames.csv",
+          )
+          missing = [name for name in expected if not package.joinpath(name).is_file()]
+          assert not missing, f"Missing bundled files in installed wheel: {', '.join(missing)}"
+          PY
 
   markdown-link-check:
     name: Markdown link check
