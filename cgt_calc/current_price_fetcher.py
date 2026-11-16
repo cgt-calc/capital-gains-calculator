@@ -5,7 +5,9 @@ from __future__ import annotations
 from contextlib import contextmanager
 import datetime as dt
 from decimal import Decimal
+import logging
 from typing import TYPE_CHECKING
+import warnings
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -32,10 +34,15 @@ def _asking_yahoo(failed: CgtError) -> Generator[None]:
     # Imported here because it loads pandas, and most runs fetch no price.
     from yfinance.exceptions import YFRateLimitError  # type: ignore[import-untyped]  # noqa: PLC0415
 
-    try:
-        yield
-    except (OSError, YFRateLimitError) as err:
-        raise failed from err
+    with warnings.catch_warnings():
+        if not logging.getLogger().isEnabledFor(logging.DEBUG):
+            warnings.filterwarnings(
+                "ignore", category=DeprecationWarning, module=r"yfinance(?:\.|$)"
+            )
+        try:
+            yield
+        except (OSError, YFRateLimitError) as err:
+            raise failed from err
 
 
 class CurrentPriceFetcher:

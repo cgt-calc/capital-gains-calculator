@@ -7,7 +7,8 @@ from decimal import Decimal, localcontext
 import logging
 import sys
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, override
+import warnings
 
 from curl_cffi.requests.exceptions import ConnectionError as CurlConnectionError
 import pandas as pd
@@ -544,6 +545,75 @@ def _run_main(
     # keep that from leaking into other tests in the same worker.
     with localcontext():
         return main()
+
+
+def test_yahoo_deprecations_are_hidden_unless_verbose(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Successful spin-offs hide only Yahoo deprecations during the requests."""
+    emitted = [
+        ("yfinance", DeprecationWarning, "Yahoo deprecation"),
+        ("yfinance.utils", pd.errors.Pandas4Warning, "pandas inplace deprecation"),
+        ("yfinance.utils", RuntimeWarning, "Yahoo runtime warning"),
+        ("pandas", pd.errors.Pandas4Warning, "another module's deprecation"),
+        ("yfinance_extra", DeprecationWarning, "another library's deprecation"),
+    ]
+
+    class WarningTicker(FakeHistoryTicker):
+        @override
+        def history(self, **kwargs: object) -> pd.DataFrame:
+            for module, category, message in emitted:
+                warnings.warn_explicit(
+                    message, category, "dependency.py", 1, module=module
+                )
+            return super().history(**kwargs)
+
+    lookups: list[str] = []
+
+    def ticker(symbol: str) -> WarningTicker:
+        lookups.append(symbol)
+        return WarningTicker(10.0, "GBP")
+
+    spin_offs = tmp_path / "spin_offs.csv"
+    spin_offs.write_text("dst,src\nBBB,AAA\n", encoding="utf-8")
+    root = logging.getLogger()
+    level = root.level
+    try:
+        for verbose in (False, True, False):
+            lookups.clear()
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                status = _run_main(
+                    tmp_path,
+                    monkeypatch,
+                    "2024-05-01,BUY,AAA,10,4.00,0,GBP\n"
+                    "2024-06-03,SPIN_OFF,BBB,5,0,0,GBP\n",
+                    ticker,
+                    "--spin-offs-file",
+                    str(spin_offs),
+                    *(["--verbose"] if verbose else []),
+                )
+                warnings.warn_explicit(
+                    "after the request",
+                    DeprecationWarning,
+                    "dependency.py",
+                    1,
+                    module="yfinance.utils",
+                )
+
+            assert status == 0
+            assert lookups == ["BBB", "AAA"]
+            assert "Done! Calculations complete" in capsys.readouterr().err
+            expected = emitted if verbose else emitted[2:]
+            assert [(item.category, str(item.message)) for item in caught] == [
+                *((category, message) for _, category, message in expected),
+                *((category, message) for _, category, message in expected),
+                (DeprecationWarning, "after the request"),
+            ]
+    finally:
+        root.setLevel(level)
 
 
 @pytest.mark.parametrize(
