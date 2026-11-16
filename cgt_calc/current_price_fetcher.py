@@ -5,7 +5,9 @@ from __future__ import annotations
 from contextlib import contextmanager
 import datetime as dt
 from decimal import Decimal
+import logging
 from typing import TYPE_CHECKING
+import warnings
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -28,14 +30,22 @@ def _asking_yahoo(failed: CgtError) -> Generator[None]:
     The HTTP libraries yfinance uses, `curl_cffi` and `requests`, raise
     subclasses of `OSError` for no connection, DNS, a proxy, TLS or a timeout.
     Yahoo refusing with HTTP 429 is `YFRateLimitError`.
+
+    While the request runs, deprecation warnings attributed to `yfinance`
+    are hidden unless the root logger enables `DEBUG` (`--verbose`).
     """
     # Imported here because it loads pandas, and most runs fetch no price.
     from yfinance.exceptions import YFRateLimitError  # type: ignore[import-untyped]  # noqa: PLC0415
 
-    try:
-        yield
-    except (OSError, YFRateLimitError) as err:
-        raise failed from err
+    with warnings.catch_warnings():
+        if not logging.getLogger().isEnabledFor(logging.DEBUG):
+            warnings.filterwarnings(
+                "ignore", category=DeprecationWarning, module=r"yfinance(?:\.|$)"
+            )
+        try:
+            yield
+        except (OSError, YFRateLimitError) as err:
+            raise failed from err
 
 
 class CurrentPriceFetcher:
