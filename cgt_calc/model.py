@@ -706,23 +706,27 @@ class CalculationEntry:
                 f"Mismatch: {self.allowable_cost} != "
                 f"{self.amount} + {self.new_pool_cost} (for {self})"
             )
-        elif self.amount >= 0 and self.rule_type not in {
-            RuleType.SPIN_OFF,
-            RuleType.DIVIDEND,
-            RuleType.INTEREST,
-            RuleType.INTEREST_TAX,
-            RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
-            RuleType.RENAME,
-        }:
+        elif (
+            gain is not None
+            and self.amount >= 0
+            and self.rule_type
+            not in {
+                RuleType.SPIN_OFF,
+                RuleType.DIVIDEND,
+                RuleType.INTEREST,
+                RuleType.INTEREST_TAX,
+                RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
+                RuleType.RENAME,
+            }
+        ):
             # An entry that states a gain has to add up. One that states none
             # is an acquisition, whose amount is the cost it took on, written
             # negative. A cost of nothing is written as zero, which the sign
             # alone reads as proceeds of nothing.
-            if gain is not None:
-                assert self.gain == self.amount + self.fees - self.allowable_cost, (
-                    f"Mismatch: {self.gain} != "
-                    f"{self.amount} + {self.fees} - {self.allowable_cost} (for {self})"
-                )
+            assert self.gain == self.amount + self.fees - self.allowable_cost, (
+                f"Mismatch: {self.gain} != "
+                f"{self.amount} + {self.fees} - {self.allowable_cost} (for {self})"
+            )
 
     @override
     def __repr__(self) -> str:
