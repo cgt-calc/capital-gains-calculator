@@ -18,7 +18,15 @@ jobs:
       github.repository_owner == 'cgt-calc' &&
       github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
       - name: Create merge bot token
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
@@ -28,18 +36,41 @@ jobs:
           permission-contents: write
           permission-pull-requests: write
 
+      - name: Check auto-merge eligibility
+        id: eligibility
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: python3 -m scripts.dependabot_auto_merge
+
       - name: Read Dependabot metadata
         id: metadata
+        if: steps.eligibility.outputs.eligible == 'true'
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         with:
           github-token: ${{ steps.app-token.outputs.token }}
 
       - name: Enable auto-merge
         if: >-
+          steps.eligibility.outputs.eligible == 'true' && (
           steps.metadata.outputs.package-ecosystem == 'github-actions' ||
           steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-patch'
+          steps.metadata.outputs.update-type == 'version-update:semver-patch')
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_ID: ${{ github.event.pull_request.node_id }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-        run: gh pr merge --auto --squash "$PR_URL"
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          INCLUDE_STACK: ${{ github.event.pull_request.stack != null }}
+        run: |
+          if [ "$INCLUDE_STACK" = false ]; then
+            gh pr merge --auto --squash --match-head-commit "$HEAD_SHA" "$PR_URL"
+            exit 0
+          fi
+          gh api graphql \
+            -f query='mutation($id: ID!, $head: GitObjectID!, $stack: Boolean!) {
+              enablePullRequestAutoMerge(input: {
+                pullRequestId: $id, expectedHeadOid: $head,
+                mergeMethod: SQUASH, includeStack: $stack
+              }) { pullRequest { number } }
+            }' \
+            -f id="$PR_ID" -f head="$HEAD_SHA" -F stack="$INCLUDE_STACK"
