@@ -16,7 +16,9 @@ jobs:
     name: Enable auto-merge
     if: >-
       github.repository_owner == 'cgt-calc' &&
-      github.event.pull_request.user.login == 'dependabot[bot]'
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.actor == 'dependabot[bot]' &&
+      !github.event.pull_request.stack
     runs-on: ubuntu-latest
     steps:
       - name: Create merge bot token
