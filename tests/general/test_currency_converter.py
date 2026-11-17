@@ -809,7 +809,9 @@ def test_a_save_keeps_a_linked_rates_file_and_its_permissions(tmp_path: Path) ->
     assert stat.S_IMODE(kept.stat().st_mode) == 0o700
 
 
-def test_test_converter_records_new_rates(tmp_path: Path) -> None:
+def test_test_converter_records_new_rates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Record rates fetched during tests in the rates file."""
     rates_file = tmp_path / "rates.csv"
     rates_file.write_text("month,currency,rate\n", encoding="utf8")
@@ -818,7 +820,7 @@ def test_test_converter_records_new_rates(tmp_path: Path) -> None:
     def fake_query(date: dt.date, currency: CurrencyCode) -> None:
         converter.cache[date] = {CurrencyCode("USD"): Decimal("1.25")}
 
-    converter._query_hmrc_api = fake_query  # type: ignore[method-assign]  # ty: ignore[invalid-assignment]  # noqa: SLF001
+    monkeypatch.setattr(converter, "_query_hmrc_api", fake_query)
 
     assert converter.currency_to_gbp_rate(CurrencyCode("USD"), DATE) == Decimal("1.25")
     assert "2024-01-01,USD,1.25" in rates_file.read_text(encoding="utf-8")
