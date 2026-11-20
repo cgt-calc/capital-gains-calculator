@@ -443,6 +443,56 @@ def test_an_unknown_action_is_refused_with_its_row() -> None:
     assert excinfo.value.needs_update
 
 
+def test_stock_split_ignores_schwab_informational_price() -> None:
+    """A Schwab split-row price is metadata, not money paid or received."""
+    content = (
+        SCHWAB_HEADER
+        + '06/10/2024 as of 06/07/2024,Stock Split,ZZZ,ZZZ TEST CORP,"$120.888","1,314",,\n'
+    )
+
+    transactions = _read(content)
+
+    assert len(transactions) == 1
+    assert transactions[0].action == ActionType.STOCK_SPLIT
+    assert transactions[0].quantity == Decimal(1314)
+    assert transactions[0].price is None
+    assert transactions[0].amount is None
+
+
+@pytest.mark.parametrize(
+    ("money_fields", "error_fragment"),
+    [
+        ('"$1.00",', "The fees column of a share reorganisation states 1"),
+        (',"$1.00"', "The amount column of a share reorganisation states 1"),
+    ],
+    ids=["fees", "amount"],
+)
+def test_stock_split_still_rejects_actual_money(
+    tmp_path: Path, money_fields: str, error_fragment: str
+) -> None:
+    """Ignoring Schwab's split price must not hide cash or fees."""
+    csv_file = tmp_path / "transactions.csv"
+    csv_file.write_text(
+        SCHWAB_HEADER
+        + '06/10/2024 as of 06/07/2024,Stock Split,ZZZ,ZZZ TEST CORP,"$120.888","1,314",'
+        + money_fields
+        + "\n"
+    )
+    cmd = build_cmd(
+        "--year",
+        "2024",
+        "--schwab-file",
+        str(csv_file),
+        "--no-balance-check",
+        "--no-report",
+    )
+
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+
+    assert result.returncode != 0
+    assert error_fragment in result.stderr
+
+
 def test_read_transactions_empty_file() -> None:
     """Raise on empty transaction files."""
     with pytest.raises(ParsingError, match="file is empty"):
@@ -733,6 +783,7 @@ def test_full_redemption_rejects_zero_quantity() -> None:
 
     assert "FOO on 2023-01-15" in str(exc_info.value)
 
+
 def test_run_with_schwab_stock_split_files(request: pytest.FixtureRequest) -> None:
     """Run the Schwab stock-split fixture and check its output."""
     cmd = build_cmd(
@@ -746,5 +797,7 @@ def test_run_with_schwab_stock_split_files(request: pytest.FixtureRequest) -> No
     )
     result = run_cli(cmd)
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
-    expected_file = Path("tests") / "schwab" / "data" / "stock_split" / "expected_output.txt"
+    expected_file = (
+        Path("tests") / "schwab" / "data" / "stock_split" / "expected_output.txt"
+    )
     assert_stdout_matches(result, cmd, expected_file)

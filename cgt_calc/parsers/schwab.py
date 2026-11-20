@@ -353,6 +353,12 @@ class SchwabTransaction(BrokerTransaction):
             # Withholding on account-level cash interest, not tied to a security.
             action = ActionType.INTEREST_TAX
         price = _parse_decimal(row_dict, RequiredTransactionsColumn.PRICE)
+        # Schwab can populate Price on a Stock Split row with an informational
+        # share-price quote. It is not consideration paid or received.
+        # Do not pass that quote as transaction money; fees and amount remain
+        # intact and are still rejected by share-reorganisation validation.
+        if action == ActionType.STOCK_SPLIT:
+            price = None
         quantity = _parse_decimal(row_dict, RequiredTransactionsColumn.QUANTITY)
         fees = _parse_decimal(
             row_dict, RequiredTransactionsColumn.FEES_AND_COMM

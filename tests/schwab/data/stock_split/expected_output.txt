@@ -1,28 +1,38 @@
-Parsing tests/schwab/data/stock_split/transactions.csv...
-Found 6 broker transactions
-First pass completed
-Final portfolio:
+Final portfolio
   ZZZ: 815.00
-Final balance:
+
+Final balance
   Charles Schwab: 12806.01 (USD)
-Disposal proceeds: £65903.70
 
-Second pass completed
-Portfolio at the end of 2024/2025 tax year:
-  ZZZ: 815.00, £32644.53
-For tax year 2024/2025:
-Number of disposals: 2
-Disposal proceeds: £65903.70
-Allowable costs: £26037.42
-Capital gain: £39866.28
-Capital loss: £0.00
-Total capital gain: £39866.28
-Taxable capital gain: £36866.28
-Total dividends proceeds: £0.00
-Total amount of dividends tax yearly allowance: £500.00
-Total taxable dividends proceeds: £0.00
-Total UK interest proceeds: £0.00
-Total foreign interest proceeds: £0.00
+Portfolio at the end of 2024/2025 tax year
+  ZZZ: 815.00, £32,644.53
 
-Generating PDF report...
-All done!
+Tax summary for 2024/2025
+
+Capital gains
+  Disposals:                   2
+  Disposal proceeds:  £65,903.70
+  Allowable costs:    £26,037.42
+  Gain:               £39,866.28
+  Loss:                    £0.00
+  Total gain:         £39,866.28
+  Taxable gain:       £36,866.28
+  Tax at basic rate:   £3,686.63
+  Tax at higher rate:  £7,373.26
+Basic rate (10%, or 18% from 30 October 2024): your taxable income for 2024/2025 plus the taxable gain is £37,700 or less.
+Higher rate (20%, or 24% from 30 October 2024): your taxable income for 2024/2025 is £37,700 or more.
+If your taxable income is under £37,700 but the taxable gain takes you over it, you pay the basic rate on the part of it that fits under £37,700 and the higher rate on the rest. Your tax is then between the two figures.
+Taxable income is your income after the Personal Allowance and other Income Tax reliefs.
+Losses and the annual exempt amount are deducted from the gains taxed at the highest rate first.
+To get a single figure, add --income with your income for 2024/2025 before the Personal Allowance, such as the pay on your P60. cgt-calc adds the dividends and interest in these files.
+The tax is an estimate: it leaves out gains that are not in the files you supplied, losses brought forward and reliefs. See https://cgt-calc.uk/tax-estimates/#what-the-estimates-leave-out
+
+Dividends
+  Proceeds:                £0.00
+  Tax-free allowance:    £500.00
+  Taxable proceeds:        £0.00
+
+Interest
+  UK proceeds:             £0.00
+  Foreign proceeds:        £0.00
+  Tax paid:                £0.00
