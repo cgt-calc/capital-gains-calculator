@@ -1,0 +1,28 @@
+Parsing tests/schwab/data/stock_split/transactions.csv...
+Found 6 broker transactions
+First pass completed
+Final portfolio:
+  ZZZ: 815.00
+Final balance:
+  Charles Schwab: 12806.01 (USD)
+Disposal proceeds: £65903.70
+
+Second pass completed
+Portfolio at the end of 2024/2025 tax year:
+  ZZZ: 815.00, £32644.53
+For tax year 2024/2025:
+Number of disposals: 2
+Disposal proceeds: £65903.70
+Allowable costs: £26037.42
+Capital gain: £39866.28
+Capital loss: £0.00
+Total capital gain: £39866.28
+Taxable capital gain: £36866.28
+Total dividends proceeds: £0.00
+Total amount of dividends tax yearly allowance: £500.00
+Total taxable dividends proceeds: £0.00
+Total UK interest proceeds: £0.00
+Total foreign interest proceeds: £0.00
+
+Generating PDF report...
+All done!

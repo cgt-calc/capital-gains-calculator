@@ -732,3 +732,19 @@ def test_full_redemption_rejects_zero_quantity() -> None:
         _read(content)
 
     assert "FOO on 2023-01-15" in str(exc_info.value)
+
+def test_run_with_schwab_stock_split_files(request: pytest.FixtureRequest) -> None:
+    """Run the Schwab stock-split fixture and check its output."""
+    cmd = build_cmd(
+        "--year",
+        "2024",
+        "--schwab-file",
+        "tests/schwab/data/stock_split/transactions.csv",
+        "--no-balance-check",
+        "--output",
+        report_path(request),
+    )
+    result = run_cli(cmd)
+    assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
+    expected_file = Path("tests") / "schwab" / "data" / "stock_split" / "expected_output.txt"
+    assert_stdout_matches(result, cmd, expected_file)
