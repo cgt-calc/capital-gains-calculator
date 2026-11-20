@@ -5,12 +5,18 @@ from decimal import Decimal
 import io
 from pathlib import Path
 import subprocess
+from typing import cast
 
 import pytest
 
 from cgt_calc.exceptions import ParsingError, SymbolMissingError
 from cgt_calc.model import ActionType, BrokerTransaction
-from cgt_calc.parsers.schwab import AwardPrices, SchwabParser, action_from_str
+from cgt_calc.parsers.schwab import (
+    AwardPrices,
+    SchwabParser,
+    SchwabTransaction,
+    action_from_str,
+)
 from tests.schwab.helpers import load_via_cli
 from tests.utils import (
     assert_stdout_matches,
@@ -453,10 +459,14 @@ def test_stock_split_ignores_schwab_informational_price() -> None:
     transactions = _read(content)
 
     assert len(transactions) == 1
-    assert transactions[0].action == ActionType.STOCK_SPLIT
-    assert transactions[0].quantity == Decimal(1314)
-    assert transactions[0].price is None
-    assert transactions[0].amount is None
+    split = cast("SchwabTransaction", transactions[0])
+    assert split.action == ActionType.STOCK_SPLIT
+    assert split.date == dt.date(2024, 6, 10)
+    assert split.posted_on == dt.date(2024, 6, 10)
+    assert split.as_of_date == dt.date(2024, 6, 7)
+    assert split.quantity == Decimal(1314)
+    assert split.price is None
+    assert split.amount is None
 
 
 @pytest.mark.parametrize(
@@ -491,6 +501,87 @@ def test_stock_split_still_rejects_actual_money(
 
     assert result.returncode != 0
     assert error_fragment in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("split_date", "earlier_trade", "error"),
+    [
+        ("06/10/2024", "", "cannot be placed either side"),
+        ("06/10/2024 as of 06/10/2024", "", "cannot be placed either side"),
+        (
+            "06/10/2024 as of 05/31/2024",
+            "06/03/2024,Buy,ZZZ,ZZZ TEST CORP,25,2,,-50\n",
+            "cannot tell which units the intervening row uses",
+        ),
+    ],
+    ids=["no as-of date", "same as-of date", "intervening buy"],
+)
+def test_schwab_split_refuses_ambiguous_trade_units(
+    tmp_path: Path, split_date: str, earlier_trade: str, error: str
+) -> None:
+    """Do not guess the units of trades near a Schwab split."""
+    csv_file = tmp_path / "transactions.csv"
+    csv_file.write_text(
+        SCHWAB_HEADER
+        + "06/10/2024,Buy,ZZZ,ZZZ TEST CORP,25,2,,-50\n"
+        + f"{split_date},Stock Split,ZZZ,ZZZ TEST CORP,25,8,,\n"
+        + earlier_trade
+        + "04/05/2024,Buy,ZZZ,ZZZ TEST CORP,50,8,,-400\n",
+        encoding="utf-8",
+    )
+    cmd = build_cmd(
+        "--year",
+        "2024",
+        "--schwab-file",
+        str(csv_file),
+        "--no-balance-check",
+        "--no-report",
+    )
+
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+
+    assert result.returncode != 0
+    assert error in result.stderr
+
+
+def test_schwab_split_ignores_unrelated_activity_in_as_of_gap(tmp_path: Path) -> None:
+    """Only changes to the split holding make the gap ambiguous."""
+    csv_file = tmp_path / "transactions.csv"
+    csv_file.write_text(
+        SCHWAB_HEADER
+        + "06/10/2024,Buy,ZZZ,ZZZ TEST CORP,5,4,,-20\n"
+        + "06/10/2024 as of 05/31/2024,Stock Split,ZZZ,ZZZ TEST CORP,5,10,,\n"
+        + "06/03/2024,Buy,FOO,FOO TEST CORP,9,3,,-27\n"
+        + "06/03/2024,Qualified Dividend,ZZZ,ZZZ TEST CORP,,,,2\n"
+        + "04/05/2024,Buy,ZZZ,ZZZ TEST CORP,10,10,,-100\n",
+        encoding="utf-8",
+    )
+    cmd = build_cmd(
+        "--year",
+        "2024",
+        "--schwab-file",
+        str(csv_file),
+        "--no-balance-check",
+        "--no-report",
+    )
+
+    result = run_cli(cmd)
+
+    assert stderr_alerts(result.stderr) == []
+    assert "  ZZZ: 24.00\n" in result.stdout
+
+
+def test_schwab_split_refuses_invalid_as_of_date() -> None:
+    """Report a malformed as-of date with the row it came from."""
+    content = (
+        SCHWAB_HEADER
+        + "06/10/2024 as of 06/31/2024,Stock Split,ZZZ,ZZZ TEST CORP,5,10,,\n"
+    )
+    with pytest.raises(
+        ParsingError,
+        match=r"row 2: Invalid stock split as-of date format: '06/31/2024'",
+    ):
+        _read(content)
 
 
 def test_read_transactions_empty_file() -> None:
