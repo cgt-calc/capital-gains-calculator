@@ -56,16 +56,15 @@ def _leg(
     leg.fee_quantity = None
     leg.foreign_fees = {}
     leg.capital_adjustments = []
-    # An exchange moves no money in or out of the account.
-    leg.affects_cash_balance = False
     return leg
 
 
 def exchange_legs(row: BrokerTransaction) -> list[BrokerTransaction]:
-    """Return the disposal, the acquisition and the fee's leg of `row`.
+    """Return the disposal, the acquisition and any fee disposal of `row`.
 
-    A fee paid in an asset is a disposal of it; one paid in cash leaves the
-    account's balance.
+    The legs' amounts move the balance by the cash the exchange moved: the
+    sale and the purchase together by minus the fee, which a fee paid in an
+    asset brings back as the proceeds of its disposal.
     """
     assert row.action is ActionType.EXCHANGE
     assert row.symbol is not None
@@ -104,7 +103,6 @@ def exchange_legs(row: BrokerTransaction) -> list[BrokerTransaction]:
             what,
         ),
     ]
-    fee_what = f"Fee for {what[0].lower()}{what[1:]}"
     if row.fee_symbol is not None:
         assert row.fee_quantity is not None
         legs.append(
@@ -116,23 +114,9 @@ def exchange_legs(row: BrokerTransaction) -> list[BrokerTransaction]:
                 fees / row.fee_quantity,
                 Decimal(0),
                 fees,
-                fee_what,
+                f"Fee for {what[0].lower()}{what[1:]}",
             )
         )
-    elif fees:
-        # A fee paid in cash leaves the account, though no asset does.
-        fee = copy.copy(legs[0])
-        fee.action = ActionType.ADJUSTMENT
-        fee.symbol = None
-        fee.isin = None
-        fee.market = None
-        fee.quantity = None
-        fee.price = None
-        fee.fees = Decimal(0)
-        fee.amount = -fees
-        fee.description = fee_what
-        fee.affects_cash_balance = True
-        legs.append(fee)
     return legs
 
 

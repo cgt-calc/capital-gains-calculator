@@ -368,7 +368,6 @@ def test_an_exchange_is_read_as_a_sale_a_purchase_and_a_fee_sale(
         assert leg.source == rows[1].source
         assert leg.to_symbol is None
         assert leg.fee_symbol is None
-        assert not leg.affects_cash_balance
     # The row read from the file is left as it was.
     assert rows[1].action is ActionType.EXCHANGE
 
