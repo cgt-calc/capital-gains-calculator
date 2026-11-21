@@ -30,10 +30,11 @@ def _leg(
     amount: Decimal,
     description: str,
 ) -> BrokerTransaction:
-    """Return one leg of `row`, a copy so it keeps the row's kind and source.
+    """Return one leg of `row`: a row of the same class, date, broker and source.
 
-    A copy rather than a new row: a RAW row is checked and reported as one
-    throughout the calculation, and its legs should be too.
+    Built from `row` rather than as a plain BrokerTransaction, so a leg of a
+    RAW row is checked as a RAW row, and an error about it names the line of
+    the EXCHANGE row it came from.
     """
     leg = copy.copy(row)
     leg.action = action
@@ -45,7 +46,10 @@ def _leg(
     leg.description = description
     leg.isin = None
     leg.market = None
-    leg.exchange = None
+    leg.to_symbol = None
+    leg.to_quantity = None
+    leg.fee_symbol = None
+    leg.fee_quantity = None
     leg.foreign_fees = dict(row.foreign_fees) if action is ActionType.SELL else {}
     leg.capital_adjustments = []
     # An exchange moves no money in or out of the account.
@@ -55,15 +59,15 @@ def _leg(
 
 def exchange_legs(row: BrokerTransaction) -> list[BrokerTransaction]:
     """Return the disposal, the acquisition and any fee disposal of `row`."""
-    exchange = row.exchange
     assert row.action is ActionType.EXCHANGE
-    assert exchange is not None
     assert row.symbol is not None
     assert row.quantity is not None
     assert row.price is not None
+    assert row.to_symbol is not None
+    assert row.to_quantity is not None
     value = row.quantity * row.price
     fees = row.fees
-    what = f"Exchange of {row.symbol} for {exchange.to_symbol}"
+    what = f"Exchange of {row.symbol} for {row.to_symbol}"
     legs = [
         _leg(
             row,
@@ -80,23 +84,23 @@ def exchange_legs(row: BrokerTransaction) -> list[BrokerTransaction]:
         _leg(
             row,
             ActionType.BUY,
-            exchange.to_symbol,
-            exchange.to_quantity,
-            value / exchange.to_quantity,
+            row.to_symbol,
+            row.to_quantity,
+            value / row.to_quantity,
             Decimal(0),
             -value,
             what,
         ),
     ]
-    if exchange.fee_symbol is not None:
-        assert exchange.fee_quantity is not None
+    if row.fee_symbol is not None:
+        assert row.fee_quantity is not None
         legs.append(
             _leg(
                 row,
                 ActionType.SELL,
-                exchange.fee_symbol,
-                exchange.fee_quantity,
-                fees / exchange.fee_quantity,
+                row.fee_symbol,
+                row.fee_quantity,
+                fees / row.fee_quantity,
                 Decimal(0),
                 fees,
                 f"Fee for {what[0].lower()}{what[1:]}",

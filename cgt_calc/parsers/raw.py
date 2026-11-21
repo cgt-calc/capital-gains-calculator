@@ -17,7 +17,6 @@ from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
     CurrencyCode,
-    ExchangeDetails,
     TransactionSource,
 )
 from cgt_calc.util import is_blank_row, parse_decimal
@@ -141,8 +140,11 @@ def _parse_exchange(
     quantity: Decimal | None,
     price: Decimal | None,
     fees: Decimal,
-) -> ExchangeDetails | None:
-    """Read the other side of an EXCHANGE row, or check another row has none."""
+) -> tuple[str | None, Decimal | None, str | None, Decimal | None]:
+    """Read the other side of an EXCHANGE row, or check another row has none.
+
+    Return `to_symbol`, `to_quantity`, `fee_symbol` and `fee_quantity`.
+    """
     if action is not ActionType.EXCHANGE:
         filled = [column.value for column in EXCHANGE_COLUMNS if row.get(column)]
         if filled:
@@ -152,7 +154,7 @@ def _parse_exchange(
                 f"on an EXCHANGE row. Leave {'it' if len(filled) == 1 else 'them'} "
                 f"blank on a {action.name} row."
             )
-        return None
+        return None, None, None, None
     currency = row[RawColumn.CURRENCY]
     if symbol is None:
         raise ValueError("An EXCHANGE row names the asset given up as its symbol.")
@@ -210,7 +212,7 @@ def _parse_exchange(
                 f"An EXCHANGE row whose fee was paid in {fee_symbol} gives the "
                 f"fee's market value in {currency} in the 'fees' column."
             )
-    return ExchangeDetails(to_symbol, to_quantity, fee_symbol, fee_quantity)
+    return to_symbol, to_quantity, fee_symbol, fee_quantity
 
 
 class RawTransaction(BrokerTransaction):
@@ -226,7 +228,7 @@ class RawTransaction(BrokerTransaction):
     2023-03-16,TRANSFER_TO_SPOUSE,META,21.5,0.00,0.00,USD
     2023-03-16,TRANSFER_FROM_SPOUSE,META,21.5,95.60,0.00,GBP
 
-    An EXCHANGE row adds the optional exchange columns:
+    An EXCHANGE row needs the optional exchange columns:
     date,action,symbol,quantity,price,fees,currency,to_symbol,to_quantity,fee_symbol,fee_quantity
     2025-06-03,EXCHANGE,BTC,0.5,40000,3.00,GBP,ETH,10,BNB,0.01
 
@@ -303,7 +305,9 @@ class RawTransaction(BrokerTransaction):
                 "Fees cannot be negative. Enter the fees you paid as a positive number."
             )
 
-        exchange = _parse_exchange(row_values, action, symbol, quantity, price, fees)
+        to_symbol, to_quantity, fee_symbol, fee_quantity = _parse_exchange(
+            row_values, action, symbol, quantity, price, fees
+        )
 
         if price is not None and quantity is not None:
             amount = price * quantity
@@ -344,9 +348,12 @@ class RawTransaction(BrokerTransaction):
             amount,
             currency,
             broker,
+            to_symbol=to_symbol,
+            to_quantity=to_quantity,
+            fee_symbol=fee_symbol,
+            fee_quantity=fee_quantity,
         )
         self.market = market or None
-        self.exchange = exchange
 
 
 def raw_file_of(rows: Iterable[BrokerTransaction]) -> Path | None:
@@ -422,10 +429,11 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
                 raise
             except ValueError as err:
                 raise ParsingError(file_path, str(err), row_index=index) from err
-            symbols = [transaction.symbol]
-            if (exchange := transaction.exchange) is not None:
-                symbols += [exchange.to_symbol, exchange.fee_symbol]
-            for symbol in symbols:
+            for symbol in (
+                transaction.symbol,
+                transaction.to_symbol,
+                transaction.fee_symbol,
+            ):
                 if symbol is None:
                     continue
                 first, first_index = spellings.setdefault(

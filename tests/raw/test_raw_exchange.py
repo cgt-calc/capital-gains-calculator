@@ -12,7 +12,7 @@ import pytest
 
 from cgt_calc.exceptions import InvalidTransactionError, ParsingError
 from cgt_calc.exchanges import exchange_legs, expand_exchanges
-from cgt_calc.model import ActionType, ExchangeDetails
+from cgt_calc.model import ActionType
 from cgt_calc.parsers.raw import RawParser, RawTransaction
 from tests.general.test_calc import create_calculator, get_report
 from tests.utils import (
@@ -84,7 +84,12 @@ def test_an_exchange_row_reads_both_sides_and_the_fee_asset(tmp_path: Path) -> N
     assert row.symbol == "BTC"
     assert row.fees == Decimal("4.00")
     assert row.amount == Decimal("19996.00")
-    assert row.exchange == ExchangeDetails("ETH", Decimal(10), "BNB", Decimal("0.01"))
+    assert (row.to_symbol, row.to_quantity, row.fee_symbol, row.fee_quantity) == (
+        "ETH",
+        Decimal(10),
+        "BNB",
+        Decimal("0.01"),
+    )
 
 
 def test_a_row_without_the_exchange_columns_has_no_exchange(tmp_path: Path) -> None:
@@ -98,7 +103,12 @@ def test_a_row_without_the_exchange_columns_has_no_exchange(tmp_path: Path) -> N
 
     (row,) = RawParser.load_from_file(raw_file, show_parsing_msg=False)
 
-    assert row.exchange is None
+    assert (row.to_symbol, row.to_quantity, row.fee_symbol, row.fee_quantity) == (
+        None,
+        None,
+        None,
+        None,
+    )
 
 
 @pytest.mark.parametrize(
@@ -346,7 +356,8 @@ def test_an_exchange_is_read_as_a_sale_a_purchase_and_a_fee_sale(
     for leg in expanded[1:]:
         assert isinstance(leg, RawTransaction)
         assert leg.source == rows[1].source
-        assert leg.exchange is None
+        assert leg.to_symbol is None
+        assert leg.fee_symbol is None
         assert not leg.affects_cash_balance
     # The row read from the file is left as it was.
     assert rows[1].action is ActionType.EXCHANGE

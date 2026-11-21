@@ -672,8 +672,9 @@ _WRONG_COLUMNS = (
                 problems="Unknown columns: 'description', 'amount', 'isin', "
                 "'foreign_fees', 'ambiguous_quantity', 'option_contract', "
                 "'written_option_tax', 'capital_adjustments', "
-                "'affects_cash_balance', 'exchange', 'source'.",
-                header=f"{_SEVEN},broker,market",
+                "'affects_cash_balance', 'source'.",
+                header=f"{_SEVEN},broker,market,to_symbol,to_quantity,fee_symbol,"
+                "fee_quantity",
             ),
             id="the --dump-transactions output",
         ),
