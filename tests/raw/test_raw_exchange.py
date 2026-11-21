@@ -345,10 +345,10 @@ def test_an_exchange_is_read_as_a_sale_a_purchase_and_a_fee_sale(
             "BTC",
             Decimal("0.5"),
             Decimal(40000),
-            Decimal(4),
-            Decimal(19996),
+            Decimal(2),
+            Decimal(19998),
         ),
-        (ActionType.BUY, "ETH", Decimal(8), Decimal(2500), Decimal(0), Decimal(-20000)),
+        (ActionType.BUY, "ETH", Decimal(8), Decimal(2500), Decimal(2), Decimal(-20002)),
         (
             ActionType.SELL,
             "BNB",
@@ -369,26 +369,26 @@ def test_an_exchange_is_read_as_a_sale_a_purchase_and_a_fee_sale(
 
 
 def test_an_exchange_with_a_cash_fee_has_no_fee_sale(tmp_path: Path) -> None:
-    """A fee paid in cash is a cost of the sale and nothing more."""
+    """A fee paid in cash is split between the sale and the purchase."""
     (row,) = _read(
         tmp_path,
         [["2024-06-03", "EXCHANGE", "BTC", "1", "100", "2", "GBP", "ETH", "4", "", ""]],
     )
 
     assert [(leg.action, leg.symbol, leg.fees) for leg in exchange_legs(row)] == [
-        (ActionType.SELL, "BTC", Decimal(2)),
-        (ActionType.BUY, "ETH", Decimal(0)),
+        (ActionType.SELL, "BTC", Decimal(1)),
+        (ActionType.BUY, "ETH", Decimal(1)),
     ]
 
 
 def test_an_exchange_disposes_of_one_asset_and_pools_the_other(
     tmp_path: Path,
 ) -> None:
-    """BTC is sold at the value of the swap less the fee, ETH costs that value.
+    """Half the fee is a cost of selling BTC and half a cost of buying ETH.
 
-    - BTC: 20,000 - 4 fee - 15,000 cost = 4,996;
+    - BTC: 20,000 - 2 fee - 15,000 cost = 4,998;
     - BNB fee: 0.01 at 400, its cost, so no gain;
-    - ETH: sold for 21,000 against its 20,000 cost = 1,000.
+    - ETH: sold for 21,000 against its 20,000 + 2 fee cost = 998.
 
     The exchange moves no cash, so the balance check passes on the deposit.
     """
@@ -417,10 +417,10 @@ def test_an_exchange_disposes_of_one_asset_and_pools_the_other(
     (btc,) = report.calculation_log[exchange_day]["sell$BTC"]
     (bnb,) = report.calculation_log[exchange_day]["sell$BNB"]
     (eth,) = report.calculation_log[dt.date(2024, 7, 1)]["sell$ETH"]
-    assert btc.gain == Decimal(4996)
+    assert btc.gain == Decimal(4998)
     assert bnb.gain == Decimal(0)
-    assert eth.allowable_cost == Decimal(20000)
-    assert eth.gain == Decimal(1000)
+    assert eth.allowable_cost == Decimal(20002)
+    assert eth.gain == Decimal(998)
     assert report.capital_gain == Decimal(5996)
     assert [
         (entry.symbol, entry.quantity) for entry in report.portfolio if entry.quantity
@@ -453,9 +453,10 @@ def test_a_fee_taken_from_the_asset_received_is_matched_the_same_day(
 
     exchange_day = dt.date(2024, 6, 3)
     (fee,) = report.calculation_log[exchange_day]["sell$ETH"]
-    # 0.01 ETH costs 20 of the 20,000 paid for 10, and is worth the 20 fee.
-    assert fee.allowable_cost == Decimal(20)
-    assert fee.gain == Decimal(0)
+    # 0.01 ETH costs 20.01 of the 20,010 paid for 10, half the fee included,
+    # and is worth the 20 fee.
+    assert fee.allowable_cost == Decimal("20.01")
+    assert fee.gain == Decimal("-0.01")
     (eth,) = (entry for entry in report.portfolio if entry.symbol == "ETH")
     assert eth.quantity == Decimal("9.99")
 
@@ -485,11 +486,12 @@ def test_a_fee_paid_in_the_asset_given_up_is_a_second_sale_of_it(
     )
 
     entries = report.calculation_log[dt.date(2024, 6, 3)]["sell$BTC"]
-    # 0.41 BTC leaves the pool at 30,000 each: 12,300, and the 400 fee is a
-    # cost too. Proceeds are the 16,000 swap and the 400 the fee BTC was worth.
+    # 0.41 BTC leaves the pool at 30,000 each: 12,300, and half the 400 fee is
+    # a cost too. Proceeds are the 16,000 swap and the 400 the fee BTC was
+    # worth. The other half of the fee is a cost of the ETH.
     assert sum(entry.quantity for entry in entries) == Decimal("0.41")
-    assert sum(entry.allowable_cost for entry in entries) == Decimal(12700)
-    assert report.capital_gain == Decimal(16400 - 12700)
+    assert sum(entry.allowable_cost for entry in entries) == Decimal(12500)
+    assert report.capital_gain == Decimal(16400 - 12500)
 
 
 def test_exchanging_an_asset_not_held_is_refused(tmp_path: Path) -> None:

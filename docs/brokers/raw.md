@@ -435,8 +435,10 @@ The error names the RAW row:
 
 An `EXCHANGE` row records giving up one asset for another with no cash changing hands, such as
 swapping one cryptoasset for another. cgt-calc reads it as a disposal of the asset given up at its
-market value and an acquisition of the asset received at that same value. A fee paid in a third
-asset is a disposal of that asset too, and its value is an allowable cost of the exchange.
+market value and an acquisition of the asset received at that same value. A fee relates to the whole
+exchange, so cgt-calc splits its value equally between the two: half is a cost of the disposal and
+half a cost of the acquisition, the basis HMRC accepts. A fee paid in a third asset is a disposal of
+that asset too.
 
 Add these four columns to the header. Leave them blank on every row that is not an `EXCHANGE`.
 
@@ -455,10 +457,10 @@ date,action,symbol,quantity,price,fees,currency,to_symbol,to_quantity,fee_symbol
 ```
 
 Here 0.5 BTC worth £20,000 is exchanged for 10 ETH, with a fee of 0.01 BNB worth £4. The BTC is
-disposed of for £20,000 less the £4 fee, the ETH costs £20,000, and the 0.01 BNB is disposed of for
-£4. The values are yours to enter: use the market value at the time of the exchange. A fee taken
-from the asset received is disposed of the same day it is acquired, so it is matched with that
-acquisition.
+disposed of for £20,000 less £2 of the fee, the ETH costs £20,000 plus the other £2, and the 0.01
+BNB is disposed of for £4. The values are yours to enter: use the market value at the time of the
+exchange. A fee taken from the asset received is disposed of the same day it is acquired, so it is
+matched with that acquisition.
 
 An exchange moves no cash, so it does not take part in the balance check, and a fee paid in cash is
 counted as a cost without being taken from the balance. To exchange an asset for cash, write a

@@ -2,10 +2,12 @@
 
 Giving up one asset for another is a disposal of the first at the market value
 of the consideration and an acquisition of the second at that same value
-(TCGA 1992 s17, s38). A fee paid in a third asset is a disposal of that asset
-too, and its value is an allowable cost of the exchange. An EXCHANGE row is
-replaced by those legs before the history is planned, so the planning and
-matching code, which reads one holding per row, never sees one.
+(TCGA 1992 s17, s38). A fee relates to the whole exchange, so its value is
+split equally between the disposal and the acquisition, a basis HMRC accepts
+(CRYPTO22150). A fee paid in a third asset is a disposal of that asset too.
+An EXCHANGE row is replaced by those legs before the history is planned, so
+the planning and matching code, which reads one holding per row, never sees
+one.
 """
 
 from __future__ import annotations
@@ -67,6 +69,7 @@ def exchange_legs(row: BrokerTransaction) -> list[BrokerTransaction]:
     assert row.to_quantity is not None
     value = row.quantity * row.price
     fees = row.fees
+    half_fee = fees / 2
     what = f"Exchange of {row.symbol} for {row.to_symbol}"
     legs = [
         _leg(
@@ -75,8 +78,8 @@ def exchange_legs(row: BrokerTransaction) -> list[BrokerTransaction]:
             row.symbol,
             row.quantity,
             row.price,
-            fees,
-            value - fees,
+            half_fee,
+            value - half_fee,
             what,
         ),
         # Received at the value given up. Before the fee disposal below, so a
@@ -87,8 +90,8 @@ def exchange_legs(row: BrokerTransaction) -> list[BrokerTransaction]:
             row.to_symbol,
             row.to_quantity,
             value / row.to_quantity,
-            Decimal(0),
-            -value,
+            half_fee,
+            -value - half_fee,
             what,
         ),
     ]
