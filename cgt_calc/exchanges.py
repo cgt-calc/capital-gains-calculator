@@ -36,7 +36,8 @@ def _leg(
 
     Built from `row` rather than as a plain BrokerTransaction, so a leg of a
     RAW row is checked as a RAW row, and an error about it names the line of
-    the EXCHANGE row it came from.
+    the EXCHANGE row it came from. The row's ISIN and market describe its own
+    `symbol`, so only a leg of that asset keeps them.
     """
     leg = copy.copy(row)
     leg.action = action
@@ -46,13 +47,14 @@ def _leg(
     leg.fees = fees
     leg.amount = amount
     leg.description = description
-    leg.isin = None
-    leg.market = None
+    if symbol != row.symbol:
+        leg.isin = None
+        leg.market = None
     leg.to_symbol = None
     leg.to_quantity = None
     leg.fee_symbol = None
     leg.fee_quantity = None
-    leg.foreign_fees = dict(row.foreign_fees) if action is ActionType.SELL else {}
+    leg.foreign_fees = {}
     leg.capital_adjustments = []
     # An exchange moves no money in or out of the account.
     leg.affects_cash_balance = False
@@ -67,6 +69,9 @@ def exchange_legs(row: BrokerTransaction) -> list[BrokerTransaction]:
     assert row.price is not None
     assert row.to_symbol is not None
     assert row.to_quantity is not None
+    # The fee is split between the legs by its value in `currency`, which a
+    # fee in another currency would not have.
+    assert not row.foreign_fees
     value = row.quantity * row.price
     fees = row.fees
     half_fee = fees / 2

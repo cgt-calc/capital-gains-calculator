@@ -165,10 +165,10 @@ def _parse_exchange(
         raise ValueError(
             "An EXCHANGE row gives the units given up as a positive quantity."
         )
-    if price is None or price < 0:
+    if price is None or price <= 0:
         raise ValueError(
-            "An EXCHANGE row gives the market value of one unit given up as its "
-            "price, which cannot be negative."
+            "An EXCHANGE row gives the market value of one unit given up as a "
+            "positive price."
         )
     to_symbol = row[RawColumn.TO_SYMBOL]
     if not to_symbol:

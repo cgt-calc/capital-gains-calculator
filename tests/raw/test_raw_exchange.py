@@ -195,6 +195,10 @@ def test_a_row_without_the_exchange_columns_has_no_exchange(tmp_path: Path) -> N
             "market value of one unit",
         ),
         (
+            ["2024-06-03", "EXCHANGE", "BTC", "1", "0", "0", "GBP", "ETH", "1", "", ""],
+            "positive price",
+        ),
+        (
             [
                 "2024-06-03",
                 "EXCHANGE",
@@ -268,6 +272,7 @@ def test_a_row_without_the_exchange_columns_has_no_exchange(tmp_path: Path) -> N
         "nothing received",
         "nothing given up",
         "no price",
+        "price of zero",
         "fee asset without its units",
         "fee asset without its value",
         "fee units without their asset",
@@ -368,17 +373,60 @@ def test_an_exchange_is_read_as_a_sale_a_purchase_and_a_fee_sale(
     assert rows[1].action is ActionType.EXCHANGE
 
 
-def test_an_exchange_with_a_cash_fee_has_no_fee_sale(tmp_path: Path) -> None:
-    """A fee paid in cash is split between the sale and the purchase."""
-    (row,) = _read(
+def test_an_exchange_keeps_the_market_on_the_asset_given_up(tmp_path: Path) -> None:
+    """The row's market names its own symbol, not the asset received."""
+    raw_file = tmp_path / "raw.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency,market,to_symbol,"
+        "to_quantity,fee_symbol,fee_quantity\n"
+        "2024-06-03,EXCHANGE,BTC,1,100,2,GBP,US,ETH,4,BTC,0.01\n",
+        encoding="utf-8",
+    )
+    (row,) = RawParser.load_from_file(raw_file, show_parsing_msg=False)
+
+    assert [(leg.symbol, leg.market) for leg in exchange_legs(row)] == [
+        ("BTC", "US"),
+        ("ETH", None),
+        ("BTC", "US"),
+    ]
+
+
+def test_a_cash_fee_is_split_between_the_sale_and_the_purchase(
+    tmp_path: Path,
+) -> None:
+    """With no fee asset, half the cash fee is a cost of each side.
+
+    - BTC: 20,000 - 2 fee - 15,000 cost = 4,998;
+    - ETH: sold for 21,000 against its 20,000 + 2 fee cost = 998.
+    """
+    report = _report(
         tmp_path,
-        [["2024-06-03", "EXCHANGE", "BTC", "1", "100", "2", "GBP", "ETH", "4", "", ""]],
+        [
+            *FUNDING,
+            [
+                "2024-06-03",
+                "EXCHANGE",
+                "BTC",
+                "0.5",
+                "40000",
+                "4",
+                "GBP",
+                "ETH",
+                "10",
+                "",
+                "",
+            ],
+            ["2024-07-01", "SELL", "ETH", "10", "2100", "0", "GBP", "", "", "", ""],
+        ],
     )
 
-    assert [(leg.action, leg.symbol, leg.fees) for leg in exchange_legs(row)] == [
-        (ActionType.SELL, "BTC", Decimal(1)),
-        (ActionType.BUY, "ETH", Decimal(1)),
-    ]
+    exchange_day = dt.date(2024, 6, 3)
+    assert set(report.calculation_log[exchange_day]) == {"sell$BTC", "buy$ETH"}
+    (btc,) = report.calculation_log[exchange_day]["sell$BTC"]
+    (eth,) = report.calculation_log[dt.date(2024, 7, 1)]["sell$ETH"]
+    assert btc.gain == Decimal(4998)
+    assert eth.allowable_cost == Decimal(20002)
+    assert eth.gain == Decimal(998)
 
 
 def test_an_exchange_disposes_of_one_asset_and_pools_the_other(
