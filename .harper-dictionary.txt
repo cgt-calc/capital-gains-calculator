@@ -449,3 +449,8 @@ SIL
 McLennan
 rename's
 Direct's
+cryptoasset
+cryptoassets
+BTC
+ETH
+BNB

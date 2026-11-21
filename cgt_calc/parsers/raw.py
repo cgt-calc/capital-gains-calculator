@@ -17,6 +17,7 @@ from cgt_calc.model import (
     ActionType,
     BrokerTransaction,
     CurrencyCode,
+    ExchangeDetails,
     TransactionSource,
 )
 from cgt_calc.util import is_blank_row, parse_decimal
@@ -44,9 +45,25 @@ class RawColumn(StrEnum):
     BROKER = "broker"
     REPLACES = "replaces"
     MARKET = "market"
+    # Read only on an EXCHANGE row: the asset received and the fee's asset.
+    TO_SYMBOL = "to_symbol"
+    TO_QUANTITY = "to_quantity"
+    FEE_SYMBOL = "fee_symbol"
+    FEE_QUANTITY = "fee_quantity"
 
 
-_OPTIONAL_COLUMNS: Final = (RawColumn.BROKER, RawColumn.REPLACES, RawColumn.MARKET)
+EXCHANGE_COLUMNS: Final = (
+    RawColumn.TO_SYMBOL,
+    RawColumn.TO_QUANTITY,
+    RawColumn.FEE_SYMBOL,
+    RawColumn.FEE_QUANTITY,
+)
+_OPTIONAL_COLUMNS: Final = (
+    RawColumn.BROKER,
+    RawColumn.REPLACES,
+    RawColumn.MARKET,
+    *EXCHANGE_COLUMNS,
+)
 # The seven every header names, in the order the guide gives them.
 COLUMNS: Final[list[str]] = [
     column.value for column in RawColumn if column not in _OPTIONAL_COLUMNS
@@ -110,11 +127,90 @@ def _parse_decimal(
 ) -> Decimal | None:
     """Parse decimal value from the row, raising ValueError with context on failure."""
 
-    value = row[column]
+    value = row.get(column, "")
     if value == "":
         return default
 
     return parse_decimal(value, f"column '{column.value}'", strip=",")
+
+
+def _parse_exchange(
+    row: dict[RawColumn, str],
+    action: ActionType,
+    symbol: str | None,
+    quantity: Decimal | None,
+    price: Decimal | None,
+    fees: Decimal,
+) -> ExchangeDetails | None:
+    """Read the other side of an EXCHANGE row, or check another row has none."""
+    if action is not ActionType.EXCHANGE:
+        filled = [column.value for column in EXCHANGE_COLUMNS if row.get(column)]
+        if filled:
+            raise ValueError(
+                f"The {', '.join(repr(name) for name in filled)} "
+                f"{'column is' if len(filled) == 1 else 'columns are'} read only "
+                f"on an EXCHANGE row. Leave {'it' if len(filled) == 1 else 'them'} "
+                f"blank on a {action.name} row."
+            )
+        return None
+    currency = row[RawColumn.CURRENCY]
+    if symbol is None:
+        raise ValueError("An EXCHANGE row names the asset given up as its symbol.")
+    if quantity is None or quantity <= 0:
+        raise ValueError(
+            "An EXCHANGE row gives the units given up as a positive quantity."
+        )
+    if price is None or price < 0:
+        raise ValueError(
+            "An EXCHANGE row gives the market value of one unit given up as its "
+            "price, which cannot be negative."
+        )
+    to_symbol = row.get(RawColumn.TO_SYMBOL, "")
+    if not to_symbol:
+        raise ValueError(
+            "An EXCHANGE row names the asset received in the 'to_symbol' column."
+        )
+    if to_symbol == symbol:
+        raise ValueError(
+            f"An EXCHANGE row gives up and receives the same asset, {symbol}. "
+            "Name the asset received in the 'to_symbol' column."
+        )
+    if currency in {symbol, to_symbol}:
+        raise ValueError(
+            f"An EXCHANGE row swaps one asset for another, not for {currency} "
+            "cash: write a SELL row for cash received, or a BUY row for cash paid."
+        )
+    to_quantity = _parse_decimal(row, RawColumn.TO_QUANTITY)
+    if to_quantity is None or to_quantity <= 0:
+        raise ValueError(
+            "An EXCHANGE row gives the units received as a positive 'to_quantity'."
+        )
+    fee_symbol = row.get(RawColumn.FEE_SYMBOL) or None
+    fee_quantity = _parse_decimal(row, RawColumn.FEE_QUANTITY)
+    if fee_symbol is None:
+        if fee_quantity is not None:
+            raise ValueError(
+                "A 'fee_quantity' needs the asset the fee was paid in, in the "
+                "'fee_symbol' column. For a fee paid in cash, leave both blank "
+                "and enter it in 'fees'."
+            )
+    else:
+        if fee_symbol == currency:
+            raise ValueError(
+                f"For a fee paid in {currency} cash, leave 'fee_symbol' and "
+                "'fee_quantity' blank and enter it in 'fees'."
+            )
+        if fee_quantity is None or fee_quantity <= 0:
+            raise ValueError(
+                f"An EXCHANGE row whose fee was paid in {fee_symbol} gives the "
+                "units paid as a positive 'fee_quantity'."
+            )
+        if fees <= 0:
+            raise ValueError(
+                f"An EXCHANGE row whose fee was paid in {fee_symbol} gives the "
+                f"fee's market value in {currency} in the 'fees' column."
+            )
+    return ExchangeDetails(to_symbol, to_quantity, fee_symbol, fee_quantity)
 
 
 class RawTransaction(BrokerTransaction):
@@ -129,6 +225,10 @@ class RawTransaction(BrokerTransaction):
     2022-06-06,STOCK_SPLIT,AMZN,209,0.00,0.00,USD
     2023-03-16,TRANSFER_TO_SPOUSE,META,21.5,0.00,0.00,USD
     2023-03-16,TRANSFER_FROM_SPOUSE,META,21.5,95.60,0.00,GBP
+
+    An EXCHANGE row adds the optional exchange columns:
+    date,action,symbol,quantity,price,fees,currency,to_symbol,to_quantity,fee_symbol,fee_quantity
+    2025-06-03,EXCHANGE,BTC,0.5,40000,3.00,GBP,ETH,10,BNB,0.01
 
     See tests/raw/data/test_data.csv for a sample file showing the expected format.
     """
@@ -203,6 +303,8 @@ class RawTransaction(BrokerTransaction):
                 "Fees cannot be negative. Enter the fees you paid as a positive number."
             )
 
+        exchange = _parse_exchange(row_values, action, symbol, quantity, price, fees)
+
         if price is not None and quantity is not None:
             amount = price * quantity
 
@@ -244,6 +346,7 @@ class RawTransaction(BrokerTransaction):
             broker,
         )
         self.market = market or None
+        self.exchange = exchange
 
 
 def raw_file_of(rows: Iterable[BrokerTransaction]) -> Path | None:
@@ -319,7 +422,12 @@ class RawParser(BaseSingleFileParser[RawTransaction]):
                 raise
             except ValueError as err:
                 raise ParsingError(file_path, str(err), row_index=index) from err
-            if (symbol := transaction.symbol) is not None:
+            symbols = [transaction.symbol]
+            if (exchange := transaction.exchange) is not None:
+                symbols += [exchange.to_symbol, exchange.fee_symbol]
+            for symbol in symbols:
+                if symbol is None:
+                    continue
                 first, first_index = spellings.setdefault(
                     symbol.casefold(), (symbol, index)
                 )

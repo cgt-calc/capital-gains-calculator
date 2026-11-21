@@ -1,0 +1,7 @@
+date,action,symbol,quantity,price,fees,currency,to_symbol,to_quantity,fee_symbol,fee_quantity
+2024-05-01,TRANSFER,,1,20000,0,GBP,,,,
+2024-05-01,BUY,BTC,0.5,30000,0,GBP,,,,
+2024-05-01,BUY,BNB,1,400,0,GBP,,,,
+2024-06-03,EXCHANGE,BTC,0.5,40000,4.00,GBP,ETH,10,BNB,0.01
+2024-08-15,EXCHANGE,ETH,4,2000,8.00,GBP,SOL,50,ETH,0.004
+2025-01-10,SELL,ETH,5.996,2500,5.00,GBP,,,,
