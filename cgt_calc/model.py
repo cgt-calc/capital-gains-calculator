@@ -416,6 +416,12 @@ class ActionType(Enum):
     OPTION_CLOSE = 28
     OPTION_EXPIRY = 29
     OPTION_ASSIGNMENT = 30
+    # One asset given up for another, such as one cryptoasset for another: a
+    # disposal of the first at market value and an acquisition of the second
+    # at the same value. A fee paid in a third asset is a disposal of that
+    # asset too. Split into those legs before the history is planned, so no
+    # EXCHANGE row reaches the main pass.
+    EXCHANGE = 31
 
     @override
     def __str__(self) -> str:
@@ -426,6 +432,23 @@ class ActionType(Enum):
         user reads. Naming it here fixes all of them at once.
         """
         return self.name.replace("_", " ").capitalize()
+
+
+@dataclass(frozen=True)
+class ExchangeDetails:
+    """What an EXCHANGE row received, and the asset its fee was paid in.
+
+    The row's own `symbol`, `quantity` and `price` are the asset given up, its
+    units and its market value per unit; `fees` is the value of the fee.
+    """
+
+    to_symbol: str
+    # Units received, before any fee taken from them.
+    to_quantity: Decimal
+    # The asset the fee was paid in, when it was not cash. None for a fee in
+    # cash, which the row's `fees` or `foreign_fees` carry.
+    fee_symbol: str | None = None
+    fee_quantity: Decimal | None = None
 
 
 class CalculationType(Enum):
@@ -525,6 +548,8 @@ class BrokerTransaction:
     # ticker names one security only within one market. None when nothing
     # says, which is most exports.
     market: str | None = None
+    # Present only on an EXCHANGE row: the other side of the swap.
+    exchange: ExchangeDetails | None = None
 
     @property
     def pool_quantity(self) -> Decimal | None:

@@ -266,7 +266,9 @@ The dump removes no duplicates beyond those handled by your broker's parser. Fol
 Numbers are exact rather than rounded for display. `price`, `fees` and `amount` are in the row’s
 `currency`, and fees charged in another currency stay in `foreign_fees` under their own currency.
 `market` names the market a `symbol` belongs to when cgt-calc knows it, which is `US` for every
-Charles Schwab row. It is empty otherwise.
+Charles Schwab row. It is empty otherwise. `exchange` is set only on an `EXCHANGE` row, and holds
+the asset received and the asset any fee was paid in: see
+[Exchange one asset for another](brokers/raw.md#exchange-one-asset-for-another).
 
 Columns holding several named values, such as `foreign_fees` and `source`, use JSON to keep them in
 one cell: `{"EUR":"2.50"}` is a fee of 2.50 euros. Outside JSON, unset values and empty text both
