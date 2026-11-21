@@ -16,6 +16,18 @@ repos:
     rev: v3.14.1-1
     hooks:
       - id: shfmt
+  # Before ruff, which formats what it rewrites.
+  - repo: https://github.com/cdce8p/python-typing-update
+    rev: v0.9.0
+    hooks:
+      - id: python-typing-update
+        # A wrapper, so that it can run on a commit: see the script.
+        entry: scripts/run_python_typing_update.sh
+        args:
+          - --py312-plus
+          - --force
+          - --keep-updates
+        files: ^.+\.py$
   - repo: local
     hooks:
       - id: codespell
@@ -68,16 +80,3 @@ repos:
         language: system
         entry: env CGT_TEST_MODE_STRICT=1 uv run pytest
         pass_filenames: false
-  - repo: https://github.com/cdce8p/python-typing-update
-    rev: v0.9.0
-    hooks:
-      # Run `python-typing-update` hook manually from time to time
-      # to update python typing syntax.
-      # Will require manual work, before submitting changes!
-      - id: python-typing-update
-        stages: [manual]
-        args:
-          - --py312-plus
-          - --force
-          - --keep-updates
-        files: ^.+\.py$
