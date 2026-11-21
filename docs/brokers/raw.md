@@ -38,8 +38,9 @@ or correct one of its rows. See
 [Correct a row in a broker export](#correct-a-row-in-a-broker-export). A third, `market`, says
 whether a ticker is a US or a London one: see
 [Say which market a ticker is from](#say-which-market-a-ticker-is-from). Four more, `to_symbol`,
-`to_quantity`, `fee_symbol` and `fee_quantity`, are read only on an `EXCHANGE` row: see
-[Exchange one asset for another](#exchange-one-asset-for-another).
+`to_quantity`, `fee_symbol` and `fee_quantity`, are read on an `EXCHANGE` row: see
+[Exchange one asset for another](#exchange-one-asset-for-another). The last two are also read on a
+`TRANSFER` whose fee was paid in an asset: see [Pay with an asset](#pay-with-an-asset).
 
 A space before or after a value is ignored, so you can leave one after each comma.
 
@@ -109,7 +110,7 @@ Use the following action names when writing a RAW file.
 | `DIVIDEND_TAX`                   | Ticker, quantity `1` and the tax deducted as a negative `price`.                                                                                                                                                                                   |
 | `INTEREST`                       | Interest received: leave `symbol` blank, use quantity `1` and the gross total as a positive `price`.                                                                                                                                               |
 | `INTEREST_TAX`                   | Tax deducted from interest: leave `symbol` blank, use quantity `1` and the deduction as a negative `price`.                                                                                                                                        |
-| `TRANSFER`                       | Cash added or removed: leave `symbol` blank, use quantity `1`, and use a positive `price` for a deposit or a negative one for a withdrawal.                                                                                                        |
+| `TRANSFER`                       | Cash added or removed: leave `symbol` blank, use quantity `1`, and use a positive `price` for a deposit or a negative one for a withdrawal. For a fee paid in an asset, see [Pay with an asset](#pay-with-an-asset).                               |
 | `ADJUSTMENT`                     | A cash-only correction or charge: write it like `TRANSFER`. It affects the balance but no holding or taxable income.                                                                                                                               |
 | `FEE`                            | A cost that should increase one holding's pooled cost: enter its ticker, quantity `1`, the charge as a negative `price`, and `fees` `0`.                                                                                                           |
 | `CASH_MERGER`, `FULL_REDEMPTION` | A disposal for cash: write it like `SELL`. Use only when no replacement shares were received.                                                                                                                                                      |
@@ -119,6 +120,7 @@ Use the following action names when writing a RAW file.
 | `TRANSFER_FROM_SPOUSE`           | See [If you received the shares](../transfers-gifts-and-fund-income.md#if-you-received-the-shares).                                                                                                                                                |
 | `GIFT`, `GIFT_UNCONNECTED`       | See [Gifts to anyone else](../transfers-gifts-and-fund-income.md#gifts-to-anyone-else).                                                                                                                                                            |
 | `EXCHANGE`                       | One asset given up for another, such as one cryptoasset for another. See [Exchange one asset for another](#exchange-one-asset-for-another).                                                                                                        |
+| `SPEND`                          | An asset given for goods or services, such as a fee paid in a cryptoasset. See [Pay with an asset](#pay-with-an-asset).                                                                                                                            |
 
 For a reinvested dividend, write two rows in this order: a `DIVIDEND` for the income, then a `BUY`
 for the shares bought with it. Excess Reported Income uses the separate
@@ -450,7 +452,8 @@ Run cryptoassets separately from shares, with a RAW file of their own. The SA108
 section for cryptoassets, and a single report would add the two together. A coin with the same
 ticker as a share, such as `BTC`, would also be pooled with it.
 
-Add these four columns to the header. Leave them blank on every row that is not an `EXCHANGE`.
+Add these four columns to the header. Leave them blank on every other row, except for a `TRANSFER`
+whose fee was paid in an asset: see [Pay with an asset](#pay-with-an-asset).
 
 | Column                        | What to enter on an `EXCHANGE` row                                                                    |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -478,6 +481,48 @@ is disposed of the same day it is acquired, so it is matched with that acquisiti
 An exchange moves no cash, except a fee paid in cash, which is taken from the balance of the RAW
 file's account like any other payment. To exchange an asset for cash, write a `SELL` row; to pay
 cash for one, write a `BUY` row.
+
+## Pay with an asset
+
+Using a cryptoasset to pay for something, a fee included, is a disposal of it
+([CRYPTO22100](https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto22100)). cgt-calc
+reads it as a sale at the asset's market value that moves no cash, as you received a service, not
+money.
+
+### A fee for moving an asset between your own wallets
+
+Moving an asset between wallets or exchange accounts you own is not a disposal, as you own it
+throughout. Its fee is, when paid in an asset. Write a `TRANSFER` row naming the asset moved, the
+units moved as `quantity` and `0` as `price`, and give the fee as you would on an `EXCHANGE` row:
+its market value in `fees`, and the asset it was paid in and the units paid in `fee_symbol` and
+`fee_quantity`. The header needs only those two of the optional exchange columns:
+
+```csv
+date,action,symbol,quantity,price,fees,currency,fee_symbol,fee_quantity
+2024-05-01,BUY,ETH,2,2500,0,GBP,,
+2024-07-10,TRANSFER,ETH,1.5,0,5.20,GBP,ETH,0.002
+```
+
+Here moving 1.5 ETH costs a fee of 0.002 ETH worth £5.20, so the 0.002 ETH is disposed of for £5.20,
+against £5.00 of its cost. The 1.5 ETH moved stays in your holding, which cgt-calc keeps as one pool
+whichever wallet the units are in. The move is neither a disposal nor an acquisition, so the fee is
+not added to the cost of anything: it only appears as this disposal.
+
+A fee paid in cash stays in `fees` with `fee_symbol` and `fee_quantity` blank, as on any `TRANSFER`.
+
+### Any other payment
+
+For any other payment in an asset, such as a fee for a transaction that moved nothing, write a
+`SPEND` row: the asset as `symbol`, the units given as `quantity`, the market value of one unit in
+`currency` as `price`, and `fees` blank or `0`.
+
+```csv
+date,action,symbol,quantity,price,fees,currency
+2024-08-01,SPEND,ETH,0.001,2400,0,GBP
+```
+
+Write the fee for an exchange on its `EXCHANGE` row instead, where it is also a cost of the
+exchange: see [Exchange one asset for another](#exchange-one-asset-for-another).
 
 ## Say which market a ticker is from
 

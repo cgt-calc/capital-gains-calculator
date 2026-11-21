@@ -133,6 +133,48 @@ def _parse_decimal(
     return parse_decimal(value, f"column '{column.value}'", strip=",")
 
 
+def _article(action: ActionType) -> str:
+    """Return "A" or "An" for a row of `action`, as its name is read aloud."""
+    return "An" if action.name[0] in "AEIOU" else "A"
+
+
+def _parse_asset_fee(
+    row: dict[RawColumn, str], action: ActionType, fees: Decimal
+) -> tuple[str | None, Decimal | None]:
+    """Read the asset a fee was paid in and its units, if it was not cash.
+
+    Return `fee_symbol` and `fee_quantity`, both None for a fee paid in cash.
+    """
+    currency = row[RawColumn.CURRENCY]
+    fee_symbol = row[RawColumn.FEE_SYMBOL] or None
+    fee_quantity = _parse_decimal(row, RawColumn.FEE_QUANTITY)
+    if fee_symbol is None:
+        if fee_quantity is not None:
+            raise ValueError(
+                "A 'fee_quantity' needs the asset the fee was paid in, in the "
+                "'fee_symbol' column. For a fee paid in cash, leave both blank "
+                "and enter it in 'fees'."
+            )
+        return None, None
+    if fee_symbol == currency:
+        raise ValueError(
+            f"For a fee paid in {currency} cash, leave 'fee_symbol' and "
+            "'fee_quantity' blank and enter it in 'fees'."
+        )
+    if fee_quantity is None or fee_quantity <= 0:
+        raise ValueError(
+            f"{_article(action)} {action.name} row whose fee was paid in "
+            f"{fee_symbol} gives the units paid as a positive 'fee_quantity'."
+        )
+    if fees <= 0:
+        raise ValueError(
+            f"{_article(action)} {action.name} row whose fee was paid in "
+            f"{fee_symbol} gives the fee's market value in {currency} in the "
+            "'fees' column."
+        )
+    return fee_symbol, fee_quantity
+
+
 def _parse_exchange(
     row: dict[RawColumn, str],
     action: ActionType,
@@ -141,15 +183,21 @@ def _parse_exchange(
     price: Decimal | None,
     fees: Decimal,
 ) -> tuple[str | None, Decimal | None, str | None, Decimal | None]:
-    """Read the other side of an EXCHANGE row, or check another row has none.
+    """Read the other side of an EXCHANGE row and any asset its fee was paid in.
 
-    Return `to_symbol`, `to_quantity`, `fee_symbol` and `fee_quantity`.
+    Return `to_symbol`, `to_quantity`, `fee_symbol` and `fee_quantity`. A
+    TRANSFER row can name a fee asset too; any other row has none of them.
     """
     # The exchange columns are optional, so a header can leave any of them
     # out: one it does not name reads as blank.
     row = dict.fromkeys(EXCHANGE_COLUMNS, "") | row
     if action is not ActionType.EXCHANGE:
-        filled = [column.value for column in EXCHANGE_COLUMNS if row[column]]
+        read = (
+            (RawColumn.TO_SYMBOL, RawColumn.TO_QUANTITY)
+            if action is ActionType.TRANSFER
+            else EXCHANGE_COLUMNS
+        )
+        filled = [column.value for column in read if row[column]]
         if filled:
             raise ValueError(
                 f"The {', '.join(repr(name) for name in filled)} "
@@ -157,7 +205,17 @@ def _parse_exchange(
                 f"on an EXCHANGE row. Leave {'it' if len(filled) == 1 else 'them'} "
                 f"blank on a {action.name} row."
             )
-        return None, None, None, None
+        if action is not ActionType.TRANSFER:
+            return None, None, None, None
+        fee_symbol, fee_quantity = _parse_asset_fee(row, action, fees)
+        # The asset moved stays in the one pool cgt-calc keeps for it, so
+        # only the fee changes anything: the row itself moves no cash.
+        if fee_symbol is not None and symbol is not None and price:
+            raise ValueError(
+                f"A TRANSFER of {symbol} moves no cash. Enter 0 as its price; "
+                "the fee's value goes in 'fees'."
+            )
+        return None, None, fee_symbol, fee_quantity
     currency = row[RawColumn.CURRENCY]
     if symbol is None:
         raise ValueError("An EXCHANGE row names the asset given up as its symbol.")
@@ -190,32 +248,38 @@ def _parse_exchange(
         raise ValueError(
             "An EXCHANGE row gives the units received as a positive 'to_quantity'."
         )
-    fee_symbol = row[RawColumn.FEE_SYMBOL] or None
-    fee_quantity = _parse_decimal(row, RawColumn.FEE_QUANTITY)
-    if fee_symbol is None:
-        if fee_quantity is not None:
-            raise ValueError(
-                "A 'fee_quantity' needs the asset the fee was paid in, in the "
-                "'fee_symbol' column. For a fee paid in cash, leave both blank "
-                "and enter it in 'fees'."
-            )
-    else:
-        if fee_symbol == currency:
-            raise ValueError(
-                f"For a fee paid in {currency} cash, leave 'fee_symbol' and "
-                "'fee_quantity' blank and enter it in 'fees'."
-            )
-        if fee_quantity is None or fee_quantity <= 0:
-            raise ValueError(
-                f"An EXCHANGE row whose fee was paid in {fee_symbol} gives the "
-                "units paid as a positive 'fee_quantity'."
-            )
-        if fees <= 0:
-            raise ValueError(
-                f"An EXCHANGE row whose fee was paid in {fee_symbol} gives the "
-                f"fee's market value in {currency} in the 'fees' column."
-            )
+    fee_symbol, fee_quantity = _parse_asset_fee(row, action, fees)
     return to_symbol, to_quantity, fee_symbol, fee_quantity
+
+
+def _check_spend(
+    action: ActionType,
+    symbol: str | None,
+    quantity: Decimal | None,
+    price: Decimal | None,
+    fees: Decimal,
+    currency: str,
+) -> None:
+    """Check that a row spending an asset names it, its units and its value."""
+    if action is not ActionType.SPEND:
+        return
+    if symbol is None:
+        raise ValueError("A SPEND row names the asset given as its symbol.")
+    if symbol == currency:
+        raise ValueError(
+            f"A SPEND row gives an asset, not {currency} cash: write an "
+            "ADJUSTMENT row for cash paid."
+        )
+    if quantity is None or quantity <= 0:
+        raise ValueError("A SPEND row gives the units given as a positive quantity.")
+    if price is None or price <= 0:
+        raise ValueError(
+            "A SPEND row gives the market value of one unit given as a positive price."
+        )
+    if fees:
+        raise ValueError(
+            "A SPEND row has no fees: it is the payment. Leave 'fees' blank or 0."
+        )
 
 
 class RawTransaction(BrokerTransaction):
@@ -234,6 +298,13 @@ class RawTransaction(BrokerTransaction):
     An EXCHANGE row needs the optional exchange columns:
     date,action,symbol,quantity,price,fees,currency,to_symbol,to_quantity,fee_symbol,fee_quantity
     2025-06-03,EXCHANGE,BTC,0.5,40000,3.00,GBP,ETH,10,BNB,0.01
+
+    A TRANSFER moving an asset between your own wallets can name the asset
+    its fee was paid in, in the same columns:
+    2025-06-04,TRANSFER,ETH,2,0,4.00,GBP,,,ETH,0.002
+
+    SPEND rows give an asset for goods or services:
+    2025-06-04,SPEND,ETH,0.002,2000,0,GBP
 
     See tests/raw/data/test_data.csv for a sample file showing the expected format.
     """
@@ -311,13 +382,19 @@ class RawTransaction(BrokerTransaction):
         to_symbol, to_quantity, fee_symbol, fee_quantity = _parse_exchange(
             row_values, action, symbol, quantity, price, fees
         )
+        _check_spend(
+            action, symbol, quantity, price, fees, row_values[RawColumn.CURRENCY]
+        )
 
         if price is not None and quantity is not None:
             amount = price * quantity
 
             if action is ActionType.BUY:
                 amount = -abs(amount)
-            amount -= fees
+            # A transfer's fee paid in an asset is not cash: it leaves as a
+            # disposal of that asset, not from the amount.
+            if not (action is ActionType.TRANSFER and fee_symbol is not None):
+                amount -= fees
         else:
             amount = None
         # Tax deducted is money paid, so a positive tax row would be reported

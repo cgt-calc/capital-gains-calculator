@@ -1,13 +1,17 @@
-"""Exchanges of one asset for another, read as the disposals and acquisition.
+"""Exchanges, spends and fees paid in an asset, read as disposals and acquisitions.
 
 Giving up one asset for another is a disposal of the first at the market value
 of the consideration and an acquisition of the second at that same value
 (TCGA 1992 s17, s38). A fee relates to the whole exchange, so its value is
 split equally between the disposal and the acquisition, a basis HMRC accepts
 (CRYPTO22150). A fee paid in a third asset is a disposal of that asset too.
-An EXCHANGE row is replaced by those legs before the history is planned, so
-the planning and matching code, which reads one holding per row, never sees
-one.
+Giving an asset for goods or services, such as a fee paid in it, is a
+disposal of it (CRYPTO22100) at its market value, as nothing else values what
+was received; no cash is received for it. That includes the fee for moving an
+asset between your own wallets, though the move itself is not a disposal.
+An EXCHANGE or SPEND row, or a TRANSFER whose fee was paid in an asset, is
+replaced by those legs before the history is planned, so the planning and
+matching code, which reads one holding per row, never sees one.
 """
 
 from __future__ import annotations
@@ -20,6 +24,14 @@ from .model import ActionType
 
 if TYPE_CHECKING:
     from .model import BrokerTransaction
+
+# The actions read only as the legs they are replaced by.
+_EXPANDED = frozenset({ActionType.EXCHANGE, ActionType.SPEND})
+
+
+def _has_asset_fee(row: BrokerTransaction) -> bool:
+    """Say whether `row` is a TRANSFER whose fee was paid in an asset."""
+    return row.action is ActionType.TRANSFER and row.fee_symbol is not None
 
 
 def _leg(
@@ -120,14 +132,88 @@ def exchange_legs(row: BrokerTransaction) -> list[BrokerTransaction]:
     return legs
 
 
-def expand_exchanges(transactions: list[BrokerTransaction]) -> list[BrokerTransaction]:
-    """Replace each EXCHANGE row, where it stands, with its legs."""
-    if not any(row.action is ActionType.EXCHANGE for row in transactions):
+def _spent(
+    row: BrokerTransaction,
+    symbol: str,
+    quantity: Decimal,
+    price: Decimal,
+    description: str,
+) -> BrokerTransaction:
+    """Return the disposal of `quantity` `symbol` at `price`, for no cash.
+
+    Its amount is the value given, the proceeds of the disposal, but nothing
+    was received for it in cash, so the balance is left alone.
+    """
+    leg = _leg(
+        row,
+        ActionType.SELL,
+        symbol,
+        quantity,
+        price,
+        Decimal(0),
+        quantity * price,
+        description,
+    )
+    leg.affects_cash_balance = False
+    return leg
+
+
+def spend_leg(row: BrokerTransaction) -> BrokerTransaction:
+    """Return the disposal of what `row` spent: a sale moving no cash."""
+    assert row.action is ActionType.SPEND
+    assert row.symbol is not None
+    assert row.quantity is not None
+    assert row.price is not None
+    assert not row.fees
+    assert not row.foreign_fees
+    return _spent(
+        row,
+        row.symbol,
+        row.quantity,
+        row.price,
+        f"Spent {row.symbol}",
+    )
+
+
+def transfer_legs(row: BrokerTransaction) -> list[BrokerTransaction]:
+    """Return a TRANSFER `row` without its asset fee, and the fee's disposal.
+
+    The transfer keeps its cash amount, which leaves the fee out, so it moves
+    the balance as it would have without one.
+    """
+    assert row.action is ActionType.TRANSFER
+    assert row.fee_symbol is not None
+    assert row.fee_quantity is not None
+    assert not row.foreign_fees
+    transfer = copy.copy(row)
+    transfer.fees = Decimal(0)
+    transfer.fee_symbol = None
+    transfer.fee_quantity = None
+    what = f"transfer of {row.symbol}" if row.symbol else "transfer"
+    return [
+        transfer,
+        _spent(
+            row,
+            row.fee_symbol,
+            row.fee_quantity,
+            row.fees / row.fee_quantity,
+            f"Fee for {what}",
+        ),
+    ]
+
+
+def expand_to_legs(transactions: list[BrokerTransaction]) -> list[BrokerTransaction]:
+    """Replace each row read as legs, where it stands, with its legs."""
+    if not any(row.action in _EXPANDED or _has_asset_fee(row) for row in transactions):
         return transactions
     expanded: list[BrokerTransaction] = []
     for row in transactions:
         if row.action is ActionType.EXCHANGE:
             expanded += exchange_legs(row)
+        elif row.action is ActionType.SPEND:
+            expanded.append(spend_leg(row))
+        elif _has_asset_fee(row):
+            expanded += transfer_legs(row)
         else:
             expanded.append(row)
     return expanded

@@ -36,7 +36,7 @@ from .exceptions import (
     UnclassifiedGiftError,
     raw_file_to_add_to,
 )
-from .exchanges import expand_exchanges
+from .exchanges import expand_to_legs
 from .logging import bullet, style_text
 from .model import (
     ActionType,
@@ -1934,7 +1934,7 @@ class TransactionIngester:
     ) -> None:
         """Run the first pass over the broker transactions."""
         self.raw_file = raw_file_of(transactions)
-        transactions = expand_exchanges(transactions)
+        transactions = expand_to_legs(transactions)
         self.history.first_date = _first_history_date(transactions)
         # We keep a balance per broker,currency pair
         balance: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(
