@@ -126,7 +126,7 @@ def _parse_decimal(
 ) -> Decimal | None:
     """Parse decimal value from the row, raising ValueError with context on failure."""
 
-    value = row.get(column, "")
+    value = row[column]
     if value == "":
         return default
 
@@ -145,8 +145,11 @@ def _parse_exchange(
 
     Return `to_symbol`, `to_quantity`, `fee_symbol` and `fee_quantity`.
     """
+    # The exchange columns are optional, so a header can leave any of them
+    # out: one it does not name reads as blank.
+    row = dict.fromkeys(EXCHANGE_COLUMNS, "") | row
     if action is not ActionType.EXCHANGE:
-        filled = [column.value for column in EXCHANGE_COLUMNS if row.get(column)]
+        filled = [column.value for column in EXCHANGE_COLUMNS if row[column]]
         if filled:
             raise ValueError(
                 f"The {', '.join(repr(name) for name in filled)} "
@@ -167,7 +170,7 @@ def _parse_exchange(
             "An EXCHANGE row gives the market value of one unit given up as its "
             "price, which cannot be negative."
         )
-    to_symbol = row.get(RawColumn.TO_SYMBOL, "")
+    to_symbol = row[RawColumn.TO_SYMBOL]
     if not to_symbol:
         raise ValueError(
             "An EXCHANGE row names the asset received in the 'to_symbol' column."
@@ -187,7 +190,7 @@ def _parse_exchange(
         raise ValueError(
             "An EXCHANGE row gives the units received as a positive 'to_quantity'."
         )
-    fee_symbol = row.get(RawColumn.FEE_SYMBOL) or None
+    fee_symbol = row[RawColumn.FEE_SYMBOL] or None
     fee_quantity = _parse_decimal(row, RawColumn.FEE_QUANTITY)
     if fee_symbol is None:
         if fee_quantity is not None:
