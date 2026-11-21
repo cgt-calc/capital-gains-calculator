@@ -2,6 +2,20 @@
 # rewrites them (the licence has trailing spaces).
 exclude: ^cgt_calc/resources/fonts/
 repos:
+  # First: it puts back the files it leaves alone from the index, which would
+  # undo a fix an earlier hook made, and the hooks after it, ruff among them,
+  # format what it rewrites.
+  - repo: https://github.com/cdce8p/python-typing-update
+    rev: v0.9.0
+    hooks:
+      - id: python-typing-update
+        # A wrapper, so that it can run on a commit: see the script.
+        entry: scripts/run_python_typing_update.sh
+        args:
+          - --py312-plus
+          - --force
+          - --keep-updates
+        files: ^.+\.py$
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
@@ -16,18 +30,6 @@ repos:
     rev: v3.14.1-1
     hooks:
       - id: shfmt
-  # Before ruff, which formats what it rewrites.
-  - repo: https://github.com/cdce8p/python-typing-update
-    rev: v0.9.0
-    hooks:
-      - id: python-typing-update
-        # A wrapper, so that it can run on a commit: see the script.
-        entry: scripts/run_python_typing_update.sh
-        args:
-          - --py312-plus
-          - --force
-          - --keep-updates
-        files: ^.+\.py$
   - repo: local
     hooks:
       - id: codespell
