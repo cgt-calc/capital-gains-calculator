@@ -451,7 +451,7 @@ def test_a_fee_taken_from_the_asset_received_is_matched_the_same_day(
     # 0.01 ETH costs 20 of the 20,000 paid for 10, and is worth the 20 fee.
     assert fee.allowable_cost == Decimal(20)
     assert fee.gain == Decimal(0)
-    (eth,) = [entry for entry in report.portfolio if entry.symbol == "ETH"]
+    (eth,) = (entry for entry in report.portfolio if entry.symbol == "ETH")
     assert eth.quantity == Decimal("9.99")
 
 
