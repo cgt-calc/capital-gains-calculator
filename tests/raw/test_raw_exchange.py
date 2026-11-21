@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cgt_calc.exceptions import InvalidTransactionError, ParsingError
+from cgt_calc.exceptions import CalculationError, InvalidTransactionError, ParsingError
 from cgt_calc.exchanges import exchange_legs, expand_exchanges
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.raw import RawParser, RawTransaction
@@ -427,6 +427,55 @@ def test_a_cash_fee_is_split_between_the_sale_and_the_purchase(
     assert btc.gain == Decimal(4998)
     assert eth.allowable_cost == Decimal(20002)
     assert eth.gain == Decimal(998)
+
+
+def test_a_cash_fee_is_taken_from_the_balance(tmp_path: Path) -> None:
+    """The 4 fee is more than the 0 left after buying, so the balance goes negative."""
+    with pytest.raises(CalculationError, match="negative balance of -4"):
+        _report(
+            tmp_path,
+            [
+                [
+                    "2024-05-01",
+                    "TRANSFER",
+                    "",
+                    "1",
+                    "15000",
+                    "0",
+                    "GBP",
+                    "",
+                    "",
+                    "",
+                    "",
+                ],
+                [
+                    "2024-05-01",
+                    "BUY",
+                    "BTC",
+                    "0.5",
+                    "30000",
+                    "0",
+                    "GBP",
+                    "",
+                    "",
+                    "",
+                    "",
+                ],
+                [
+                    "2024-06-03",
+                    "EXCHANGE",
+                    "BTC",
+                    "0.5",
+                    "40000",
+                    "4",
+                    "GBP",
+                    "ETH",
+                    "10",
+                    "",
+                    "",
+                ],
+            ],
+        )
 
 
 def test_an_exchange_disposes_of_one_asset_and_pools_the_other(

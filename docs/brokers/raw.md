@@ -475,9 +475,9 @@ what an exchange statement usually shows and what HMRC's
 the latter, enter that value divided by `quantity` as `price`. A fee taken from the asset received
 is disposed of the same day it is acquired, so it is matched with that acquisition.
 
-An exchange moves no cash, so it does not take part in the balance check, and a fee paid in cash is
-counted as a cost without being taken from the balance. To exchange an asset for cash, write a
-`SELL` row; to pay cash for one, write a `BUY` row.
+An exchange moves no cash, except a fee paid in cash, which is taken from the balance of the RAW
+file's account like any other payment. To exchange an asset for cash, write a `SELL` row; to pay
+cash for one, write a `BUY` row.
 
 ## Say which market a ticker is from
 
