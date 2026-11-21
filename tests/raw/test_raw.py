@@ -567,7 +567,8 @@ _WRONG_COLUMNS = (
     "Correct each name where it stands, so every value stays under its name; if "
     "this line is a row of data, add a header line above it instead. The header "
     "names these columns, once each, in any order:\n  {header}\n"
-    "Optional columns: 'broker', 'replaces', 'market'."
+    "Optional columns: 'broker', 'replaces', 'market', 'to_symbol', "
+    "'to_quantity', 'fee_symbol', 'fee_quantity'."
 )
 
 
@@ -672,7 +673,8 @@ _WRONG_COLUMNS = (
                 "'foreign_fees', 'ambiguous_quantity', 'option_contract', "
                 "'written_option_tax', 'capital_adjustments', "
                 "'affects_cash_balance', 'source'.",
-                header=f"{_SEVEN},broker,market",
+                header=f"{_SEVEN},broker,market,to_symbol,to_quantity,fee_symbol,"
+                "fee_quantity",
             ),
             id="the --dump-transactions output",
         ),

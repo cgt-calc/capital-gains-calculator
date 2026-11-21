@@ -416,6 +416,12 @@ class ActionType(Enum):
     OPTION_CLOSE = 28
     OPTION_EXPIRY = 29
     OPTION_ASSIGNMENT = 30
+    # One asset given up for another, such as one cryptoasset for another: a
+    # disposal of the first at market value and an acquisition of the second
+    # at the same value. A fee paid in a third asset is a disposal of that
+    # asset too. Split into those legs before the history is planned, so no
+    # EXCHANGE row reaches the main pass.
+    EXCHANGE = 31
 
     @override
     def __str__(self) -> str:
@@ -525,6 +531,15 @@ class BrokerTransaction:
     # ticker names one security only within one market. None when nothing
     # says, which is most exports.
     market: str | None = None
+    # Set only on an EXCHANGE row, whose `symbol`, `quantity` and `price` are
+    # the asset given up and `fees` the value of its fee: the asset received
+    # and its units, before any fee taken from them.
+    to_symbol: str | None = None
+    to_quantity: Decimal | None = None
+    # The asset the fee was paid in and its units, when it was not paid in
+    # cash, which `fees` carries.
+    fee_symbol: str | None = None
+    fee_quantity: Decimal | None = None
 
     @property
     def pool_quantity(self) -> Decimal | None:
