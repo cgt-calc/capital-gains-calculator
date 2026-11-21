@@ -18,6 +18,7 @@ from .exceptions import (
 )
 from .model import ActionType, Isin, Position
 from .parsers.raw import RawTransaction, raw_file_of
+from .parsers.schwab import SchwabTransaction
 from .parsers.schwab_equity_award_json import (
     SPLITS as SCHWAB_AWARD_SPLITS,
     SchwabAwardTransaction,
@@ -125,7 +126,7 @@ def _relative_to_split(
 def plan_stock_splits(
     state: CalculatorState,
     date_index: dt.date,
-    day_transactions: list[BrokerTransaction],
+    days: Mapping[dt.date, list[BrokerTransaction]],
     raw_file: Path | None,
 ) -> None:
     """Decide what each of the day's reorganisations does to a holding.
@@ -136,14 +137,14 @@ def plan_stock_splits(
     ``raw_file`` is the run's RAW file, which a message can name.
     """
     splits: dict[str, list[BrokerTransaction]] = defaultdict(list)
-    for transaction in day_transactions:
+    for transaction in days[date_index]:
         if transaction.action is ActionType.STOCK_SPLIT:
             splits[_get_symbol_or_fail(transaction)].append(transaction)
     for symbol, rows in sorted(splits.items()):
         for row in rows:
             _check_reorganisation_row(row)
         row = _sole_reorganisation(symbol, date_index, rows)
-        _plan_stock_split(state, date_index, symbol, row, day_transactions, raw_file)
+        _plan_stock_split(state, date_index, symbol, row, days, raw_file)
 
 
 def _check_reorganisation_row(transaction: BrokerTransaction) -> None:
@@ -302,12 +303,41 @@ def _sole_reorganisation(
     return raw_row
 
 
+def _schwab_split_precedes_posted_day_trades(
+    row: BrokerTransaction,
+    names: set[str],
+    days: Mapping[dt.date, list[BrokerTransaction]],
+) -> bool:
+    """Use Schwab's earlier as-of date only if no trade falls in the gap."""
+    if (
+        not isinstance(row, SchwabTransaction)
+        or row.as_of_date is None
+        or row.as_of_date >= row.date
+    ):
+        return False
+    for day, transactions in days.items():
+        if not row.as_of_date <= day < row.date:
+            continue
+        for other in transactions:
+            if other.symbol in names and quantity_sign(other.action):
+                raise CalculationError(
+                    f"Cannot apply the reorganisation of {row.symbol} on {row.date}: "
+                    f"Schwab gives an as-of date of {row.as_of_date}, but "
+                    "cgt-calc cannot tell which units the intervening row uses:\n"
+                    f"{indent_entry(other)}\nThe reorganisation is:\n"
+                    f"{indent_entry(row)}\nCheck the first split-adjusted trading "
+                    "date against the trade confirmation or work this split out "
+                    "by hand (consider professional advice)."
+                )
+    return True
+
+
 def _plan_stock_split(
     state: CalculatorState,
     date_index: dt.date,
     symbol: str,
     row: BrokerTransaction,
-    day_transactions: list[BrokerTransaction],
+    days: Mapping[dt.date, list[BrokerTransaction]],
     raw_file: Path | None,
 ) -> None:
     """Work out and record one reorganisation."""
@@ -318,9 +348,10 @@ def _plan_stock_split(
     # renames were recorded and checked before this ran, so the graph read
     # here has no chains in it and every name in it is this holding's.
     names = connected_names(state.history.rename_list.get(date_index, {}), symbol)
+    schwab_split_first = _schwab_split_precedes_posted_day_trades(row, names, days)
     before_rows: list[BrokerTransaction] = []
     after_rows: list[BrokerTransaction] = []
-    for other in day_transactions:
+    for other in days[date_index]:
         if (
             other is row
             or other.symbol not in names
@@ -328,6 +359,19 @@ def _plan_stock_split(
         ):
             continue
         placement = _relative_to_split(instants, row.source, other.source)
+        if placement is None and schwab_split_first:
+            # General rule: exchange trades executed before split-adjusted
+            # trading begins use pre-split units; trades executed from that
+            # point use post-split units. The distribution, settlement and
+            # broker posting dates do not themselves define that boundary.
+            #
+            # Example: the issuer's SEC Form 8-K (item 5.03) lists different
+            # dates for distribution and the start of split-adjusted trading:
+            # https://www.sec.gov/Archives/edgar/data/1018724/000110465922065872/tm2215904d1_8k.htm#a_001
+            # In that case, Schwab's posted date matched the trading boundary.
+            # An earlier "as of" date is a Schwab-specific clue, not proof of
+            # that boundary for every split. It does not replace the posted date.
+            placement = "after"
         if placement is None:
             raise CalculationError(
                 _split_chronology_message(symbol, date_index, row, other, instants)

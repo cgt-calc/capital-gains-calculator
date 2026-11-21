@@ -1897,9 +1897,7 @@ class TransactionIngester:
             # from capacity planning altogether. Taking STOCK_SPLIT out of
             # that set would make this order wrong.
             plan_renames(self.state, transaction.date, days[transaction.date])
-            plan_stock_splits(
-                self.state, transaction.date, days[transaction.date], self.raw_file
-            )
+            plan_stock_splits(self.state, transaction.date, days, self.raw_file)
             for split, quantity in zip(due, held_at_open, strict=True):
                 known_splits.remove(split)
                 if quantity <= 0:

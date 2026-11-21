@@ -289,6 +289,9 @@ class SchwabTransaction(BrokerTransaction):
     # Why a vest is left without a price, which stops the run unless a RAW
     # row replaces it. None on every other row.
     unpriced: str | None = None
+    # Date after "as of" on a split row; retained as ordering evidence while
+    # the transaction date remains the date Schwab posted the row.
+    as_of_date: dt.date | None = None
 
     def __init__(
         self,
@@ -305,11 +308,10 @@ class SchwabTransaction(BrokerTransaction):
             raise ParsingError(file, f"Column {OLD_COLUMNS_NUM} should be empty")
         as_of_str = " as of "
         date_header = RequiredTransactionsColumn.DATE.value
-        if as_of_str in row_dict[date_header]:
-            index = row_dict[date_header].find(as_of_str)
-            date_str = row_dict[date_header][:index]
-        else:
-            date_str = row_dict[date_header]
+        posted_date_str, separator, as_of_date_str = row_dict[date_header].partition(
+            as_of_str
+        )
+        date_str = posted_date_str
         try:
             date = dt.datetime.strptime(date_str, "%m/%d/%Y").date()
         except ValueError as exc:
@@ -325,6 +327,19 @@ class SchwabTransaction(BrokerTransaction):
         action_header = RequiredTransactionsColumn.ACTION.value
         self.raw_action = row_dict[action_header]
         action = action_from_str(self.raw_action, file)
+        if action == ActionType.STOCK_SPLIT and separator:
+            # Retain the as-of date as evidence for placing trades relative to
+            # the split; the transaction date stays the posted date.
+            try:
+                self.as_of_date = dt.datetime.strptime(
+                    as_of_date_str, "%m/%d/%Y"
+                ).date()
+            except ValueError as exc:
+                raise ParsingError(
+                    file,
+                    f"Invalid stock split as-of date format: {as_of_date_str!r}, "
+                    "expected MM/DD/YYYY, e.g. '01/15/2023'",
+                ) from exc
         symbol_header = RequiredTransactionsColumn.SYMBOL.value
         symbol = row_dict[symbol_header] if row_dict[symbol_header] != "" else None
         option_contract = None
@@ -353,6 +368,12 @@ class SchwabTransaction(BrokerTransaction):
             # Withholding on account-level cash interest, not tied to a security.
             action = ActionType.INTEREST_TAX
         price = _parse_decimal(row_dict, RequiredTransactionsColumn.PRICE)
+        # Schwab can populate Price on a Stock Split row with an informational
+        # share-price quote. It is not consideration paid or received.
+        # Do not pass that quote as transaction money; fees and amount remain
+        # intact and are still rejected by share-reorganisation validation.
+        if action == ActionType.STOCK_SPLIT:
+            price = None
         quantity = _parse_decimal(row_dict, RequiredTransactionsColumn.QUANTITY)
         fees = _parse_decimal(
             row_dict, RequiredTransactionsColumn.FEES_AND_COMM

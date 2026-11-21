@@ -165,6 +165,12 @@ calculation could create a purchase that never happened.
 Schwab can show a date such as `08/18/2023 as of 08/15/2023`. cgt-calc uses the first date,
 `08/18/2023`, for the transaction.
 
+For a `Stock Split` row, cgt-calc also keeps the first date as the transaction date. If the `as of`
+date is earlier, it uses that date only as evidence that share-changing trades on the posted date
+are in the post-split units. It does not change the transaction date. If the holding changed from an
+acquisition or disposal on or after the `as of` date but before the posted date, cgt-calc stops
+rather than guess which units that transaction uses.
+
 A vest priced from your award file is the exception, and for any vest the day you acquired the
 shares can differ from the first date: see [Which day a vest is dated](#which-day-a-vest-is-dated).
 
