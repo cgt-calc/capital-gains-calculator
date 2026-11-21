@@ -527,3 +527,18 @@ def test_run_with_an_exchange_raw_file(request: pytest.FixtureRequest) -> None:
     assert stderr_alerts(result.stderr) == [], "Unexpected stderr message"
     expected_file = Path("tests") / "raw" / "data" / "expected_output_exchange.txt"
     assert_stdout_matches(result, cmd, expected_file)
+
+
+def test_an_exchange_column_the_header_leaves_out_reads_as_blank(
+    tmp_path: Path,
+) -> None:
+    """A header naming only some exchange columns reads the rest as blank."""
+    raw_file = tmp_path / "raw.csv"
+    raw_file.write_text(
+        "date,action,symbol,quantity,price,fees,currency,to_symbol\n"
+        "2024-06-03,EXCHANGE,BTC,1,10,0,GBP,ETH\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ParsingError, match="positive 'to_quantity'"):
+        RawParser.load_from_file(raw_file, show_parsing_msg=False)
