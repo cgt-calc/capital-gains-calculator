@@ -434,23 +434,6 @@ class ActionType(Enum):
         return self.name.replace("_", " ").capitalize()
 
 
-@dataclass(frozen=True)
-class ExchangeDetails:
-    """What an EXCHANGE row received, and the asset its fee was paid in.
-
-    The row's own `symbol`, `quantity` and `price` are the asset given up, its
-    units and its market value per unit; `fees` is the value of the fee.
-    """
-
-    to_symbol: str
-    # Units received, before any fee taken from them.
-    to_quantity: Decimal
-    # The asset the fee was paid in, when it was not cash. None for a fee in
-    # cash, which the row's `fees` or `foreign_fees` carry.
-    fee_symbol: str | None = None
-    fee_quantity: Decimal | None = None
-
-
 class CalculationType(Enum):
     """Calculation type enumeration."""
 
@@ -548,8 +531,15 @@ class BrokerTransaction:
     # ticker names one security only within one market. None when nothing
     # says, which is most exports.
     market: str | None = None
-    # Present only on an EXCHANGE row: the other side of the swap.
-    exchange: ExchangeDetails | None = None
+    # Set only on an EXCHANGE row, whose `symbol`, `quantity` and `price` are
+    # the asset given up and `fees` the value of its fee: the asset received
+    # and its units, before any fee taken from them.
+    to_symbol: str | None = None
+    to_quantity: Decimal | None = None
+    # The asset the fee was paid in and its units, when it was not paid in
+    # cash, which `fees` carries.
+    fee_symbol: str | None = None
+    fee_quantity: Decimal | None = None
 
     @property
     def pool_quantity(self) -> Decimal | None:

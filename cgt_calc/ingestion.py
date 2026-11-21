@@ -1934,7 +1934,6 @@ class TransactionIngester:
     ) -> None:
         """Run the first pass over the broker transactions."""
         self.raw_file = raw_file_of(transactions)
-        # Before anything reads a holding from a row: each leg names one.
         transactions = expand_exchanges(transactions)
         self.history.first_date = _first_history_date(transactions)
         # We keep a balance per broker,currency pair
