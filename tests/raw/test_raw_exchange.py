@@ -119,6 +119,10 @@ def test_a_row_without_the_exchange_columns_has_no_exchange(tmp_path: Path) -> N
             "read only on an EXCHANGE row",
         ),
         (
+            ["2024-06-03", "EXCHANGE", "", "1", "10", "0", "GBP", "ETH", "1", "", ""],
+            "names the asset given up as its symbol",
+        ),
+        (
             ["2024-06-03", "EXCHANGE", "BTC", "1", "10", "0", "GBP", "", "", "", ""],
             "'to_symbol' column",
         ),
@@ -257,6 +261,7 @@ def test_a_row_without_the_exchange_columns_has_no_exchange(tmp_path: Path) -> N
     ],
     ids=[
         "exchange column on a buy",
+        "nothing given up named",
         "no asset received",
         "same asset both sides",
         "cash received",
