@@ -435,10 +435,20 @@ The error names the RAW row:
 
 An `EXCHANGE` row records giving up one asset for another with no cash changing hands, such as
 swapping one cryptoasset for another. cgt-calc reads it as a disposal of the asset given up at its
-market value and an acquisition of the asset received at that same value. A fee relates to the whole
-exchange, so cgt-calc splits its value equally between the two: half is a cost of the disposal and
-half a cost of the acquisition, the basis HMRC accepts. A fee paid in a third asset is a disposal of
-that asset too.
+market value and an acquisition of the asset received at that same value
+([CRYPTO22100](https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto22100)). A fee
+relates to the whole exchange, so cgt-calc splits its value equally between the two: half is a cost
+of the disposal and half a cost of the acquisition, the basis HMRC accepts
+([CRYPTO22150](https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto22150)). A fee
+paid in a third asset is a disposal of that asset too.
+
+Don't use `EXCHANGE` for a takeover or a share-for-share exchange of a company's shares. Those are
+usually not disposals: the new shares take over the old ones' cost. See
+[Share reorganisations](#share-reorganisations).
+
+Run cryptoassets separately from shares, with a RAW file of their own. The SA108 return has its own
+section for cryptoassets, and a single report would add the two together. A coin with the same
+ticker as a share, such as `BTC`, would also be pooled with it.
 
 Add these four columns to the header. Leave them blank on every row that is not an `EXCHANGE`.
 
@@ -459,8 +469,11 @@ date,action,symbol,quantity,price,fees,currency,to_symbol,to_quantity,fee_symbol
 Here 0.5 BTC worth £20,000 is exchanged for 10 ETH, with a fee of 0.01 BNB worth £4. The BTC is
 disposed of for £20,000 less £2 of the fee, the ETH costs £20,000 plus the other £2, and the 0.01
 BNB is disposed of for £4. The values are yours to enter: use the market value at the time of the
-exchange. A fee taken from the asset received is disposed of the same day it is acquired, so it is
-matched with that acquisition.
+exchange. Either side gives it: the value of the asset given up, or of the asset received, which is
+what an exchange statement usually shows and what HMRC's
+[worked example](https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto22257) uses. For
+the latter, enter that value divided by `quantity` as `price`. A fee taken from the asset received
+is disposed of the same day it is acquired, so it is matched with that acquisition.
 
 An exchange moves no cash, so it does not take part in the balance check, and a fee paid in cash is
 counted as a cost without being taken from the balance. To exchange an asset for cash, write a
