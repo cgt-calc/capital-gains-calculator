@@ -356,3 +356,29 @@ def test_a_spend_with_its_fee_in_an_asset_deducts_the_fee(tmp_path: Path) -> Non
     (bnb,) = report.calculation_log[spend_day]["sell$BNB"]
     assert eth.gain == Decimal("-0.10")
     assert bnb.gain == Decimal(0)
+
+
+def test_a_spend_fee_adds_no_cash_to_the_balance(tmp_path: Path) -> None:
+    """Nothing is left after buying, so paying 0.30 more goes negative."""
+    with pytest.raises(CalculationError, match=r"negative balance of -0\.3"):
+        _report(
+            tmp_path,
+            [
+                ["2024-05-01", "TRANSFER", "", "1", "5300", "0", "GBP", "", ""],
+                ["2024-05-01", "BUY", "ETH", "2", "2500", "0", "GBP", "", ""],
+                ["2024-05-01", "BUY", "BNB", "1", "300", "0", "GBP", "", ""],
+                [
+                    "2024-07-10",
+                    "SPEND",
+                    "ETH",
+                    "0.002",
+                    "2600",
+                    "0.30",
+                    "GBP",
+                    "BNB",
+                    "0.001",
+                ],
+                ["2024-07-10", "BUY", "BNB", "0.001", "300", "0", "GBP", "", ""],
+            ],
+            FEE_HEADER,
+        )

@@ -530,6 +530,9 @@ against £5.00 of its cost. The 1.5 ETH moved stays in your holding, which cgt-c
 whichever wallet the units are in. The move is neither a disposal nor an acquisition, so the fee is
 not added to the cost of anything: it only appears as this disposal.
 
+The asset and the units moved are for your records: cgt-calc does not check them against your
+holding, and only the fee changes the figures.
+
 ### Any other payment
 
 For any other payment in an asset, such as a fee for a transaction that moved nothing, write a
