@@ -247,7 +247,9 @@ also one holding, your Section 104 pool
 
 cgt-calc treats them the same way: it combines a security's rows from every file in a run into one
 holding, and the same-day and 30-day rules can match a sale at one broker with a purchase at
-another. What you add depends on which brokers' exports you have.
+another. What you add depends on which brokers' exports you have and cgt-calc can read: treat a
+broker that cgt-calc does not support (see [Brokers](brokers/index.md)) as one whose export you do
+not have.
 
 ### Both brokers' exports
 
@@ -264,17 +266,25 @@ the shares are counted twice. A row for the move that does neither needs no chan
 
 ### Only the new broker's export
 
-If you no longer have the old broker's export, record the shares' history there in your RAW file:
+If you no longer have the old broker's export, or cgt-calc cannot read it, record the shares'
+history there in your RAW file:
 
 1. Add a `BUY` row for each purchase of the shares, dated on the day you bought them, with the price
-    and fees you paid. The old broker's statements or contract notes give these. If you sold part of
-    the holding there, or it was split, add those rows too.
-2. For each `BUY`, add a `TRANSFER` row on the same date and in the same currency, for what the
+    and fees you paid. The old broker's statements or contract notes give these. For shares that
+    vested there, add a `STOCK_ACTIVITY` row at their market value on the vest date instead, as the
+    [RAW actions](brokers/raw.md#actions-to-use) describe. Also add every other change to the
+    holding there: a sale, a split, or income added to accumulation units, which adds to the
+    holding's cost (see
+    [Income reinvested in accumulation units](#income-reinvested-in-accumulation-units)).
+2. Fund each `BUY` with a `TRANSFER` row on the same date and in the same currency, for what the
     purchase cost including fees. A RAW row with no `broker` uses the RAW file's own `Unknown`
-    balance, and without the deposit that balance goes negative and the run stops with
+    balance, and without the money for the purchase that balance goes negative and the run stops
+    with
     [`Reached a negative balance`](brokers/raw.md#reached-a-negative-balance-for-broker-unknown) for
     broker `Unknown`. The deposit stands for the money you paid in at the old broker and does not
-    change any other broker's balance.
+    change any other broker's balance. Leave it out where cash already in your RAW file pays for the
+    purchase, such as a deposit you have recorded or the proceeds of a sale: do not record the same
+    money twice.
 3. If the new broker's export has a row for the shares arriving that stops the run or records them
     as a purchase, remove it from a working copy, as above.
 
@@ -295,10 +305,11 @@ For 100 `ACME` bought at £10.00 with a £5.00 fee on 2 May 2023:
 
 cgt-calc then counts the shares as still held after the move, which is right, since they are still
 yours. Add what happened to the security at the new broker as RAW rows: each sale as a `SELL`, each
-purchase as a `BUY` with a `TRANSFER` deposit as in step 2 above, and a split or consolidation as a
-`STOCK_SPLIT` for the whole holding. Without them, a sale is missing from the report or costed from
-the wrong number of shares. If the old broker's export has a row for the move that stops the run,
-remove it from a working copy.
+purchase as a `BUY` funded as in step 2 above, a split or consolidation as a `STOCK_SPLIT` for the
+whole holding, and income added to accumulation units as
+[described below](#income-reinvested-in-accumulation-units). Without them, a sale is missing from
+the report or its cost is wrong. If the old broker's export has a row for the move that stops the
+run, remove it from a working copy.
 
 ### Check the result
 
@@ -314,14 +325,20 @@ As well as the [usual checks](usage.md#check-the-result):
     an [ISIN translation](extra-data-and-options.md#isin-to-ticker-translation) file instead: that
     does not combine the holdings, and it removes the `does not match` stop without correcting the
     result.
-- **A later split.** If the security is split or consolidated after the move and a broker's export
-    reports it as a single row, cgt-calc stops with `also has units from`, because the holding also
-    has units from another file in the run. Add a RAW `STOCK_SPLIT` row for the change to the whole
-    holding, as [Holdings spread across brokers](brokers/raw.md#holdings-spread-across-brokers)
-    describes.
-- **What you hold.** Compare the portfolio section with the total you held across your brokers on
-    the date in its heading. Some exports drop a row for shares arriving without a message, so
-    shares whose history is missing, and that you have not sold, show up only there.
+- **A later split.** If the security is split or consolidated after the move, add a RAW
+    `STOCK_SPLIT` row for the change to the whole holding, as
+    [Holdings spread across brokers](brokers/raw.md#holdings-spread-across-brokers) describes:
+    cgt-calc then uses it instead of the brokers' own rows for that event. Add it even if the run
+    succeeds without it. A broker's export that reports the change as a single row covers only that
+    broker's account. cgt-calc stops with `also has units from` when another file has added units to
+    the holding, but after a move of part of the holding the old broker may be the only one that
+    has: its row for the shares it kept is then accepted, the shares that moved are left out of the
+    change, and the result is a wrong gain without an error.
+- **What you hold.** Compare the quantity of each holding in the portfolio section with the total
+    you held across your brokers on the date in its heading. Some exports drop a row for shares
+    arriving without a message. If the shares' history is missing and you have not sold them, the
+    holding is missing from the portfolio section or its quantity is too low, and nothing else in
+    the report shows it.
 
 Only the rows that Trading 212 and Schwab write for a move have been checked. Another broker's
 export may label the move differently: if the run stops at a row that you can tell is the move,
