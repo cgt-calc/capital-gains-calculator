@@ -442,6 +442,155 @@ def test_a_main_history_vest_before_the_split_is_replaced(
     assert f"\n  NVDA: 10.00, £{cost}\n" in result.stdout
 
 
+PRICED_VEST = '"06/15/2023","Stock Plan Activity","ZQX","ZQX CORP INC CLASS A","60","$20.00","",""'
+
+
+@pytest.mark.parametrize(
+    ("vest", "awards", "price", "dated"),
+    [
+        pytest.param(PRICED_VEST, False, "0.00", "2023-06-15", id="0, history price"),
+        pytest.param(SCHWAB_VEST[1], True, "0.00", "2023-06-12", id="0, award price"),
+        pytest.param(SCHWAB_VEST[1], True, "", "2023-06-12", id="blank, prices file"),
+    ],
+)
+def test_a_vest_with_a_price_is_not_replaced_by_a_row_without_one(
+    tmp_path: Path, vest: str, awards: bool, price: str, dated: str
+) -> None:
+    """A row that restates a vest's value has to state one.
+
+    The export prices the vest of 60 at 20 dollars, in the history itself or
+    from the award file's Lapse of 12 June. A row at 0 would make it cost
+    nothing but its fees, overstating the gain on a sale. A blank one would
+    be priced from --prices-file, which has ZQX at 21 dollars on 14 June: a
+    price looked up by date, not the value the employer taxed, so it is
+    refused even though the file has one.
+    """
+    history = [SCHWAB_VEST[0], vest, *SCHWAB_VEST[2:]]
+    schwab = _write(tmp_path / "schwab.csv", [SCHWAB_HEADER, *history])
+    prices = _write(
+        tmp_path / "prices.csv", ["date,symbol,price", '"Jun 14, 2023",ZQX,21.00']
+    )
+    raw = _raw(
+        tmp_path,
+        f"2023-06-14,STOCK_ACTIVITY,ZQX,60,{price},0.00,USD,Charles Schwab,{dated}",
+    )
+    cmd = build_cmd(
+        "--year",
+        "2023",
+        "--schwab-file",
+        str(schwab),
+        "--raw-file",
+        str(raw),
+        "--prices-file",
+        str(prices),
+        "--no-report",
+    )
+    if awards:
+        cmd += ["--schwab-award-file", str(_write(tmp_path / "awards.csv", LAPSE_CSV))]
+
+    stderr = _refused(cmd)
+
+    assert (
+        f"ERROR: While parsing {raw}, row 2: Cannot replace the ZQX vest of 60 dated "
+        f"{dated} with a row that does not state a positive price. Give the market "
+        f"value of one share on the day you acquired the shares. See {DOCS}\n"
+    ) in stderr
+
+
+def test_a_morgan_stanley_release_is_not_replaced_at_a_price_of_0(
+    tmp_path: Path,
+) -> None:
+    """The rule is every broker's: Morgan Stanley prices this release at 10 dollars."""
+    folder = tmp_path / "mssb"
+    folder.mkdir()
+    _write(
+        folder / "Releases Report.csv",
+        [
+            (
+                "Vest Date,Order Number,Plan,Type,Status,Price,Quantity,"
+                "Net Cash Proceeds,Net Share Proceeds,Tax Payment Method"
+            ),
+            (
+                "25-Mar-2023,ORDER-1,GSU Class C,Release,Complete,$10.00,3.000,"
+                "$0.00,3,Fractional Shares"
+            ),
+        ],
+    )
+    raw = _raw(
+        tmp_path,
+        "2023-03-24,STOCK_ACTIVITY,GOOG,3,0.00,0.00,USD,Morgan Stanley,2023-03-25",
+    )
+
+    stderr = _refused(
+        build_cmd(
+            "--year",
+            "2022",
+            "--mssb-dir",
+            str(folder),
+            "--raw-file",
+            str(raw),
+            "--no-report",
+        )
+    )
+
+    assert (
+        f"ERROR: While parsing {raw}, row 2: Cannot replace the GOOG vest of 3 dated "
+        "2023-03-25 with a row that does not state a positive price. Give the market "
+        f"value of one share on the day you acquired the shares. See {DOCS}\n"
+    ) in stderr
+
+
+def test_a_replacing_row_keeps_its_fees_and_others_their_prices_file_price(
+    tmp_path: Path,
+) -> None:
+    """Only the price of a replacing row is checked.
+
+    Row 2 dates the vest of 60 on 15 June 2023 at 22 dollars with a fee of
+    1 dollar, an incidental cost of acquisition (TCGA 1992 s38(1)(a) and
+    (2)). The sale of 60 that day is matched to it under the same-day rule.
+    At the June 2023 rate of 1.2366 dollars to the pound, the proceeds are
+    1,350 / 1.2366 = 1,091.7031 and the cost 1,321 / 1.2366 = 1,068.2517.
+    The gain is rounded once worked out, 23.4514 to 23.45, and the report
+    states the cost as the proceeds less that gain, 1,091.70 - 23.45 =
+    1,068.25. Without the fee, the cost would be 1,067.44.
+
+    Row 3 replaces nothing and leaves its price blank, so --prices-file
+    prices it: 10 FOO at 5 dollars cost 50 / 1.2366 = 40.43.
+    """
+    schwab = _write(tmp_path / "schwab.csv", [SCHWAB_HEADER, *SCHWAB_VEST])
+    awards = _write(tmp_path / "awards.csv", LAPSE_CSV)
+    prices = _write(
+        tmp_path / "prices.csv", ["date,symbol,price", '"Jun 15, 2023",FOO,5.00']
+    )
+    raw = _raw(
+        tmp_path,
+        "2023-06-15,STOCK_ACTIVITY,ZQX,60,22.00,1.00,USD,Charles Schwab,2023-06-12",
+        "2023-06-15,STOCK_ACTIVITY,FOO,10,,0.00,USD,,",
+    )
+
+    result = run_cli(
+        build_cmd(
+            "--year",
+            "2023",
+            "--schwab-file",
+            str(schwab),
+            "--schwab-award-file",
+            str(awards),
+            "--raw-file",
+            str(raw),
+            "--prices-file",
+            str(prices),
+            "--no-report",
+        )
+    )
+
+    assert stderr_alerts(result.stderr) == []
+    assert re.search(r"Disposal proceeds:\s+£1,091\.70\n", result.stdout)
+    assert re.search(r"Allowable costs:\s+£1,068\.25\n", result.stdout)
+    assert re.search(r"Gain:\s+£23\.45\n", result.stdout)
+    assert "\n  FOO: 10.00, £40.43\n" in result.stdout
+
+
 UNPRICED_VEST = [
     '"08/18/2023","Sell","ZQX","ZQX CORP","20","$23.00","","$460.00"',
     '"08/18/2023","Stock Plan Activity","ZQX","ZQX CORP INC CLASS A","60","","",""',

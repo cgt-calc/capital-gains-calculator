@@ -322,10 +322,19 @@ def resolve_raw_brokers(
         for row, target in zip(rows, targets, strict=False):
             if (restated := _restated_split(target, row)) is not None:
                 raise _refuse(row, restated)
-            if _unpriced(target) and (
-                refusal := _unpriced_refusal(target, row, transactions)
-            ):
-                raise _refuse(row, refusal)
+            if _unpriced(target):
+                if refusal := _unpriced_refusal(target, row, transactions):
+                    raise _refuse(row, refusal)
+            elif row.action is ActionType.STOCK_ACTIVITY and not row.price:
+                # The row restates what the vest cost: at 0 it costs nothing,
+                # and a blank would be priced by date from --prices-file.
+                raise _refuse(
+                    row,
+                    f"Cannot replace the {target.symbol} vest of "
+                    f"{target.quantity} dated {target.date} with a row that "
+                    "does not state a positive price. Give the market value of "
+                    f"one share on the day you acquired the shares. See {DOCS}",
+                )
             if (
                 target.capital_adjustments
                 or not target.affects_cash_balance
