@@ -528,10 +528,13 @@ def test_mssb_dir_ignores_every_other_entry_beside_the_reports(tmp_path: Path) -
     reason="Windows needs a privilege to make a link and has no read permission bit",
 )
 def test_mssb_dir_ignores_an_entry_it_cannot_open(tmp_path: Path) -> None:
-    """A broken link or a CSV closed to this user is left alone, as before.
+    """An entry this user cannot open is left alone, as before.
 
-    Neither can be read as a report, so only the release of 3 shares is read.
-    Run as root, `closed.csv` opens, and is ignored as an unrelated file.
+    A broken link, a CSV closed to this user and a link into a closed folder
+    cannot be read as a report, so only the release of 3 shares is read.
+    Python before 3.14 fails even to say whether `hidden.csv` is a file. Run as
+    root, `closed.csv` opens and `hidden.csv` is a broken link, and both are
+    ignored as unrelated.
     """
     _write_csv(
         tmp_path / RELEASES_REPORT_FILENAME,
@@ -555,6 +558,8 @@ def test_mssb_dir_ignores_an_entry_it_cannot_open(tmp_path: Path) -> None:
     closed = tmp_path / "closed.csv"
     closed.write_text("Date,Note\n", encoding="utf-8")
     closed.chmod(0)
+    (tmp_path / "hidden.csv").symlink_to("private/notes.csv")
+    (tmp_path / "private").mkdir(mode=0)
 
     transactions = MSSBParser.load_from_dir(tmp_path)
 

@@ -25,11 +25,14 @@ and `Withdrawal Wire Report.csv` files found in the original example export, wit
 Keep other files out of the directory: cgt-calc stops at a CSV or JSON file it does not recognise.
 
 With `--mssb-dir`, the two names are required instead, although matching is case-insensitive,
-including the `.csv` extension. That option reads only those two files. If another CSV file in the
-directory holds a releases or withdrawals report, such as a second download saved as
-`Withdrawals Report (1).csv`, cgt-calc stops and names it rather than leave its transactions out.
-Keep one copy of each report, holding the complete history, and either give it its exact name or
-pass the directory without `--mssb-dir`. The option ignores every other file in the directory.
+including the `.csv` extension. That option reads transactions only from those two files. It reads
+just the heading row of every other CSV file in the directory, to find a releases or withdrawals
+report saved under another name, such as a second download saved as `Withdrawals Report (1).csv`. If
+it finds one, cgt-calc stops and names it rather than leave its transactions out. Keep one copy of
+each report, holding the complete history, and either give it its exact name or pass the directory
+without `--mssb-dir`. The option ignores every other file in the directory, but a disk or network
+error while reading the heading row of another CSV file stops the run. Move that file out of the
+directory.
 
 Export from the first award or transaction through today, or at least 30 days after the end of the
 tax year you are calculating. Earlier vesting establishes the cost and quantity of shares sold

@@ -219,23 +219,24 @@ class MSSBParser(
         """
         renamed: list[str] = []
         for file_path in sorted(dir_path.glob(cls.glob_dir, case_sensitive=False)):
-            # Only files are opened: a named pipe would never end.
-            if not file_path.is_file() or cls.file_path_filter(file_path):
+            if cls.file_path_filter(file_path):
                 continue
             # Only the heading row is read, so an unrelated file that is large, in
             # another encoding, unreadable to the csv module or closed to this
-            # user cannot stop the run.
-            with (
-                contextlib.suppress(PermissionError, csv.Error),
-                file_path.open(
+            # user cannot stop the run. Before Python 3.14, `is_file()` too fails
+            # on a link into a folder closed to this user.
+            with contextlib.suppress(PermissionError, csv.Error):
+                # Only files are opened: a named pipe would never end.
+                if not file_path.is_file():
+                    continue
+                with file_path.open(
                     encoding=cls.encoding, errors="replace", newline=""
-                ) as file,
-            ):
-                renamed += [
-                    f"  {file_path} is {kind}"
-                    for kind in cls._kinds_with(next(csv.reader(file), []))
-                    if kind != UNREAD_REPORT
-                ]
+                ) as file:
+                    renamed += [
+                        f"  {file_path} is {kind}"
+                        for kind in cls._kinds_with(next(csv.reader(file), []))
+                        if kind != UNREAD_REPORT
+                    ]
         if renamed:
             raise CgtError(
                 "--mssb-dir reads Morgan Stanley reports only under the names "
