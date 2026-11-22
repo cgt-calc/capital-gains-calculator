@@ -442,37 +442,37 @@ def test_a_main_history_vest_before_the_split_is_replaced(
     assert f"\n  NVDA: 10.00, £{cost}\n" in result.stdout
 
 
-PRICED_VEST = '"06/15/2023","Stock Plan Activity","ZQX","ZQX CORP INC CLASS A","60","$20.00","",""'
+PRICED_VEST = '"06/12/2023","Stock Plan Activity","ZQX","ZQX CORP INC CLASS A","60","$20.00","",""'
 
 
 @pytest.mark.parametrize(
-    ("vest", "awards", "price", "dated"),
+    ("vest", "awards", "price"),
     [
-        pytest.param(PRICED_VEST, False, "0.00", "2023-06-15", id="0, history price"),
-        pytest.param(SCHWAB_VEST[1], True, "0.00", "2023-06-12", id="0, award price"),
-        pytest.param(SCHWAB_VEST[1], True, "", "2023-06-12", id="blank, prices file"),
+        pytest.param(PRICED_VEST, False, "0.00", id="0, history price"),
+        pytest.param(SCHWAB_VEST[1], True, "0.00", id="0, award price"),
+        pytest.param(SCHWAB_VEST[1], True, "", id="blank, prices file"),
     ],
 )
 def test_a_vest_with_a_price_is_not_replaced_by_a_row_without_one(
-    tmp_path: Path, vest: str, awards: bool, price: str, dated: str
+    tmp_path: Path, vest: str, awards: bool, price: str
 ) -> None:
     """A row that restates a vest's value has to state one.
 
     The export prices the vest of 60 at 20 dollars, in the history itself or
     from the award file's Lapse of 12 June. A row at 0 would make it cost
     nothing but its fees, overstating the gain on a sale. A blank one would
-    be priced from --prices-file, which has ZQX at 21 dollars on 14 June: a
+    be priced from --prices-file, which has ZQX at 21 dollars on 15 June: a
     price looked up by date, not the value the employer taxed, so it is
     refused even though the file has one.
     """
     history = [SCHWAB_VEST[0], vest, *SCHWAB_VEST[2:]]
     schwab = _write(tmp_path / "schwab.csv", [SCHWAB_HEADER, *history])
     prices = _write(
-        tmp_path / "prices.csv", ["date,symbol,price", '"Jun 14, 2023",ZQX,21.00']
+        tmp_path / "prices.csv", ["date,symbol,price", '"Jun 15, 2023",ZQX,21.00']
     )
     raw = _raw(
         tmp_path,
-        f"2023-06-14,STOCK_ACTIVITY,ZQX,60,{price},0.00,USD,Charles Schwab,{dated}",
+        f"2023-06-15,STOCK_ACTIVITY,ZQX,60,{price},0.00,USD,Charles Schwab,2023-06-12",
     )
     cmd = build_cmd(
         "--year",
@@ -492,7 +492,7 @@ def test_a_vest_with_a_price_is_not_replaced_by_a_row_without_one(
 
     assert (
         f"ERROR: While parsing {raw}, row 2: Cannot replace the ZQX vest of 60 dated "
-        f"{dated} with a row that does not state a positive price. Give the market "
+        "2023-06-12 with a row that does not state a positive price. Give the market "
         f"value of one share on the day you acquired the shares. See {DOCS}\n"
     ) in stderr
 
@@ -518,7 +518,7 @@ def test_a_morgan_stanley_release_is_not_replaced_at_a_price_of_0(
     )
     raw = _raw(
         tmp_path,
-        "2023-03-24,STOCK_ACTIVITY,GOOG,3,0.00,0.00,USD,Morgan Stanley,2023-03-25",
+        "2023-03-25,STOCK_ACTIVITY,GOOG,3,0.00,0.00,USD,Morgan Stanley,2023-03-25",
     )
 
     stderr = _refused(
