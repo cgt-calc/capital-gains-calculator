@@ -30,9 +30,11 @@ just the heading row of every other CSV file in the directory, to find a release
 report saved under another name, such as a second download saved as `Withdrawals Report (1).csv`. If
 it finds one, cgt-calc stops and names it rather than leave its transactions out. Keep one copy of
 each report, holding the complete history, and either give it its exact name or pass the directory
-without `--mssb-dir`. The option ignores every other file in the directory, but a disk or network
-error while reading the heading row of another CSV file stops the run. Move that file out of the
-directory.
+without `--mssb-dir`.
+
+Apart from that check, the option ignores every other file in the directory. A disk or network error
+while reading the heading row of another CSV file stops the run, and the error may not name the
+file. If that happens, move the other CSV files out of the directory, keeping the two reports.
 
 Export from the first award or transaction through today, or at least 30 days after the end of the
 tax year you are calculating. Earlier vesting establishes the cost and quantity of shares sold
