@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import csv
+import datetime as dt
 from decimal import Decimal
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
 
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import CgtError, ParsingError
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.mssb import (
     COLUMNS_RELEASE,
     COLUMNS_WITHDRAWAL,
     RELEASES_REPORT_FILENAME,
+    UNREAD_HEADERS,
     WITHDRAWALS_REPORT_FILENAME,
     MSSBParser,
 )
@@ -428,3 +431,138 @@ def test_read_mssb_withdrawal_short_row(tmp_path: Path) -> None:
     # unhandled AttributeError/TypeError bubbling out of the parser.
     assert exc.type is ParsingError
     assert "row 2" in str(exc.value)
+
+
+def test_mssb_dir_refuses_each_report_under_another_name(tmp_path: Path) -> None:
+    """A renamed report would be left out without a word, so each one is named.
+
+    A second download is saved under a name such as `Withdrawals Report 2.csv`.
+    Read by name alone, the folder would give the vest in `Releases Report.csv`
+    and nothing from the two renamed reports.
+    """
+    _write_csv(
+        tmp_path / RELEASES_REPORT_FILENAME,
+        [
+            COLUMNS_RELEASE,
+            [
+                "25-Mar-2023",
+                "ORDER-1",
+                "GSU Class C",
+                "Release",
+                "Complete",
+                "$10.00",
+                "3.000",
+                "$0.00",
+                "3",
+                "Fractional Shares",
+            ],
+        ],
+    )
+    _write_csv(
+        tmp_path / "Releases Report (1).csv",
+        [COLUMNS_RELEASE, ["25-Mar-2023", "ORDER-1", "GSU Class C", "Release"]],
+    )
+    _write_csv(
+        tmp_path / "Withdrawals Report 2.csv",
+        [COLUMNS_WITHDRAWAL, ["07-Feb-2023", "ORDER-2", "GSU Class C", "Sale"]],
+    )
+
+    with pytest.raises(CgtError) as exc:
+        MSSBParser.load_from_dir(tmp_path)
+
+    assert str(exc.value) == (
+        "--mssb-dir reads Morgan Stanley reports only under the names Releases "
+        "Report.csv and Withdrawals Report.csv, so it would leave out:\n"
+        f"  {tmp_path / 'Releases Report (1).csv'} is a Morgan Stanley Releases "
+        "Report\n"
+        f"  {tmp_path / 'Withdrawals Report 2.csv'} is a Morgan Stanley Withdrawals "
+        "Report\n"
+        "Keep one copy of each report, holding the whole history, and move the "
+        "other copies out of the directory. Then either give each report its name, "
+        "or pass the directory as INPUT, without --mssb-dir: that reads a report "
+        "whatever its name."
+    )
+
+
+def test_mssb_dir_ignores_every_other_entry_beside_the_reports(tmp_path: Path) -> None:
+    """Only a renamed releases or withdrawals report stops the run.
+
+    A renamed copy of a report cgt-calc does not read, a CSV in another
+    encoding, one the csv module cannot read and a folder named like a CSV are
+    each left alone, as before: only the release of 3 shares is read.
+    """
+    _write_csv(
+        tmp_path / RELEASES_REPORT_FILENAME,
+        [
+            COLUMNS_RELEASE,
+            [
+                "25-Mar-2023",
+                "ORDER-1",
+                "GSU Class C",
+                "Release",
+                "Complete",
+                "$10.00",
+                "3.000",
+                "$0.00",
+                "3",
+                "Fractional Shares",
+            ],
+        ],
+    )
+    _write_csv(tmp_path / "Withdrawal Wire Report (1).csv", [UNREAD_HEADERS[1]])
+    # 0x81 is not UTF-8.
+    (tmp_path / "notes.csv").write_bytes(b"Date,Note\n01-Jan-2023,\x81\n")
+    # One character past the csv module's default field limit of 131,072.
+    (tmp_path / "long.csv").write_text("x" * 131_073 + "\n", encoding="utf-8")
+    (tmp_path / "old.csv").mkdir()
+
+    transactions = MSSBParser.load_from_dir(tmp_path)
+
+    assert [(t.date, t.quantity) for t in transactions] == [
+        (dt.date(2023, 3, 25), Decimal(3))
+    ]
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Windows needs a privilege to make a link and has no read permission bit",
+)
+def test_mssb_dir_ignores_an_entry_it_cannot_open(tmp_path: Path) -> None:
+    """An entry this user cannot open is left alone, as before.
+
+    A broken link, a CSV closed to this user and a link into a closed folder
+    cannot be read as a report, so only the release of 3 shares is read.
+    Python before 3.14 fails even to say whether `hidden.csv` is a file. Run as
+    root, `closed.csv` opens and `hidden.csv` is a broken link, and both are
+    ignored as unrelated.
+    """
+    _write_csv(
+        tmp_path / RELEASES_REPORT_FILENAME,
+        [
+            COLUMNS_RELEASE,
+            [
+                "25-Mar-2023",
+                "ORDER-1",
+                "GSU Class C",
+                "Release",
+                "Complete",
+                "$10.00",
+                "3.000",
+                "$0.00",
+                "3",
+                "Fractional Shares",
+            ],
+        ],
+    )
+    (tmp_path / "gone.csv").symlink_to("missing.csv")
+    closed = tmp_path / "closed.csv"
+    closed.write_text("Date,Note\n", encoding="utf-8")
+    closed.chmod(0)
+    (tmp_path / "hidden.csv").symlink_to("private/notes.csv")
+    (tmp_path / "private").mkdir(mode=0)
+
+    transactions = MSSBParser.load_from_dir(tmp_path)
+
+    assert [(t.date, t.quantity) for t in transactions] == [
+        (dt.date(2023, 3, 25), Decimal(3))
+    ]

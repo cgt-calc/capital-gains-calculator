@@ -7,6 +7,7 @@ brokerage accounts.
 
 from __future__ import annotations
 
+import contextlib
 import csv
 from dataclasses import dataclass
 import datetime as dt
@@ -15,7 +16,7 @@ from enum import StrEnum
 import io
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import CgtError, ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 from cgt_calc.util import parse_date, parse_decimal
 
@@ -164,7 +165,11 @@ class MSSBParser(
     @override
     def recognise(cls, text: str, file_path: Path) -> list[str]:
         """Name the report by its headings, as the reader checks them."""
-        header = next(csv.reader(io.StringIO(text)), [])
+        return cls._kinds_with(next(csv.reader(io.StringIO(text)), []))
+
+    @classmethod
+    def _kinds_with(cls, header: list[str]) -> list[str]:
+        """Name the report whose heading row this is."""
         kinds = [
             kind
             for kind, columns in (
@@ -202,6 +207,48 @@ class MSSBParser(
             WITHDRAWALS_REPORT_FILENAME.casefold(),
             RELEASES_REPORT_FILENAME.casefold(),
         }
+
+    @classmethod
+    @override
+    def load_from_dir(cls, dir_path: Path) -> list[BrokerTransaction]:
+        """Read the two reports by name, refusing either under another name.
+
+        A second download saved as `Withdrawals Report (1).csv` would otherwise
+        be left out without a word, and its sales with it. Every other file in
+        the directory is still ignored.
+        """
+        renamed: list[str] = []
+        for file_path in sorted(dir_path.glob(cls.glob_dir, case_sensitive=False)):
+            if cls.file_path_filter(file_path):
+                continue
+            # Only the heading row is read, so an unrelated file that is large, in
+            # another encoding, unreadable to the csv module or closed to this
+            # user cannot stop the run. Before Python 3.14, `is_file()` too fails
+            # on a link into a folder closed to this user.
+            with contextlib.suppress(PermissionError, csv.Error):
+                # Only files are opened: a named pipe would never end.
+                if not file_path.is_file():
+                    continue
+                with file_path.open(
+                    encoding=cls.encoding, errors="replace", newline=""
+                ) as file:
+                    renamed += [
+                        f"  {file_path} is {kind}"
+                        for kind in cls._kinds_with(next(csv.reader(file), []))
+                        if kind != UNREAD_REPORT
+                    ]
+        if renamed:
+            raise CgtError(
+                "--mssb-dir reads Morgan Stanley reports only under the names "
+                f"{RELEASES_REPORT_FILENAME} and {WITHDRAWALS_REPORT_FILENAME}, so "
+                "it would leave out:\n"
+                + "\n".join(renamed)
+                + "\nKeep one copy of each report, holding the whole history, and "
+                "move the other copies out of the directory. Then either give each "
+                "report its name, or pass the directory as INPUT, without "
+                "--mssb-dir: that reads a report whatever its name."
+            )
+        return super().load_from_dir(dir_path)
 
     @classmethod
     @override

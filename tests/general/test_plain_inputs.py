@@ -886,6 +886,82 @@ def test_an_input_cgt_calc_cannot_read_as_an_export_stops_the_run(
     assert f"ERROR: cgt-calc cannot use every INPUT:\n  {problem}" in err
 
 
+# A purchase in pounds, so a run that went on would need no exchange rate.
+GBP_RAW = (
+    "date,action,symbol,quantity,price,fees,currency\n2023-05-01,BUY,ABC,1,10,0,GBP\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("export", "folders", "links", "names"),
+    [
+        pytest.param(
+            False,
+            ["a.csv"],
+            [],
+            ["exports/a.csv"],
+            id="only a folder named like an export",
+        ),
+        pytest.param(
+            True,
+            ["a.json", "b.csv"],
+            [],
+            ["exports/a.json", "exports/b.csv"],
+            id="folders named like exports beside one",
+        ),
+        pytest.param(
+            True,
+            [],
+            ["b.csv"],
+            ["exports/b.csv"],
+            id="a broken link beside an export",
+            marks=pytest.mark.skipif(
+                sys.platform == "win32",
+                reason="Windows needs a privilege to make a link",
+            ),
+        ),
+    ],
+)
+def test_a_folder_entry_that_is_not_a_file_stops_the_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    export: bool,
+    folders: list[str],
+    links: list[str],
+    names: list[str],
+) -> None:
+    """Each is named rather than skipped, as it may stand for an export.
+
+    Skipping one would leave out the transactions of the export it stands
+    for. With nothing else in the folder, the folder is not also said to hold
+    no export.
+    """
+    monkeypatch.chdir(tmp_path)
+    folder = Path("exports")
+    folder.mkdir()
+    if export:
+        _write(folder / "trades.csv", GBP_RAW)
+    for name in folders:
+        (folder / name).mkdir()
+    for name in links:
+        (folder / name).symlink_to("gone.csv")
+
+    status, err = _cli(monkeypatch, capsys, folder)
+
+    assert status == 1
+    assert err.endswith(
+        "ERROR: cgt-calc cannot use every INPUT:\n"
+        + "".join(
+            f"  {name} is a folder, a broken link or something else that is not a "
+            "file, so cgt-calc cannot read it. Replace it with the export, or move it "
+            "out of exports.\n"
+            for name in names
+        )
+        + "\n"
+    )
+
+
 @pytest.mark.parametrize(
     ("argv", "problem"),
     [

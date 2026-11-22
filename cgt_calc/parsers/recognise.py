@@ -127,13 +127,21 @@ def _files_of(argument: Path, problems: list[str]) -> list[Path]:
     if argument == STDIN_PATH or not argument.is_dir():
         return [argument]
     # Not recursive, like every directory option.
-    files = sorted(
+    matches = sorted(
         path
         for pattern in ("*.csv", "*.json")
         for path in argument.glob(pattern, case_sensitive=False)
-        if path.is_file()
     )
-    if not files:
+    files = [path for path in matches if path.is_file()]
+    # Skipping one would leave out the export it stands for without a word.
+    problems.extend(
+        f"{shown(path)} is a folder, a broken link or something else that is not "
+        "a file, so cgt-calc cannot read it. Replace it with the export, or move "
+        f"it out of {shown(argument)}."
+        for path in matches
+        if path not in files
+    )
+    if not matches:
         problems.append(
             f"{shown(argument)} holds no CSV or JSON file, so no broker can be "
             "named for it."
