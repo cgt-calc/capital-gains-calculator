@@ -15,7 +15,7 @@ from enum import StrEnum
 import io
 from typing import TYPE_CHECKING, ClassVar, Final, TextIO, override
 
-from cgt_calc.exceptions import ParsingError
+from cgt_calc.exceptions import CgtError, ParsingError
 from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 from cgt_calc.util import parse_date, parse_decimal
 
@@ -202,6 +202,41 @@ class MSSBParser(
             WITHDRAWALS_REPORT_FILENAME.casefold(),
             RELEASES_REPORT_FILENAME.casefold(),
         }
+
+    @classmethod
+    @override
+    def load_from_dir(cls, dir_path: Path) -> list[BrokerTransaction]:
+        """Read the two reports by name, refusing either under another name.
+
+        A second download saved as `Withdrawals Report (1).csv` would otherwise
+        be left out without a word, and its sales with it. Every other file in
+        the directory is still ignored.
+        """
+        renamed = [
+            f"  {file_path} is {kind}"
+            for file_path in sorted(dir_path.glob(cls.glob_dir, case_sensitive=False))
+            # Only files are opened: a named pipe would never end.
+            if file_path.is_file() and not cls.file_path_filter(file_path)
+            # Only the headings are compared, so an unrelated file in another
+            # encoding cannot stop the run.
+            for kind in cls.recognise(
+                file_path.read_text(encoding=cls.encoding, errors="replace"),
+                file_path,
+            )
+            if kind != UNREAD_REPORT
+        ]
+        if renamed:
+            raise CgtError(
+                "--mssb-dir reads Morgan Stanley reports only under the names "
+                f"{RELEASES_REPORT_FILENAME} and {WITHDRAWALS_REPORT_FILENAME}, so "
+                "it would leave out:\n"
+                + "\n".join(renamed)
+                + "\nKeep one copy of each report, holding the whole history, under "
+                "its name, and move the other copies out of the directory. Or pass "
+                "the directory as INPUT, without --mssb-dir: that reads each report "
+                "whatever its name."
+            )
+        return super().load_from_dir(dir_path)
 
     @classmethod
     @override
