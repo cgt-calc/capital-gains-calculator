@@ -116,7 +116,11 @@ class CurrencyConverter:
             )
         )
         self.session = RateLimitedRequestsSession(limiter)
-        retries = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
+        # Two retries when no connection can be made, so an offline run stops
+        # after about 2 seconds rather than 30; a server error keeps all five.
+        retries = Retry(
+            total=5, connect=2, backoff_factor=1, status_forcelist=[502, 503, 504]
+        )
         self.session.mount("https://", HTTPAdapter(max_retries=retries))
 
     @staticmethod
