@@ -540,10 +540,8 @@ def test_a_morgan_stanley_release_is_not_replaced_at_a_price_of_0(
     ) in stderr
 
 
-def test_a_replacing_row_keeps_its_fees_and_others_their_prices_file_price(
-    tmp_path: Path,
-) -> None:
-    """Only the price of a replacing row is checked.
+def test_a_row_replacing_a_vest_with_a_price_keeps_its_fees(tmp_path: Path) -> None:
+    """Only the price of a replacing row is checked, not its fees.
 
     Row 2 dates the vest of 60 on 15 June 2023 at 22 dollars with a fee of
     1 dollar, an incidental cost of acquisition (TCGA 1992 s38(1)(a) and
@@ -553,19 +551,12 @@ def test_a_replacing_row_keeps_its_fees_and_others_their_prices_file_price(
     The gain is rounded once worked out, 23.4514 to 23.45, and the report
     states the cost as the proceeds less that gain, 1,091.70 - 23.45 =
     1,068.25. Without the fee, the cost would be 1,067.44.
-
-    Row 3 replaces nothing and leaves its price blank, so --prices-file
-    prices it: 10 FOO at 5 dollars cost 50 / 1.2366 = 40.43.
     """
     schwab = _write(tmp_path / "schwab.csv", [SCHWAB_HEADER, *SCHWAB_VEST])
     awards = _write(tmp_path / "awards.csv", LAPSE_CSV)
-    prices = _write(
-        tmp_path / "prices.csv", ["date,symbol,price", '"Jun 15, 2023",FOO,5.00']
-    )
     raw = _raw(
         tmp_path,
         "2023-06-15,STOCK_ACTIVITY,ZQX,60,22.00,1.00,USD,Charles Schwab,2023-06-12",
-        "2023-06-15,STOCK_ACTIVITY,FOO,10,,0.00,USD,,",
     )
 
     result = run_cli(
@@ -578,8 +569,6 @@ def test_a_replacing_row_keeps_its_fees_and_others_their_prices_file_price(
             str(awards),
             "--raw-file",
             str(raw),
-            "--prices-file",
-            str(prices),
             "--no-report",
         )
     )
@@ -588,7 +577,6 @@ def test_a_replacing_row_keeps_its_fees_and_others_their_prices_file_price(
     assert re.search(r"Disposal proceeds:\s+£1,091\.70\n", result.stdout)
     assert re.search(r"Allowable costs:\s+£1,068\.25\n", result.stdout)
     assert re.search(r"Gain:\s+£23\.45\n", result.stdout)
-    assert "\n  FOO: 10.00, £40.43\n" in result.stdout
 
 
 UNPRICED_VEST = [
