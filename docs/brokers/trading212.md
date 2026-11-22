@@ -541,9 +541,12 @@ cgt-calc does not treat the conversion as a disposal and reports no gain or loss
     for example, can be given the US treaty without a warning; see
     [Income reported in more than one currency](../extra-data-and-options.md#income-reported-in-more-than-one-currency).
 - Share transfers between accounts or brokers, labelled `Transfer in` or `Transfer out`, are not
-    supported, and cgt-calc stops at the row. For shares you transferred to or received from your
-    spouse or civil partner, gave away, were given or inherited, remove the row and record the
-    shares as [Transfers, gifts and fund income](../transfers-gifts-and-fund-income.md) describes.
+    supported, and cgt-calc stops at the row. For shares you moved to or from an account of your own
+    at another broker, see
+    [Shares you moved between your own accounts](../transfers-gifts-and-fund-income.md#shares-you-moved-between-your-own-accounts).
+    For shares you transferred to or received from your spouse or civil partner, gave away, were
+    given or inherited, remove the row and record the shares as
+    [Transfers, gifts and fund income](../transfers-gifts-and-fund-income.md) describes.
 - One run covers one Trading 212 account. Every Trading 212 export in a run is read as one account,
     because nothing in the CSV identifies which account a row belongs to. If you hold the same
     security in two Trading 212 accounts, their exports cannot be combined in one run: a

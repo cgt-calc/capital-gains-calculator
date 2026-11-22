@@ -689,6 +689,8 @@ transfer of the same shares on one day are refused when there is such a purchase
     unsupported. Despite its name, `Security Transfer` is supported only as an `ACH`-related cash
     movement: it requires an `Amount` and does not move shares. Follow the RAW transfer or gift
     instructions only after establishing what the transfer was and what cost should move with it.
+    For shares you moved to or from an account of your own at another broker, see
+    [Shares you moved between your own accounts](../transfers-gifts-and-fund-income.md#shares-you-moved-between-your-own-accounts).
 - A main history and a complete Equity Awards export are not reconciled against each other. cgt-calc
     warns when you combine them, but cannot tell that a transaction appears in both. Import one or
     the other, or make sure no vest, sale, dividend or cash movement appears in both; see

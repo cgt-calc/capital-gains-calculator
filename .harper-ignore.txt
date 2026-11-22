@@ -94,7 +94,7 @@
 # "a wrong guess changes the income a thousandfold" is complete as it stands.
 ^args_validators\.py:.*MissingPreposition
 # "Trading 212's" - Harper splits the possessive after a number.
-^(trading212|raw|interactive-brokers)\.md:.*SpellCheck.*`s`
+^(trading212|raw|interactive-brokers|transfers-gifts-and-fund-income)\.md:.*SpellCheck.*`s`
 # "`IE00BYZNF849`'s start" - Harper splits the possessive after a code span.
 ^eri-data\.md:.*SpellCheck.*`s`
 # "`name`'s fund", "`old`'s mark" - the same split, after a code span.
