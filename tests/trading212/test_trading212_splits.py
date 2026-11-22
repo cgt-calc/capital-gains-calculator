@@ -3169,7 +3169,7 @@ def test_an_isin_change_the_split_does_not_explain_is_refused(
     raw_rows: tuple[str, ...],
     refusal: str,
 ) -> None:
-    """Each history has the split row, and one ISIN that is not the split's.
+    """Each history has the split row, and an ISIN the split does not explain.
 
     Respectively: the new ISIN before the split, the old one on the split
     day, the new ISIN before the split and before every row under the old
