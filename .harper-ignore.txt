@@ -88,7 +88,7 @@
 # "a file path" is the ordinary open compound; Harper prefers "filepath".
 ^usage\.md:.*CompoundNouns.*filepath
 # "all of the gain" is ordinary English; the shorter form is only a preference.
-^(tax-estimates\.md|render_text\.py):.*CondenseAllThe
+^(tax-estimates\.md|render_text\.py|transfers-gifts-and-fund-income\.md):.*CondenseAllThe
 # "reminds you when the report has such dividends" is complete as it stands.
 ^tax-estimates\.md:.*MissingPreposition
 # "a wrong guess changes the income a thousandfold" is complete as it stands.
