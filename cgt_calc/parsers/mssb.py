@@ -7,6 +7,7 @@ brokerage accounts.
 
 from __future__ import annotations
 
+import contextlib
 import csv
 from dataclasses import dataclass
 import datetime as dt
@@ -212,29 +213,30 @@ class MSSBParser(
         be left out without a word, and its sales with it. Every other file in
         the directory is still ignored.
         """
-        renamed = [
-            f"  {file_path} is {kind}"
-            for file_path in sorted(dir_path.glob(cls.glob_dir, case_sensitive=False))
+        renamed: list[str] = []
+        for file_path in sorted(dir_path.glob(cls.glob_dir, case_sensitive=False)):
             # Only files are opened: a named pipe would never end.
-            if file_path.is_file() and not cls.file_path_filter(file_path)
+            if not file_path.is_file() or cls.file_path_filter(file_path):
+                continue
             # Only the headings are compared, so an unrelated file in another
-            # encoding cannot stop the run.
-            for kind in cls.recognise(
-                file_path.read_text(encoding=cls.encoding, errors="replace"),
-                file_path,
-            )
-            if kind != UNREAD_REPORT
-        ]
+            # encoding, or one the csv module cannot read, cannot stop the run.
+            text = file_path.read_text(encoding=cls.encoding, errors="replace")
+            with contextlib.suppress(csv.Error):
+                renamed += [
+                    f"  {file_path} is {kind}"
+                    for kind in cls.recognise(text, file_path)
+                    if kind != UNREAD_REPORT
+                ]
         if renamed:
             raise CgtError(
                 "--mssb-dir reads Morgan Stanley reports only under the names "
                 f"{RELEASES_REPORT_FILENAME} and {WITHDRAWALS_REPORT_FILENAME}, so "
                 "it would leave out:\n"
                 + "\n".join(renamed)
-                + "\nKeep one copy of each report, holding the whole history, under "
-                "its name, and move the other copies out of the directory. Or pass "
-                "the directory as INPUT, without --mssb-dir: that reads each report "
-                "whatever its name."
+                + "\nKeep one copy of each report, holding the whole history, and "
+                "move the other copies out of the directory. Then either give each "
+                "report its name, or pass the directory as INPUT, without "
+                "--mssb-dir: that reads a report whatever its name."
             )
         return super().load_from_dir(dir_path)
 

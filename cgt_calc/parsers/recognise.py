@@ -135,9 +135,9 @@ def _files_of(argument: Path, problems: list[str]) -> list[Path]:
     files = [path for path in matches if path.is_file()]
     # Skipping one would leave out the export it stands for without a word.
     problems.extend(
-        f"{shown(path)} is not a regular file, such as a folder or a broken link, "
-        "so cgt-calc cannot read it. Replace it with the export, or move it out "
-        f"of {shown(argument)}."
+        f"{shown(path)} is a folder, a broken link or something else that is not "
+        "a file, so cgt-calc cannot read it. Replace it with the export, or move "
+        f"it out of {shown(argument)}."
         for path in matches
         if path not in files
     )

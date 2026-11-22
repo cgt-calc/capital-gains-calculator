@@ -933,9 +933,9 @@ def test_a_folder_entry_that_is_not_a_file_stops_the_run(
 ) -> None:
     """Each is named rather than skipped, as it may stand for an export.
 
-    A link into cloud storage that is not synced is the likely case: skipping
-    it would leave that export's transactions out of the calculation. With
-    nothing else in the folder, the folder is not also said to hold no export.
+    Skipping one would leave out the transactions of the export it stands
+    for. With nothing else in the folder, the folder is not also said to hold
+    no export.
     """
     monkeypatch.chdir(tmp_path)
     folder = Path("exports")
@@ -953,9 +953,9 @@ def test_a_folder_entry_that_is_not_a_file_stops_the_run(
     assert err.endswith(
         "ERROR: cgt-calc cannot use every INPUT:\n"
         + "".join(
-            f"  {name} is not a regular file, such as a folder or a broken link, so "
-            "cgt-calc cannot read it. Replace it with the export, or move it out of "
-            "exports.\n"
+            f"  {name} is a folder, a broken link or something else that is not a "
+            "file, so cgt-calc cannot read it. Replace it with the export, or move it "
+            "out of exports.\n"
             for name in names
         )
         + "\n"

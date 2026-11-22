@@ -436,7 +436,7 @@ def test_mssb_dir_refuses_each_report_under_another_name(tmp_path: Path) -> None
     """A renamed report would be left out without a word, so each one is named.
 
     A second download is saved under a name such as `Withdrawals Report 2.csv`.
-    Read by name alone, the folder would give the vest but not the sale.
+    Read by name alone, the folder would give neither the vest nor the sale.
     """
     _write_csv(
         tmp_path / "Releases Report (1).csv",
@@ -457,9 +457,10 @@ def test_mssb_dir_refuses_each_report_under_another_name(tmp_path: Path) -> None
         "Report\n"
         f"  {tmp_path / 'Withdrawals Report 2.csv'} is a Morgan Stanley Withdrawals "
         "Report\n"
-        "Keep one copy of each report, holding the whole history, under its name, "
-        "and move the other copies out of the directory. Or pass the directory as "
-        "INPUT, without --mssb-dir: that reads each report whatever its name."
+        "Keep one copy of each report, holding the whole history, and move the "
+        "other copies out of the directory. Then either give each report its name, "
+        "or pass the directory as INPUT, without --mssb-dir: that reads a report "
+        "whatever its name."
     )
 
 
@@ -467,8 +468,8 @@ def test_mssb_dir_ignores_every_other_entry_beside_the_reports(tmp_path: Path) -
     """Only a renamed releases or withdrawals report stops the run.
 
     A renamed copy of a report cgt-calc does not read, a CSV in another
-    encoding, and a folder named like a CSV are each left alone, as before:
-    only the release of 3 shares is read.
+    encoding, one the csv module cannot read and a folder named like a CSV are
+    each left alone, as before: only the release of 3 shares is read.
     """
     _write_csv(
         tmp_path / RELEASES_REPORT_FILENAME,
@@ -491,6 +492,8 @@ def test_mssb_dir_ignores_every_other_entry_beside_the_reports(tmp_path: Path) -
     _write_csv(tmp_path / "Withdrawal Wire Report (1).csv", [UNREAD_HEADERS[1]])
     # 0x81 is not UTF-8.
     (tmp_path / "notes.csv").write_bytes(b"Date,Note\n01-Jan-2023,\x81\n")
+    # One character past the csv module's default field limit of 131,072.
+    (tmp_path / "long.csv").write_text("x" * 131_073 + "\n", encoding="utf-8")
     (tmp_path / "old.csv").mkdir()
 
     transactions = MSSBParser.load_from_dir(tmp_path)
