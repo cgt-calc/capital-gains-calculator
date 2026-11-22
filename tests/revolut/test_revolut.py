@@ -363,13 +363,21 @@ def test_read_revolut_cash_rows(
     assert transaction.fees == Decimal(0)
 
 
-def test_read_revolut_stock_split(tmp_path: Path) -> None:
-    """A split states the shares it added and no price for them."""
+@pytest.mark.parametrize(
+    "price_per_share", ["", "USD 187.50"], ids=["blank price", "quoted price"]
+)
+def test_read_revolut_stock_split(tmp_path: Path, price_per_share: str) -> None:
+    """A split states the shares it added, and nothing was paid for them.
+
+    A share price printed beside them is a quote, not consideration: the
+    calculation refuses a split with a price. The price is the total over
+    the shares, USD 0 / 5.72912688 = 0, whatever the price cell says.
+    """
     overrides = {
         RevolutColumn.TICKER: "NVDA",
         RevolutColumn.ACTION: "STOCK SPLIT",
         RevolutColumn.QUANTITY: "5.72912688",
-        RevolutColumn.PRICE_PER_SHARE: "",
+        RevolutColumn.PRICE_PER_SHARE: price_per_share,
         RevolutColumn.TOTAL_AMOUNT: "USD 0",
     }
     path = _write_csv(tmp_path, [_default_row(overrides)])

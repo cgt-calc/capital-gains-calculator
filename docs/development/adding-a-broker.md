@@ -33,6 +33,14 @@ show file loading, transaction conversion and errors for unsupported rows.
     transactions with non-zero fees, unsupported rows and invalid data. Check that errors identify
     the file and row where available. Include a CLI test showing that the registered option loads
     the broker's data.
+- On a share reorganisation (`STOCK_SPLIT`) row, the `price`, `fees` and `amount` of the
+    `BrokerTransaction` your parser returns are money paid or received, and `price` is consideration
+    per share, as on a purchase or sale. cgt-calc refuses the row if any of them holds a value other
+    than zero; `None` and zero pass. The check reads these fields, not the export's cells. If the
+    broker prints a share price on its split rows for information, leave it out of `price`, as the
+    [Schwab parser](https://github.com/cgt-calc/capital-gains-calculator/blob/main/cgt_calc/parsers/schwab.py)
+    does by setting it to `None`. Give the split rows in your tests every cell the export fills, the
+    price included, so that a test shows the parser leaves it out.
 - In the broker's documentation, explain how to download the export, which accounts and transactions
     are supported, and what users should do about unsupported cases. Follow the
     [documentation guidance](contributing.md#writing-documentation).
