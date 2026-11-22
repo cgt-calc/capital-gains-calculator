@@ -93,8 +93,10 @@ deposit or withdrawal, cgt-calc then has no amount to apply and stops with `Pric
 If a `STOCK_ACTIVITY` row has no `price`, cgt-calc looks it up by ticker and date in the
 [share prices](../extra-data-and-options.md#missing-share-prices) and reads it in the row's
 `currency`. If there is none, the run stops with `No share price`: enter the market value per unit
-in `price`. Any `fees` on a `STOCK_ACTIVITY` row, such as a cost of having the shares transferred to
-you, are added to the cost of the shares, but not taken from your cash balance.
+in `price`. The price of a row that [replaces a vest](#replace-a-row-of-the-export) is never looked
+up: the row needs a `price` above zero. Any `fees` on a `STOCK_ACTIVITY` row, such as a cost of
+having the shares transferred to you, are added to the cost of the shares, but not taken from your
+cash balance.
 
 ## Actions to use
 
@@ -356,7 +358,8 @@ replaced:
     on” either of two dates, and date the tax on the dividend it belongs to, as your broker's
     statement shows.
 - **A vest** (`STOCK_ACTIVITY`). The row keeps the export row's quantity and can change its date and
-    its price. Use it when your employer taxed the shares on another day than the one cgt-calc uses:
+    its price. It has to state the price, above zero. Use it when your employer taxed the shares on
+    another day than the one cgt-calc uses:
     [Which day a vest is dated](schwab.md#which-day-a-vest-is-dated) in the Schwab guide says why,
     and [Correct several vests](schwab.md#correct-several-vests) how. If the shares were split or
     consolidated between the two dates, the quantity is in the wrong units for the new date and
@@ -417,6 +420,11 @@ The error names the RAW row:
     the split. A RAW row on that date would count the wrong number of shares. Edit the vest's date
     and price in a working copy of the Equity Awards export instead, keeping its quantity, and give
     the price per share in the units the export uses.
+- **`Cannot replace the ... vest ... with a row that does not state a positive price`**: your row's
+    `price` is blank or 0. At 0 the vest would cost nothing but its fees, overstating the gain on a
+    later sale. A blank `price` is not looked up in the
+    [share prices](../extra-data-and-options.md#missing-share-prices), even if `--prices-file` has
+    one for the row's date. Enter the market value of one share on the day you acquired the shares.
 - **`Cannot replace the ... vest ..., which has no price in the Schwab history`**: your row is all
     cgt-calc has for the vest's cost, so it needs a `price` above zero, `USD` as its currency and no
     fees. A split or consolidation of the share on either date or between them is refused as well,

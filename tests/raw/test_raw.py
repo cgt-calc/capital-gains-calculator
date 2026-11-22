@@ -870,8 +870,7 @@ def test_only_a_stock_activity_row_stated_at_0_is_warned_about(
 
     Naming its broker does not change that. A blank price is looked up, not
     0, and a purchase at 0 is not shares received. A row replacing a vest is
-    not warned about: the replacement checks refuse one at 0 for a vest
-    Schwab did not price.
+    not warned about: the replacement checks refuse one at 0.
     """
     raw_file = tmp_path / "raw.csv"
     _write_csv(
