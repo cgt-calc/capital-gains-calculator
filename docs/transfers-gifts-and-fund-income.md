@@ -327,19 +327,18 @@ As well as the [usual checks](usage.md#check-the-result):
     an [ISIN translation](extra-data-and-options.md#isin-to-ticker-translation) file instead: that
     does not combine the holdings, and it removes the `does not match` stop without correcting the
     result.
-- **A later split.** If the security is split or consolidated after the move, check how the exports
-    record it. Trading 212's `Stock split close` and `Stock split open` rows state the account's
-    whole position before and after, and cgt-calc applies the ratio between them to the whole
-    holding: if they are the only rows for the event, leave them in place. Otherwise, add a RAW
+- **A later split.** If the security is split or consolidated after the move, add a RAW
     `STOCK_SPLIT` row for the change to the whole holding, as
-    [Holdings spread across brokers](brokers/raw.md#holdings-spread-across-brokers) describes:
-    cgt-calc then uses it instead of the brokers' own rows for that event. Add it if no export has a
-    row for the change, if the run stops at the brokers' rows, or if the only row is a single row
-    such as Schwab's `Stock Split`, even when the run succeeds. A single row states the change to
-    that broker's account only. cgt-calc stops with `also has units from` when another file has
-    added units to the holding, but after a move of part of the holding the old broker may be the
-    only one that has: its row for the shares it kept is then accepted, the shares that moved are
-    left out of the change, and the result is a wrong gain without an error.
+    [Holdings spread across brokers](brokers/raw.md#holdings-spread-across-brokers) describes, even
+    when the run succeeds without it: cgt-calc then uses it instead of the brokers' split rows for
+    that event. A broker's single split row, such as Schwab's `Stock Split`, states the change to
+    its own account only, so after a move of part of the holding cgt-calc can accept it and leave
+    the shares that moved out of the change, which gives a wrong gain without an error. The
+    exception is Trading 212's `Stock split close` and `Stock split open` rows, which state the
+    account's whole position before and after: if the run accepts them, leave them in place without
+    a RAW row. If it refuses them, for example because part of the holding moved out of Trading 212,
+    add the RAW row. A RAW row replaces only split rows that cgt-calc can read: if the run stops
+    because it cannot read a broker's row at all, see that broker's guide.
 - **What you hold.** Compare the quantity of each holding in the portfolio section with the total
     you held across your brokers on the date in its heading. Some exports drop a row for shares
     arriving without a message. If the shares' history is missing and you have not sold them, the
