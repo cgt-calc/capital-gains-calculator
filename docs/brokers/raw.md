@@ -37,7 +37,9 @@ Two optional columns, `broker` and `replaces`, can be added when a row has to jo
 or correct one of its rows. See
 [Correct a row in a broker export](#correct-a-row-in-a-broker-export). A third, `market`, says
 whether a ticker is a US or a London one: see
-[Say which market a ticker is from](#say-which-market-a-ticker-is-from).
+[Say which market a ticker is from](#say-which-market-a-ticker-is-from). Four more, `to_symbol`,
+`to_quantity`, `fee_symbol` and `fee_quantity`, are read only on an `EXCHANGE` row: see
+[Exchange one asset for another](#exchange-one-asset-for-another).
 
 A space before or after a value is ignored, so you can leave one after each comma.
 
@@ -116,6 +118,7 @@ Use the following action names when writing a RAW file.
 | `TRANSFER_TO_SPOUSE`             | See [Transfers to a spouse or civil partner](../transfers-gifts-and-fund-income.md#transfers-to-a-spouse-or-civil-partner).                                                                                                                        |
 | `TRANSFER_FROM_SPOUSE`           | See [If you received the shares](../transfers-gifts-and-fund-income.md#if-you-received-the-shares).                                                                                                                                                |
 | `GIFT`, `GIFT_UNCONNECTED`       | See [Gifts to anyone else](../transfers-gifts-and-fund-income.md#gifts-to-anyone-else).                                                                                                                                                            |
+| `EXCHANGE`                       | One asset given up for another, such as one cryptoasset for another. See [Exchange one asset for another](#exchange-one-asset-for-another).                                                                                                        |
 
 For a reinvested dividend, write two rows in this order: a `DIVIDEND` for the income, then a `BUY`
 for the shares bought with it. Excess Reported Income uses the separate
@@ -427,6 +430,54 @@ The error names the RAW row:
     export in the same run. You can leave `broker` blank only if the row does not replace an export
     row; it then stays in the RAW file's own `Unknown` balance.
 - **`A row that replaces a row of a broker export names that broker`**: fill in `broker`.
+
+## Exchange one asset for another
+
+An `EXCHANGE` row records giving up one asset for another with no cash changing hands, such as
+swapping one cryptoasset for another. cgt-calc reads it as a disposal of the asset given up at its
+market value and an acquisition of the asset received at that same value
+([CRYPTO22100](https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto22100)). A fee
+relates to the whole exchange, so cgt-calc splits its value equally between the two: half is a cost
+of the disposal and half a cost of the acquisition, the basis HMRC accepts
+([CRYPTO22150](https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto22150)). A fee
+paid in a third asset is a disposal of that asset too.
+
+Don't use `EXCHANGE` for a takeover or a share-for-share exchange of a company's shares. Those are
+usually not disposals: the new shares take over the old ones' cost. See
+[Share reorganisations](#share-reorganisations).
+
+Run cryptoassets separately from shares, with a RAW file of their own. The SA108 return has its own
+section for cryptoassets, and a single report would add the two together. A coin with the same
+ticker as a share, such as `BTC`, would also be pooled with it.
+
+Add these four columns to the header. Leave them blank on every row that is not an `EXCHANGE`.
+
+| Column                        | What to enter on an `EXCHANGE` row                                                                    |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `symbol`, `quantity`, `price` | The asset given up, the units given up, and the market value of one unit in `currency`.               |
+| `fees`                        | The total value of the fee in `currency`.                                                             |
+| `to_symbol`, `to_quantity`    | The asset received and the units received, before any fee taken from them.                            |
+| `fee_symbol`, `fee_quantity`  | The asset the fee was paid in and the units paid. Leave both blank for a fee paid in `currency` cash. |
+
+```csv
+date,action,symbol,quantity,price,fees,currency,to_symbol,to_quantity,fee_symbol,fee_quantity
+2024-05-01,BUY,BTC,0.5,30000,0,GBP,,,,
+2024-05-01,BUY,BNB,1,400,0,GBP,,,,
+2024-06-03,EXCHANGE,BTC,0.5,40000,4.00,GBP,ETH,10,BNB,0.01
+```
+
+Here 0.5 BTC worth £20,000 is exchanged for 10 ETH, with a fee of 0.01 BNB worth £4. The BTC is
+disposed of for £20,000 less £2 of the fee, the ETH costs £20,000 plus the other £2, and the 0.01
+BNB is disposed of for £4. The values are yours to enter: use the market value at the time of the
+exchange. Either side gives it: the value of the asset given up, or of the asset received, which is
+what an exchange statement usually shows and what HMRC's
+[worked example](https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto22257) uses. For
+the latter, enter that value divided by `quantity` as `price`. A fee taken from the asset received
+is disposed of the same day it is acquired, so it is matched with that acquisition.
+
+An exchange moves no cash, except a fee paid in cash, which is taken from the balance of the RAW
+file's account like any other payment. To exchange an asset for cash, write a `SELL` row; to pay
+cash for one, write a `BUY` row.
 
 ## Say which market a ticker is from
 

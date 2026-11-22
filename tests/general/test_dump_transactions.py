@@ -169,6 +169,10 @@ def test_header_is_the_reviewed_schema() -> None:
         "capital_adjustments",
         "affects_cash_balance",
         "market",
+        "to_symbol",
+        "to_quantity",
+        "fee_symbol",
+        "fee_quantity",
         "source",
     )
 

@@ -4329,6 +4329,8 @@ def test_every_action_says_what_a_rename_day_does_with_it() -> None:
         ActionType.REINVEST_DIVIDENDS,
         ActionType.TRANSFER,
         ActionType.WIRE_FUNDS_RECEIVED,
+        # Replaced by its BUY and SELL legs before any day is planned.
+        ActionType.EXCHANGE,
     }
     readings = [read_as_one_holding, touch_no_holding, RENAME_DAY_UNSUPPORTED_ACTIONS]
 
@@ -6580,6 +6582,8 @@ def test_every_action_says_whether_it_may_come_before_6_april_2008() -> None:
         ActionType.REINVEST_DIVIDENDS,
         # Removed with its Buy by the Schwab parser.
         ActionType.CANCEL_BUY,
+        # Replaced by its BUY and SELL legs, which are classified themselves.
+        ActionType.EXCHANGE,
     }
 
     assert allowed | PRE_POOLING_REFUSED_ACTIONS == set(ActionType)

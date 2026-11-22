@@ -449,3 +449,11 @@ SIL
 McLennan
 rename's
 Direct's
+cryptoasset
+cryptoassets
+BTC
+ETH
+BNB
+CRYPTO22150
+CRYPTO22100
+SA108
