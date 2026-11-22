@@ -155,6 +155,14 @@ def _check_reorganisation_row(transaction: BrokerTransaction) -> None:
     Anything in the price, fees or amount column is therefore a figure the
     calculation has no use for and would drop without saying so, and a row
     that states one is a row about something other than the reorganisation.
+
+    The price is consideration per share, as on a purchase or sale. A broker
+    may print a share-price quote on its split rows (Schwab gives the price
+    after the split). That quote is not consideration, so the broker's
+    parser must leave it out before this check, as the Schwab parser does.
+    A RAW row has no quote: a price there is a figure the user wrote, and
+    is refused here. Price is checked before the amount the RAW parser
+    derives from it, so the message names the column the user wrote.
     """
     for column, value in (
         ("price", transaction.price),
