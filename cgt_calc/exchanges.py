@@ -5,13 +5,16 @@ of the consideration and an acquisition of the second at that same value
 (TCGA 1992 s17, s38). A fee relates to the whole exchange, so its value is
 split equally between the disposal and the acquisition, a basis HMRC accepts
 (CRYPTO22150). A fee paid in a third asset is a disposal of that asset too.
-Giving an asset for goods or services, such as a fee paid in it, is a
-disposal of it (CRYPTO22100) at its market value, as nothing else values what
-was received; no cash is received for it. That includes the fee for moving an
-asset between your own wallets, though the move itself is not a disposal.
-An EXCHANGE or SPEND row, or a TRANSFER whose fee was paid in an asset, is
-replaced by those legs before the history is planned, so the planning and
-matching code, which reads one holding per row, never sees one.
+Giving an asset for goods or services, a fee included, is a disposal of it
+(CRYPTO22100) at its market value, as nothing else values what was received.
+So a fee paid in an asset is a sale of that asset for the fee's value, and
+the fee is a cost of the transaction it was paid for (CRYPTO22150), as a fee
+paid in cash would be. That includes the fee for moving an asset between your
+own wallets, though the move itself is not a disposal. Rows of SPEND give an
+asset for anything else, and no cash is received for it.
+An EXCHANGE or SPEND row, or a BUY, SELL or TRANSFER whose fee was paid in an
+asset, is replaced by those legs before the history is planned, so the
+planning and matching code, which reads one holding per row, never sees one.
 """
 
 from __future__ import annotations
@@ -27,11 +30,14 @@ if TYPE_CHECKING:
 
 # The actions read only as the legs they are replaced by.
 _EXPANDED = frozenset({ActionType.EXCHANGE, ActionType.SPEND})
+# The actions read as themselves, followed by the sale of an asset their fee
+# was paid in, when they name one.
+_FEE_ROWS = frozenset({ActionType.BUY, ActionType.SELL, ActionType.TRANSFER})
 
 
 def _has_asset_fee(row: BrokerTransaction) -> bool:
-    """Say whether `row` is a TRANSFER whose fee was paid in an asset."""
-    return row.action is ActionType.TRANSFER and row.fee_symbol is not None
+    """Say whether `row` is one of `_FEE_ROWS` whose fee was paid in an asset."""
+    return row.action in _FEE_ROWS and row.fee_symbol is not None
 
 
 def _leg(
@@ -116,90 +122,80 @@ def exchange_legs(row: BrokerTransaction) -> list[BrokerTransaction]:
         ),
     ]
     if row.fee_symbol is not None:
-        assert row.fee_quantity is not None
-        legs.append(
-            _leg(
-                row,
-                ActionType.SELL,
-                row.fee_symbol,
-                row.fee_quantity,
-                fees / row.fee_quantity,
-                Decimal(0),
-                fees,
-                f"Fee for {what[0].lower()}{what[1:]}",
-            )
-        )
+        legs.append(_fee_sale(row, f"{what[0].lower()}{what[1:]}"))
     return legs
 
 
-def _spent(
-    row: BrokerTransaction,
-    symbol: str,
-    quantity: Decimal,
-    price: Decimal,
-    description: str,
+def _fee_sale(
+    row: BrokerTransaction, what: str, *, moves_cash: bool = True
 ) -> BrokerTransaction:
-    """Return the disposal of `quantity` `symbol` at `price`, for no cash.
+    """Return the disposal of the asset the fee of `row` was paid in, at its value.
 
-    Its amount is the value given, the proceeds of the disposal, but nothing
-    was received for it in cash, so the balance is left alone.
+    Its amount is the fee's value exactly, the cash a row that took the fee as
+    cash gets back. Without `moves_cash`, for a row that moves none, nothing
+    is received in cash and the balance is left alone.
     """
+    assert row.fee_symbol is not None
+    assert row.fee_quantity is not None
     leg = _leg(
         row,
         ActionType.SELL,
-        symbol,
-        quantity,
-        price,
+        row.fee_symbol,
+        row.fee_quantity,
+        row.fees / row.fee_quantity,
         Decimal(0),
-        quantity * price,
-        description,
+        row.fees,
+        f"Fee for {what}",
     )
-    leg.affects_cash_balance = False
+    leg.affects_cash_balance = moves_cash
     return leg
 
 
-def spend_leg(row: BrokerTransaction) -> BrokerTransaction:
-    """Return the disposal of what `row` spent: a sale moving no cash."""
+def spend_legs(row: BrokerTransaction) -> list[BrokerTransaction]:
+    """Return the disposal of what `row` spent, and of any fee asset.
+
+    Neither moves cash: the asset was given for goods or services, not money.
+    The fee is a cost of the disposal, so its value comes off the proceeds.
+    """
     assert row.action is ActionType.SPEND
     assert row.symbol is not None
     assert row.quantity is not None
     assert row.price is not None
-    assert not row.fees
     assert not row.foreign_fees
-    return _spent(
+    # A fee is only ever paid in an asset: nothing on the row moves cash.
+    assert row.fee_symbol is not None or not row.fees
+    spent = _leg(
         row,
+        ActionType.SELL,
         row.symbol,
         row.quantity,
         row.price,
+        row.fees,
+        row.quantity * row.price - row.fees,
         f"Spent {row.symbol}",
     )
+    spent.affects_cash_balance = False
+    if row.fee_symbol is None:
+        return [spent]
+    return [spent, _fee_sale(row, f"spending {row.symbol}", moves_cash=False)]
 
 
-def transfer_legs(row: BrokerTransaction) -> list[BrokerTransaction]:
-    """Return a TRANSFER `row` without its asset fee, and the fee's disposal.
+def fee_legs(row: BrokerTransaction) -> list[BrokerTransaction]:
+    """Return a BUY, SELL or TRANSFER `row` and the disposal of its fee asset.
 
-    The transfer keeps its cash amount, which leaves the fee out, so it moves
-    the balance as it would have without one.
+    The row keeps its fee, as a cost of a purchase or off the proceeds of a
+    sale, and its amount, which took the fee as cash. The fee sale returns
+    that cash, so the balance moves by the trade or transfer alone.
     """
-    assert row.action is ActionType.TRANSFER
-    assert row.fee_symbol is not None
-    assert row.fee_quantity is not None
+    assert row.action in _FEE_ROWS
     assert not row.foreign_fees
-    transfer = copy.copy(row)
-    transfer.fees = Decimal(0)
-    transfer.fee_symbol = None
-    transfer.fee_quantity = None
-    what = f"transfer of {row.symbol}" if row.symbol else "transfer"
-    return [
-        transfer,
-        _spent(
-            row,
-            row.fee_symbol,
-            row.fee_quantity,
-            row.fees / row.fee_quantity,
-            f"Fee for {what}",
-        ),
-    ]
+    kept = copy.copy(row)
+    kept.fee_symbol = None
+    kept.fee_quantity = None
+    what = row.action.name.lower()
+    if row.symbol:
+        what += f" of {row.symbol}"
+    return [kept, _fee_sale(row, what)]
 
 
 def expand_to_legs(transactions: list[BrokerTransaction]) -> list[BrokerTransaction]:
@@ -211,9 +207,9 @@ def expand_to_legs(transactions: list[BrokerTransaction]) -> list[BrokerTransact
         if row.action is ActionType.EXCHANGE:
             expanded += exchange_legs(row)
         elif row.action is ActionType.SPEND:
-            expanded.append(spend_leg(row))
+            expanded += spend_legs(row)
         elif _has_asset_fee(row):
-            expanded += transfer_legs(row)
+            expanded += fee_legs(row)
         else:
             expanded.append(row)
     return expanded

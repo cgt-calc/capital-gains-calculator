@@ -425,7 +425,8 @@ class ActionType(Enum):
     # An asset given for goods or services, such as a cryptoasset paid as a
     # fee: a disposal at market value with no cash received. Split into a
     # sale that moves no cash before the history is planned, so no SPEND row
-    # reaches the main pass. A fee for a TRANSFER goes on its own row.
+    # reaches the main pass. A fee paid in an asset for another row goes on
+    # that row.
     SPEND = 32
 
     @override
@@ -542,8 +543,9 @@ class BrokerTransaction:
     to_symbol: str | None = None
     to_quantity: Decimal | None = None
     # The asset the fee was paid in and its units, when it was not paid in
-    # cash, on an EXCHANGE or a TRANSFER row. `fees` is then the fee's value:
-    # on a TRANSFER, it is not cash, so `amount` leaves it out.
+    # cash, on an EXCHANGE, BUY, SELL, TRANSFER or SPEND row. `fees` is then
+    # the fee's value, and `amount` takes it as cash: the sale of the fee
+    # asset the row is read with returns that cash.
     fee_symbol: str | None = None
     fee_quantity: Decimal | None = None
 

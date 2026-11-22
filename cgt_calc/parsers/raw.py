@@ -70,6 +70,13 @@ COLUMNS: Final[list[str]] = [
 RAW_COLUMNS: Final = CsvColumns(
     tuple(COLUMNS), tuple(column.value for column in _OPTIONAL_COLUMNS)
 )
+# The rows other than EXCHANGE that can name an asset their fee was paid in.
+ASSET_FEE_ACTIONS: Final = (
+    ActionType.BUY,
+    ActionType.SELL,
+    ActionType.TRANSFER,
+    ActionType.SPEND,
+)
 # The ledger of a row that names no broker.
 UNKNOWN_BROKER: Final = "Unknown"
 # The rows that can stand in for one in a broker export: nothing their export
@@ -175,6 +182,26 @@ def _parse_asset_fee(
     return fee_symbol, fee_quantity
 
 
+def _refuse_filled(
+    row: dict[RawColumn, str], action: ActionType, columns: tuple[RawColumn, ...]
+) -> None:
+    """Refuse a value in any of `columns`, which a row of `action` does not read."""
+    filled = [column.value for column in columns if row[column]]
+    if not filled:
+        return
+    if RawColumn.TO_SYMBOL in columns:
+        readers = "an EXCHANGE row"
+    else:
+        *others, last = (reader.name for reader in ASSET_FEE_ACTIONS)
+        readers = f"an EXCHANGE, {', '.join(others)} or {last} row"
+    raise ValueError(
+        f"The {', '.join(repr(name) for name in filled)} "
+        f"{'column is' if len(filled) == 1 else 'columns are'} read only "
+        f"on {readers}. Leave {'it' if len(filled) == 1 else 'them'} "
+        f"blank on a {action.name} row."
+    )
+
+
 def _parse_exchange(
     row: dict[RawColumn, str],
     action: ActionType,
@@ -185,29 +212,21 @@ def _parse_exchange(
 ) -> tuple[str | None, Decimal | None, str | None, Decimal | None]:
     """Read the other side of an EXCHANGE row and any asset its fee was paid in.
 
-    Return `to_symbol`, `to_quantity`, `fee_symbol` and `fee_quantity`. A
-    TRANSFER row can name a fee asset too; any other row has none of them.
+    Return `to_symbol`, `to_quantity`, `fee_symbol` and `fee_quantity`. The
+    rows in `ASSET_FEE_ACTIONS` can name a fee asset too; any other row has
+    none of them.
     """
     # The exchange columns are optional, so a header can leave any of them
     # out: one it does not name reads as blank.
     row = dict.fromkeys(EXCHANGE_COLUMNS, "") | row
     if action is not ActionType.EXCHANGE:
-        read = (
-            (RawColumn.TO_SYMBOL, RawColumn.TO_QUANTITY)
-            if action is ActionType.TRANSFER
-            else EXCHANGE_COLUMNS
-        )
-        filled = [column.value for column in read if row[column]]
-        if filled:
-            raise ValueError(
-                f"The {', '.join(repr(name) for name in filled)} "
-                f"{'column is' if len(filled) == 1 else 'columns are'} read only "
-                f"on an EXCHANGE row. Leave {'it' if len(filled) == 1 else 'them'} "
-                f"blank on a {action.name} row."
-            )
-        if action is not ActionType.TRANSFER:
+        _refuse_filled(row, action, (RawColumn.TO_SYMBOL, RawColumn.TO_QUANTITY))
+        if action not in ASSET_FEE_ACTIONS:
+            _refuse_filled(row, action, (RawColumn.FEE_SYMBOL, RawColumn.FEE_QUANTITY))
             return None, None, None, None
         fee_symbol, fee_quantity = _parse_asset_fee(row, action, fees)
+        if action is not ActionType.TRANSFER:
+            return None, None, fee_symbol, fee_quantity
         # The asset moved stays in the one pool cgt-calc keeps for it, so
         # only the fee changes anything: the row itself moves no cash.
         if fee_symbol is not None and symbol is not None and price:
@@ -258,6 +277,7 @@ def _check_spend(
     quantity: Decimal | None,
     price: Decimal | None,
     fees: Decimal,
+    fee_symbol: str | None,
     currency: str,
 ) -> None:
     """Check that a row spending an asset names it, its units and its value."""
@@ -276,9 +296,11 @@ def _check_spend(
         raise ValueError(
             "A SPEND row gives the market value of one unit given as a positive price."
         )
-    if fees:
+    # Nothing on the row moves cash to take a cash fee from.
+    if fees and fee_symbol is None:
         raise ValueError(
-            "A SPEND row has no fees: it is the payment. Leave 'fees' blank or 0."
+            "A SPEND row's fee is paid in an asset: name it in 'fee_symbol' and "
+            "its units in 'fee_quantity'. Leave 'fees' blank or 0 for no fee."
         )
 
 
@@ -299,8 +321,8 @@ class RawTransaction(BrokerTransaction):
     date,action,symbol,quantity,price,fees,currency,to_symbol,to_quantity,fee_symbol,fee_quantity
     2025-06-03,EXCHANGE,BTC,0.5,40000,3.00,GBP,ETH,10,BNB,0.01
 
-    A TRANSFER moving an asset between your own wallets can name the asset
-    its fee was paid in, in the same columns:
+    A BUY, SELL, TRANSFER or SPEND row can name the asset its fee was paid
+    in, in the same columns, such as a transfer between your own wallets:
     2025-06-04,TRANSFER,ETH,2,0,4.00,GBP,,,ETH,0.002
 
     SPEND rows give an asset for goods or services:
@@ -383,7 +405,13 @@ class RawTransaction(BrokerTransaction):
             row_values, action, symbol, quantity, price, fees
         )
         _check_spend(
-            action, symbol, quantity, price, fees, row_values[RawColumn.CURRENCY]
+            action,
+            symbol,
+            quantity,
+            price,
+            fees,
+            fee_symbol,
+            row_values[RawColumn.CURRENCY],
         )
 
         if price is not None and quantity is not None:
@@ -391,10 +419,9 @@ class RawTransaction(BrokerTransaction):
 
             if action is ActionType.BUY:
                 amount = -abs(amount)
-            # A transfer's fee paid in an asset is not cash: it leaves as a
-            # disposal of that asset, not from the amount.
-            if not (action is ActionType.TRANSFER and fee_symbol is not None):
-                amount -= fees
+            # A fee paid in an asset is taken as if it were cash here: the
+            # sale of the fee asset its row is read with returns that cash.
+            amount -= fees
         else:
             amount = None
         # Tax deducted is money paid, so a positive tax row would be reported
