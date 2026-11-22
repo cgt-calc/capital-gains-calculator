@@ -570,8 +570,8 @@ class IsinConverter:
 
         The exception is a known split that changed the ISIN, crossed by
         this run's rows as that split: see isins_joined_at_known_splits().
-        Any other history with that split's two ISINs is still refused, but
-        as one holding: separate runs would split it.
+        Otherwise, a ticker exported for both of that split's ISINs is still
+        refused, but as one holding: separate runs would split it.
         """
         self.joined_isins = isins_joined_at_known_splits(transactions)
         for transaction in transactions:
@@ -600,9 +600,8 @@ class IsinConverter:
                     f"files and combine the reports, see {_SEPARATE_RUNS_DOCS}"
                 )
             else:
-                (old,) = split.isins - {split.new_isin}
                 advice = (
-                    f"{split.symbol}'s ISIN changed from {old} to "
+                    f"{split.symbol}'s ISIN changed from {split.old_isin} to "
                     f"{split.new_isin} at its {split.ratio}-for-1 split on "
                     f"{split.date}, so rows under either ISIN are one holding. "
                     "cgt-calc joins them only when every row with either ISIN, "
