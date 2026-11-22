@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import datetime as dt
 from decimal import Decimal
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
@@ -436,8 +437,27 @@ def test_mssb_dir_refuses_each_report_under_another_name(tmp_path: Path) -> None
     """A renamed report would be left out without a word, so each one is named.
 
     A second download is saved under a name such as `Withdrawals Report 2.csv`.
-    Read by name alone, the folder would give neither the vest nor the sale.
+    Read by name alone, the folder would give the vest in `Releases Report.csv`
+    and nothing from the two renamed reports.
     """
+    _write_csv(
+        tmp_path / RELEASES_REPORT_FILENAME,
+        [
+            COLUMNS_RELEASE,
+            [
+                "25-Mar-2023",
+                "ORDER-1",
+                "GSU Class C",
+                "Release",
+                "Complete",
+                "$10.00",
+                "3.000",
+                "$0.00",
+                "3",
+                "Fractional Shares",
+            ],
+        ],
+    )
     _write_csv(
         tmp_path / "Releases Report (1).csv",
         [COLUMNS_RELEASE, ["25-Mar-2023", "ORDER-1", "GSU Class C", "Release"]],
@@ -495,6 +515,46 @@ def test_mssb_dir_ignores_every_other_entry_beside_the_reports(tmp_path: Path) -
     # One character past the csv module's default field limit of 131,072.
     (tmp_path / "long.csv").write_text("x" * 131_073 + "\n", encoding="utf-8")
     (tmp_path / "old.csv").mkdir()
+
+    transactions = MSSBParser.load_from_dir(tmp_path)
+
+    assert [(t.date, t.quantity) for t in transactions] == [
+        (dt.date(2023, 3, 25), Decimal(3))
+    ]
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Windows needs a privilege to make a link and has no read permission bit",
+)
+def test_mssb_dir_ignores_an_entry_it_cannot_open(tmp_path: Path) -> None:
+    """A broken link or a CSV closed to this user is left alone, as before.
+
+    Neither can be read as a report, so only the release of 3 shares is read.
+    Run as root, `closed.csv` opens, and is ignored as an unrelated file.
+    """
+    _write_csv(
+        tmp_path / RELEASES_REPORT_FILENAME,
+        [
+            COLUMNS_RELEASE,
+            [
+                "25-Mar-2023",
+                "ORDER-1",
+                "GSU Class C",
+                "Release",
+                "Complete",
+                "$10.00",
+                "3.000",
+                "$0.00",
+                "3",
+                "Fractional Shares",
+            ],
+        ],
+    )
+    (tmp_path / "gone.csv").symlink_to("missing.csv")
+    closed = tmp_path / "closed.csv"
+    closed.write_text("Date,Note\n", encoding="utf-8")
+    closed.chmod(0)
 
     transactions = MSSBParser.load_from_dir(tmp_path)
 
