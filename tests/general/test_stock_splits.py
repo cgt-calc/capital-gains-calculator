@@ -508,6 +508,24 @@ def test_a_purchase_before_a_same_day_reorganisation_is_restated() -> None:
     assert calculator.portfolio["FOO"].amount == Decimal(200)
 
 
+def test_a_reward_before_a_same_day_reorganisation_is_restated() -> None:
+    """An asset received as income moves the count as a purchase does.
+
+    10 received worth £1,000, then a 2-for-1 split that day, are 20 at £1,000,
+    so selling the 20 for £1,200 gains £200.
+    """
+    calculator = create_calculator(tax_year=2023, balance_check=False)
+    report = get_report(
+        calculator,
+        [
+            trade(EVENT_DAY, ActionType.REWARD, "FOO", "10", "100"),
+            legacy_split(EVENT_DAY, "FOO", "10"),
+            trade(dt.date(2023, 8, 1), ActionType.SELL, "FOO", "20", "60"),
+        ],
+    )
+    assert report.total_gain() == Decimal(200)
+
+
 def test_a_purchase_after_a_same_day_reorganisation_is_left_alone() -> None:
     """It is already in the units the day ends in."""
     calculator = create_calculator(tax_year=2023, balance_check=False)

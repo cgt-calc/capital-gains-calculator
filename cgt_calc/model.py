@@ -429,9 +429,9 @@ class ActionType(Enum):
     # that row.
     SPEND = 32
     # An asset received as income no other action covers, such as a staking
-    # reward or a share given for a referral: miscellaneous income at its
-    # market value (ITTOIA 2005 s687, CRYPTO21200), which is also its cost
-    # (TCGA 1992 s17(1)(b)). No cash moves.
+    # reward: miscellaneous income at its market value (ITTOIA 2005 s687,
+    # CRYPTO21200), which is also its cost (TCGA 1992 s17(1)(b)). No cash
+    # moves.
     REWARD = 33
 
     @override

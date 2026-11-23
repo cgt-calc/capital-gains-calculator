@@ -561,8 +561,8 @@ is always paid in an asset.
 
 ## Assets received as income
 
-An asset you receive as income that no other action covers, such as a staking reward or a share a
-broker gives you for a referral, is miscellaneous income at its market value when you receive it
+An asset you receive as income that no other action covers, such as a staking reward, is
+miscellaneous income at its market value when you receive it
 ([CRYPTO21200](https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto21200)). That
 value is also its cost when you later dispose of it (TCGA 1992 s17(1)(b)). Write a `REWARD` row: the
 asset as `symbol`, the units received as `quantity`, and the market value of one unit in `currency`
@@ -587,13 +587,15 @@ allowance you have not used on trading income, as the
 [tax return notes](https://www.gov.uk/government/publications/self-assessment-tax-return-sa100)
 explain.
 
-Use another action for an asset whose income is taxed some other way, or is not income:
+Other ways of receiving an asset:
 
 - Shares or tokens from your employer are taxed as employment income: write a `STOCK_ACTIVITY` row.
 - A dividend paid in shares is a `DIVIDEND` row for the income and a `BUY` row for the shares.
-- An asset you received without doing anything for it, such as an airdrop, is not income, so it
-    needs no `REWARD` row
-    ([CRYPTO21250](https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto21250)).
+- An airdrop given in return for a service is income: write a `REWARD` row. One received without
+    doing anything in return may not be income
+    ([CRYPTO21250](https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto21250)):
+    record the units with a `BUY` row. CRYPTO21250 does not say what they cost, so check before
+    choosing a price; a price of `0` records them at no cost, and moves no cash.
 - Staking or mining done as a trade is trading income, which cgt-calc does not report.
 
 Lending tokens needs more care:

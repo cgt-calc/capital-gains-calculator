@@ -262,3 +262,14 @@ def test_the_pdf_shows_the_income(tmp_path: Path) -> None:
     assert "Miscellaneous income 1: CRO for £16.00" in pdf
     assert "Miscellaneous income 2: ETH for £24.00" in pdf
     assert ALLOWANCE_NOTE in pdf
+
+
+def test_a_reward_in_another_currency_is_income_in_pounds(tmp_path: Path) -> None:
+    """USD 2,491.40 at the May 2024 rate of 1.2457 is £2,000.00, income and cost."""
+    report = _report(
+        tmp_path, [["2024-05-01", "REWARD", "ETH", "1", "2491.40", "0", "USD"]]
+    )
+
+    assert report.total_misc_income == Decimal("2000.00")
+    (entry,) = report.calculation_log[dt.date(2024, 5, 1)]["buy$ETH"]
+    assert entry.allowable_cost == Decimal("2000.00")
