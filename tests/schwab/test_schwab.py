@@ -449,6 +449,90 @@ def test_an_unknown_action_is_refused_with_its_row() -> None:
     assert excinfo.value.needs_update
 
 
+@pytest.mark.parametrize(
+    ("row", "moved"),
+    [
+        (
+            "06/02/2020,Security Transfer,VUAG,VUAG INC,,90,,\n",
+            "Security Transfer row moves 90 VUAG",
+        ),
+        ("06/02/2020,Journal,VUAG,VUAG INC,,90,,\n", "Journal row moves 90 VUAG"),
+        # Schwab signs the count; the message prints it without the sign.
+        (
+            "06/02/2020,Journaled Shares,VUAG,VUAG INC,$30.00,-10,,\n",
+            "Journaled Shares row moves 10 VUAG",
+        ),
+        # A filled Quantity is refused even beside an Amount, or when it is 0.
+        (
+            '06/02/2020,Security Transfer,VUAG,VUAG INC,,90,,"$100.00"\n',
+            "Security Transfer row moves 90 VUAG",
+        ),
+        ("06/02/2020,Journal,VUAG,VUAG INC,,0,,\n", "Journal row moves 0 VUAG"),
+        (
+            "06/02/2020,Security Transfer,,VUAG INC,,90,,\n",
+            "Security Transfer row moves 90 shares",
+        ),
+    ],
+    ids=[
+        "security transfer",
+        "journal",
+        "journaled shares",
+        "with an amount",
+        "zero quantity",
+        "blank symbol",
+    ],
+)
+def test_a_share_transfer_row_is_refused_with_the_route(
+    tmp_path: Path, row: str, moved: str
+) -> None:
+    """A Schwab row moving shares stops with what to do, not as cash.
+
+    The row is understood, so no advice to upgrade cgt-calc follows.
+    """
+    schwab_file = tmp_path / "s.csv"
+    schwab_file.write_text(SCHWAB_HEADER + row)
+
+    result = subprocess.run(
+        build_cmd("--year", "2020", "--schwab-file", str(schwab_file), "--no-report"),
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert result.stderr == (
+        f"Parsing {schwab_file.as_posix()}...\n\n"
+        f"ERROR: While parsing {schwab_file}, row 2: This {moved} into or out "
+        "of the account, and cgt-calc does not read transfers of shares from "
+        "this export. For shares you moved between your own accounts, see "
+        "https://cgt-calc.uk/transfers-gifts-and-fund-income/#shares-you-moved-between-your-own-accounts "
+        "for what to add, if anything, or "
+        "https://cgt-calc.uk/brokers/schwab/#known-limitations if both are "
+        "Schwab brokerage accounts. For shares that went to or came from anyone "
+        "else, including a spouse or civil partner, the first of those pages "
+        "says what to record. Then remove this row from a working copy of the "
+        "export.\n\n"
+    )
+
+
+@pytest.mark.parametrize("label", ["Security Transfer", "Journal"])
+def test_a_transfer_row_without_a_quantity_is_cash(tmp_path: Path, label: str) -> None:
+    """Without a Quantity, the label moves cash only.
+
+    Schwab writes Security Transfer for some ACH cash movements as well (#597).
+    """
+    schwab_file = tmp_path / "s.csv"
+    schwab_file.write_text(
+        SCHWAB_HEADER + f'06/02/2020,{label},,ACH TRANSFER,,,,"$1,000.00"\n'
+    )
+
+    (transaction,) = SchwabParser.load_from_file(schwab_file)
+
+    assert transaction.action is ActionType.TRANSFER
+    assert transaction.amount == Decimal("1000.00")
+    assert transaction.quantity is None
+
+
 def test_stock_split_ignores_schwab_informational_price() -> None:
     """A Schwab split-row price is metadata, not money paid or received."""
     content = (
