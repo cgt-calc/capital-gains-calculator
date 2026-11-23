@@ -574,8 +574,8 @@ def _retry_policy() -> Retry:
     ("error", "response", "waits"),
     [
         # No connection can be made. Two retries, the first at once and the
-        # second 2 seconds later, so when each try fails at once, as offline or
-        # when the connection is refused, the run stops about 2 seconds in.
+        # second 2 seconds later, so when each try fails at once, as with a
+        # refused connection, the run stops about 2 seconds in.
         pytest.param(
             NewConnectionError(HTTPSConnection(HMRC_HOST), "Connection refused"),
             None,
