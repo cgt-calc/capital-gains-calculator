@@ -80,7 +80,8 @@ July 2022.
 ## Known limitations
 
 - This is an Alphabet-specific equity-award importer, not general Morgan Stanley support. Any plan
-    other than the literal `GSU Class C` or `Cash` value stops with `Unknown plan`.
+    other than the literal `GSU Class C` value stops with `Unknown plan`, except `Cash` in the
+    withdrawals report, which is read as a cash withdrawal.
 - Autosale releases are not supported. They can put a non-zero `Net Cash Proceeds` in the releases
     report while recording the actual sale in a separate Autosale report that cgt-calc does not
     parse. The import deliberately stops rather than silently losing either the vest or sale.

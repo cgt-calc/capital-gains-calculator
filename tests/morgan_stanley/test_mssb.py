@@ -76,6 +76,61 @@ def test_read_mssb_release_success(tmp_path: Path) -> None:
     assert transaction.amount == Decimal(30)
 
 
+@pytest.mark.parametrize(
+    ("filename", "rows", "plan"),
+    [
+        pytest.param(
+            RELEASES_REPORT_FILENAME,
+            [
+                COLUMNS_RELEASE,
+                [
+                    "25-Mar-2023",
+                    "ORDER-1",
+                    "Cash",
+                    "Release",
+                    "Complete",
+                    "$1.00",
+                    "3.000",
+                    "$0.00",
+                    "3",
+                    "Fractional Shares",
+                ],
+            ],
+            "Cash",
+            id="release of cash",
+        ),
+        pytest.param(
+            WITHDRAWALS_REPORT_FILENAME,
+            [
+                COLUMNS_WITHDRAWAL,
+                [
+                    "02-Apr-2021",
+                    "ORDER-2",
+                    "ESPP",
+                    "Sale",
+                    "Complete",
+                    "$10.00",
+                    "-3",
+                    "$30.00",
+                    "0",
+                    "N/A",
+                ],
+            ],
+            "ESPP",
+            id="withdrawal",
+        ),
+    ],
+)
+def test_read_mssb_unknown_plan_is_refused(
+    tmp_path: Path, filename: str, rows: list[list[str]], plan: str
+) -> None:
+    """A plan with no known symbol is refused, and a vest is of shares only."""
+    _write_csv(tmp_path / filename, rows)
+
+    with pytest.raises(ParsingError, match=rf", row 2: Unknown plan: {plan}$"):
+        MSSBParser().load_from_dir(tmp_path)
+
+
 def test_reports_whose_names_differ_only_in_case_are_both_read(tmp_path: Path) -> None:
     """Two releases reports named alike but for their case load as they always have.
 
@@ -142,6 +197,9 @@ def test_read_mssb_withdrawal_skips_notice(tmp_path: Path) -> None:
     assert len(transactions) == 1
     transaction = transactions[0]
     assert transaction.action == ActionType.TRANSFER
+    assert transaction.symbol is None
+    assert transaction.quantity is None
+    assert transaction.price is None
     assert transaction.amount == Decimal("-4218.95")
     assert transaction.fees == Decimal(0)
 
