@@ -1775,11 +1775,11 @@ wheels = [
 
 [[package]]
 name = "types-reportlab"
-version = "5.0.0.20261008"
+version = "5.1.0.20261104"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/55/28/ea9ed246af4bfc37fa05e0df6e201c3099cba529dd7a09909ac84a781567/types_reportlab-5.0.0.20261008.tar.gz", hash = "sha256:d34b4d9147eed7facb04594fbae59ba3d49294f8b4267ff05bcefcce0c07f499", size = 73094, upload-time = "2026-10-08T08:06:32.478Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f1/3b/37b677439070293eb8f189b671965da53bf92f88ff985f36f69d25614d45/types_reportlab-5.1.0.20261104.tar.gz", hash = "sha256:5a214b6a53a4f719ce0e8a0081107b54a6d44e0fed25b8e167332a95e3163b17", size = 73428, upload-time = "2026-11-04T08:14:02.731Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/29/d1/5c6c28a4ea82b9bc30e9b4e103537251f180515e9d3775086fb1419a405e/types_reportlab-5.0.0.20261008-py3-none-any.whl", hash = "sha256:736b2edf636a624bd0989e058cbdee9575604cc80371549488fff40e27bb3b32", size = 113268, upload-time = "2026-10-08T08:06:31.446Z" },
+    { url = "https://files.pythonhosted.org/packages/9b/7a/c8ce7d2dd43c79ed05a8f97b573a4549d217983952e20da26e6a8cb21535/types_reportlab-5.1.0.20261104-py3-none-any.whl", hash = "sha256:d1410bafa695bc6f38a3f38426b8393f7311ca69a350e99cefadf6103e254202", size = 113474, upload-time = "2026-11-04T08:14:01.308Z" },
 ]
 
 [[package]]
