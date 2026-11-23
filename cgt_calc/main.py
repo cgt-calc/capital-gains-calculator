@@ -393,26 +393,45 @@ class CapitalGainsCalculator:
     def make_portfolio(self) -> list[PortfolioEntry]:
         """Create the report's portfolio entries.
 
-        One warning names every holding whose price request failed, rather
-        than one each: offline, all of them fail.
+        A holding whose price lookup fails is looked up once more, in case the
+        failure was brief. If that fails too, Yahoo is not asked about the
+        holdings after it: on a network that never answers, each lookup takes
+        a minute to fail. Sold-out holdings are never looked up or named.
         """
         entries = []
-        failed = []
+        failed = None
+        unasked = []
         for symbol, position in self.run.portfolio.items():
-            try:
-                entry = self.make_portfolio_entry(
-                    symbol, position.quantity, position.amount
-                )
-            except CurrentPriceRequestError:
-                failed.append(symbol)
-                entry = PortfolioEntry(symbol, position.quantity, position.amount, None)
+            entry = PortfolioEntry(symbol, position.quantity, position.amount, None)
+            if failed is not None and position.quantity > 0:
+                unasked.append(symbol)
+            else:
+                try:
+                    entry = self.make_portfolio_entry(
+                        symbol, position.quantity, position.amount
+                    )
+                except CurrentPriceRequestError:
+                    try:
+                        entry = self.make_portfolio_entry(
+                            symbol, position.quantity, position.amount
+                        )
+                    except CurrentPriceRequestError:
+                        failed = symbol
             entries.append(entry)
-        if failed:
+        if failed is not None and unasked:
             # Sorted as the report lists them.
             LOGGER.warning(
-                "Could not get today's prices from Yahoo Finance for %s: the request "
-                "failed. Their unrealised gains are left out of the estimate.",
-                ", ".join(sorted(failed)),
+                "Could not get today's prices from Yahoo Finance for %s: the lookup "
+                "for %s failed twice, so cgt-calc stopped asking. Their unrealised "
+                "gains are left out of the estimate.",
+                ", ".join(sorted([failed, *unasked])),
+                failed,
+            )
+        elif failed is not None:
+            LOGGER.warning(
+                "Could not get today's price from Yahoo Finance for %s: the lookup "
+                "failed twice. Its unrealised gain is left out of the estimate.",
+                failed,
             )
         return entries
 
