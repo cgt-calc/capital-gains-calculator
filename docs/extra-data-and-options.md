@@ -542,7 +542,7 @@ from another listing of the same security and a ticker can match a different sec
 price is returned, the holding is shown as `unknown`, omitted from the numeric **Unrealized gains**
 total and covered by a warning. If a lookup fails, for example because you are offline, cgt-calc
 tries it once more. If that fails too, it stops asking: that holding and any not yet looked up are
-shown as `unknown` and named in the warning, so run cgt-calc again later to estimate them. Check
+shown as `unknown` and named in a warning, so run cgt-calc again later to estimate them. Check
 unknown or unexpected estimates against your broker.
 
 This is a portfolio estimate, not the gain from an actual sale. It does not include selling costs or

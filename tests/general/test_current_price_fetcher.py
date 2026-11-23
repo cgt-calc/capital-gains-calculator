@@ -751,14 +751,18 @@ def test_after_a_lookup_fails_twice_the_later_holdings_are_not_asked(
     error: Exception,
     logs: Sequence[tuple[int, str]],
 ) -> None:
-    """Offline, each lookup can take a minute to fail, so cgt-calc stops asking.
+    """After a lookup and its retry fail, cgt-calc stops asking.
 
-    The holdings are asked in the order first bought: CCC, BBB, then AAA. CCC
-    is priced; BBB's lookup fails, then its retry, so AAA is never asked. The
-    warning names BBB and AAA sorted, as the report lists them, and both are
-    left out of the estimate. CCC cost £40.00 for 10 and is worth £5.00 each
-    today, an unrealised gain of 10 x £5.00 - £40.00 = £10.00, which is the
-    whole total. The library's own warnings are left out.
+    On a network that never answers, each lookup can take a minute to fail.
+    The holdings are asked in the order first bought: CCC, NIL, BBB, then
+    AAA. CCC is priced. Yahoo has no price for NIL
+    under either name it is asked by, which is not a failed lookup: NIL is
+    neither asked again nor a reason to stop, and the warning leaves it out.
+    BBB's lookup fails, then its retry, so AAA is never asked. The warning
+    names BBB and AAA sorted, as the report lists them, and both are left out
+    of the estimate. CCC cost £40.00 for 10 and is worth £5.00 each today, an
+    unrealised gain of 10 x £5.00 - £40.00 = £10.00, which is the whole
+    total. The library's own warnings are left out.
     """
     lookups: list[str] = []
 
@@ -766,21 +770,24 @@ def test_after_a_lookup_fails_twice_the_later_holdings_are_not_asked(
         lookups.append(name)
         if name == "CCC":
             return FakeTicker({"currentPrice": 5.0, "currency": "GBP"})
+        if name.startswith("NIL"):
+            return FakeTicker({})
         return FailingTicker(error, logs=logs)
 
     status = _run_main(
         tmp_path,
         monkeypatch,
         "2024-05-01,BUY,CCC,10,4.00,0,GBP\n"
-        "2024-05-02,BUY,BBB,5,2.00,0,GBP\n"
-        "2024-05-03,BUY,AAA,10,4.00,0,GBP\n",
+        "2024-05-02,BUY,NIL,1,1.00,0,GBP\n"
+        "2024-05-03,BUY,BBB,5,2.00,0,GBP\n"
+        "2024-05-06,BUY,AAA,10,4.00,0,GBP\n",
         ticker,
         "--unrealized-gains",
         "--spin-offs-file=",
     )
 
     assert status == 0
-    assert lookups == ["CCC", "BBB", "BBB"]
+    assert lookups == ["CCC", "NIL", "NIL.L", "BBB", "BBB"]
     out, err = capsys.readouterr()
     assert stderr_alerts(err) == [
         (
@@ -792,6 +799,7 @@ def test_after_a_lookup_fails_twice_the_later_holdings_are_not_asked(
     assert "  AAA: 10.00, £40.00 (unrealized gains: unknown)\n" in out
     assert "  BBB: 5.00, £10.00 (unrealized gains: unknown)\n" in out
     assert "  CCC: 10.00, £40.00 (unrealized gains: £10.00)\n" in out
+    assert "  NIL: 1.00, £1.00 (unrealized gains: unknown)\n" in out
     assert summary_figure(out, "Unrealized gains") == "10.00"
     assert "WARNING: Some unrealized gains couldn't be calculated." in out
 
