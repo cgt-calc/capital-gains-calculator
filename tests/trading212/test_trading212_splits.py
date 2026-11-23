@@ -3531,13 +3531,41 @@ def test_the_export_s_split_rows_under_the_new_isin_keep_the_holding_whole(
     _assert_split_applied(result.stdout, "LRCX")
 
 
-def test_another_broker_s_tax_under_the_new_isin_is_refused(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("dividend", "deposited", "withheld", "isin", "per_share"),
+    [
+        pytest.param(
+            TAXED_BEFORE_THE_SPLIT,
+            "2024-07-02",
+            "2024-07-10",
+            LRCX_ISIN_BEFORE,
+            "2.30",
+            id="before the split, under the old ISIN",
+        ),
+        pytest.param(
+            TAXED_AFTER_THE_SPLIT,
+            "2025-01-02",
+            "2025-01-08",
+            LRCX_ISIN_AFTER,
+            "0.23",
+            id="after the split, under the new ISIN",
+        ),
+    ],
+)
+def test_another_broker_s_tax_under_either_isin_is_refused(
+    tmp_path: Path,
+    dividend: list[str],
+    deposited: str,
+    withheld: str,
+    isin: str,
+    per_share: str,
+) -> None:
     """Only the tax Trading 212 separates from its own dividends is joined.
 
-    The Trading 212 rows alone would be joined, the taxed dividend after
-    the split included. An Interactive Brokers file with US tax withheld
-    under Lam Research's new ISIN, and a deposit to pay it, keeps the two
-    ISINs apart.
+    The Trading 212 rows alone would be joined, taxed dividend included. An
+    Interactive Brokers file with US tax of 0.50 withheld on that dividend's
+    side of the split, under that side's ISIN, and a deposit of 100 to pay
+    it, keeps the two ISINs apart. The file's own cash is 100 - 0.50 = 99.50.
     """
     ibkr = tmp_path / "ibkr.csv"
     ibkr.write_text(
@@ -3552,16 +3580,16 @@ def test_another_broker_s_tax_under_the_new_isin_is_refused(tmp_path: Path) -> N
         "Summary,Data,Ending Cash,99.50\n"
         "Transaction History,Header,Date,Account,Description,Transaction Type,"
         "Symbol,Quantity,Price,Gross Amount ,Commission,Net Amount\n"
-        "Transaction History,Data,2025-01-02,U***00000,Cash Deposit,Deposit,"
+        f"Transaction History,Data,{deposited},U***00000,Cash Deposit,Deposit,"
         "-,-,-,100.0,-,100.0\n"
-        f"Transaction History,Data,2025-01-08,U***00000,LRCX({LRCX_ISIN_AFTER}) "
-        "Cash Dividend USD 0.23 per Share - US Tax,Foreign Tax Withholding,LRCX,"
-        "-,-,-0.50,-,-0.50\n",
+        f"Transaction History,Data,{withheld},U***00000,LRCX({isin}) "
+        f"Cash Dividend USD {per_share} per Share - US Tax,Foreign Tax Withholding,"
+        "LRCX,-,-,-0.50,-,-0.50\n",
         encoding="utf-8",
     )
     cmd = _known_split_cmd(
         tmp_path,
-        _lrcx_with(TAXED_AFTER_THE_SPLIT),
+        _lrcx_with(dividend),
         raw_rows=(_ten_for_one("LRCX", "2024-10-03"),),
         extra=("--interactive-brokers-file", str(ibkr)),
     )

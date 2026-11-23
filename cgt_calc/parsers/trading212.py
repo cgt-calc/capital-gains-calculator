@@ -98,9 +98,11 @@ class Trading212Column(StrEnum):
     MERCHANT_NAME = "Merchant name"
 
 
-# Every row this parser builds carries it, including the tax it separates from
-# a dividend and the row it makes of a split pair.
+# The broker name on every row this parser builds, including the tax it
+# separates from a dividend and the row it makes of a split pair.
+# isins_joined_at_known_splits() recognises Trading 212 rows by it.
 BROKER_NAME: Final = "Trading212"
+
 COLUMN_SET: Final[set[str]] = {column.value for column in Trading212Column}
 # Every row is read from these, so an export without one is not one cgt-calc
 # can read. Older exports call the time column "Time", newer ones "Time (UTC)".
