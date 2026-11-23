@@ -3432,7 +3432,7 @@ def _taxed_lrcx_dividend(
 
 
 # Dividends on the 2 shares held before the split and the 19 held after it.
-# Trading 212 converts the tax with the row's own figures: shares times price
+# The parser converts the tax with the row's own figures: shares times price
 # is the dollars received after tax, and the tax is the same share of the
 # pounds received.
 TAXED_BEFORE_THE_SPLIT = _taxed_lrcx_dividend(
