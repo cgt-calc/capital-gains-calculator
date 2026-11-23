@@ -63,6 +63,7 @@ class IncomeKind(StrEnum):
     DIVIDEND = "dividend"
     INTEREST = "interest"
     INTEREST_TAX = "interest_tax"
+    MISC_INCOME = "misc_income"
     ERI_DISTRIBUTION = "eri_distribution"
 
 
@@ -148,7 +149,7 @@ class DayView:
 
 @dataclass(frozen=True)
 class IncomeEventView:
-    """One dividend, interest, interest tax or ERI distribution event."""
+    """One dividend, interest, interest tax, miscellaneous income or ERI event."""
 
     kind: IncomeKind
     number: int
@@ -189,7 +190,7 @@ class SummaryView:
 
 @dataclass(frozen=True)
 class IncomeSummaryView:
-    """Dividend and interest totals for the whole report."""
+    """Dividend, interest and miscellaneous income totals for the whole report."""
 
     dividend_count: int
     interest_count: int
@@ -203,6 +204,9 @@ class IncomeSummaryView:
     uk_interest: Decimal
     foreign_interest: Decimal
     interest_tax: Decimal
+    misc_income_count: int
+    misc_income: Decimal
+    explains_trading_allowance: bool
     eri_dividends: Decimal | None = None
     eri_interest: Decimal | None = None
 
@@ -267,6 +271,8 @@ def _decode_income(key: str) -> tuple[IncomeKind, str, str | None]:
     """
     if key.startswith("dividend$"):
         return IncomeKind.DIVIDEND, key.split("$", maxsplit=1)[1], None
+    if key.startswith("miscIncome"):
+        return IncomeKind.MISC_INCOME, key.split("$", maxsplit=1)[1], None
     if key.startswith("interestTax"):
         currency = key.split("$", maxsplit=1)[0].removeprefix("interestTax")
         origin = "UK" if currency == _UK_CURRENCY_CODE else "Foreign"
@@ -353,6 +359,7 @@ class _Totals:
     dividends: int = 0
     interests: int = 0
     interest_taxes: int = 0
+    misc_incomes: int = 0
     eris: int = 0
 
 
@@ -550,6 +557,9 @@ def _build_income_event(
     if kind is IncomeKind.INTEREST:
         totals.interests += 1
         number = totals.interests
+    elif kind is IncomeKind.MISC_INCOME:
+        totals.misc_incomes += 1
+        number = totals.misc_incomes
     else:
         totals.interest_taxes += 1
         number = totals.interest_taxes
@@ -633,5 +643,8 @@ def build_report_view(report: CapitalGainsReport) -> ReportView:
             foreign_interest=report.total_foreign_interest,
             eri_interest=(round_decimal(eri_interest, 2) if eri_interest > 0 else None),
             interest_tax=report.total_interest_tax,
+            misc_income_count=totals.misc_incomes,
+            misc_income=report.total_misc_income,
+            explains_trading_allowance=report.explains_trading_allowance(),
         ),
     )

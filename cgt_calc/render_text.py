@@ -9,7 +9,12 @@ from typing import TYPE_CHECKING
 
 from colorama import Style
 
-from .const import BASIC_RATE_LIMITS, CAPITAL_GAINS_TAX_RATES, PERSONAL_ALLOWANCES
+from .const import (
+    BASIC_RATE_LIMITS,
+    CAPITAL_GAINS_TAX_RATES,
+    PERSONAL_ALLOWANCES,
+    TRADING_ALLOWANCE,
+)
 from .dates import get_tax_year_end, get_tax_year_start
 from .exceptions import RAW_HEADER_LINE
 from .logging import bullet, style_text
@@ -179,12 +184,30 @@ def _summary_rows(
         else []
     )
 
-    return [
+    groups = [
         ("Capital gains", capital, capital_notes),
         ("Dividends", dividends, dividend_notes),
         ("Interest", interest, interest_notes),
     ]
+    if report.total_misc_income:
+        groups.append(
+            (
+                "Miscellaneous income",
+                [("Proceeds", _pounds(report.total_misc_income))],
+                [_TRADING_ALLOWANCE_NOTE]
+                if report.explains_trading_allowance()
+                else [],
+            )
+        )
+    return groups
 
+
+# A note under the miscellaneous income, which the PDF template repeats.
+_TRADING_ALLOWANCE_NOTE = (
+    f"The £{TRADING_ALLOWANCE:,} trading allowance covers trading and miscellaneous "
+    f"income together. If that income is £{TRADING_ALLOWANCE:,} or less in all, it "
+    "does not need to be reported."
+)
 
 # A note under a total that includes ERI income at a stand-in rate.
 _ESTIMATED_ERI_INCOME = (
@@ -277,18 +300,36 @@ def _estimated_tax(
         else max(Decimal(0), round_decimal(report.total_dividends_amount(), 2))
     )
     interest = max(Decimal(0), report.total_uk_interest + report.total_foreign_interest)
-    taxable_income = max(Decimal(0), income + dividends + interest - allowance)
+    # The trading allowance is taken against miscellaneous income first, as
+    # it comes off that income before the Personal Allowance does.
+    misc_income = max(Decimal(0), report.total_misc_income)
+    trading_allowance = (
+        min(misc_income, Decimal(TRADING_ALLOWANCE))
+        if report.has_trading_allowance
+        else Decimal(0)
+    )
+    misc_income -= trading_allowance
+    taxable_income = max(
+        Decimal(0), income + dividends + interest + misc_income - allowance
+    )
     band = max(Decimal(0), limit - taxable_income)
     charged = _charged_by_rate(taxable, band)
 
     added = [
         f"{_pounds(amount)} {name}"
-        for name, amount in (("dividends", dividends), ("interest", interest))
+        for name, amount in (
+            ("dividends", dividends),
+            ("interest", interest),
+            ("miscellaneous income", misc_income),
+        )
         if amount
     ]
     source = f"Income {_pounds(income)}"
     if added:
-        source += f", plus {' and '.join(added)} from these files,"
+        listed = (
+            f"{', '.join(added[:-1])} and {added[-1]}" if len(added) > 1 else added[0]
+        )
+        source += f", plus {listed} from these files,"
     if band:
         notes = [
             (
@@ -305,6 +346,13 @@ def _estimated_tax(
                 f"£{limit:,} or more, so none of the basic rate limit is unused."
             )
         ]
+    if trading_allowance:
+        notes.append(
+            f"{_pounds(trading_allowance)} of miscellaneous income is not added, "
+            f"as the £{TRADING_ALLOWANCE:,} trading allowance covers it. If you use "
+            "the allowance on other income, or deduct expenses instead, add it to "
+            "--income."
+        )
     if report.explains_dividend_tax_credit():
         notes.append(
             "Dividends before 6 April 2016 are not added: include their taxable "

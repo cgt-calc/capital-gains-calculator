@@ -52,6 +52,7 @@ QUANTITY_INCREASING_ACTIONS: Final = frozenset(
         ActionType.BUY,
         ActionType.REINVEST_SHARES,
         ActionType.STOCK_ACTIVITY,
+        ActionType.REWARD,
         ActionType.SPIN_OFF,
         ActionType.TRANSFER_FROM_SPOUSE,
     }

@@ -16,6 +16,7 @@ from .const import (
     CAPITAL_GAIN_ALLOWANCES,
     DIVIDEND_ALLOWANCES,
     FIRST_DIVIDEND_ALLOWANCE_YEAR,
+    FIRST_TRADING_ALLOWANCE_YEAR,
 )
 from .dates import get_tax_year_end, get_tax_year_start, is_date
 from .eri_gaps import predict_missing_period_ends, report_missing_eris
@@ -354,6 +355,7 @@ class CapitalGainsCalculator:
 
         self.income.process_dividends()
         self.income.process_interests()
+        self.income.process_misc_income()
 
         LOGGER.info(
             "\n%s\n",
@@ -380,12 +382,14 @@ class CapitalGainsCalculator:
             round_decimal(self.run.total_foreign_interest, 2),
             round_decimal(self.run.total_interest_tax, 2),
             show_unrealized_gains=self.calc_unrealized_gains,
+            total_misc_income=round_decimal(self.run.total_misc_income, 2),
             gift_loss=round_decimal(walked.gift_loss, 2),
             period_start=self.period_start,
             period_end=self.period_end,
             exempt_disposal_count=walked.exempt_disposal_count,
             exempt_disposal_proceeds=round_decimal(walked.exempt_disposal_proceeds, 2),
             dividends_carry_tax_credit=self.tax_year < FIRST_DIVIDEND_ALLOWANCE_YEAR,
+            has_trading_allowance=self.tax_year >= FIRST_TRADING_ALLOWANCE_YEAR,
             eri_estimated_until=max(self.run.provisional_eris.values(), default=None),
             eri_missing=eri_missing,
         )

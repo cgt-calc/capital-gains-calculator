@@ -124,6 +124,10 @@ class PreparedHistory:
     interest_tax_list: dict[
         tuple[str, CurrencyCode, dt.date], ForeignCurrencyAmount
     ] = field(default_factory=lambda: defaultdict(ForeignCurrencyAmount))
+    # Keyed by the symbol of the asset received as income.
+    misc_income_list: dict[tuple[str, CurrencyCode, dt.date], ForeignCurrencyAmount] = (
+        field(default_factory=lambda: defaultdict(ForeignCurrencyAmount))
+    )
 
     spin_offs: dict[dt.date, list[SpinOff]] = field(
         default_factory=lambda: defaultdict(list)
@@ -182,6 +186,7 @@ class RunState:
     total_uk_interest: Decimal = Decimal(0)
     total_foreign_interest: Decimal = Decimal(0)
     total_interest_tax: Decimal = Decimal(0)
+    total_misc_income: Decimal = Decimal(0)
 
     bnb_list: HmrcTransactionLog = field(default_factory=dict)
 

@@ -198,6 +198,13 @@
     (table.cell(colspan: 2, inset: (left: 1em))[#note[(including £#view.income_summary.eri_interest from excess reported income distributions)]],)
   },
   [Total amount of interest tax paid], [£#view.income_summary.interest_tax],
+  ..if view.income_summary.misc_income_count > 0 {
+    ([Number of miscellaneous income transactions], [#view.income_summary.misc_income_count],
+     [Total amount of miscellaneous income], [£#view.income_summary.misc_income])
+  },
+  ..if view.income_summary.explains_trading_allowance {
+    (table.cell(colspan: 2, inset: (left: 1em))[#note[The £1,000 trading allowance covers trading and miscellaneous income together. If that income is £1,000 or less in all, it does not need to be reported.]],)
+  },
 )
 
 #pagebreak()
@@ -293,6 +300,8 @@
   *Interest #event.origin #event.number:* #event.symbol for £#event.amount
 ] else if event.kind == "interest_tax" [
   *Interest tax #event.origin #event.number:* #event.symbol for £#event.amount
+] else if event.kind == "misc_income" [
+  *Miscellaneous income #event.number:* #event.symbol for £#event.amount
 ] else if event.kind == "eri_distribution" [
   *Excess Reported Income Distribution #event.number*: #event.symbol#if event.is_interest [ (interest)] else [ (dividend)] for £#event.amount
   #box[(£#event.unit_price/unit)]

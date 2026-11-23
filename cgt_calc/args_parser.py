@@ -94,9 +94,9 @@ Documentation: https://cgt-calc.uk/
         type=income_type,
         metavar="POUNDS",
         help="your income for the tax year before the Personal Allowance, e.g. the "
-        "pay on your P60, without the interest and, from 2016/17, the dividends "
-        "in the files you supply; gives one Capital Gains Tax estimate instead of "
-        "two (incompatible with --from and --to)",
+        "pay on your P60, without the interest, miscellaneous income and, from "
+        "2016/17, the dividends in the files you supply; gives one Capital Gains "
+        "Tax estimate instead of two (incompatible with --from and --to)",
     )
 
     # Broker Inputs

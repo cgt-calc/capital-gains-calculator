@@ -43,6 +43,7 @@ def _dividend_lines(
         dividends_tax=dividends_tax,
         interests={},
         interest_taxes={},
+        misc_incomes={},
     )
     _calculator().ingester.first_pass_report(totals)
     lines = capsys.readouterr().out.splitlines()

@@ -44,6 +44,7 @@ RENAME_DAY_UNSUPPORTED_ACTIONS: Final = frozenset(
         # Take a cost out of the pool, or put one in, at a figure worked out
         # from the holding as the row finds it.
         ActionType.STOCK_ACTIVITY,
+        ActionType.REWARD,
         ActionType.REINVEST_SHARES,
         ActionType.TRANSFER_FROM_SPOUSE,
         ActionType.TRANSFER_TO_SPOUSE,
