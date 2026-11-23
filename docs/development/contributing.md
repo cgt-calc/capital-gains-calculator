@@ -186,7 +186,6 @@ Or you can run a single hook:
 prek run mypy --all-files
 prek run ty --all-files
 prek run pytest
-prek run python-typing-update --all-files
 ```
 
 Harper runs as a regular hook via `uv` (the `harper-cli` dev dependency), so no separate
