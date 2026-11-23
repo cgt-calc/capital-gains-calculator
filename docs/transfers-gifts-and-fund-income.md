@@ -258,11 +258,11 @@ the new broker's the later sales, so the move itself needs no row.
 
 If the run stops at a row for the move, remove that row from a working copy of the export, and keep
 the download unchanged for your records. Trading 212's `Transfer in` and `Transfer out` rows stop
-the run, and so does a Schwab `Security Transfer` row for shares, which has a quantity but no amount
-and stops with `Amount missing`. Also remove a row that records the shares arriving as a purchase,
-such as a `Buy` you entered in Sharesight for the move: cgt-calc reads it as another purchase, so
-the shares are counted twice. A row for the move that does neither needs no change: the
-[checks below](#check-the-result) show whether the result is right.
+the run, and so does a Schwab `Security Transfer` row for shares, which has a quantity. Also remove
+a row that records the shares arriving as a purchase, such as a `Buy` you entered in Sharesight for
+the move: cgt-calc reads it as another purchase, so the shares are counted twice. A row for the move
+that does neither needs no change: the [checks below](#check-the-result) show whether the result is
+right.
 
 ### Only the new broker's export
 
@@ -359,7 +359,8 @@ These steps cover moves between taxable accounts in your own name only:
     another class or type of units, such as a fund's units converting to another class, is not
     covered. Work that holding out separately (consider professional advice).
 - Two accounts at the same broker may not combine in one run: check that broker's guide, such as the
-    [Trading 212 known limitations](brokers/trading212.md#known-limitations).
+    [Trading 212](brokers/trading212.md#known-limitations) or
+    [Charles Schwab](brokers/schwab.md#known-limitations) known limitations.
 
 ## Income reinvested in accumulation units
 

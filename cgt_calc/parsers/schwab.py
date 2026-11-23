@@ -97,6 +97,12 @@ class RequiredTransactionsColumn(StrEnum):
 MAIN_COLUMNS: Final = frozenset(column.value for column in RequiredTransactionsColumn)
 MAIN_HISTORY: Final = "Charles Schwab transaction history"
 AWARD_EXPORT: Final = "a Charles Schwab Equity Awards export"
+# Labels Schwab writes for shares moving between accounts, with the count in
+# Quantity. Without a Quantity, Security Transfer (an ACH cash movement, #597)
+# and Journal are cash rows.
+SHARE_TRANSFER_ACTIONS: Final = frozenset(
+    {"Security Transfer", "Journal", "Journaled Shares"}
+)
 
 
 class RequiredAwardColumn(StrEnum):
@@ -326,6 +332,24 @@ class SchwabTransaction(BrokerTransaction):
         self.posted_on = date
         action_header = RequiredTransactionsColumn.ACTION.value
         self.raw_action = row_dict[action_header]
+        if self.raw_action in SHARE_TRANSFER_ACTIONS:
+            moved = _parse_decimal(row_dict, RequiredTransactionsColumn.QUANTITY)
+            if moved is not None:
+                shares = row_dict[RequiredTransactionsColumn.SYMBOL.value] or "shares"
+                raise ParsingError(
+                    file,
+                    f"This {self.raw_action} row moves {abs(moved)} {shares} "
+                    "into or out of the account, and cgt-calc does not read "
+                    "transfers of shares from this export. For shares you moved "
+                    "between your own accounts, see "
+                    "https://cgt-calc.uk/transfers-gifts-and-fund-income/#shares-you-moved-between-your-own-accounts "
+                    "for what to add, if anything, or "
+                    "https://cgt-calc.uk/brokers/schwab/#known-limitations "
+                    "if both are Schwab brokerage accounts. For shares that went "
+                    "to or came from anyone else, including a spouse or civil "
+                    "partner, the first of those pages says what to record. Then "
+                    "remove this row from a working copy of the export.",
+                )
         action = action_from_str(self.raw_action, file)
         if action == ActionType.STOCK_SPLIT and separator:
             # Retain the as-of date as evidence for placing trades relative to

@@ -100,33 +100,34 @@ together.
 
 The importer recognises these exact values from the main CSV's `Action` column:
 
-| Exported action                                                      | How cgt-calc handles it                                                             |
-| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `Buy`, `Sell`                                                        | A purchase or disposal, including `Fees & Comm`                                     |
-| `Cancel Buy`                                                         | Removes the cancellation and the matching `Buy`                                     |
-| `Stock Plan Activity`                                                | An employer-share acquisition at the exported or Equity Awards price; no cash moves |
-| `Qualified Dividend`, `Cash Dividend`, `Qual Div Reinvest`           | Dividend income                                                                     |
-| `Div Adjustment`, `Special Qual Div`, `Non-Qualified Div`            | Dividend income                                                                     |
-| `NRA Tax Adj`, `NRA Withholding`, `NRA Withhold`, `Foreign Tax Paid` | Tax deducted from a dividend                                                        |
-| `Credit Interest`, `Bond Interest`                                   | Interest income                                                                     |
-| `Short Term Cap Gain`, `Long Term Cap Gain`                          | A fund distribution reported with dividend income                                   |
-| `ADR Mgmt Fee`                                                       | A charge deducted from cash; not an allowable cost                                  |
-| `Adjustment`, `IRS Withhold Adj`, `Wire Funds Adj`                   | A cash-balance correction                                                           |
-| `MoneyLink Transfer`, `MoneyLink Deposit`, `MoneyLink Adj`           | A cash movement only                                                                |
-| `Wire Funds`, `Wire Sent`, `Wire Funds Received`, `Funds Received`   | A cash movement only                                                                |
-| `Misc Cash Entry`, `Service Fee`, `Journal`, `Cash In Lieu`          | A cash movement only                                                                |
-| `Visa Purchase`                                                      | A cash movement only                                                                |
-| `Security Transfer`                                                  | An `ACH`-related cash movement; an `Amount` is required and no holding is moved     |
-| `Reinvest Shares`                                                    | A purchase of the reinvested shares                                                 |
-| `Reinvest Dividend`                                                  | Unsupported; the row is ignored and cgt-calc prints a warning                       |
-| `Stock Split`                                                        | A share reorganisation: the pooled cost is unchanged and spread over the new count  |
-| `Spin-off`                                                           | Adds the new holding and moves part of the old holding's pooled cost to it          |
-| `Cash Merger` followed by `Cash Merger Adj`                          | A disposal for cash, built from the adjacent amount and quantity rows               |
-| `Full Redemption Adj` followed by `Full Redemption`                  | A disposal for cash, built from the adjacent amount and quantity rows               |
-| `Sell to Open`                                                       | Writing an equity option: a disposal of the option on the grant date                |
-| `Buy to Close`                                                       | Closing a written option: an allowable cost of the original grant                   |
-| `Expired`                                                            | A written option that lapsed; the grant keeps the premium as its gain               |
-| `Assigned`                                                           | A written option that was assigned; the premium moves into the share transaction    |
+| Exported action                                                      | How cgt-calc handles it                                                                |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `Buy`, `Sell`                                                        | A purchase or disposal, including `Fees & Comm`                                        |
+| `Cancel Buy`                                                         | Removes the cancellation and the matching `Buy`                                        |
+| `Stock Plan Activity`                                                | An employer-share acquisition at the exported or Equity Awards price; no cash moves    |
+| `Qualified Dividend`, `Cash Dividend`, `Qual Div Reinvest`           | Dividend income                                                                        |
+| `Div Adjustment`, `Special Qual Div`, `Non-Qualified Div`            | Dividend income                                                                        |
+| `NRA Tax Adj`, `NRA Withholding`, `NRA Withhold`, `Foreign Tax Paid` | Tax deducted from a dividend                                                           |
+| `Credit Interest`, `Bond Interest`                                   | Interest income                                                                        |
+| `Short Term Cap Gain`, `Long Term Cap Gain`                          | A fund distribution reported with dividend income                                      |
+| `ADR Mgmt Fee`                                                       | A charge deducted from cash; not an allowable cost                                     |
+| `Adjustment`, `IRS Withhold Adj`, `Wire Funds Adj`                   | A cash-balance correction                                                              |
+| `MoneyLink Transfer`, `MoneyLink Deposit`, `MoneyLink Adj`           | A cash movement only                                                                   |
+| `Wire Funds`, `Wire Sent`, `Wire Funds Received`, `Funds Received`   | A cash movement only                                                                   |
+| `Misc Cash Entry`, `Service Fee`, `Cash In Lieu`                     | A cash movement only                                                                   |
+| `Visa Purchase`                                                      | A cash movement only                                                                   |
+| `Journal`, `Security Transfer` without a `Quantity`                  | A cash movement only; an `Amount` is required                                          |
+| `Journal`, `Security Transfer`, `Journaled Shares` with a `Quantity` | A transfer of shares, which stops the run; see [Known limitations](#known-limitations) |
+| `Reinvest Shares`                                                    | A purchase of the reinvested shares                                                    |
+| `Reinvest Dividend`                                                  | Unsupported; the row is ignored and cgt-calc prints a warning                          |
+| `Stock Split`                                                        | A share reorganisation: the pooled cost is unchanged and spread over the new count     |
+| `Spin-off`                                                           | Adds the new holding and moves part of the old holding's pooled cost to it             |
+| `Cash Merger` followed by `Cash Merger Adj`                          | A disposal for cash, built from the adjacent amount and quantity rows                  |
+| `Full Redemption Adj` followed by `Full Redemption`                  | A disposal for cash, built from the adjacent amount and quantity rows                  |
+| `Sell to Open`                                                       | Writing an equity option: a disposal of the option on the grant date                   |
+| `Buy to Close`                                                       | Closing a written option: an allowable cost of the original grant                      |
+| `Expired`                                                            | A written option that lapsed; the grant keeps the premium as its gain                  |
+| `Assigned`                                                           | A written option that was assigned; the premium moves into the share transaction       |
 
 An `NRA Tax Adj`, `NRA Withholding`, `NRA Withhold` or `Foreign Tax Paid` row is treated as tax on
 account interest only when its `Symbol` is blank and its `Description` contains `SCHWAB1 INT`.
@@ -685,12 +686,22 @@ transfer of the same shares on one day are refused when there is such a purchase
 
 ## Known limitations
 
-- Transfers of shares are not reconstructed from the main CSV. In particular, `Journaled Shares` is
-    unsupported. Despite its name, `Security Transfer` is supported only as an `ACH`-related cash
-    movement: it requires an `Amount` and does not move shares. Follow the RAW transfer or gift
-    instructions only after establishing what the transfer was and what cost should move with it.
-    For shares you moved to or from an account of your own at another broker, see
+- Transfers of shares are not reconstructed from the main CSV. A `Security Transfer`, `Journal` or
+    `Journaled Shares` row with a `Quantity` stops the run with a message saying what to do; without
+    a `Quantity`, `Security Transfer` and `Journal` are cash movements and require an `Amount`.
+    Follow the RAW transfer or gift instructions only after establishing what the transfer was and
+    what cost should move with it. For shares you moved to or from an account of your own at another
+    broker, see
     [Shares you moved between your own accounts](../transfers-gifts-and-fund-income.md#shares-you-moved-between-your-own-accounts).
+    For shares moved between two Schwab brokerage accounts of your own, pass only one account's
+    transaction history, since the two cannot be combined (see
+    [Prepare the directory](#prepare-the-directory)). Record what happened to the shares in the
+    other account as
+    [Only the new broker's export](../transfers-gifts-and-fund-income.md#only-the-new-brokers-export)
+    or
+    [Only the old broker's export](../transfers-gifts-and-fund-income.md#only-the-old-brokers-export)
+    describes, and add that account's other purchases, sales and income as RAW rows too: without
+    them they are left out of the report, without an error.
 - A main history and a complete Equity Awards export are not reconciled against each other. cgt-calc
     warns when you combine them, but cannot tell that a transaction appears in both. Import one or
     the other, or make sure no vest, sale, dividend or cash movement appears in both; see
@@ -768,9 +779,9 @@ a subdirectory, broken symlink, or file the current user lacks permission to rea
 
 ### `Unknown action`
 
-Compare the action named in the error with [Recognised activity](#recognised-activity). Common
-unsupported examples include `Journaled Shares`. Do not remove the row until you know whether it
-represents a trade, transfer or corporate action that must be recorded another way.
+Compare the action named in the error with [Recognised activity](#recognised-activity). Do not
+remove the row until you know whether it represents a trade, transfer or corporate action that must
+be recorded another way.
 
 If an unchanged export still contains an unsupported action after you
 [upgrade cgt-calc](../installation.md#upgrade-cgt-calc), follow
