@@ -501,7 +501,7 @@ def test_a_share_transfer_row_is_refused_with_the_route(
 
     assert result.returncode == 1
     assert result.stderr == (
-        f"Parsing {schwab_file}...\n\n"
+        f"Parsing {schwab_file.as_posix()}...\n\n"
         f"ERROR: While parsing {schwab_file}, row 2: This {moved} into or out "
         "of the account, and cgt-calc does not read transfers of shares from "
         "this export. For shares you moved between your own accounts, see "
