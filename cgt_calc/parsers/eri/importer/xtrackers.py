@@ -8,7 +8,6 @@ import logging
 import re
 from typing import TYPE_CHECKING, override
 
-import dateutil.parser as date_parser
 import pdfplumber
 
 from cgt_calc.exceptions import ParsingError
@@ -16,7 +15,7 @@ from cgt_calc.model import CurrencyCode, Isin
 from cgt_calc.parsers.eri.model import ERITransaction
 from cgt_calc.util import is_blank_row, round_decimal
 
-from .model import ERIImporter, ERIImporterOutput
+from .model import ERIImporter, ERIImporterOutput, extract_report_end_date
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -123,22 +122,6 @@ class XtrackersImporter(ERIImporter):
                 return None
         LOGGER.info("Done parsing Xtrackers file")
         return result
-
-    @staticmethod
-    def _extract_report_end_date(page: Page, prefix: str) -> dt.date | None:
-        matches = [
-            line["text"]
-            for line in page.extract_text_lines()
-            if prefix.lower() in line["text"].lower()
-        ]
-        if not matches:
-            return None
-        date_str = matches[0][len(prefix) :].strip()
-        try:
-            date = date_parser.parse(date_str, fuzzy=True, dayfirst=True)
-        except date_parser.ParserError:
-            return None
-        return date.date()
 
     @staticmethod
     def _extract_table(
@@ -291,9 +274,7 @@ class XtrackersImporter(ERIImporter):
             return None
         LOGGER.info("Detected Xtrackers summary format")
 
-        reporting_period_end = XtrackersImporter._extract_report_end_date(
-            first_page, prefix
-        )
+        reporting_period_end = extract_report_end_date(first_page, prefix)
         if reporting_period_end is None or reporting_period_end.year < MIN_VALID_YEAR:
             return []
 
@@ -316,7 +297,7 @@ class XtrackersImporter(ERIImporter):
             return None
         LOGGER.info("Detected Xtrackers investor report format")
 
-        reporting_period_end = XtrackersImporter._extract_report_end_date(
+        reporting_period_end = extract_report_end_date(
             first_page, "Period of account ended"
         )
         if reporting_period_end is None or reporting_period_end.year < MIN_VALID_YEAR:

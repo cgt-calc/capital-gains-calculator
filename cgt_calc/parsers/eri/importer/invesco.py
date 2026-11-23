@@ -7,7 +7,6 @@ import logging
 import re
 from typing import TYPE_CHECKING, NamedTuple, override
 
-import dateutil.parser as date_parser
 import pdfplumber
 
 from cgt_calc.exceptions import ParsingError
@@ -23,7 +22,7 @@ if TYPE_CHECKING:
 
 from cgt_calc.parsers.eri.model import ERITransaction
 
-from .model import ERIImporter, ERIImporterOutput
+from .model import ERIImporter, ERIImporterOutput, extract_report_end_date
 
 LOGGER = logging.getLogger(__name__)
 
@@ -41,6 +40,18 @@ HEADER_EDGE_TOLERANCE = 1.0
 INVESCO_ERI_FILENAME = "invesco_eri.csv"
 
 
+def _invesco_date_text(date_str: str) -> str:
+    """Tidy the text Invesco prints after the period-end wording.
+
+    One report misspells "December", and the prefix match can leave the last
+    two characters of "ENDED" in front of the date.
+    """
+    date_str = date_str.replace("Decemeber", "December")
+    if date_str.startswith("ed"):
+        date_str = date_str[2:].strip()
+    return date_str
+
+
 class _HeadingLine(NamedTuple):
     """One printed line of a column heading, from its first to last character."""
 
@@ -56,24 +67,6 @@ class InvescoImporter(ERIImporter):
     def __init__(self) -> None:
         """Create a new Invesco Parser instance."""
         super().__init__(name="Invesco")
-
-    @staticmethod
-    def _extract_report_end_date(page: Page, prefix: str) -> dt.date | None:
-        matches = [
-            line["text"]
-            for line in page.extract_text_lines()
-            if prefix.lower() in line["text"].lower()
-        ]
-        if not matches:
-            return None
-        date_str = matches[0][len(prefix) :].strip().replace("Decemeber", "December")
-        if date_str.startswith("ed"):
-            date_str = date_str[2:].strip()
-        try:
-            date = date_parser.parse(date_str, fuzzy=True, dayfirst=True)
-        except date_parser.ParserError:
-            return None
-        return date.date()
 
     @staticmethod
     def _extract_header(
@@ -276,8 +269,8 @@ class InvescoImporter(ERIImporter):
         if not first_page.search(prefix):
             return None
         LOGGER.info("Detected v1 format")
-        reporting_period_end = InvescoImporter._extract_report_end_date(
-            first_page, prefix
+        reporting_period_end = extract_report_end_date(
+            first_page, prefix, normalize=_invesco_date_text
         )
         if reporting_period_end is None or reporting_period_end.year < MIN_VALID_YEAR:
             LOGGER.warning("First page has old or missing reporting date")
@@ -311,8 +304,8 @@ class InvescoImporter(ERIImporter):
         ) and not first_page.search("UK reporting fund status report to investors"):
             return None
         LOGGER.info("Detected v2 format")
-        reporting_period_end = InvescoImporter._extract_report_end_date(
-            first_page, "Reporting Period End"
+        reporting_period_end = extract_report_end_date(
+            first_page, "Reporting Period End", normalize=_invesco_date_text
         )
         if reporting_period_end is None or reporting_period_end.year < MIN_VALID_YEAR:
             LOGGER.warning("First page has old or missing reporting date")
