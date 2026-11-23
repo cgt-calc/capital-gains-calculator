@@ -11,7 +11,7 @@ import pytest
 
 from cgt_calc.exceptions import CalculationError, InvalidTransactionError, ParsingError
 from cgt_calc.exchanges import expand_to_legs, fee_legs
-from cgt_calc.model import ActionType
+from cgt_calc.model import ActionType, BrokerTransaction, CurrencyCode
 from cgt_calc.parsers.raw import RawParser, RawTransaction
 from tests.general.test_calc import create_calculator, get_report
 
@@ -148,6 +148,83 @@ def test_a_spend_is_a_disposal_at_market_value(tmp_path: Path) -> None:
     assert report.capital_gain == Decimal("0.2")
     (eth,) = (entry for entry in report.portfolio if entry.symbol == "ETH")
     assert eth.quantity == Decimal("1.998")
+
+
+@pytest.mark.parametrize(
+    ("rows", "expected", "row"),
+    [
+        pytest.param(
+            [FUNDING[0], TRANSFER_FEE],
+            "Tried to move ETH on 2024-07-10, but no ETH is held.",
+            "row 3",
+            id="asset not held",
+        ),
+        pytest.param(
+            [
+                *FUNDING,
+                ["2024-07-10", "TRANSFER", "ETH", "3", "0", "0", "GBP", "", ""],
+            ],
+            "Tried to move 3 ETH on 2024-07-10, but the holding is 2.",
+            "row 4",
+            id="more units than held",
+        ),
+    ],
+)
+def test_a_transfer_of_an_asset_not_held_is_refused(
+    tmp_path: Path, rows: list[list[str]], expected: str, row: str
+) -> None:
+    """The units moved must be in the holding, as for a sale."""
+    with pytest.raises(InvalidTransactionError) as exc:
+        _report(tmp_path, _with_fee_columns(rows), FEE_HEADER)
+
+    assert expected in str(exc.value)
+    assert f"read from {row} " in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    ("quantity", "expected"),
+    [
+        pytest.param("0", "Positive quantity required.", id="zero"),
+        pytest.param("-1", "Positive quantity required.", id="negative"),
+        pytest.param("", "Quantity missing.", id="blank"),
+    ],
+)
+def test_a_transfer_of_an_asset_names_the_units_moved(
+    tmp_path: Path, quantity: str, expected: str
+) -> None:
+    """A move of an asset says how many units it moves, as a positive count."""
+    moved = ["2024-07-10", "TRANSFER", "ETH", quantity, "0", "0", "GBP"]
+    with pytest.raises(InvalidTransactionError) as exc:
+        _report(tmp_path, [*FUNDING, moved])
+
+    assert expected in str(exc.value)
+    assert "read from row 4 " in str(exc.value)
+
+
+def test_a_transfer_draws_on_the_holding_across_brokers(tmp_path: Path) -> None:
+    """Units bought in the RAW file's ledger can leave another broker's wallet.
+
+    The holding is one pool whichever account the units are in, so the move
+    is checked against all 2 ETH.
+    """
+    moved = BrokerTransaction(
+        date=dt.date(2024, 7, 10),
+        action=ActionType.TRANSFER,
+        symbol="ETH",
+        description="Withdrawal",
+        quantity=Decimal(2),
+        price=Decimal(0),
+        fees=Decimal(0),
+        amount=Decimal(0),
+        currency=CurrencyCode("GBP"),
+        broker="Exchange B",
+    )
+    report = get_report(
+        create_calculator(tax_year=2024), [*_read(tmp_path, FUNDING), moved]
+    )
+
+    (eth,) = (entry for entry in report.portfolio if entry.symbol == "ETH")
+    assert eth.quantity == Decimal(2)
 
 
 def test_a_spend_adds_no_cash_to_the_balance(tmp_path: Path) -> None:

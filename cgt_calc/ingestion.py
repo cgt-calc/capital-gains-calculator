@@ -1929,6 +1929,34 @@ class TransactionIngester:
             year_totals[transaction.broker, transaction.currency] += amount
         return amount
 
+    def _record_cash_move(self, transaction: BrokerTransaction) -> Decimal:
+        """Check the units a transfer of an asset moves, and return its cash move.
+
+        A TRANSFER naming an asset moves it between accounts or wallets of
+        your own, which is neither a disposal nor an acquisition (TCGA 1992
+        s60), so the holding is left as it is. The units moved must still be
+        held: the holding is one pool across every file in the run (s104).
+        """
+        if transaction.action is ActionType.TRANSFER and transaction.symbol:
+            symbol = transaction.symbol
+            available = self._available_units(symbol, transaction.date)
+            if available is None:
+                raise InvalidTransactionError(
+                    transaction,
+                    self._nothing_held("move {}", symbol, transaction),
+                )
+            quantity = self._pooled_quantity(transaction)
+            if quantity <= 0:
+                raise QuantityNotPositiveError(transaction)
+            if available < quantity:
+                raise InvalidTransactionError(
+                    transaction,
+                    self._shortfall(
+                        "move {}", symbol, transaction, quantity, available
+                    ),
+                )
+        return get_amount_or_fail(transaction)
+
     def _acquire_without_cash(
         self,
         transaction: BrokerTransaction,
@@ -2132,7 +2160,7 @@ class TransactionIngester:
                 ActionType.TRANSFER,
                 ActionType.WIRE_FUNDS_RECEIVED,
             }:
-                new_balance += get_amount_or_fail(transaction)
+                new_balance += self._record_cash_move(transaction)
             elif transaction.action in {
                 ActionType.INTEREST,
                 ActionType.INTEREST_TAX,
