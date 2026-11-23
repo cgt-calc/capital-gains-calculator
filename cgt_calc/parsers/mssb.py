@@ -100,8 +100,9 @@ UNREAD_HEADERS: Final = (
 # These can be potentially wired through as a flag
 KNOWN_SYMBOL_DICT: Final[dict[str, str]] = {
     "GSU Class C": "GOOG",
-    "Cash": "USD",
 }
+# The plan of a withdrawal of dollars, not of shares.
+CASH_PLAN: Final = "Cash"
 
 
 @dataclass
@@ -346,21 +347,26 @@ class MSSBParser(
         if not price_raw or not price_raw.startswith("$"):
             raise ParsingError(file, f"Unknown price currency: {price_raw}")
 
-        if plan not in KNOWN_SYMBOL_DICT:
+        if plan != CASH_PLAN and plan not in KNOWN_SYMBOL_DICT:
             raise ParsingError(file, f"Unknown plan: {plan}")
 
+        # A cash withdrawal has no symbol, quantity or price, unlike a sale.
+        symbol: str | None
+        quantity: Decimal | None
+        price: Decimal | None
         quantity = -_parse_decimal(row, WithdrawalColumn.QUANTITY)
         price = _parse_decimal(row, WithdrawalColumn.PRICE)
         amount = _parse_decimal(row, WithdrawalColumn.NET_AMOUNT)
         fees = quantity * price - amount
 
-        if plan == "Cash":
+        if plan == CASH_PLAN:
             action = ActionType.TRANSFER
             amount *= -1
+            symbol, quantity, price = None, None, None
         else:
             action = ActionType.SELL
+            symbol = KNOWN_SYMBOL_DICT[plan]
 
-        symbol = KNOWN_SYMBOL_DICT[plan]
         transaction = BrokerTransaction(
             date=_parse_date(row, WithdrawalColumn.EXECUTION_DATE),
             action=action,
