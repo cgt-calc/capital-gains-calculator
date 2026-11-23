@@ -387,6 +387,7 @@ RATES_ADDRESS = {
         "monthly_xml_2021-01.xml"
     ),
 }
+HMRC_HOST = "www.trade-tariff.service.gov.uk"
 
 
 def _reply(text: str, *, status: int = 200) -> FakeSession:
@@ -569,9 +570,6 @@ def _retry_policy() -> Retry:
     return adapter.max_retries
 
 
-HMRC_HOST = "www.trade-tariff.service.gov.uk"
-
-
 @pytest.mark.parametrize(
     ("error", "response", "waits"),
     [
@@ -583,14 +581,10 @@ HMRC_HOST = "www.trade-tariff.service.gov.uk"
             [0, 2],
             id="no connection",
         ),
-        # Five retries: the first at once, then each wait twice the one
-        # before, 0 + 2 + 4 + 8 + 16 = 30 seconds, as before.
-        *(
-            pytest.param(
-                None, HTTPResponse(status=status), [0, 2, 4, 8, 16], id=f"HTTP {status}"
-            )
-            for status in (502, 503, 504)
-        ),
+        # Five retries: none before the first, then backoff_factor * 2**(n-1)
+        # before retry n, so 0 + 2 + 4 + 8 + 16 = 30 seconds, as before. The
+        # next test owns which replies are retried.
+        pytest.param(None, HTTPResponse(status=503), [0, 2, 4, 8, 16], id="HTTP 503"),
         # A connection was made, so these keep their five retries too.
         pytest.param(
             ReadTimeoutError(
@@ -610,7 +604,7 @@ HMRC_HOST = "www.trade-tariff.service.gov.uk"
         ),
     ],
 )
-def test_a_download_retries_no_connection_twice_and_a_server_error_five_times(
+def test_a_download_retries_no_connection_twice_and_other_failures_five_times(
     error: Exception | None, response: HTTPResponse | None, waits: list[int]
 ) -> None:
     """Offline, the download gives up after about 2 seconds rather than 30.
@@ -635,8 +629,8 @@ def test_a_download_retries_no_connection_twice_and_a_server_error_five_times(
     assert seen == waits
 
 
-def test_a_download_retries_only_http_502_503_and_504() -> None:
-    """Any other reply, such as HTTP 500 or 404, is reported at once."""
+def test_without_retry_after_a_download_retries_only_http_502_503_and_504() -> None:
+    """Without a Retry-After header, other replies such as HTTP 500 fail at once."""
     policy = _retry_policy()
 
     assert [status for status in range(100, 600) if policy.is_retry("GET", status)] == [
