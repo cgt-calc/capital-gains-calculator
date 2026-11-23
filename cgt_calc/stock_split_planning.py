@@ -841,6 +841,12 @@ class KnownSplit:
     # other one in `isins` is the one before it.
     new_isin: Isin | None = None
 
+    @property
+    def old_isin(self) -> Isin:
+        """Return the ISIN before the split, the only one if it did not change."""
+        (old,) = self.isins.difference({self.new_isin})
+        return old
+
 
 # In date order, so that a history crossing two splits of one share with rows
 # for neither is told about the earlier one first. Dates, ratios and CUSIPs
@@ -1032,8 +1038,9 @@ def isins_joined_at_known_splits(
     row under the split's ticker, with the old ISIN dated before the split
     and the new one on or after it. Any other row with either ISIN, such as
     one changing on another day, is not shown to be this split, so the run
-    keeps the two ISINs apart and a ticker exported for both is refused as
-    two securities.
+    keeps the two ISINs apart, and a ticker exported for both is refused as
+    one holding that cgt-calc cannot join: see
+    IsinConverter.add_from_transactions().
 
     One of those rows must also buy or sell under the new ISIN. That is what
     makes known_splits_crossed() check the joined holding for its split row,
@@ -1057,8 +1064,7 @@ def isins_joined_at_known_splits(
             and (row.isin == split.new_isin) == (row.date >= split.date)
             for row in rows
         ):
-            (old,) = split.isins - {split.new_isin}
-            joined[old] = split.new_isin
+            joined[split.old_isin] = split.new_isin
     return joined
 
 

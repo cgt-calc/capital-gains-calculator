@@ -38,7 +38,7 @@ from .exceptions import (
 from .model import Isin
 from .parsers.vanguard import VanguardTransaction
 from .resources import RESOURCES_PACKAGE
-from .stock_split_planning import isins_joined_at_known_splits
+from .stock_split_planning import KNOWN_TRADING212_SPLITS, isins_joined_at_known_splits
 from .util import csv_fields, indent_entry, is_blank_row, save_csv
 
 if TYPE_CHECKING:
@@ -60,6 +60,9 @@ _US_OVER_THE_COUNTER_SYMBOL: Final = re.compile(r"[A-Z]{4}F")
 # One literal, so that the link check reads the whole address.
 _SEPARATE_RUNS_DOCS: Final = (
     "https://cgt-calc.uk/extra-data-and-options/#two-securities-in-separate-runs"
+)
+_SPLIT_ISIN_CHANGE_DOCS: Final = (
+    "https://cgt-calc.uk/brokers/trading212/#super-micro-computer-and-lam-research"
 )
 LOGGER = logging.getLogger(__name__)
 
@@ -567,6 +570,8 @@ class IsinConverter:
 
         The exception is a known split that changed the ISIN, crossed by
         this run's rows as that split: see isins_joined_at_known_splits().
+        Otherwise, a ticker exported for both of that split's ISINs is still
+        refused, but as one holding: separate runs would split it.
         """
         self.joined_isins = isins_joined_at_known_splits(transactions)
         for transaction in transactions:
@@ -575,17 +580,45 @@ class IsinConverter:
             isin = self.joined_isins.get(transaction.isin, transaction.isin)
             known = self.exported_isins.setdefault(transaction.symbol, isin)
             self.exporters.setdefault(transaction.symbol, transaction)
-            if known != isin:
-                raise InvalidTransactionError(
-                    transaction,
-                    f"Ticker {transaction.symbol} is exported for ISIN {known} "
-                    f"and for ISIN {transaction.isin}. Two securities under one "
-                    "ticker cannot be told apart, and a row naming no ISIN of "
-                    "its own would be pooled with whichever listing the export "
-                    "stated first. Check the exports and calculate the two "
-                    "securities in separate runs; to split the files and combine "
-                    f"the reports, see {_SEPARATE_RUNS_DOCS}",
+            if known == isin:
+                continue
+            split = next(
+                (
+                    split
+                    for split in KNOWN_TRADING212_SPLITS
+                    if split.new_isin is not None
+                    and split.isins == {known, transaction.isin}
+                ),
+                None,
+            )
+            if split is None:
+                advice = (
+                    "Two securities under one ticker cannot be told apart, and a "
+                    "row naming no ISIN of its own would be pooled with whichever "
+                    "listing the export stated first. Check the exports and "
+                    "calculate the two securities in separate runs; to split the "
+                    f"files and combine the reports, see {_SEPARATE_RUNS_DOCS}"
                 )
+            else:
+                advice = (
+                    f"{split.symbol}'s ISIN changed from {split.old_isin} to "
+                    f"{split.new_isin} at its {split.ratio}-for-1 split on "
+                    f"{split.date}, so rows under either ISIN are one holding. "
+                    "cgt-calc joins them only when every row with either ISIN, "
+                    "not only the row shown below, is a Trading 212 row under "
+                    f"{split.symbol}, with the old ISIN dated before that day and "
+                    "the new one from it, and at least one Trading 212 purchase "
+                    "or sale has the new ISIN. Do not calculate the two ISINs in "
+                    "separate runs: that would split the holding and give the "
+                    "wrong cost. Work the holding out by hand (consider "
+                    "professional advice), and calculate everything else without "
+                    f"that holding's rows; see {_SPLIT_ISIN_CHANGE_DOCS}"
+                )
+            raise InvalidTransactionError(
+                transaction,
+                f"Ticker {transaction.symbol} is exported for ISIN {known} "
+                f"and for ISIN {transaction.isin}. {advice}",
+            )
         for transaction in transactions:
             self.add_from_transaction(transaction)
 

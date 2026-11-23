@@ -275,6 +275,8 @@ also has Trading 212 shares bought before the split, the result may be wrong wit
 the split out by hand. Do not add a split row for it: the row would restate the award shares too,
 and cgt-calc would not stop.
 
+#### Super Micro Computer and Lam Research
+
 Super Micro Computer's and Lam Research's ISINs changed with their splits. If your export lists the
 share under the first ISIN in the table before the split and the second from the split day on,
 cgt-calc reads the two as one holding and checks it for the split row like the other shares in the
@@ -287,9 +289,11 @@ table. It stops earlier instead, with `is exported for ISIN`, in these cases:
     one, cgt-calc would not check the holding for the split row.
 
 If the export's own split rows change the ISIN, it stops with `changes the ISIN` while reading the
-export. A RAW row gets past none of these. Do not calculate the two ISINs in separate runs, as the
-first message suggests for two different securities: here they are one holding, and splitting it
-would give the wrong cost. Work the holding out by hand.
+export. A RAW row gets past none of these. Do not calculate the two ISINs in separate runs: they are
+one holding, and splitting it would give the wrong cost. Work the holding out by hand (consider
+professional advice), and run cgt-calc without the holding's rows under either ISIN: see
+[Two securities in separate runs](../extra-data-and-options.md#two-securities-in-separate-runs) for
+splitting your files and adding up the results.
 
 #### A split row on another day or with another ratio
 

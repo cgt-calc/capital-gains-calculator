@@ -2010,6 +2010,10 @@ NO_ROWS_DOCS = (
 OTHER_ROW_DOCS = "https://cgt-calc.uk/brokers/trading212/#a-split-row-on-another-day-or-with-another-ratio"
 # The section that says to work a 30-day match across a split out by hand.
 STOPS_DOCS = "https://cgt-calc.uk/brokers/trading212/#when-cgt-calc-stops-for-a-split-in-the-table"
+# The section on Super Micro Computer's and Lam Research's ISIN changes.
+SPLIT_ISIN_DOCS = (
+    "https://cgt-calc.uk/brokers/trading212/#super-micro-computer-and-lam-research"
+)
 RAW_HEADER = "date,action,symbol,quantity,price,fees,currency"
 
 
@@ -3023,8 +3027,39 @@ def test_an_isin_changed_by_its_split_still_needs_the_split_row(
     assert "ERROR: " + _missing(symbol, split_day, "2") + "\n" in stderr
 
 
+# Each share's ISIN before and after its split and the split day, from the
+# table in the Trading 212 guide. Both splits are 10-for-1.
+SPLIT_ISIN_CHANGES = {
+    "SMCI": (SMCI_ISIN_BEFORE, SMCI_ISIN_AFTER, "2024-10-01"),
+    "LRCX": (LRCX_ISIN_BEFORE, LRCX_ISIN_AFTER, "2024-10-03"),
+}
+
+
+def _one_holding(symbol: str, *, new_first: bool = False) -> str:
+    """Return the whole refusal of a split's two ISINs under its ticker.
+
+    The first sentence names the ISINs in the order the rows give them; the
+    rest names them by the split, old then new, whatever that order.
+    """
+    old, new, split_day = SPLIT_ISIN_CHANGES[symbol]
+    first, second = (new, old) if new_first else (old, new)
+    return (
+        f"Ticker {symbol} is exported for ISIN {first} and for ISIN {second}. "
+        f"{symbol}'s ISIN changed from {old} to {new} at its 10-for-1 split on "
+        f"{split_day}, so rows under either ISIN are one holding. cgt-calc joins "
+        "them only when every row with either ISIN, not only the row shown "
+        f"below, is a Trading 212 row under {symbol}, with the old ISIN dated "
+        "before that day and the new one from it, and at least one Trading 212 "
+        "purchase or sale has the new ISIN. Do not calculate the two ISINs in "
+        "separate runs: that would split the holding and give the wrong cost. "
+        "Work the holding out by hand (consider professional advice), and "
+        "calculate everything else without that holding's rows; see "
+        f"{SPLIT_ISIN_DOCS}\n"
+    )
+
+
 def _two_isins(symbol: str, first: str, second: str) -> str:
-    """Return the refusal of one ticker exported for two ISINs."""
+    """Return the refusal of one ticker exported for two securities."""
     return (
         f"Ticker {symbol} is exported for ISIN {first} and for ISIN {second}. "
         "Two securities under one ticker cannot be told apart"
@@ -3045,7 +3080,7 @@ def _two_isins(symbol: str, first: str, second: str) -> str:
             ),
             # 1 is held going into the split day: 10-for-1 adds 9.
             ("2024-10-01,STOCK_SPLIT,SMCI,9,0.00,0.00,GBP",),
-            _two_isins("SMCI", SMCI_ISIN_BEFORE, SMCI_ISIN_AFTER),
+            _one_holding("SMCI"),
             id="new ISIN the day before the split",
         ),
         pytest.param(
@@ -3072,8 +3107,41 @@ def _two_isins(symbol: str, first: str, second: str) -> str:
                 ),
             ],
             (),
-            _two_isins("LRCX", LRCX_ISIN_BEFORE, LRCX_ISIN_AFTER),
+            _one_holding("LRCX"),
             id="old ISIN on the split day",
+        ),
+        pytest.param(
+            [
+                _deposit("2024-09-19 09:00:00"),
+                _trade(
+                    "Market buy",
+                    "2024-09-20 14:00:00",
+                    "1",
+                    "400.00",
+                    ticker="SMCI",
+                    isin=SMCI_ISIN_AFTER,
+                ),
+                _trade(
+                    "Market buy",
+                    "2024-09-24 14:00:00",
+                    "1",
+                    "400.00",
+                    ticker="SMCI",
+                    isin=SMCI_ISIN_BEFORE,
+                ),
+                _trade(
+                    "Market sell",
+                    "2024-10-02 14:00:00",
+                    "1",
+                    "88.00",
+                    ticker="SMCI",
+                    isin=SMCI_ISIN_AFTER,
+                ),
+            ],
+            # 2 are held going into the split day: 10-for-1 adds 18.
+            (_ten_for_one("SMCI", "2024-10-01"),),
+            _one_holding("SMCI", new_first=True),
+            id="new ISIN before every row under the old one",
         ),
         pytest.param(
             [
@@ -3101,13 +3169,16 @@ def test_an_isin_change_the_split_does_not_explain_is_refused(
     raw_rows: tuple[str, ...],
     refusal: str,
 ) -> None:
-    """Each history has the split row, and one ISIN that is not the split's.
+    """Each history has the split row, and an ISIN the split does not explain.
 
     Respectively: the new ISIN before the split, the old one on the split
-    day, and a Leverage Shares ETP's ISIN beside both of Super Micro
-    Computer's. The first two are the ISIN changing on another day. The
-    second trades on the split day, so its split row is a Stock Split row
-    timed before the trade rather than a RAW row, which has no time.
+    day, the new ISIN before the split and before every row under the old
+    one, and a Leverage Shares ETP's ISIN beside both of Super Micro
+    Computer's. The first three are the ISIN changing on another day, so
+    they are refused as one holding; the third names the new ISIN first.
+    The second trades on the split day, so its split row is a Stock Split
+    row timed before the trade rather than a RAW row, which has no time.
+    The last is two securities.
     """
     stderr = _refusal(_known_split_cmd(tmp_path, rows, raw_rows=raw_rows))
 
@@ -3150,7 +3221,7 @@ def test_the_new_isin_under_another_ticker_is_refused(tmp_path: Path) -> None:
 
     stderr = _refusal(cmd)
 
-    assert "ERROR: " + _two_isins("LRCX", LRCX_ISIN_BEFORE, LRCX_ISIN_AFTER) in stderr
+    assert "ERROR: " + _one_holding("LRCX") in stderr
 
 
 def test_another_broker_s_row_under_the_new_isin_is_refused(tmp_path: Path) -> None:
@@ -3199,7 +3270,7 @@ def test_another_broker_s_row_under_the_new_isin_is_refused(tmp_path: Path) -> N
 
     stderr = _refusal(cmd)
 
-    assert "ERROR: " + _two_isins("LRCX", LRCX_ISIN_BEFORE, LRCX_ISIN_AFTER) in stderr
+    assert "ERROR: " + _one_holding("LRCX") in stderr
 
 
 def test_a_translation_row_for_the_old_isin_keeps_the_holding_whole(
@@ -3328,7 +3399,7 @@ def test_a_dividend_alone_under_the_new_isin_is_refused(tmp_path: Path) -> None:
 
     stderr = _refusal(cmd)
 
-    assert "ERROR: " + _two_isins("LRCX", LRCX_ISIN_BEFORE, LRCX_ISIN_AFTER) in stderr
+    assert "ERROR: " + _one_holding("LRCX") in stderr
 
 
 # ===== a sale before a known split matched with a purchase after it =====
