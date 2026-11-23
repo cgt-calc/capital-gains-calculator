@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 import datetime as dt
 from decimal import Decimal
 from itertools import permutations
@@ -15,6 +16,16 @@ from typing import TYPE_CHECKING, NoReturn, override
 
 import pytest
 from requests import exceptions as requests_exceptions
+from requests.adapters import HTTPAdapter, Retry
+from urllib3.connection import HTTPSConnection
+from urllib3.connectionpool import HTTPSConnectionPool
+from urllib3.exceptions import (
+    MaxRetryError,
+    NewConnectionError,
+    ReadTimeoutError,
+    SSLError,
+)
+from urllib3.response import HTTPResponse
 
 from cgt_calc.const import SHIPPED_RATES_YEARS, RuntimeMode
 import cgt_calc.currency_converter
@@ -376,6 +387,7 @@ RATES_ADDRESS = {
         "monthly_xml_2021-01.xml"
     ),
 }
+HMRC_HOST = "www.trade-tariff.service.gov.uk"
 
 
 def _reply(text: str, *, status: int = 200) -> FakeSession:
@@ -549,6 +561,84 @@ def test_a_failed_download_says_what_went_wrong_and_what_to_do(
     assert session.urls == [RATES_ADDRESS[date]] * 2
     # A failed download leaves the rates file as it was: here, not yet written.
     assert not rates_file.exists()
+
+
+def _retry_policy() -> Retry:
+    """Give the retry policy the converter's session uses for HMRC's address."""
+    adapter = CurrencyConverter().session.get_adapter(RATES_ADDRESS[JANUARY_2021])
+    assert isinstance(adapter, HTTPAdapter)
+    return adapter.max_retries
+
+
+@pytest.mark.parametrize(
+    ("error", "response", "waits"),
+    [
+        # No connection can be made. Two retries, the first at once and the
+        # second 2 seconds later, so when each try fails at once, as with a
+        # refused connection, the run stops about 2 seconds in.
+        pytest.param(
+            NewConnectionError(HTTPSConnection(HMRC_HOST), "Connection refused"),
+            None,
+            [0, 2],
+            id="no connection",
+        ),
+        # Five retries: none before the first, then backoff_factor * 2**(n-1)
+        # before retry n, so 0 + 2 + 4 + 8 + 16 = 30 seconds, as before. The
+        # next test owns which replies are retried.
+        pytest.param(None, HTTPResponse(status=503), [0, 2, 4, 8, 16], id="HTTP 503"),
+        # A connection was made, so these keep their five retries too.
+        pytest.param(
+            ReadTimeoutError(
+                HTTPSConnectionPool(HMRC_HOST),
+                RATES_ADDRESS[JANUARY_2021],
+                "Read timed out.",
+            ),
+            None,
+            [0, 2, 4, 8, 16],
+            id="reply stalled",
+        ),
+        pytest.param(
+            SSLError("certificate verify failed"),
+            None,
+            [0, 2, 4, 8, 16],
+            id="secure connection failed",
+        ),
+    ],
+)
+def test_a_download_retries_no_connection_twice_and_other_failures_five_times(
+    error: Exception | None, response: HTTPResponse | None, waits: list[int]
+) -> None:
+    """A connection that fails at once is given up after about 2 seconds, not 30.
+
+    Each failure moves the policy on, as the session does after a try, until
+    the failures of that kind are spent and it raises; after each the policy
+    gives the wait before the next try. A run used to wait 30 seconds without
+    a word when there was no connection.
+    """
+    policy = _retry_policy()
+    seen: list[float] = []
+
+    # Ten tries is more than any of these is allowed: a policy that never
+    # gives up fails the comparison below.
+    with suppress(MaxRetryError):
+        for _ in range(10):
+            policy = policy.increment(
+                "GET", RATES_ADDRESS[JANUARY_2021], response=response, error=error
+            )
+            seen.append(policy.get_backoff_time())
+
+    assert seen == waits
+
+
+def test_without_retry_after_a_download_retries_only_http_502_503_and_504() -> None:
+    """Without a Retry-After header, other replies such as HTTP 500 fail at once."""
+    policy = _retry_policy()
+
+    assert [status for status in range(100, 600) if policy.is_retry("GET", status)] == [
+        502,
+        503,
+        504,
+    ]
 
 
 def test_cnh_is_treated_as_cny() -> None:
