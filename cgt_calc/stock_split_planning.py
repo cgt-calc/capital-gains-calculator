@@ -23,7 +23,7 @@ from .parsers.schwab_equity_award_json import (
     SPLITS as SCHWAB_AWARD_SPLITS,
     SchwabAwardTransaction,
 )
-from .parsers.trading212 import Trading212Transaction
+from .parsers.trading212 import BROKER_NAME as TRADING212_BROKER, Trading212Transaction
 from .rename_planning import connected_names
 from .stock_splits import (
     SplitMode,
@@ -1036,11 +1036,14 @@ def isins_joined_at_known_splits(
     the new one from it, and those rows are one holding. A split's two ISINs
     are joined only when every row carrying either of them is a Trading 212
     row under the split's ticker, with the old ISIN dated before the split
-    and the new one on or after it. Any other row with either ISIN, such as
-    one changing on another day, is not shown to be this split, so the run
-    keeps the two ISINs apart, and a ticker exported for both is refused as
-    one holding that cgt-calc cannot join: see
-    IsinConverter.add_from_transactions().
+    and the new one on or after it. A Trading 212 row is any row its parser
+    builds: the export's own, the tax it separates from a dividend and the
+    row it makes of a split pair. RAW rows carry no ISIN until after this
+    join, so one naming Trading 212 as its broker never carries either. Any
+    other row with either ISIN, such as one changing on another day, is not
+    shown to be this split, so the run keeps the two ISINs apart, and a
+    ticker exported for both is refused as one holding that cgt-calc cannot
+    join: see IsinConverter.add_from_transactions().
 
     One of those rows must also buy or sell under the new ISIN. That is what
     makes known_splits_crossed() check the joined holding for its split row,
@@ -1059,7 +1062,7 @@ def isins_joined_at_known_splits(
             row.isin == split.new_isin and quantity_sign(row.action) != 0
             for row in rows
         ) and all(
-            isinstance(row, Trading212Transaction)
+            row.broker == TRADING212_BROKER
             and row.symbol == split.symbol
             and (row.isin == split.new_isin) == (row.date >= split.date)
             for row in rows
