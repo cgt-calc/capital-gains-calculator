@@ -3402,6 +3402,175 @@ def test_a_dividend_alone_under_the_new_isin_is_refused(tmp_path: Path) -> None:
     assert "ERROR: " + _one_holding("LRCX") in stderr
 
 
+def _taxed_lrcx_dividend(
+    time: str, isin: str, shares: str, price: str, total: str, tax: str
+) -> list[str]:
+    """Build a Lam Research dividend paid into a sterling account.
+
+    As the export gives it, the price per share is in dollars after US tax,
+    and the tax withheld is in dollars.
+    """
+    return _make_row(
+        HEADER_2026,
+        {
+            Trading212Column.ACTION: "Dividend (Ordinary)",
+            Trading212Column.TIME: time,
+            Trading212Column.ISIN: isin,
+            Trading212Column.TICKER: "LRCX",
+            Trading212Column.NAME: "LRCX",
+            Trading212Column.NO_OF_SHARES: shares,
+            Trading212Column.PRICE_PER_SHARE: price,
+            Trading212Column.CURRENCY_PRICE_PER_SHARE: "USD",
+            Trading212Column.EXCHANGE_RATE: "Not available",
+            Trading212Column.TOTAL: total,
+            Trading212Column.CURRENCY_TOTAL: "GBP",
+            Trading212Column.WITHHOLDING_TAX: tax,
+            Trading212Column.CURRENCY_WITHHOLDING_TAX: "USD",
+            Trading212Column.TRANSACTION_ID: f"dividend-{time}",
+        },
+    )
+
+
+# Dividends on the 2 shares held before the split and the 19 held after it.
+# Trading 212 converts the tax with the row's own figures: shares times price
+# is the dollars received after tax, and the tax is the same share of the
+# pounds received.
+TAXED_BEFORE_THE_SPLIT = _taxed_lrcx_dividend(
+    "2024-07-10 10:00:00", LRCX_ISIN_BEFORE, "2", "1.955", "3.05", "0.69"
+)
+TAXED_AFTER_THE_SPLIT = _taxed_lrcx_dividend(
+    "2025-01-08 10:00:00", LRCX_ISIN_AFTER, "19", "0.1955", "2.97", "0.66"
+)
+
+
+def _lrcx_with(dividend: list[str]) -> list[list[str]]:
+    """Return the Lam Research history worked out above, with a dividend.
+
+    2 bought for GBP 800 under the old ISIN in June 2024, and 1 sold for
+    GBP 88 under the new one the day after the split.
+    """
+    return [
+        *_bought_then_sold(
+            ticker="LRCX",
+            isin=LRCX_ISIN_BEFORE,
+            sold_isin=LRCX_ISIN_AFTER,
+            deposited="2024-06-01 09:00:00",
+            bought="2024-06-03 14:00:00",
+            sold="2024-10-04 14:00:00",
+        ),
+        dividend,
+    ]
+
+
+@pytest.mark.parametrize(
+    ("dividend", "reported"),
+    [
+        pytest.param(
+            TAXED_BEFORE_THE_SPLIT,
+            "3.59, excluding 0.54",
+            id="before the split, under the old ISIN",
+        ),
+        pytest.param(
+            TAXED_AFTER_THE_SPLIT,
+            "3.50, excluding 0.53",
+            id="after the split, under the new ISIN",
+        ),
+    ],
+)
+def test_a_taxed_dividend_keeps_the_holding_whole(
+    tmp_path: Path, dividend: list[str], reported: str
+) -> None:
+    """The tax separated from a Trading 212 dividend is a Trading 212 row.
+
+    The sale's figures are the ones worked out above: gain 48, and 19 left
+    at 760. The dividends are reported before tax:
+    - Before the split: 2 x 1.955 = 3.91 dollars received, so the tax is
+      3.05 x 0.69 / 3.91 = 0.5382 and the dividend 3.05 + 0.5382 = 3.5882.
+    - After it: 19 x 0.1955 = 3.7145 dollars received, so the tax is
+      2.97 x 0.66 / 3.7145 = 0.5277 and the dividend 2.97 + 0.5277 = 3.4977.
+    """
+    cmd = _known_split_cmd(
+        tmp_path,
+        _lrcx_with(dividend),
+        raw_rows=(_ten_for_one("LRCX", "2024-10-03"),),
+    )
+
+    result = run_cli(cmd)
+
+    _assert_split_applied(result.stdout, "LRCX")
+    assert f"  LRCX: {reported} taxed at source (GBP)\n" in result.stdout
+
+
+def test_the_export_s_split_rows_under_the_new_isin_keep_the_holding_whole(
+    tmp_path: Path,
+) -> None:
+    """The row Trading 212's parser makes of a split pair is one of its rows.
+
+    2 Lam Research bought under the old ISIN, the export's pair of split
+    rows restating the 2 as 20 under the new ISIN on the split day, and 1
+    sold under the new ISIN the day after, with no RAW row. The figures are
+    the ones worked out above: gain 48, and 19 left at 760. No export
+    examined has split rows for this split, so this pair is constructed.
+    """
+    rows = [
+        *_across_the_split(
+            "LRCX", "2024-10-03", LRCX_ISIN_BEFORE, sold_isin=LRCX_ISIN_AFTER
+        ),
+        *_pair(
+            "2024-10-03 07:00:00",
+            "2.0000000000",
+            "20.0000000000",
+            "800.00",
+            ticker="LRCX",
+            isin=LRCX_ISIN_AFTER,
+        ),
+    ]
+
+    result = run_cli(_known_split_cmd(tmp_path, rows))
+
+    _assert_split_applied(result.stdout, "LRCX")
+
+
+def test_another_broker_s_tax_under_the_new_isin_is_refused(tmp_path: Path) -> None:
+    """Only the tax Trading 212 separates from its own dividends is joined.
+
+    The Trading 212 rows alone would be joined, the taxed dividend after
+    the split included. An Interactive Brokers file with US tax withheld
+    under Lam Research's new ISIN, and a deposit to pay it, keeps the two
+    ISINs apart.
+    """
+    ibkr = tmp_path / "ibkr.csv"
+    ibkr.write_text(
+        "Statement,Header,Field Name,Field Value\n"
+        "Statement,Data,Title,Transaction History\n"
+        'Statement,Data,Period,"January 1, 2024 - December 31, 2025"\n'
+        'Statement,Data,WhenGenerated,"2025-12-31, 23:59:59 EST"\n'
+        "Summary,Header,Field Name,Field Value\n"
+        "Summary,Data,Base Currency,GBP\n"
+        "Summary,Data,Starting Cash,0.0\n"
+        "Summary,Data,Change,99.50\n"
+        "Summary,Data,Ending Cash,99.50\n"
+        "Transaction History,Header,Date,Account,Description,Transaction Type,"
+        "Symbol,Quantity,Price,Gross Amount ,Commission,Net Amount\n"
+        "Transaction History,Data,2025-01-02,U***00000,Cash Deposit,Deposit,"
+        "-,-,-,100.0,-,100.0\n"
+        f"Transaction History,Data,2025-01-08,U***00000,LRCX({LRCX_ISIN_AFTER}) "
+        "Cash Dividend USD 0.23 per Share - US Tax,Foreign Tax Withholding,LRCX,"
+        "-,-,-0.50,-,-0.50\n",
+        encoding="utf-8",
+    )
+    cmd = _known_split_cmd(
+        tmp_path,
+        _lrcx_with(TAXED_AFTER_THE_SPLIT),
+        raw_rows=(_ten_for_one("LRCX", "2024-10-03"),),
+        extra=("--interactive-brokers-file", str(ibkr)),
+    )
+
+    stderr = _refusal(cmd)
+
+    assert "ERROR: " + _one_holding("LRCX") in stderr
+
+
 # ===== a sale before a known split matched with a purchase after it =====
 #
 # A sale is matched with a purchase on any of the 30 days after it (TCGA 1992
