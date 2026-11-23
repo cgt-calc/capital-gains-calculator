@@ -143,6 +143,25 @@ class IncomeProcessor:
                 )
             ]
 
+    def process_misc_income(self) -> None:
+        """Process the miscellaneous income of the tax year, by asset and month."""
+        monthly = self._group_by_month(self.history.misc_income_list)
+        for (symbol, currency, date), foreign_amount in monthly.items():
+            gbp_amount = self.currency_converter.to_gbp(
+                foreign_amount.amount, currency, date
+            )
+            self.run.total_misc_income += gbp_amount
+            self.run.calculation_log_yields[date][f"miscIncome{currency}${symbol}"] = [
+                CalculationEntry(
+                    rule_type=RuleType.MISC_INCOME,
+                    quantity=Decimal(1),
+                    amount=gbp_amount,
+                    new_quantity=Decimal(1),
+                    new_pool_cost=Decimal(0),
+                    fees=Decimal(0),
+                )
+            ]
+
     def _dividend_source_country(
         self, symbol: str, currency: CurrencyCode
     ) -> str | None:

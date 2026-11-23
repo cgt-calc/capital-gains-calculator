@@ -528,7 +528,9 @@ combined **Gain** was made after the change. To find it, run each of the two aga
 **Gain**.
 
 Add the dividend **Proceeds** and the interest figures as they are, but not the dividends' **Taxable
-proceeds**: each report deducts the whole dividend allowance from them.
+proceeds**: each report deducts the whole dividend allowance from them. Add up the miscellaneous
+income **Proceeds** as they are too, and take the £1,000 trading allowance off the combined figure
+only once: each run's tax estimate takes the whole allowance off its own.
 
 ## Options for particular cases
 

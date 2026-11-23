@@ -246,7 +246,7 @@ def _event_data(event: EventView) -> dict[str, object]:
 
 
 def _income_event_data(event: IncomeEventView) -> dict[str, object]:
-    """Give one dividend, interest or distribution, as the template prints it."""
+    """Give one dividend, interest, other income or distribution, as printed."""
     return {
         "kind": event.kind,
         "number": event.number,
@@ -280,7 +280,7 @@ def _summary_data(summary: SummaryView) -> dict[str, object]:
 
 
 def _income_summary_data(summary: IncomeSummaryView) -> dict[str, object]:
-    """Give the dividend and interest totals, as the template prints them."""
+    """Give the dividend, interest and other income totals, as the template prints them."""
     return {
         "dividend_count": summary.dividend_count,
         "interest_count": summary.interest_count,
@@ -296,6 +296,9 @@ def _income_summary_data(summary: IncomeSummaryView) -> dict[str, object]:
         "foreign_interest": _money(summary.foreign_interest),
         "eri_interest": _money(summary.eri_interest),
         "interest_tax": _money(summary.interest_tax),
+        "misc_income_count": summary.misc_income_count,
+        "misc_income": _money(summary.misc_income),
+        "explains_trading_allowance": summary.explains_trading_allowance,
     }
 
 

@@ -6565,6 +6565,7 @@ def test_every_action_says_whether_it_may_come_before_6_april_2008() -> None:
         ActionType.BUY,
         ActionType.REINVEST_SHARES,
         ActionType.STOCK_ACTIVITY,
+        ActionType.REWARD,
         # Restate a holding without disposing of it (TCGA 1992 s127).
         ActionType.STOCK_SPLIT,
         ActionType.RENAME,

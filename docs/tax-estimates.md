@@ -80,8 +80,8 @@ the whole tax year.
 ## Estimate the tax from your income
 
 Add `--income` to get one figure in place of the two. Pass your income for the tax year before the
-Personal Allowance, without the dividends and interest in the files you supply. For most employees
-that is the pay shown on the P60:
+Personal Allowance, without the dividends, interest and miscellaneous income in the files you
+supply. For most employees that is the pay shown on the P60:
 
 ```shell
 cgt-calc --year 2025 schwab_transactions.csv --income 45000
@@ -89,7 +89,8 @@ cgt-calc --year 2025 schwab_transactions.csv --income 45000
 
 cgt-calc then:
 
-1. Adds the dividends and interest in the report to the income you gave.
+1. Adds the dividends, interest and miscellaneous income in the report to the income you gave, less
+    the £1,000 trading allowance from 2017/18, which covers miscellaneous income.
 2. Deducts the standard Personal Allowance for the year, which is £12,570 for 2025/26.
 3. Works out how much of the basic rate limit that taxable income leaves unused.
 4. Taxes that much of the gain at the basic rate and the rest at the higher rate.
@@ -121,6 +122,10 @@ cgt-calc cannot know the following, so allow for them in the figure you pass:
     basic rate limit. Subtract their gross amount: what you paid plus the basic rate tax relief
     added to it. If that takes the figure below your Personal Allowance, the estimate can be too
     high, because cgt-calc cannot count the rest.
+- **The trading allowance.** cgt-calc takes it off the
+    [miscellaneous income](brokers/raw.md#assets-received-as-income) in the report. If you use it on
+    other trading or miscellaneous income, or deduct your expenses instead, add the part it took off
+    to your figure.
 - **Other Income Tax reliefs.** Subtract anything else that reduces your taxable income, such as a
     trading loss you claim against your income.
 - **Dividends and interest exported after tax.** cgt-calc adds them as the report shows them. If

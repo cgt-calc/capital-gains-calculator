@@ -304,6 +304,44 @@ def _check_spend(
         )
 
 
+def _check_reward(
+    action: ActionType,
+    symbol: str | None,
+    quantity: Decimal | None,
+    price: Decimal | None,
+    fees: Decimal,
+    currency: str,
+) -> None:
+    """Check that a row receiving an asset as income names it, its units and value.
+
+    The value is the income, so it cannot be left for cgt-calc to look up.
+    """
+    if action is not ActionType.REWARD:
+        return
+    if symbol is None:
+        raise ValueError("A REWARD row names the asset received as its symbol.")
+    if symbol == currency:
+        raise ValueError(
+            f"A REWARD row receives an asset, not {currency} cash: write an "
+            "INTEREST row for interest paid in cash."
+        )
+    if quantity is None or quantity <= 0:
+        raise ValueError(
+            "A REWARD row gives the units received as a positive quantity."
+        )
+    if price is None or price <= 0:
+        raise ValueError(
+            "A REWARD row gives the market value of one unit received as a "
+            "positive price."
+        )
+    # A fee taken from the reward leaves only the units received to record.
+    if fees:
+        raise ValueError(
+            "A REWARD row records the units received after any fee taken from "
+            "them. Leave 'fees' blank or 0."
+        )
+
+
 class RawTransaction(BrokerTransaction):
     """Represents a single raw transaction.
 
@@ -316,6 +354,8 @@ class RawTransaction(BrokerTransaction):
     2022-06-06,STOCK_SPLIT,AMZN,209,0.00,0.00,USD
     2023-03-16,TRANSFER_TO_SPOUSE,META,21.5,0.00,0.00,USD
     2023-03-16,TRANSFER_FROM_SPOUSE,META,21.5,95.60,0.00,GBP
+    2023-03-17,SPEND,ETH,0.002,2000.00,0.00,GBP
+    2023-03-17,REWARD,ETH,0.01,2400.00,0.00,GBP
 
     An EXCHANGE row needs the optional exchange columns:
     date,action,symbol,quantity,price,fees,currency,to_symbol,to_quantity,fee_symbol,fee_quantity
@@ -324,9 +364,6 @@ class RawTransaction(BrokerTransaction):
     A BUY, SELL, TRANSFER or SPEND row can name the asset its fee was paid
     in, in the same columns, such as a transfer between your own wallets:
     2025-06-04,TRANSFER,ETH,2,0,4.00,GBP,,,ETH,0.002
-
-    SPEND rows give an asset for goods or services:
-    2025-06-04,SPEND,ETH,0.002,2000,0,GBP
 
     See tests/raw/data/test_data.csv for a sample file showing the expected format.
     """
@@ -412,6 +449,9 @@ class RawTransaction(BrokerTransaction):
             fees,
             fee_symbol,
             row_values[RawColumn.CURRENCY],
+        )
+        _check_reward(
+            action, symbol, quantity, price, fees, row_values[RawColumn.CURRENCY]
         )
 
         if price is not None and quantity is not None:

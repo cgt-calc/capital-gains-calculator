@@ -298,8 +298,8 @@ def _match_gifts_to_rows(
 class FirstPassTotals:
     """Running totals the first pass reports at the end.
 
-    `dividends` and `dividends_tax` are keyed by (symbol, currency); the
-    rest by (broker, currency).
+    `dividends`, `dividends_tax` and `misc_incomes` are keyed by (symbol,
+    currency); the rest by (broker, currency).
     """
 
     balance: dict[tuple[str, CurrencyCode], Decimal]
@@ -307,6 +307,7 @@ class FirstPassTotals:
     dividends_tax: dict[tuple[str, CurrencyCode], Decimal]
     interests: dict[tuple[str, CurrencyCode], Decimal]
     interest_taxes: dict[tuple[str, CurrencyCode], Decimal]
+    misc_incomes: dict[tuple[str, CurrencyCode], Decimal]
 
 
 class TransactionIngester:
@@ -468,7 +469,7 @@ class TransactionIngester:
         _refuse_negative_price(transaction)
 
         # Add to acquisition_list to apply same day rule
-        if transaction.action is ActionType.STOCK_ACTIVITY:
+        if transaction.action in {ActionType.STOCK_ACTIVITY, ActionType.REWARD}:
             if price is None:
                 price = self.share_prices.get(
                     transaction.date, symbol, transaction.currency
@@ -1928,6 +1929,28 @@ class TransactionIngester:
             year_totals[transaction.broker, transaction.currency] += amount
         return amount
 
+    def _acquire_without_cash(
+        self,
+        transaction: BrokerTransaction,
+        misc_incomes: dict[tuple[str, CurrencyCode], Decimal],
+    ) -> None:
+        """Record an acquisition no cash was paid for, and a reward's income.
+
+        The value of an asset received as income is both the income and its
+        cost.
+        """
+        self.add_acquisition(transaction)
+        if transaction.action is not ActionType.REWARD:
+            return
+        amount = get_amount_or_fail(transaction)
+        symbol = get_symbol_or_fail(transaction)
+        key = (symbol, transaction.currency, transaction.date)
+        self.history.misc_income_list[key] += ForeignCurrencyAmount(
+            amount, transaction.currency
+        )
+        if self.date_in_tax_year(transaction.date):
+            misc_incomes[symbol, transaction.currency] += amount
+
     def prepare_history(
         self,
         transactions: list[BrokerTransaction],
@@ -1949,6 +1972,7 @@ class TransactionIngester:
         ] = {}
         interests: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(Decimal)
         interest_taxes: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(Decimal)
+        misc_incomes: dict[tuple[str, CurrencyCode], Decimal] = defaultdict(Decimal)
         balance_history: list[Decimal] = []
 
         self.isin_converter.add_from_transactions(transactions)
@@ -2052,8 +2076,9 @@ class TransactionIngester:
                 ActionType.SPIN_OFF,
                 # Shares arriving from a spouse: a cost, but no cash paid.
                 ActionType.TRANSFER_FROM_SPOUSE,
+                ActionType.REWARD,
             }:
-                self.add_acquisition(transaction)
+                self._acquire_without_cash(transaction, misc_incomes)
             elif transaction.action is ActionType.STOCK_SPLIT:
                 # Already applied, to the day-opening pool, by
                 # plan_stock_splits. No cash moves and no shares are acquired
@@ -2219,6 +2244,7 @@ class TransactionIngester:
                 dividends_tax=dividends_tax,
                 interests=interests,
                 interest_taxes=interest_taxes,
+                misc_incomes=misc_incomes,
             )
         )
 
@@ -2273,4 +2299,9 @@ class TransactionIngester:
             print(style_text("Interest taxes", colour=Style.BRIGHT, emoji="🧾"))
             for (broker, currency), amount in totals.interest_taxes.items():
                 print(f"{bul}{broker}: {round_decimal(-amount, 2)} ({currency})")
+        if totals.misc_incomes:
+            print()
+            print(style_text("Miscellaneous income", colour=Style.BRIGHT, emoji="🎁"))
+            for (symbol, currency), amount in totals.misc_incomes.items():
+                print(f"{bul}{symbol}: {round_decimal(amount, 2)} ({currency})")
         print()

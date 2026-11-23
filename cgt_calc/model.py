@@ -428,6 +428,11 @@ class ActionType(Enum):
     # reaches the main pass. A fee paid in an asset for another row goes on
     # that row.
     SPEND = 32
+    # An asset received as income no other action covers, such as a staking
+    # reward or a share given for a referral: miscellaneous income at its
+    # market value (ITTOIA 2005 s687, CRYPTO21200), which is also its cost
+    # (TCGA 1992 s17(1)(b)). No cash moves.
+    REWARD = 33
 
     @override
     def __str__(self) -> str:
@@ -660,6 +665,7 @@ class RuleType(Enum):
     INTEREST_TAX = 10
     STOCK_SPLIT = 12
     OPTION = 13
+    MISC_INCOME = 14
 
 
 @dataclass
@@ -738,6 +744,7 @@ class CalculationEntry:
                 RuleType.DIVIDEND,
                 RuleType.INTEREST,
                 RuleType.INTEREST_TAX,
+                RuleType.MISC_INCOME,
                 RuleType.EXCESS_REPORTED_INCOME_DISTRIBUTION,
                 RuleType.RENAME,
             }
@@ -859,6 +866,8 @@ class CapitalGainsReport:
     total_foreign_interest: Decimal
     total_interest_tax: Decimal
     show_unrealized_gains: bool
+    # Miscellaneous income, from REWARD rows.
+    total_misc_income: Decimal = Decimal(0)
     # Custom reporting period within the tax year, if one was requested.
     period_start: dt.date | None = None
     period_end: dt.date | None = None
@@ -873,6 +882,9 @@ class CapitalGainsReport:
     # Before the dividend allowance began in 2016/17, most dividends carried a
     # tax credit, so the amount received is not the amount taxed.
     dividends_carry_tax_credit: bool = False
+    # From 2017/18 the trading allowance covers trading and miscellaneous
+    # income together.
+    has_trading_allowance: bool = False
     # The latest fund distribution date of an ERI the calculation converted at
     # the period-end rate because that date had not come; None when every ERI
     # used its final rate. No PDF is written until this date.
@@ -1012,6 +1024,10 @@ class CapitalGainsReport:
             - self.dividend_allowance
             - self.total_dividend_taxes_in_tax_treaties_amount(),
         )
+
+    def explains_trading_allowance(self) -> bool:
+        """Whether the trading allowance applies to miscellaneous income in the report."""
+        return self.has_trading_allowance and self.total_misc_income > 0
 
     def explains_dividend_tax_credit(self) -> bool:
         """Whether the report has dividends from a year when they carried a credit."""

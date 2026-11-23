@@ -124,6 +124,7 @@ Use the following action names when writing a RAW file.
 | `GIFT`, `GIFT_UNCONNECTED`       | See [Gifts to anyone else](../transfers-gifts-and-fund-income.md#gifts-to-anyone-else).                                                                                                                                                            |
 | `EXCHANGE`                       | One asset given up for another, such as one cryptoasset for another. See [Exchange one asset for another](#exchange-one-asset-for-another).                                                                                                        |
 | `SPEND`                          | An asset given for goods or services, such as a fee paid in a cryptoasset. See [Pay with an asset](#pay-with-an-asset).                                                                                                                            |
+| `REWARD`                         | An asset received as income, such as a staking reward. See [Assets received as income](#assets-received-as-income).                                                                                                                                |
 
 For a reinvested dividend, write two rows in this order: a `DIVIDEND` for the income, then a `BUY`
 for the shares bought with it. Excess Reported Income uses the separate
@@ -557,6 +558,56 @@ A payment with its own network fee, such as 0.1 BTC paid for something plus a fe
 `SPEND` row with the fee in `fees`, `fee_symbol` and `fee_quantity`: the fee comes off the proceeds
 of the payment, and the fee's units are disposed of too. A `SPEND` row moves no cash, so a fee on it
 is always paid in an asset.
+
+## Assets received as income
+
+An asset you receive as income that no other action covers, such as a staking reward or a share a
+broker gives you for a referral, is miscellaneous income at its market value when you receive it
+([CRYPTO21200](https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto21200)). That
+value is also its cost when you later dispose of it (TCGA 1992 s17(1)(b)). Write a `REWARD` row: the
+asset as `symbol`, the units received as `quantity`, and the market value of one unit in `currency`
+as `price`.
+
+```csv
+date,action,symbol,quantity,price,fees,currency
+2024-07-08,REWARD,ETH,0.01,2400,0,GBP
+```
+
+Here 0.01 ETH worth £24 joins your ETH holding at a cost of £24, and is matched with a disposal like
+any purchase. No cash moves. The £24 is added to **Miscellaneous income** in the report, and counted
+as income when you
+[estimate the tax from your income](../tax-estimates.md#estimate-the-tax-from-your-income). Enter
+the units you received after any fee taken from them, with `fees` left at `0`.
+
+The report shows the income in full. From 2017/18 the £1,000 trading allowance covers trading and
+miscellaneous income together, and cgt-calc takes it off when estimating the tax. If that income is
+£1,000 or less in all, it is exempt and you do not need to report it on your tax return, unless it
+comes from a connected party. Above that, report the miscellaneous income less any part of the
+allowance you have not used on trading income, as the
+[tax return notes](https://www.gov.uk/government/publications/self-assessment-tax-return-sa100)
+explain.
+
+Use another action for an asset whose income is taxed some other way, or is not income:
+
+- Shares or tokens from your employer are taxed as employment income: write a `STOCK_ACTIVITY` row.
+- A dividend paid in shares is a `DIVIDEND` row for the income and a `BUY` row for the shares.
+- An asset you received without doing anything for it, such as an airdrop, is not income, so it
+    needs no `REWARD` row
+    ([CRYPTO21250](https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto21250)).
+- Staking or mining done as a trade is trading income, which cgt-calc does not report.
+
+Lending tokens needs more care:
+
+- A return for lending tokens is not interest, as tokens are not money
+    ([CRYPTO61214](https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto61214)). A
+    return agreed in advance and paid as you go, such as 5% a year, is usually miscellaneous income:
+    write a `REWARD` row. A return that is unknown until the end, or comes from the growth of an
+    asset, can be capital instead, which a `REWARD` row would wrongly tax as income. Interest paid
+    on cash, such as pounds or dollars held on a platform, is interest: write an `INTEREST` row.
+- Lending or staking tokens on terms that let the platform or borrower deal with them as their own
+    can be a disposal of them
+    ([CRYPTO61620](https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto61620)).
+    cgt-calc does not handle this: work out that disposal outside cgt-calc.
 
 ## Say which market a ticker is from
 

@@ -184,6 +184,12 @@ EARLIEST_TAX_YEAR: Final = 2008
 # the report does not work the taxable amount out.
 FIRST_DIVIDEND_ALLOWANCE_YEAR: Final = 2016
 
+# The trading allowance covers up to this much trading and miscellaneous
+# income a year in all, from 2017/18 (ITTOIA 2005 Part 6A).
+# https://www.gov.uk/guidance/tax-free-allowances-on-property-and-trading-income
+TRADING_ALLOWANCE: Final = 1000
+FIRST_TRADING_ALLOWANCE_YEAR: Final = 2017
+
 # From 6 April 2008 an individual's shares of one class are pooled at cost
 # whenever they were acquired, and shares held on 6 April 1982 enter at their
 # 31 March 1982 value. Disposals before 2008 followed other rules (LIFO,
