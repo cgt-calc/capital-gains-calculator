@@ -116,9 +116,9 @@ class CurrencyConverter:
             )
         )
         self.session = RateLimitedRequestsSession(limiter)
-        # Two retries when no connection can be made, so an offline run stops
-        # after about 2 seconds; HTTP 502, 503 and 504 replies, stalled replies
-        # and failed TLS connections keep all five.
+        # At most two of the five retries go to failed connections, so a run whose
+        # connections fail at once stops after about 2 seconds; HTTP 502, 503 and
+        # 504 replies, stalled replies and failed TLS connections can use all five.
         retries = Retry(
             total=5, connect=2, backoff_factor=1, status_forcelist=[502, 503, 504]
         )

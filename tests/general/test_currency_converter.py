@@ -573,8 +573,9 @@ def _retry_policy() -> Retry:
 @pytest.mark.parametrize(
     ("error", "response", "waits"),
     [
-        # Offline: no connection can be made. Two retries, the first at once
-        # and the second 2 seconds later, so the run stops about 2 seconds in.
+        # No connection can be made. Two retries, the first at once and the
+        # second 2 seconds later, so when each try fails at once, as offline or
+        # when the connection is refused, the run stops about 2 seconds in.
         pytest.param(
             NewConnectionError(HTTPSConnection(HMRC_HOST), "Connection refused"),
             None,
@@ -607,7 +608,7 @@ def _retry_policy() -> Retry:
 def test_a_download_retries_no_connection_twice_and_other_failures_five_times(
     error: Exception | None, response: HTTPResponse | None, waits: list[int]
 ) -> None:
-    """Offline, the download gives up after about 2 seconds rather than 30.
+    """A connection that fails at once is given up after about 2 seconds, not 30.
 
     Each failure moves the policy on, as the session does after a try, until
     the failures of that kind are spent and it raises; after each the policy
