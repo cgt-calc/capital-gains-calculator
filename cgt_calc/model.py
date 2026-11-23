@@ -422,6 +422,12 @@ class ActionType(Enum):
     # asset too. Split into those legs before the history is planned, so no
     # EXCHANGE row reaches the main pass.
     EXCHANGE = 31
+    # An asset given for goods or services, such as a cryptoasset paid as a
+    # fee: a disposal at market value with no cash received. Split into a
+    # sale that moves no cash before the history is planned, so no SPEND row
+    # reaches the main pass. A fee paid in an asset for another row goes on
+    # that row.
+    SPEND = 32
 
     @override
     def __str__(self) -> str:
@@ -537,7 +543,9 @@ class BrokerTransaction:
     to_symbol: str | None = None
     to_quantity: Decimal | None = None
     # The asset the fee was paid in and its units, when it was not paid in
-    # cash, which `fees` carries.
+    # cash, on an EXCHANGE, BUY, SELL, TRANSFER or SPEND row. `fees` is then
+    # the fee's value, and `amount` takes it as cash: the sale of the fee
+    # asset the row is read with returns that cash.
     fee_symbol: str | None = None
     fee_quantity: Decimal | None = None
 

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from cgt_calc.exceptions import CalculationError, InvalidTransactionError, ParsingError
-from cgt_calc.exchanges import exchange_legs, expand_exchanges
+from cgt_calc.exchanges import exchange_legs, expand_to_legs
 from cgt_calc.model import ActionType
 from cgt_calc.parsers.raw import RawParser, RawTransaction
 from tests.general.test_calc import create_calculator, get_report
@@ -338,7 +338,7 @@ def test_an_exchange_is_read_as_a_sale_a_purchase_and_a_fee_sale(
         ],
     )
 
-    expanded = expand_exchanges(list(rows))
+    expanded = expand_to_legs(list(rows))
 
     assert expanded[0] is rows[0]
     assert [
