@@ -68,7 +68,7 @@ def test_isin_rejects_attribute_assignment() -> None:
     """The value type carries no instance dict."""
     isin = Isin(VALID_ISIN)
     with pytest.raises(AttributeError):
-        isin.symbol = "AAPL"  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        isin.symbol = "AAPL"  # type: ignore[attr-defined]  # ty: ignore[missing-attribute]
 
 
 def test_isin_parse_returns_none_for_invalid_input() -> None:
@@ -166,7 +166,7 @@ def test_currency_code_rejects_attribute_assignment() -> None:
     """The value type carries no instance dict."""
     code = CurrencyCode("GBP")
     with pytest.raises(AttributeError):
-        code.symbol = "£"  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        code.symbol = "£"  # type: ignore[attr-defined]  # ty: ignore[missing-attribute]
 
 
 def test_currency_code_parse_returns_none_for_invalid_input() -> None:

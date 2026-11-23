@@ -223,7 +223,7 @@ def set_completer(
     action: argparse.Action, completer: dict[str, str | dict[str, str]]
 ) -> None:
     """Attach shtab completion hint (e.g. shtab.FILE) to an argparse action."""
-    action.complete = completer  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    action.complete = completer  # type: ignore[attr-defined]  # ty: ignore[missing-attribute]
 
 
 class StoreOnceAction(argparse.Action):
