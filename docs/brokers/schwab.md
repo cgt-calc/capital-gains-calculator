@@ -700,8 +700,12 @@ transfer of the same shares on one day are refused when there is such a purchase
     [Only the new broker's export](../transfers-gifts-and-fund-income.md#only-the-new-brokers-export)
     or
     [Only the old broker's export](../transfers-gifts-and-fund-income.md#only-the-old-brokers-export)
-    describes, and add that account's other purchases, sales and income as RAW rows too: without
-    them they are left out of the report, without an error.
+    describes. Convert the rest of that account's history to [RAW](raw.md) rows too: every
+    acquisition, disposal, income payment, fee and corporate action, such as a
+    [stock split](raw.md#share-reorganisations), with its cash deposits and withdrawals so the
+    [balance check](raw.md#generate-the-report) can detect an incomplete conversion. Anything left
+    out is missing from the report. A missing split or other corporate action can go unnoticed while
+    every later sale of that holding takes the wrong share of its cost.
 - A main history and a complete Equity Awards export are not reconciled against each other. cgt-calc
     warns when you combine them, but cannot tell that a transaction appears in both. Import one or
     the other, or make sure no vest, sale, dividend or cash movement appears in both; see
