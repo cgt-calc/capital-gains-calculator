@@ -744,22 +744,26 @@ def test_verbose_also_shows_what_the_library_logs(
         pytest.param(YFRateLimitError(), (), id="rate-limited"),
     ],
 )
-def test_failed_requests_for_today_s_prices_are_named_in_one_warning(
+def test_after_a_lookup_fails_twice_the_later_holdings_are_not_asked(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     error: Exception,
     logs: Sequence[tuple[int, str]],
 ) -> None:
-    """Their holdings are left out of the estimate, and the run finishes.
+    """Offline, each lookup can take a minute to fail, so cgt-calc stops asking.
 
-    The warning lists them as the report does, sorted: BBB is bought first.
-    CCC cost £40.00 for 10 and is worth £5.00 each today, an unrealised gain of
-    10 x £5.00 - £40.00 = £10.00, which is the whole total. The library's own
-    warnings are left out.
+    The holdings are asked in the order first bought: CCC, BBB, then AAA. CCC
+    is priced; BBB's lookup fails, then its retry, so AAA is never asked. The
+    warning names BBB and AAA sorted, as the report lists them, and both are
+    left out of the estimate. CCC cost £40.00 for 10 and is worth £5.00 each
+    today, an unrealised gain of 10 x £5.00 - £40.00 = £10.00, which is the
+    whole total. The library's own warnings are left out.
     """
+    lookups: list[str] = []
 
     def ticker(name: str) -> FakeTicker | FailingTicker:
+        lookups.append(name)
         if name == "CCC":
             return FakeTicker({"currentPrice": 5.0, "currency": "GBP"})
         return FailingTicker(error, logs=logs)
@@ -767,20 +771,22 @@ def test_failed_requests_for_today_s_prices_are_named_in_one_warning(
     status = _run_main(
         tmp_path,
         monkeypatch,
-        "2024-05-01,BUY,BBB,5,2.00,0,GBP\n"
-        "2024-05-01,BUY,AAA,10,4.00,0,GBP\n"
-        "2024-05-01,BUY,CCC,10,4.00,0,GBP\n",
+        "2024-05-01,BUY,CCC,10,4.00,0,GBP\n"
+        "2024-05-02,BUY,BBB,5,2.00,0,GBP\n"
+        "2024-05-03,BUY,AAA,10,4.00,0,GBP\n",
         ticker,
         "--unrealized-gains",
         "--spin-offs-file=",
     )
 
     assert status == 0
+    assert lookups == ["CCC", "BBB", "BBB"]
     out, err = capsys.readouterr()
     assert stderr_alerts(err) == [
         (
             "WARNING: Could not get today's prices from Yahoo Finance for AAA, BBB: "
-            "the request failed. Their unrealised gains are left out of the estimate."
+            "the lookup for BBB failed twice, so cgt-calc stopped asking. Their "
+            "unrealised gains are left out of the estimate."
         )
     ]
     assert "  AAA: 10.00, £40.00 (unrealized gains: unknown)\n" in out
@@ -790,33 +796,126 @@ def test_failed_requests_for_today_s_prices_are_named_in_one_warning(
     assert "WARNING: Some unrealized gains couldn't be calculated." in out
 
 
+def test_a_lookup_that_answers_on_its_retry_is_priced_without_a_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A brief failure costs nothing: the holding is asked again at once.
+
+    AAA's first lookup fails and its retry answers £5.00, then BBB is asked
+    as usual and answers £3.00. AAA cost £40.00 for 10: 10 x £5.00 - £40.00 =
+    £10.00. BBB cost £10.00 for 5: 5 x £3.00 - £10.00 = £5.00. The total is
+    £10.00 + £5.00 = £15.00.
+    """
+    lookups: list[str] = []
+
+    def ticker(name: str) -> FakeTicker | FailingTicker:
+        lookups.append(name)
+        if lookups == ["AAA"]:
+            return FailingTicker(OFFLINE, logs=OFFLINE_LOGS)
+        price = 5.0 if name == "AAA" else 3.0
+        return FakeTicker({"currentPrice": price, "currency": "GBP"})
+
+    status = _run_main(
+        tmp_path,
+        monkeypatch,
+        "2024-05-01,BUY,AAA,10,4.00,0,GBP\n2024-05-02,BUY,BBB,5,2.00,0,GBP\n",
+        ticker,
+        "--unrealized-gains",
+        "--spin-offs-file=",
+    )
+
+    assert status == 0
+    assert lookups == ["AAA", "AAA", "BBB"]
+    out, err = capsys.readouterr()
+    assert stderr_alerts(err) == []
+    assert "  AAA: 10.00, £40.00 (unrealized gains: £10.00)\n" in out
+    assert "  BBB: 5.00, £10.00 (unrealized gains: £5.00)\n" in out
+    assert summary_figure(out, "Unrealized gains") == "15.00"
+    assert "Some unrealized gains couldn't be calculated" not in out
+
+
+def test_a_last_holding_whose_lookup_fails_twice_is_named_alone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """With no later holding left unasked, the warning names only that one.
+
+    AAA is priced, then BBB's lookup and its retry fail. DDD, bought after
+    BBB, was sold in full, so it is neither asked about nor named. AAA cost
+    £40.00 for 10 and is worth £5.00 each today: 10 x £5.00 - £40.00 = £10.00,
+    which is the whole total.
+    """
+    lookups: list[str] = []
+
+    def ticker(name: str) -> FakeTicker | FailingTicker:
+        lookups.append(name)
+        if name == "AAA":
+            return FakeTicker({"currentPrice": 5.0, "currency": "GBP"})
+        return FailingTicker(OFFLINE, logs=OFFLINE_LOGS)
+
+    status = _run_main(
+        tmp_path,
+        monkeypatch,
+        "2024-05-01,BUY,AAA,10,4.00,0,GBP\n"
+        "2024-05-02,BUY,BBB,5,2.00,0,GBP\n"
+        "2024-05-03,BUY,DDD,10,1.00,0,GBP\n"
+        "2024-05-07,SELL,DDD,10,1.00,0,GBP\n",
+        ticker,
+        "--unrealized-gains",
+        "--spin-offs-file=",
+    )
+
+    assert status == 0
+    assert lookups == ["AAA", "BBB", "BBB"]
+    out, err = capsys.readouterr()
+    assert stderr_alerts(err) == [
+        (
+            "WARNING: Could not get today's price from Yahoo Finance for BBB: the "
+            "lookup failed twice. Its unrealised gain is left out of the estimate."
+        )
+    ]
+    assert "  AAA: 10.00, £40.00 (unrealized gains: £10.00)\n" in out
+    assert "  BBB: 5.00, £10.00 (unrealized gains: unknown)\n" in out
+    assert summary_figure(out, "Unrealized gains") == "10.00"
+    assert "WARNING: Some unrealized gains couldn't be calculated." in out
+
+
 def test_an_error_other_than_a_failed_request_still_stops_the_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Only a failed request is warned about; any other error stops the run.
+    """Only a failed request is retried; any other error stops the run.
 
     Yahoo quotes Johannesburg listings in South African cents, `ZAc`, which
-    cgt-calc has no rate for. AAA's request fails first, then NPN's price
-    cannot be converted, so the run ends with that error and no warning.
+    cgt-calc has no rate for. AAA's lookup fails first and its retry answers,
+    then NPN's price cannot be converted, so the run ends with that error and
+    no warning.
     """
+    lookups: list[str] = []
 
     def ticker(name: str) -> FakeTicker | FailingTicker:
+        lookups.append(name)
+        if lookups == ["AAA"]:
+            return FailingTicker(OFFLINE)
         if name == "NPN":
             return FakeTicker({"currentPrice": 5.0, "currency": "ZAc"})
-        return FailingTicker(OFFLINE)
+        return FakeTicker({"currentPrice": 5.0, "currency": "GBP"})
 
     status = _run_main(
         tmp_path,
         monkeypatch,
-        "2024-05-01,BUY,AAA,10,4.00,0,GBP\n2024-05-01,BUY,NPN,10,4.00,0,GBP\n",
+        "2024-05-01,BUY,AAA,10,4.00,0,GBP\n2024-05-02,BUY,NPN,10,4.00,0,GBP\n",
         ticker,
         "--unrealized-gains",
         "--spin-offs-file=",
     )
 
     assert status == 1
+    assert lookups == ["AAA", "AAA", "NPN"]
     alerts = stderr_alerts(capsys.readouterr().err)
     # The date in the message is today's.
     assert len(alerts) == 1

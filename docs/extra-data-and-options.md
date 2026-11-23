@@ -540,7 +540,10 @@ returned by Yahoo Finance, converts it to GBP and subtracts its Section 104 pool
 the holding's ISIN if known, then its ticker, then the ticker's London listing, so a price can come
 from another listing of the same security and a ticker can match a different security. If no usable
 price is returned, the holding is shown as `unknown`, omitted from the numeric **Unrealized gains**
-total and covered by a warning. Check unknown or unexpected estimates against your broker.
+total and covered by a warning. If a lookup fails, for example because you are offline, cgt-calc
+tries it once more. If that fails too, it stops asking: that holding and any not yet looked up are
+shown as `unknown` and named in the warning, so run cgt-calc again later to estimate them. Check
+unknown or unexpected estimates against your broker.
 
 This is a portfolio estimate, not the gain from an actual sale. It does not include selling costs or
 change the report's capital gains, losses or taxable figures. For an older report, the ending

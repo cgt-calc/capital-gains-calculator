@@ -590,7 +590,8 @@ class ClosingPriceRequestError(CgtError):
 class CurrentPriceRequestError(CgtError):
     """Raised when a request to Yahoo Finance for today's price fails.
 
-    The calculator catches it and names every such holding in one warning.
+    The calculator catches it, looks the holding up once more, and if that
+    fails too, stops asking and names it with the holdings left unasked.
     """
 
     def __init__(self, name: str):
