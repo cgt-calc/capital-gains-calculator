@@ -755,14 +755,14 @@ def test_after_a_lookup_fails_twice_the_later_holdings_are_not_asked(
 
     On a network that never answers, each lookup can take a minute to fail.
     The holdings are asked in the order first bought: CCC, NIL, BBB, then
-    AAA. CCC is priced. Yahoo has no price for NIL
-    under either name it is asked by, which is not a failed lookup: NIL is
-    neither asked again nor a reason to stop, and the warning leaves it out.
-    BBB's lookup fails, then its retry, so AAA is never asked. The warning
-    names BBB and AAA sorted, as the report lists them, and both are left out
-    of the estimate. CCC cost £40.00 for 10 and is worth £5.00 each today, an
-    unrealised gain of 10 x £5.00 - £40.00 = £10.00, which is the whole
-    total. The library's own warnings are left out.
+    AAA. CCC is priced. Yahoo has no price for NIL under either name it is
+    asked by, which is not a failed lookup: NIL is neither asked again nor a
+    reason to stop, and the warning leaves it out. BBB's lookup fails, then
+    its retry, so AAA is never asked. The warning names BBB and AAA sorted,
+    as the report lists them, and both are left out of the estimate. CCC cost
+    £40.00 for 10 and is worth £5.00 each today, an unrealised gain of
+    10 x £5.00 - £40.00 = £10.00, which is the whole total. The library's own
+    warnings are left out.
     """
     lookups: list[str] = []
 
