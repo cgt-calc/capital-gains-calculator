@@ -292,6 +292,7 @@ RunState
 RuntimeError
 RuntimeMode
 RUR
+s104
 s105
 s106A
 s115
@@ -322,6 +323,7 @@ s477
 s479
 s4B
 s58
+s60
 s62
 s64
 s8

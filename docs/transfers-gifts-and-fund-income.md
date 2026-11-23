@@ -17,6 +17,10 @@ column: cgt-calc reads only one.
 cgt-calc --year 2024 transactions.csv extra-rows.csv
 ```
 
+Shares you move between your own accounts need no row of their own when you include both brokers'
+exports: see
+[Shares you moved between your own accounts](#shares-you-moved-between-your-own-accounts).
+
 ## Transfers to a spouse or civil partner
 
 Shares given to a spouse or civil partner usually move at **no gain / no loss**: nothing is taxable
@@ -230,6 +234,132 @@ claim together with them, your cost is the market value less the gain held over
 ([s165](https://www.legislation.gov.uk/ukpga/1992/12/section/165),
 [s260](https://www.legislation.gov.uk/ukpga/1992/12/section/260)). Enter that reduced cost per share
 as the `price`.
+
+## Shares you moved between your own accounts
+
+Moving shares between taxable accounts in your own name, such as from one broker to another, is not
+a disposal. A broker usually holds your shares as your nominee, and the law treats shares held by a
+nominee as yours, and what the nominee does with them as done by you
+([TCGA 1992 s60](https://www.legislation.gov.uk/ukpga/1992/12/section/60)). The shares keep the
+dates and costs of their purchases. Shares of the same class that you hold at several brokers are
+also one holding, your Section 104 pool
+([s104](https://www.legislation.gov.uk/ukpga/1992/12/section/104)).
+
+cgt-calc treats them the same way: it combines a security's rows from every file in a run into one
+holding, and the same-day and 30-day rules can match a sale at one broker with a purchase at
+another. What you add depends on which brokers' exports you have and cgt-calc can read: treat a
+broker that cgt-calc does not support (see [Brokers](brokers/index.md)) as one whose export you do
+not have.
+
+### Both brokers' exports
+
+Pass both exports in one run, as for any two brokers. The old broker's export has the purchases and
+the new broker's the later sales, so the move itself needs no row.
+
+If the run stops at a row for the move, remove that row from a working copy of the export, and keep
+the download unchanged for your records. Trading 212's `Transfer in` and `Transfer out` rows stop
+the run, and so does a Schwab `Security Transfer` row for shares, which has a quantity but no amount
+and stops with `Amount missing`. Also remove a row that records the shares arriving as a purchase,
+such as a `Buy` you entered in Sharesight for the move: cgt-calc reads it as another purchase, so
+the shares are counted twice. A row for the move that does neither needs no change: the
+[checks below](#check-the-result) show whether the result is right.
+
+### Only the new broker's export
+
+If you no longer have the old broker's export, or cgt-calc cannot read it, record the shares'
+history there in your RAW file:
+
+1. Add a `BUY` row for each purchase of the shares, dated on the day you bought them, with the price
+    and fees you paid. The old broker's statements or contract notes give these. For shares that
+    vested there, add a `STOCK_ACTIVITY` row instead, as the
+    [RAW actions](brokers/raw.md#actions-to-use) describe, dated on the day your employer taxed the
+    shares as income and at their market value that day. That is usually the vest date, but it can
+    be another day, such as the day the shares were issued: your award statement or payslip, or your
+    payroll team, can tell you which. Also add every other change to the holding there: a sale, a
+    split, or income added to accumulation units, which adds to the holding's cost (see
+    [Income reinvested in accumulation units](#income-reinvested-in-accumulation-units)).
+2. Fund each `BUY` with a `TRANSFER` row on the same date and in the same currency. A RAW row with
+    no `broker` uses the RAW file's own `Unknown` balance, and without the money for the purchase
+    that balance goes negative and the run stops with
+    [`Reached a negative balance`](brokers/raw.md#reached-a-negative-balance-for-broker-unknown) for
+    broker `Unknown`. The deposit stands for the money you paid in at the old broker and does not
+    change any other broker's balance. Deposit only what the cash already in your RAW file does not
+    cover: a deposit you have recorded or the proceeds of a sale can pay for some or all of the
+    purchase, and money recorded twice leaves cash you never had in the final balance. With no other
+    cash in the file, as in the example below, deposit what the purchase cost including fees.
+3. If the new broker's export has a row for the shares arriving that stops the run or records them
+    as a purchase, remove it from a working copy, as above.
+
+For 100 `ACME` bought at £10.00 with a £5.00 fee on 2 May 2023:
+
+```csv
+2023-05-02,TRANSFER,,1,1005.00,0.00,GBP
+2023-05-02,BUY,ACME,100,10.00,5.00,GBP
+```
+
+!!! warning "Date each purchase on the day you made it"
+
+    Do not date the shares on the day they moved, even if the new broker shows them arriving with
+    their cost. A purchase dated then can be matched with a sale of the same shares on that day or
+    in the 30 days before it, which gives a wrong gain without an error.
+
+### Only the old broker's export
+
+cgt-calc then counts the shares as still held after the move, which is right, since they are still
+yours. Add what happened to the security at the new broker as RAW rows: each sale as a `SELL`, each
+purchase as a `BUY` funded as in step 2 above, a split or consolidation as the
+[checks below](#check-the-result) describe under "A later split", and income added to accumulation
+units as [described below](#income-reinvested-in-accumulation-units). Without them, a sale is
+missing from the report or its cost is wrong. If the old broker's export has a row for the move that
+stops the run, remove it from a working copy.
+
+### Check the result
+
+As well as the [usual checks](usage.md#check-the-result):
+
+- **One holding under one ticker.** Check that both brokers' exports, and your RAW rows, give the
+    security the same ticker. cgt-calc combines only the ticker pairs it already supports, so `ACME`
+    at one broker and `ACME.L` at the other stay two holdings. A sale at the new broker can then be
+    costed from the shares under its own ticker alone, which gives a wrong gain without an error,
+    even when the portfolio section looks right. Depending on the rows, the run may instead stop
+    with `Tried to sell` or, when both exports give the ISIN, with `does not match`. Give every row
+    the same ticker, in your RAW rows or in a working copy of the export. Do not add both tickers to
+    an [ISIN translation](extra-data-and-options.md#isin-to-ticker-translation) file instead: that
+    does not combine the holdings, and it removes the `does not match` stop without correcting the
+    result.
+- **A later split.** If the security is split or consolidated after the move, add a RAW
+    `STOCK_SPLIT` row for the change to the whole holding, as
+    [Holdings spread across brokers](brokers/raw.md#holdings-spread-across-brokers) describes, even
+    when the run succeeds without it: cgt-calc then uses it instead of the brokers' split rows for
+    that event. A broker's single split row, such as Schwab's `Stock Split`, states the change to
+    its own account only, so after a move of part of the holding cgt-calc can accept it and leave
+    the shares that moved out of the change, which gives a wrong gain without an error. The
+    exception is Trading 212's `Stock split close` and `Stock split open` rows, which state the
+    account's whole position before and after: if the run accepts them, leave them in place without
+    a RAW row. If it refuses them, for example because part of the holding moved out of Trading 212,
+    add the RAW row. A RAW row replaces only split rows that cgt-calc can read: if the run stops
+    because it cannot read a broker's row at all, see that broker's guide.
+- **What you hold.** Compare the quantity of each holding in the portfolio section with the total
+    you held across your brokers on the date in its heading. Some exports drop a row for shares
+    arriving without a message. If the shares' history is missing and you have not sold them, the
+    holding is missing from the portfolio section or its quantity is too low, and nothing else in
+    the report shows it.
+
+Only the rows that Trading 212 and Schwab write for a move have been checked. Another broker's
+export may label the move differently: if the run stops at a row that you can tell is the move,
+remove it in the same way.
+
+These steps cover moves between taxable accounts in your own name only:
+
+- Shares that went to or came from anyone else are not a move between your own accounts. See
+    [Transfers to a spouse or civil partner](#transfers-to-a-spouse-or-civil-partner),
+    [Gifts to anyone else](#gifts-to-anyone-else) and
+    [Shares you were given or inherited](#shares-you-were-given-or-inherited).
+- A move between a taxable account and an ISA or a pension, or one that changed the shares into
+    another class or type of units, such as a fund's units converting to another class, is not
+    covered. Work that holding out separately (consider professional advice).
+- Two accounts at the same broker may not combine in one run: check that broker's guide, such as the
+    [Trading 212 known limitations](brokers/trading212.md#known-limitations).
 
 ## Income reinvested in accumulation units
 
