@@ -29,6 +29,10 @@ plan, and Sharesight requires equity grants to be recorded in a particular way.
 If your broker is not listed, try the [RAW format](raw.md). Contributions for new brokers are very
 welcome: see [Adding a broker](../development/adding-a-broker.md).
 
+cgt-calc reads no export from a cryptoasset exchange or wallet. See
+[Cryptoassets](raw.md#cryptoassets) for what it calculates from rows you write, and for tools that
+read those exports.
+
 ## Dates and time zones
 
 UK share matching and the tax year boundary run on UK calendar days. [Freetrade](freetrade.md),
