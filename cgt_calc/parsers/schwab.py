@@ -366,6 +366,11 @@ class SchwabTransaction(BrokerTransaction):
                 ) from exc
         symbol_header = RequiredTransactionsColumn.SYMBOL.value
         symbol = row_dict[symbol_header] if row_dict[symbol_header] != "" else None
+        # A share transfer stopped above, so a TRANSFER left moves cash only.
+        # A Cash In Lieu or Service Fee row can still name the share it was
+        # paid for. Clear it, or the row reads as a move of that share.
+        if action == ActionType.TRANSFER:
+            symbol = None
         option_contract = None
         if action in {
             ActionType.OPTION_GRANT,

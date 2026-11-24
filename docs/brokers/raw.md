@@ -525,8 +525,10 @@ fee goes on its `EXCHANGE` row: see
 ### Moving an asset between your own wallets
 
 Moving an asset between wallets or exchange accounts you own is not a disposal, as you own it
-throughout, so it needs no row of its own. Its fee is, when paid in an asset. Write a `TRANSFER` row
-naming the asset moved, the units moved as `quantity` and `0` as `price`, with the fee as above:
+throughout (see
+[Shares you moved between your own accounts](../transfers-gifts-and-fund-income.md#shares-you-moved-between-your-own-accounts)),
+so it needs no row of its own. Its fee is, when paid in an asset. Write a `TRANSFER` row naming the
+asset moved, the units moved as `quantity` and `0` as `price`, with the fee as above:
 
 ```csv
 date,action,symbol,quantity,price,fees,currency,fee_symbol,fee_quantity
@@ -539,8 +541,8 @@ against £5.00 of its cost. The 1.5 ETH moved stays in your holding, which cgt-c
 whichever wallet the units are in. The move is neither a disposal nor an acquisition, so the fee is
 not added to the cost of anything: it only appears as this disposal.
 
-The asset and the units moved are for your records: cgt-calc does not check them against your
-holding, and only the fee changes the figures.
+cgt-calc checks that you hold the units moved, across every file in the run, and stops if you do
+not. Only the fee changes the figures.
 
 ### Any other payment
 

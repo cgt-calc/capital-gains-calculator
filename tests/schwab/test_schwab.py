@@ -17,6 +17,7 @@ from cgt_calc.parsers.schwab import (
     SchwabTransaction,
     action_from_str,
 )
+from tests.general.test_calc import create_calculator, get_report
 from tests.schwab.helpers import load_via_cli
 from tests.utils import (
     assert_stdout_matches,
@@ -531,6 +532,43 @@ def test_a_transfer_row_without_a_quantity_is_cash(tmp_path: Path, label: str) -
     assert transaction.action is ActionType.TRANSFER
     assert transaction.amount == Decimal("1000.00")
     assert transaction.quantity is None
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        "06/03/2024,Cash In Lieu,GOOG,ALPHABET INC,,,,$12.34\n",
+        "06/03/2024,Cash In Lieu,WBD,WARNER BROS,,,,$12.34\n",
+        "06/03/2024,Service Fee,GOOG,ALPHABET INC,,,,-$12.34\n",
+    ],
+    ids=["held share", "share not held", "service fee"],
+)
+def test_a_cash_row_naming_a_share_moves_cash_only(tmp_path: Path, row: str) -> None:
+    """The share a cash row names is dropped, so the row moves no shares.
+
+    The sale's gain is the same as without the row.
+    """
+    trades = (
+        "07/10/2024,Sell,GOOG,ALPHABET INC,$180,10,$0,$1800\n"
+        "05/01/2024,Buy,GOOG,ALPHABET INC,$160,20,$0,-$3200\n"
+        "05/01/2024,Wire Funds Received,,WIRED FUNDS RECEIVED,,,,$5000\n"
+    )
+    with_cash = tmp_path / "with_cash.csv"
+    with_cash.write_text(SCHWAB_HEADER + row + trades)
+    without_cash = tmp_path / "without_cash.csv"
+    without_cash.write_text(SCHWAB_HEADER + trades)
+
+    transactions = SchwabParser.load_from_file(with_cash)
+    (cash,) = (t for t in transactions if t.action is ActionType.TRANSFER)
+    report = get_report(create_calculator(tax_year=2024), transactions)
+    expected = get_report(
+        create_calculator(tax_year=2024), SchwabParser.load_from_file(without_cash)
+    )
+
+    assert cash.symbol is None
+    assert abs(cash.amount or 0) == Decimal("12.34")
+    assert report.gains_by_date == expected.gains_by_date
+    assert report.disposal_count == 1
 
 
 def test_stock_split_ignores_schwab_informational_price() -> None:

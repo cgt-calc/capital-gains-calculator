@@ -1149,6 +1149,10 @@ class SchwabAwardTransaction(BrokerTransaction):
             price = None
             amount = _parse_cash_amount(row, names, self.raw_action, date, file)
             description = self.raw_action
+            # A Cash In Lieu row can name the share it was paid for. The row
+            # moves cash only, so clear it, or it reads as a move of that share.
+            if action is ActionType.TRANSFER:
+                symbol = None
         else:
             raise ParsingError(
                 file, f"Parsing for action {row[names.action]} is not implemented!"

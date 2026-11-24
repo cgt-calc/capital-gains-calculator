@@ -364,6 +364,22 @@ def test_forced_disbursement_parses_as_transfer() -> None:
     assert transaction.quantity is None or transaction.quantity == 0
 
 
+def test_cash_in_lieu_naming_a_share_moves_cash_only() -> None:
+    """The share a Cash In Lieu row names is dropped: it moves no shares."""
+    content = (
+        '{"Transactions": [{"Date": "06/03/2024", "Action": "Cash In Lieu",'
+        ' "Symbol": "GOOG", "Quantity": null, "Description": "Cash In Lieu",'
+        ' "FeesAndCommissions": null, "DisbursementElection": null,'
+        ' "Amount": "$12.34", "TransactionDetails": []}]}'
+    )
+
+    (transaction,) = _read_json(content)
+
+    assert transaction.action == ActionType.TRANSFER
+    assert transaction.symbol is None
+    assert transaction.amount == Decimal("12.34")
+
+
 def test_gift_parses_as_gift() -> None:
     """Parse a gift of shares: quantity moves, no money does."""
     content = (
