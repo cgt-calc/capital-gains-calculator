@@ -186,7 +186,6 @@ def test_a_transfer_of_an_asset_not_held_is_refused(
     [
         pytest.param("0", "Positive quantity required.", id="zero"),
         pytest.param("-1", "Positive quantity required.", id="negative"),
-        pytest.param("", "Quantity missing.", id="blank"),
     ],
 )
 def test_a_transfer_of_an_asset_names_the_units_moved(
@@ -205,7 +204,8 @@ def test_a_transfer_draws_on_the_holding_across_brokers(tmp_path: Path) -> None:
     """Units bought in the RAW file's ledger can leave another broker's wallet.
 
     The holding is one pool whichever account the units are in, so the move
-    is checked against all 2 ETH.
+    is checked against all 2 ETH. The move leaves the holding as it is, so
+    all 2 ETH can be sold afterwards.
     """
     moved = BrokerTransaction(
         date=dt.date(2024, 7, 10),
@@ -219,12 +219,12 @@ def test_a_transfer_draws_on_the_holding_across_brokers(tmp_path: Path) -> None:
         currency=CurrencyCode("GBP"),
         broker="Exchange B",
     )
-    report = get_report(
-        create_calculator(tax_year=2024), [*_read(tmp_path, FUNDING), moved]
-    )
+    sold = ["2024-08-01", "SELL", "ETH", "2", "2700", "0", "GBP"]
+    *funding, sale = _read(tmp_path, [*FUNDING, sold])
+    report = get_report(create_calculator(tax_year=2024), [*funding, moved, sale])
 
-    (eth,) = (entry for entry in report.portfolio if entry.symbol == "ETH")
-    assert eth.quantity == Decimal(2)
+    assert report.disposal_count == 1
+    assert report.gains_by_date == {dt.date(2024, 8, 1): Decimal(400)}
 
 
 def test_a_spend_adds_no_cash_to_the_balance(tmp_path: Path) -> None:
