@@ -4,7 +4,8 @@ cgt-calc reads a simple seven-column CSV when your broker is not supported or wh
 supported event that its export does not identify. You write this file yourself from the broker's
 records; it is not the CSV that a broker supplies. For a transfer to or from a spouse or civil
 partner, a gift you made or received, an inheritance, or income an accumulation fund keeps, start
-with [Transfers, gifts and fund income](../transfers-gifts-and-fund-income.md).
+with [Transfers, gifts and fund income](../transfers-gifts-and-fund-income.md). For cryptoassets,
+start with [Cryptoassets](#cryptoassets).
 
 ## Create the CSV
 
@@ -443,6 +444,54 @@ The error names the RAW row:
     row; it then stays in the RAW file's own `Unknown` balance.
 - **`A row that replaces a row of a broker export names that broker`**: fill in `broker`.
 
+## Cryptoassets
+
+cgt-calc reads no export from a cryptoasset exchange or wallet, so you write your cryptoasset
+transactions as RAW rows. Tokens of one type that are dealt in without identifying the particular
+tokens, as bitcoin and ether are, form a Section 104 holding, and the same-day and 30-day rules
+match them, as they do shares
+([CRYPTO22200](https://www.gov.uk/hmrc-internal-manuals/cryptoassets-manual/crypto22200)), so
+cgt-calc calculates their gains the same way. Use the token's ticker, such as `ETH`, as `symbol`.
+
+| What happened                                           | What to write                                                                                                                                                                                                                   |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| You bought tokens with cash or sold them for it         | A `BUY` or `SELL` row, as for shares                                                                                                                                                                                            |
+| You swapped one token for another                       | An [`EXCHANGE` row](#exchange-one-asset-for-another)                                                                                                                                                                            |
+| You paid for something in tokens, a fee included        | A [`SPEND` row or the fee columns](#pay-with-an-asset)                                                                                                                                                                          |
+| You moved tokens between your own wallets               | Nothing, unless the fee was paid in an asset: see [Moving an asset](#moving-an-asset-between-your-own-wallets)                                                                                                                  |
+| You received tokens as income, such as a staking reward | Usually a [`REWARD` row](#assets-received-as-income). That section says which row to write instead for tokens from an employer or an airdrop, and what lending tokens can do                                                    |
+| You gave tokens away                                    | A `GIFT` row: see [Gifts to anyone else](../transfers-gifts-and-fund-income.md#gifts-to-anyone-else), or [the rows for a spouse or civil partner](../transfers-gifts-and-fund-income.md#transfers-to-a-spouse-or-civil-partner) |
+
+Run cryptoassets separately from shares, with a RAW file of their own. The SA108 return has its own
+section for cryptoassets, and a single report would add the two together. A coin with the same
+ticker as a share, such as `BTC`, would also be pooled with it. To combine the two reports' figures,
+see [Two securities in separate runs](../extra-data-and-options.md#two-securities-in-separate-runs).
+
+A [Sharesight](sharesight.md) export is the exception to writing the rows yourself. cgt-calc reads
+the cryptoasset trades you recorded in Sharesight with the export's other rows, under a symbol such
+as `FX:ETH`, and reports their gains with your shares'. Do not write those trades again as RAW rows.
+
+cgt-calc leaves these to you:
+
+- **Collecting the transactions.** You gather them from every exchange and wallet you used, and
+    decide which transfers were between your own wallets. cgt-calc cannot tell such a move from a
+    payment to someone else, which is a disposal. Date each row by UK time: an exchange may record
+    times in another time zone, and matching runs on
+    [UK calendar days](index.md#dates-and-time-zones).
+- **Market values.** cgt-calc looks up no cryptoasset prices. Each row that moves no cash needs the
+    market value at the time, in the row's `currency`. Leave out `--unrealized-gains` too: it asks
+    Yahoo Finance for today's price of the ticker as a share, and a coin's ticker can be another
+    security there.
+- **Non-fungible tokens (NFTs).** NFTs are separately identifiable, so they are not pooled or
+    matched (CRYPTO22200). cgt-calc pools and matches every row with the same `symbol` and does not
+    know that a token is an NFT, so work out gains on NFTs outside cgt-calc.
+
+If you used many exchanges or wallets, a tool built for cryptoassets may suit you better: it reads
+their exports and calculates the gains itself. [BittyTax](https://github.com/BittyTax/BittyTax) is
+free and open source, is written for UK tax rules, and reads the exports of many exchanges and
+wallets. Commercial services such as Koinly do the same online. These are separate from cgt-calc,
+which has not checked their figures.
+
 ## Exchange one asset for another
 
 An `EXCHANGE` row records giving up one asset for another with no cash changing hands, such as
@@ -456,11 +505,8 @@ paid in a third asset is a disposal of that asset too.
 
 Don't use `EXCHANGE` for a takeover or a share-for-share exchange of a company's shares. Those are
 usually not disposals: the new shares take over the old ones' cost. See
-[Share reorganisations](#share-reorganisations).
-
-Run cryptoassets separately from shares, with a RAW file of their own. The SA108 return has its own
-section for cryptoassets, and a single report would add the two together. A coin with the same
-ticker as a share, such as `BTC`, would also be pooled with it.
+[Share reorganisations](#share-reorganisations). For cryptoassets, read
+[Cryptoassets](#cryptoassets) first.
 
 Add these four columns to the header. Leave them blank on every other row, except for a fee paid in
 an asset: see [Pay with an asset](#pay-with-an-asset).
@@ -683,9 +729,10 @@ Four refusals protect a holding from being pooled with another security:
 - For the same reason, a ticker that is both a London fund's and a US security's, such as `OPEN`, is
     matched to the fund, with a warning, unless the row's `market` says which. See
     [Say which market a ticker is from](#say-which-market-a-ticker-is-from).
-- The format does not identify the instrument type. It is intended for ordinary shares and funds; do
-    not rely on it for options, futures, bonds, contracts for difference, crypto assets or another
-    instrument whose UK tax treatment differs.
+- The format does not identify the instrument type. It is intended for ordinary shares and funds,
+    and for the cryptoasset transactions that [Cryptoassets](#cryptoassets) describes; do not rely
+    on it for options, futures, bonds, contracts for difference or another instrument whose UK tax
+    treatment differs.
 - The seven columns cannot describe every internal action. Ticker renames and cancelled purchases
     are examples that a RAW row cannot express; use only the documented actions above.
 
