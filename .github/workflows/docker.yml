@@ -34,6 +34,7 @@ jobs:
           # Full history and tags, from which the image's build takes its
           # version: a release tag's own, or a post-release of it on main.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
@@ -82,6 +83,7 @@ jobs:
           # Full history and tags, from which the image's build takes its
           # version: a release tag's own, or a post-release of it on main.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
@@ -142,11 +144,14 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Create multi-arch manifest
+        env:
+          AMD64_DIGEST: ${{ needs.build-amd64.outputs.digest }}
+          ARM64_DIGEST: ${{ needs.build-arm64.outputs.digest }}
         run: |
           docker buildx imagetools create \
             $(jq -cr '.tags | map("--tag " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            "$IMAGE@${{ needs.build-amd64.outputs.digest }}" \
-            "$IMAGE@${{ needs.build-arm64.outputs.digest }}"
+            "$IMAGE@$AMD64_DIGEST" \
+            "$IMAGE@$ARM64_DIGEST"
 
       - name: Inspect manifest
         run: |

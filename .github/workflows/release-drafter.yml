@@ -5,15 +5,16 @@ on:
     branches:
       - main
 
-permissions:
-  contents: write
-  pull-requests: read
+permissions: {}
 
 jobs:
   draft_release:
     name: Release Drafter
     if: github.repository_owner == 'cgt-calc'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
     steps:
       - name: Run release-drafter
         uses: release-drafter/release-drafter@d1a19e60e81a7e650d00a7de9277f87e439117ea # v7.11.0

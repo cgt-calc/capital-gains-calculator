@@ -7,6 +7,8 @@ on:
     types:
       - completed
 
+permissions: {}
+
 concurrency:
   group: docs-preview-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: true
@@ -202,11 +204,12 @@ jobs:
         if: steps.pr.outputs.number && steps.compare.outputs.unchanged != 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          URL: ${{ steps.facts.outputs.url }}
         run: |
           gh api --method POST "repos/${GH_REPO}/statuses/${HEAD_SHA}" \
             -f state=success -f context="${STATUS_CONTEXT}" \
             -f description="Preview ready" \
-            -f target_url="${{ steps.facts.outputs.url }}"
+            -f target_url="${URL}"
 
       - name: Comment preview link
         if: steps.pr.outputs.number && steps.compare.outputs.unchanged != 'true'
